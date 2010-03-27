@@ -1,0 +1,24 @@
+
+
+pscmm.c and pscmm.h are the core part of PathScale memory manager which is part of nouveau kernel driver.
+The ioctls reserved from current nouveau will not be shown here. They includes nouveau_ioctl_fifo_alloc, nouveau_ioctl_fifo_free, nouveau_ioctl_grobj_alloc nouveau_ioctl_notifier_alloc and etc.
+
+It assume that 
+    VRAM can be divided into two parts, non-page and page.
+    non-page includes scanout, hardware-status page etc which will not be evicted and shared by all channels.
+    page part for user bos. pscmm files are only focus on user bo alloc/free, evict, move, mmap, exec and etc. 
+
+For bo alloc/free, it use the algorithm in drm_mm.c (buddy). 
+For bo evict/replacement, it introduce a no_evicted list to track the no_evicted bo. For other bo, it will use modified CAR to do replacement if the VRAM is full.
+
+For more detail, please check the pscmm plan.
+
+By now, it's only a skeletal code, can't be build or use. More implement will be next. 
+
+Any feedback or suggestions, please send to me lkice@hotmail.com.
+
+
+
+
+
+
