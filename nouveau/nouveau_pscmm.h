@@ -24,104 +24,6 @@
  * Use is subject to license terms.
  */
 
-#define BLOCK_SIZE	PAGE_SIZE
-
-#define NOUVEAU_PSCMM_DOMAIN_CPU       (1 << 0)
-#define NOUVEAU_PSCMM_DOMAIN_VRAM      (1 << 1)
-#define NOUVEAU_PSCMM_DOMAIN_GART      (1 << 2)
-
-enum list_type {
-	no_list,
-	T1,
-	T2,
-	B1,
-	B2,
-	no_evicted,
-};
-
-struct drm_nouveau_private {
-
-	/* ............. */
-
-	struct pscmm_core *fb_block;
-
-	struct list_head T1_list;
-	struct list_head T2_list;
-	struct list_head B1_list;
-	struct list_head B2_list;
-
-	uint32_t T1_num;
-	uint32_t T2_num;
-	uint32_t B1_num;
-	uint32_t B2_num;
-
-	uint32_t total_block_num;		//total block number
-	uint32_t free_block_num;		//free block number
-	uint32_t p = 0;					//
-
-	struct list_head no_evicted_list;		//the bo which don't evicted
-};
-
-struct pscmm_core {
-
-	// VRAM is split in block (could be page or bigger than page)
-
-	// which channel each block belongs
-
-	uint32_t *currentblockin;
-
-	//
-	struct drm_mm core_manager;	//VRAM phy mem manager
-#if 0
-	// Does the block pined?
-
-	bool *block_pin;
-	// block was allocated 1:allocated 0: no
-	bool *block_used;
-#endif
-
-
-};
-
-struct pscmm_channel {
-	// this structure is private to each channel, it a simple bitmap used
-
-	// to allocate GPU memory on behalf of the channel (one bit perblock)
-
-	// allocation is only about finding enough 0 adjacent bit
-
-	uint64_t bitmap_block;
-};
-
-struct pscmm_bo {
-
-	u32 placements;
-	struct pscmm_channel *channel;
-
-	uint32_t tile_mode;
-	uint32_t tile_flags;
-	struct nouveau_tile_reg *tile;
-
-	struct drm_gem_object *gem;
-
-	uint32_t nblock;		//VRAM is split in block; the number of blocks
-	uintptr_t firstblock;	//GPU vm address
-	
-	uintptr_t *block_array;	//the GPU physical address at which the bo is
-	struct drm_mm_node *block_offset_node;	//same as block_array, used in drm_mm
-
-	boot swap_out;		//the bo has been swap out
-
-	struct list_head list;	//The object's place on the T1/T2/B1/B2 no_evict list
-	enum list_type type;	//The object's in which listes
-	enum list_type old_type;	//The object's in which listes before
-
-	// bo reference bit
-	bool bo_ref;
-
-	
-};
-
 struct drm_nouveau_pscmm_new {
 
 	/**
@@ -360,3 +262,20 @@ struct drm_nouveau_pscmm_exec_object {
 
 };
 
+
+#define DRM_NOUVEAU_GETPARAM           0x00
+#define DRM_NOUVEAU_SETPARAM           0x01
+#define DRM_NOUVEAU_CHANNEL_ALLOC      0x02
+#define DRM_NOUVEAU_CHANNEL_FREE       0x03
+#define DRM_NOUVEAU_GROBJ_ALLOC        0x04
+#define DRM_NOUVEAU_NOTIFIEROBJ_ALLOC  0x05
+#define DRM_NOUVEAU_GPUOBJ_FREE        0x06
+#define DRM_NOUVEAU_PSCMM_NEW            0x40
+#define DRM_NOUVEAU_PSCMM_MMAP        0x41
+#define DRM_NOUVEAU_PSCMM_RANGE_FLUSH       0x42
+#define DRM_NOUVEAU_PSCMM_READ       0x43
+#define DRM_NOUVEAU_PSCMM_WRITE           0x44
+#define DRM_NOUVEAU_PSCMM_MOVE           0x45
+#define DRM_NOUVEAU_PSCMM_EXEC           0x46
+#define DRM_NOUVEAU_PSCMM_CHAN_MAP           0x47
+#define DRM_NOUVEAU_PSCMM_CHAN_UNMAP           0x48

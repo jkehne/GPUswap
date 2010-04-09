@@ -41,12 +41,14 @@
   * Features: I think most of the bos are used only once. swap cost to much.
   */
 
+#define USE_REFCNT (dev_priv->card_type >= NV_10)
+static timeout_id_t worktimer_id;
 
 /*
   * need a algorithm to find the free page more efficiently and less fragment.
   */
 uintptr_t *
-get_new_space(struct pscmm_bo *nvbo, 
+get_new_space(struct nouveau_bo *nvbo, 
 				struct drm_nouveau_private* dev_priv, uint32_t bnum)
 {
 
@@ -72,11 +74,11 @@ get_new_space(struct pscmm_bo *nvbo,
 }
 
 uintptr_t *
-evict_somthing(struct pscmm_bo *nvbo, 
+evict_somthing(struct nouveau_bo *nvbo, 
 				struct drm_nouveau_private* dev_priv, uint32_t bnum)	
 {
 	uintptr_t *block_array;
-	struct pscmm_bo *nvbo_tmp;
+	struct nouveau_bo *nvbo_tmp;
 	int i, j;
 	int num = 0;
 	int found;
@@ -88,7 +90,7 @@ again:
 	found = 0;
 	do {
 		if (dev_priv->T1_num >= max(1, p)) {
-			nvbo_tmp = list_first_entry(dev_priv->T1_list, struct pscmm_bo, list);
+			nvbo_tmp = list_first_entry(dev_priv->T1_list, struct nouveau_bo, list);
 			if (nvbo_tmp->bo_ref == 0) {
 				found = 1;
 				/* swap nvbo */
@@ -105,7 +107,7 @@ again:
 				nvbo_tmp->type = T2;
 			}
 		} else {
-			nvbo_tmp = list_first_entry(dev_priv->T2_list, struct pscmm_bo, list);
+			nvbo_tmp = list_first_entry(dev_priv->T2_list, struct nouveau_bo, list);
 			if (nvbo_tmp->bo_ref == 0) {
 				found = 1;
 				/* swap nvbo */
@@ -135,7 +137,7 @@ again:
 
 
 uintptr_t *
-find_mem_space(struct drm_nouveau_private* dev_priv, struct pscmm_bo *nvbo,
+find_mem_space(struct drm_nouveau_private* dev_priv, struct nouveau_bo *nvbo,
 					uint32_t bnum, bool no_evicted)
 {
 
@@ -150,7 +152,7 @@ find_mem_space(struct drm_nouveau_private* dev_priv, struct pscmm_bo *nvbo,
   * 4. CAR is used for replacement, need a good aglorithm to search free page in VRAM more efficiently, using drm_mm?
   * 5. if the bo was del, it will be removed directly from list.
   */
-	struct pscmm_bo *temp;
+	struct nouveau_bo *temp;
 	uintptr_t *block_array;
 	if (bnum <= dev_priv->free_block_num) {
 		
@@ -163,13 +165,13 @@ find_mem_space(struct drm_nouveau_private* dev_priv, struct pscmm_bo *nvbo,
 		if ((nvbo->type != B1) && (nvbo->type != B2) &&
 			((dev_priv->B1_num + dev_priv->T1_num) >= dev_priv->total_block_num)) {
 			
-			temp = list_first_entry(dev_priv->B1_list, struct pscmm_bo, list);
+			temp = list_first_entry(dev_priv->B1_list, struct nouveau_bo, list);
 			list_del(&temp->list);
 			dev_priv->B1_num -= temp->nblock;
 		} else if ((nvbo->type != B1) && (nvbo->type != B2) &&
 				((dev_priv->B1_num + dev_priv->T1_num + 
 				dev_priv->B2_num + dev_priv->T2_num) >= dev_priv->total_block_num * 2)) {
-			temp = list_first_entry(dev_priv->B2_list, struct pscmm_bo, list);
+			temp = list_first_entry(dev_priv->B2_list, struct nouveau_bo, list);
 			list_del(&temp->list);
 			dev_priv->B2_num -= temp->nblock;
 		}
@@ -203,14 +205,7 @@ find_mem_space(struct drm_nouveau_private* dev_priv, struct pscmm_bo *nvbo,
 	dev_priv->free_block_num -= bnum;
 
 	if (no_evicted) {
-		nvbo->old_type= nvbo->type;
-		nvbo->type= no_evicted;
-
-		list_move_tail(&nvbo->list, &dev_priv->no_evicted_list);
-		if (nvbo->old_type == T1)
-			dev_priv->T1_num-=nvbo->nblock;
-		else
-			dev_priv->T2_num-=nvbo->nblock;
+		pscmm_set_no_evicted(dev_priv, nvbo);
 	}
 	
 	return block_array;
@@ -225,7 +220,7 @@ find_mem_space(struct drm_nouveau_private* dev_priv, struct pscmm_bo *nvbo,
   * Update each block's status - pin/unpin
   */
 void
-free_blocks(pscmm_bo* nvbo)
+free_blocks(nouveau_bo* nvbo)
 {
 	int i;
 	int nblock;
@@ -234,16 +229,16 @@ free_blocks(pscmm_bo* nvbo)
 }
 
 /* Alloc mem from VRAM */
-pscmm_bo *
+nouveau_bo *
 pscmm_alloc(struct drm_nouveau_private* dev_priv, size_t bo_size, bool no_evicted)
 {
-	struct pscmm_bo *nvbo;
+	struct nouveau_bo *nvbo;
 	uintptr_t *block_array;
 	uint32_t bnum;
 	int ret;
 
 	bnum = bo_size / BLOCK_SIZE;
-	nvbo = kzalloc(sizeof(struct pscmm_bo), GFP_KERNEL);
+	nvbo = kzalloc(sizeof(struct nouveau_bo), GFP_KERNEL);
 
 	/* find the blank VRAM and reserve */
 	block_array = find_mem_space(dev_priv, nvbo, bnum, no_evicted);
@@ -252,13 +247,13 @@ pscmm_alloc(struct drm_nouveau_private* dev_priv, size_t bo_size, bool no_evicte
 
 	nvbo->nblock = bnum;		//VRAM is split in block 
 	nvbo->block_array = block_array;			//the GPU physical address at which the bo is
-	
-	
+
+
 	return nvbo;
 }
 
 void
-pscmm_free(pscmm_bo* nvbo)
+pscmm_free(nouveau_bo* nvbo)
 {
 
 	/* remove from T1/T2/B1/B2 */
@@ -267,36 +262,153 @@ pscmm_free(pscmm_bo* nvbo)
 	kfree(nvbo);
 }
 
-int
-pscmm_channel_map(struct pscmm_channel *chan, struct pscmm_bo *nvbo, 
-			uint32_t low, uint32_t tail_flags, uintptr_t addr_ptr)
+uintptr_t
+nouveau_channel_map(struct drm_device *dev, struct nouveau_channel *chan, struct nouveau_bo *nvbo, 
+			uint32_t low, uint32_t tail_flags)
 {
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	uintptr_t addr_ptr;
 	int ret;
 
 	/* Get free vm from per-channel page table using the function in drm_mm.c or bitmap_block*/
-
 	/* bind the vm with the physical address in block_array */
+       /* Since the per-channel page table init at the channel_init and not changed then, */
+	addr_ptr = nvbo->block_offset_node->start  + dev_priv->vm_vram_base;
 
-	/* if use bitmap_block then update in pscmm_channel */
+	/* bind the vm */
+	/* need? */
+	ret = nv50_mem_vm_bind_linear(dev,
+			nvbo->block_offset_node->start + dev_priv->vm_vram_base,
+			nvbo->gem->size, nvbo->tile_flags,
+			nvbo->block_offset_node->start);
+	if (ret) {
+		NV_ERROR(dev, "Failed to bind");
+			return NULL;
+	}
+	/* if use bitmap_block then update in nouveau_channel, no need by now*/
+
+
+	nvbo->channel = chan;
+	nvbo->tile_flags = tail_flags;
+	nvbo->firstblock = addr_ptr;
+	nvbo->low = low;
+		
+	return addr_ptr;
+}
+
+int
+nouveau_channel_unmap(struct drm_device *dev,
+							struct nouveau_channel *chan, struct nouveau_bo *nvbo)
+{
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	int ret;
+	
+	/* unbind */
+	/* need? */
+	nv50_mem_vm_unbind(dev, nvbo->block_offset_node->start + dev_priv->vm_vram_base, nvbo->gem->size);
+	/* drm_mm_put_block or update the bitmap_block in nouveau_channel */
+	nvbo->channel = NULL;
 	
 	return ret;
 }
 
-int
-pscmm_channel_unmap(struct pscmm_channel *chan, struct pscmm_bo *nvbo)
+static int
+pscmm_move_memcpy(struct drm_nouveau_private* dev_priv,  
+				struct drm_gem_object* gem, struct nouveau_bo *nvbo, 
+				uint32_t old_domain, uint32_t new_domain, bool no_evicted)
 {
+	
+}
+static int
+pscmm_move_m2mf(struct drm_nouveau_private* dev_priv,  
+				struct drm_gem_object* gem, struct nouveau_bo *nvbo, 
+				uint32_t old_domain, uint32_t new_domain, bool no_evicted)
+{
+#if 0
+	struct nouveau_channel *chan;
+	uint64_t src_offset, dst_offset;
+	uint32_t page_count;
 	int ret;
-	
-	/* unbind */
 
-	/* drm_mm_put_block or update the bitmap_block in pscmm_channel */
-	
+	chan = nvbo->channel;
+	if (!chan || nvbo->tile_flags || nvbo->no_vm)
+		chan = dev_priv->channel;
+
+	src_offset = old_mem->mm_node->start << PAGE_SHIFT;
+	dst_offset = new_mem->mm_node->start << PAGE_SHIFT;
+	if (chan != dev_priv->channel) {
+		if (old_mem->mem_type == TTM_PL_TT)
+			src_offset += dev_priv->vm_gart_base;
+		else
+			src_offset += dev_priv->vm_vram_base;
+
+		if (new_mem->mem_type == TTM_PL_TT)
+			dst_offset += dev_priv->vm_gart_base;
+		else
+			dst_offset += dev_priv->vm_vram_base;
+	}
+
+	ret = RING_SPACE(chan, 3);
+	if (ret)
+		return ret;
+	BEGIN_RING(chan, NvSubM2MF, NV_MEMORY_TO_MEMORY_FORMAT_DMA_SOURCE, 2);
+	OUT_RING(chan, nouveau_bo_mem_ctxdma(nvbo, chan, old_mem));
+	OUT_RING(chan, nouveau_bo_mem_ctxdma(nvbo, chan, new_mem));
+
+	if (dev_priv->card_type >= NV_50) {
+		ret = RING_SPACE(chan, 4);
+		if (ret)
+			return ret;
+		BEGIN_RING(chan, NvSubM2MF, 0x0200, 1);
+		OUT_RING(chan, 1);
+		BEGIN_RING(chan, NvSubM2MF, 0x021c, 1);
+		OUT_RING(chan, 1);
+	}
+
+	page_count = new_mem->num_pages;
+	while (page_count) {
+		int line_count = (page_count > 2047) ? 2047 : page_count;
+
+		if (dev_priv->card_type >= NV_50) {
+			ret = RING_SPACE(chan, 3);
+			if (ret)
+				return ret;
+			BEGIN_RING(chan, NvSubM2MF, 0x0238, 2);
+			OUT_RING(chan, upper_32_bits(src_offset));
+			OUT_RING(chan, upper_32_bits(dst_offset));
+		}
+		ret = RING_SPACE(chan, 11);
+		if (ret)
+			return ret;
+		BEGIN_RING(chan, NvSubM2MF,
+				 NV_MEMORY_TO_MEMORY_FORMAT_OFFSET_IN, 8);
+		OUT_RING(chan, lower_32_bits(src_offset));
+		OUT_RING(chan, lower_32_bits(dst_offset));
+		OUT_RING(chan, PAGE_SIZE); /* src_pitch */
+		OUT_RING(chan, PAGE_SIZE); /* dst_pitch */
+		OUT_RING(chan, PAGE_SIZE); /* line_length */
+		OUT_RING(chan, line_count);
+		OUT_RING(chan, (1<<8)|(1<<0));
+		OUT_RING(chan, 0);
+		BEGIN_RING(chan, NvSubM2MF, NV_MEMORY_TO_MEMORY_FORMAT_NOP, 1);
+		OUT_RING(chan, 0);
+
+		page_count -= line_count;
+		src_offset += (PAGE_SIZE * line_count);
+		dst_offset += (PAGE_SIZE * line_count);
+	}
+
+	/* Add seqno into command buffer. */ 
+	/* we can check the seqno onec it's done. */
+	/* can we use notifier obj here? */
 	return ret;
+#endif
+	
 }
 
 int
 pscmm_move(struct drm_nouveau_private* dev_priv,  
-				struct drm_gem_object* gem, struct pscmm_bo *nvbo, 
+				struct drm_gem_object* gem, struct nouveau_bo *nvbo, 
 				uint32_t old_domain, uint32_t new_domain, bool no_evicted)
 {
 	int ret;
@@ -321,22 +433,50 @@ pscmm_move(struct drm_nouveau_private* dev_priv,
 		return ret;
 
 	/* check if the bo is non-evict */
-	
-	/* RAM -> VRAM */
-	if (new_domain == NOUVEAU_PSCMM_DOMAIN_VRAM) {
-
-	} else {
-	/* VRAM -> RAM */
-
+	if (nvbo->type == no_evicted) {
+		/* wait rendering or return? */
+		NV_ERROR(dev, "nvbo is busy");
+		return -1;
 	}
 
-	nvbo->placements = new_domain;
+
+	/* we should use Hardware assisted copy here*/
+	/* need to fix */
+	pscmm_move_memcpy(dev_priv, gem, nvbo, old_domain, new_domain);
+	//pscmm_move_m2mf(dev_priv, gem, nvbo, old_domain, new_domain);
 	
+	nvbo->placements = new_domain;
+
+	if (no_evicted) {
+		pscmm_set_no_evicted(dev_priv, nvbo);
+	}
+
+	return ret;
 }
 
 int
+pscmm_set_no_evicted(struct drm_nouveau_private *dev_priv,
+					struct nouveau_bo *nvbo)
+{
+		struct nouveau_bo *nvbo_tmp;
+		nvbo_tmp = list_entry(dev_priv->no_evicted_list.prev, struct nouveau_bo, list);
+		if (nvbo_tmp == NULL)
+			nvbo->last_rendering_seqno = 0;
+		else
+			nvbo->last_rendering_seqno = nvbo_tmp->last_rendering_seqno;
+		
+		nvbo->old_type= nvbo->type;
+		nvbo->type= no_evicted;
+
+		list_move_tail(&nvbo->list, &dev_priv->no_evicted_list);
+		if (nvbo->old_type == T1)
+			dev_priv->T1_num-=nvbo->nblock;
+		else
+			dev_priv->T2_num-=nvbo->nblock;
+}
+int
 pscmm_set_normal(struct drm_nouveau_private *dev_priv,
-					struct pscmm_bo *nvbo)
+					struct nouveau_bo *nvbo)
 {
 			nvbo->bo_ref = 1;
 			if (nvbo->old_type == T1) {
@@ -352,7 +492,7 @@ pscmm_set_normal(struct drm_nouveau_private *dev_priv,
 
 int
 pscmm_prefault(struct drm_nouveau_private *dev_priv,
-					struct pscmm_bo *nvbo)
+					struct nouveau_bo *nvbo)
 {
 //this is for object level prefault
 
@@ -365,50 +505,173 @@ pscmm_prefault(struct drm_nouveau_private *dev_priv,
 		} else {
 			//hit
 			nvbo->bo_ref = 1;
-			nvbo->old_type= nvbo->type;
-			nvbo->type= no_evicted;
-
-			list_move_tail(&nvbo->list, &dev_priv->no_evicted_list);
-			if (nvbo->old_type == T1)
-				dev_priv->T1_num-=nvbo->nblock;
-			else
-				dev_priv->T2_num-=nvbo->nblock;
+			pscmm_set_no_evicted(dev_priv, nvbo);
 		}
-		
 }
 int
-pscmm_command_prefault(struct drm_nouveau_private *dev_priv, uint32_t obj_num,
-					struct drm_nouveau_pscmm_exec_object * obj_list)
+pscmm_command_prefault(struct drm_nouveau_private *dev_priv, uint32_t handle)
 {
 	struct drm_gem_object *gem;
-	struct pscmm_bo *nvbo;
+	struct nouveau_bo *nvbo;
 	int i, j;
 	int ret;
 	int nblock;
+
+	gem = drm_gem_object_lookup(dev, file_priv, handle);
 	
+	nvbo = gem ? gem->driver_private : NULL;
 
-	
-	for (i = 0; i < obj_num; i++) {
-
-		gem = drm_gem_object_lookup(dev, file_priv, obj_list[i].handle);
-	
-		nvbo = gem ? gem->driver_private : NULL;
-
-		/* check if nvbo is empty? */
-		if (nvbo == NULL) {
-			pscmm_move(dev_priv->fb_block, gem, nvbo, 0, NOUVEAU_PSCMM_DOMAIN_VRAM, true);
-
-		}
-
-		if (nvbo->type == no_evicted) {
-			break;
-		}
-		
-		pscmm_prefault(dev_priv, nvbo);
+	/* check if nvbo is empty? */
+	if (nvbo == NULL) {
+		pscmm_move(dev_priv->fb_block, gem, nvbo, 0, NOUVEAU_PSCMM_DOMAIN_VRAM, true);
 	}
+
+	if (nvbo->type == no_evicted) {
+		break;
+	}
+		
+	pscmm_prefault(dev_priv, nvbo);
+
 	return ret;
 }
 
+/**
+ * Returns true if seq1 is later than seq2.
+ */
+static int
+nouveau_seqno_passed(uint32_t seq1, uint32_t seq2)
+{
+	return (int32_t)(seq1 - seq2) >= 0;
+}
+
+/**
+  * Get seq from globle status page
+  */
+uint32_t
+nouveau_get_pscmm_seqno(struct nouveau_channel* chan)
+{
+
+	return nvchan_rd32(chan, 0x48);
+}
+
+static void
+pscmm_retire_request(struct drm_device *dev,
+			struct drm_nouveau_pscmm_request *request)
+{
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	/* move bo out of no_evicted list */
+
+	while (!list_empty(&dev_priv->no_evicted_list)) {
+		struct nouveau_bo *nvbo;
+
+		nvbo = list_entry(dev_priv->no_evicted_list,
+					    struct nouveau_bo,
+					    list);
+
+		/* If the seqno being retired doesn't match the oldest in the
+		 * list, then the oldest in the list must still be newer than
+		 * this seqno.
+		 */
+		 /* need fix!!!*/
+		if (nvbo->last_rendering_seqno != request->seqno)
+			return;
+
+		pscmm_set_normal(dev_priv, nvbo);
+	}
+
+}
+
+/**
+ * This function clears the request list as sequence numbers are passed.
+ */
+void
+nouveau_pscmm_retire_requests(struct drm_device *dev)
+{
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_channel* chan = dev_priv->channel;
+	uint32_t seqno;
+
+	seqno = nouveau_get_pscmm_seqno(chan);
+
+	while (!list_empty(&chan->request_list)) {
+		struct drm_nouveau_pscmm_request *request;
+		uint32_t retiring_seqno;
+		request = (struct drm_nouveau_pscmm_request *)(uintptr_t)(dev_priv->request_list.next->contain_ptr);
+		retiring_seqno = request->seqno;
+
+		if (nouveau_seqno_passed(seqno, retiring_seqno) ) {
+			pscmm_retire_request(dev, request);
+
+			list_del(&request->list);
+			drm_free(request, sizeof(*request), DRM_MEM_DRIVER);
+		} else
+			break;
+	}
+}
+
+void
+nouveau_pscmm_retire_work_handler(void *device)
+{
+	struct drm_device *dev = (struct drm_device *)device;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_channel* chan = dev_priv->channel;
+
+	/* Return if gem idle */
+	if (worktimer_id == NULL) {
+		return;
+	}
+
+	nouveau_pscmm_retire_requests(dev);
+	if (!list_empty(&chan->request_list))
+	{	
+		NV_DEBUG("schedule_delayed_work");
+		worktimer_id = timeout(nouveau_pscmm_retire_work_handler, (void *) dev, DRM_HZ);
+	}
+
+}
+
+static uint32_t
+pscmm_add_request(struct drm_device *dev)
+{
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct drm_nouveau_pscmm_request *request;
+	uint32_t seqno;
+	int ret;
+	int was_empty;
+	struct nouveau_channel* chan = dev_priv->channel;
+
+	request = drm_calloc(1, sizeof(*request), DRM_MEM_DRIVER);
+	if (request == NULL) {
+		DRM_ERROR("Failed to alloc request");
+		return 0;
+	}
+	
+	ret = RING_SPACE(chan, 2);
+	seqno = chan->next_seqno;		/* globle seqno */
+	chan->next_seqno++;
+	if (chan->next_seqno == 0)
+		chan->next_seqno++;
+
+
+	BEGIN_RING(chan, NvSubSw, USE_REFCNT ? 0x0050 : 0x0150, 1);
+	OUT_RING(chan, seqno);
+	FIRE_RING(chan);
+
+	request->seqno = seqno;
+	request->emitted_jiffies = jiffies;
+	request->chan = chan;
+
+	was_empty = list_empty(&chan->request_list);
+	list_add_tail(&request->list, &chan->request_list, (caddr_t)request);
+
+	if (was_empty)
+	{
+		/* change to delay HZ and then run work (not insert to workqueue of Linux) */ 
+		worktimer_id = timeout(nouveau_pscmm_retire_work_handler, (void *) chan, DRM_HZ);
+		DRM_DEBUG("i915_gem: schedule_delayed_work");
+	}
+	return seqno;
+}
 
 int
 nouveau_pscmm_ioctl_new(struct drm_device *dev, void *data,
@@ -438,9 +701,15 @@ nouveau_pscmm_ioctl_mmap(struct drm_device *dev, void *data,
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct nouveau_pscmm_mmap *req = data;
 	struct drm_gem_object *gem;
-	struct pscmm_bo *nvbo;
+	struct nouveau_bo *nvbo;
 	int ret;
-	
+
+
+/* need fix */
+NV_ERROR(dev, "Not support by now");
+return -1;
+
+
 	gem = drm_gem_object_lookup(dev, file_priv, req->handle);
 	
 	nvbo = gem ? gem->driver_private : NULL;
@@ -485,9 +754,14 @@ nouveau_pscmm_ioctl_range_flush(struct drm_device *dev, void *data,
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct nouveau_pscmm_range_flush *arg = data;
 	struct drm_gem_object *gem;
-	struct pscmm_bo *nvbo;
+	struct nouveau_bo *nvbo;
 	int ret;
-	
+
+
+/* need fix */
+NV_ERROR(dev, "Not support by now");
+return -1;
+
 	gem = drm_gem_object_lookup(dev, file_priv, arg->handle);
 	
 	nvbo = gem ? gem->driver_private : NULL;
@@ -515,14 +789,14 @@ nouveau_pscmm_ioctl_range_flush(struct drm_device *dev, void *data,
 }
 
 int
-nouveau_pscmm_chan_map_ioctl(struct drm_device *dev, void *data,
+nouveau_pscmm_ioctl_chan_map(struct drm_device *dev, void *data,
 		      struct drm_file *file_priv)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct drm_nouveau_pscmm_chanmap *arg= data;
 	struct drm_gem_object *gem;
-	struct pscmm_bo *nvbo;
-	struct pscmm_channel* chan;
+	struct nouveau_bo *nvbo;
+	struct nouveau_channel* chan;
 	int need_sync = 0;
 	int ret;
 
@@ -539,28 +813,28 @@ nouveau_pscmm_chan_map_ioctl(struct drm_device *dev, void *data,
 
 	}
 
-	/* bo can be shared between channels 
-         * if bo has mapped to other chan, maybe do thing here
-	  */
 
+	if (!nvbo->channel) {
+		/* chanmap, need low and tail_flags */
+		arg->addr_ptr = nouveau_channel_map(dev, chan, nvbo, arg->low, arg->tail_flags);
 
-	/* chanmap, need low and tail_flags */
-	ret = pscmm_channel_map(chan, nvbo, arg->low, arg->tail_flags, arg->addr_ptr);
-
-	nvbo->channel = chan;
-	nvbo->tile_flags = arg->tail_flags;
-	nvbo->firstblock = arg->addr_ptr;
+	} else {
+		/* bo can be shared between channels 
+         	  * if bo has mapped to other chan, maybe do something here
+	 	  */
+	 	NV_DEBUG(dev, "bo shared between channels are not supported by now");
+	}
 
 	return ret;
 }
 
 int
-nouveau_pscmm_chan_unmap_ioctl(struct drm_device *dev, void *data,
+nouveau_pscmm_ioctl_chan_unmap(struct drm_device *dev, void *data,
 		      struct drm_file *file_priv)
 {
 	struct drm_nouveau_pscmm_chanunmap *arg = data;
 	struct drm_gem_object *gem;
-	struct pscmm_bo *nvbo;
+	struct nouveau_bo *nvbo;
 	int ret;
 	
 	gem = drm_gem_object_lookup(dev, file_priv, req->handle);
@@ -573,7 +847,7 @@ nouveau_pscmm_chan_unmap_ioctl(struct drm_device *dev, void *data,
 	if (nvbo->channel != NULL) {
 	
 		/* unmap the channel */
-		pscmm_channel_unmap(nvbo->channel, nvbo);
+		nouveau_channel_unmap(dev, nvbo->channel, nvbo);
 	}
 
 
@@ -586,7 +860,10 @@ nouveau_pscmm_ioctl_read(struct drm_device *dev, void *data,
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct nouveau_pscmm_read *arg= data;
 	struct drm_gem_object *gem;
-	struct pscmm_bo *nvbo;
+	struct nouveau_bo *nvbo;
+	void *addr;
+	unsigned long unwritten = 0;
+	uint32_t *user_data;
 	int ret;
 	
 	gem = drm_gem_object_lookup(dev, file_priv, arg->handle);
@@ -607,7 +884,20 @@ nouveau_pscmm_ioctl_read(struct drm_device *dev, void *data,
 			pscmm_prefault(dev_priv, nvbo);
 				
 			/* read the VRAM to user space address */
+			addr = ioremap(dev_priv->fb_block->io_offset + nvbo->block_offset_node->start,  gem->size);
+			if (!addr) {
+				NV_ERROR(dev, "bo shared between channels are not supported by now");
+				return -ENOMEM;
+			}
 
+			user_data = (uint32_t *) (uintptr_t) arg->data_ptr;
+			unwritten = DRM_COPY_TO_USER(user_data, addr + arg->offset, arg->size);
+       		if (unwritten) {
+                		ret = EFAULT;
+                		NV_ERROR(dev, "failed to read, unwritten %d", unwritten);
+        		}
+			
+			
 			/* mark the block as normal*/
 			pscmm_set_normal(dev_priv, nvbo);
         		return ret;
@@ -625,12 +915,15 @@ nouveau_pscmm_ioctl_write(struct drm_device *dev, void *data,
 		      struct drm_file *file_priv)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_pscmm_write *req = data;
+	struct nouveau_pscmm_write *arg = data;
 	struct drm_gem_object *gem;
-	struct pscmm_bo *nvbo;
+	struct nouveau_bo *nvbo;
+	void *addr;
+	unsigned long unwritten = 0;
+	uint32_t *user_data;
 	int ret;
 	
-	gem = drm_gem_object_lookup(dev, file_priv, req->handle);
+	gem = drm_gem_object_lookup(dev, file_priv, arg->handle);
 	
 	nvbo = gem ? gem->driver_private : NULL;
 
@@ -647,7 +940,20 @@ nouveau_pscmm_ioctl_write(struct drm_device *dev, void *data,
 			pscmm_prefault(dev_priv, nvbo);
 				
 			/* write the VRAM to user space address */
+			addr = ioremap(dev_priv->fb_block->io_offset + nvbo->block_offset_node->start,  gem->size);
+			if (!addr) {
+				NV_ERROR(dev, "bo shared between channels are not supported by now");
+				return -ENOMEM;
+			}
 
+			user_data = (uint32_t *) (uintptr_t) arg->data_ptr;
+			unwritten = DRM_COPY_FROM_USER(user_data, addr + arg->offset, arg->size);
+       		if (unwritten) {
+                		ret = EFAULT;
+                		NV_ERROR(dev, "failed to read, unwritten %d", unwritten);
+        		}
+
+			
 			/* mark the block as normal*/
 			pscmm_set_normal(dev_priv, nvbo);
 				
@@ -657,6 +963,8 @@ nouveau_pscmm_ioctl_write(struct drm_device *dev, void *data,
 	}
 	
 	/* Write the GEM object */
+
+	
 }
 
 
@@ -671,14 +979,12 @@ nouveau_pscmm_ioctl_move(struct drm_device *dev, void *data,
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct drm_nouveau_pscmm_move *arg = data;
 	struct drm_gem_object *gem;
-	struct pscmm_bo *nvbo;
+	struct nouveau_bo *nvbo;
 	int ret;
 	
 	gem = drm_gem_object_lookup(dev, file_priv, arg->handle);
 	
 	nvbo = gem ? gem->driver_private : NULL;
-
-	
 	
 	pscmm_move(dev_priv, gem, nvbo, arg->old_domain, arg->new_domain, false);
 
@@ -699,54 +1005,91 @@ nouveau_pscmm_ioctl_exec(struct drm_device *dev, void *data,
 	struct drm_nouveau_pscmm_exec_command *command_list;
 	struct drm_nouveau_pscmm_exec_object *obj_list;
 	struct drm_gem_object *gem;
-	struct pscmm_bo *nvbo;
+	struct nouveau_bo *nvbo;
+	struct nouveau_channel* chan;
 	int i, j;
 	int ret;
 
-	gem = drm_gem_object_lookup(dev, file_priv, req->handle);
-	
-	nvbo = gem ? gem->driver_private : NULL;
-
 	command_list = drm_malloc_ab(sizeof(*command_list), args->command_count);
-	
-	for (i = 0; i < req->command_count; i++) {
-		ret = copy_from_user(command_list,
+
+	ret = copy_from_user(command_list,
 			     (struct drm_nouveau_pscmm_exec_command *)
 			     (uintptr_t) args->command_ptr,
 			     sizeof(*command_list) * args->command_count);
-
+	
+	for (i = 0; i < args->command_count; i++) {
+		chan = command_list[i].channel;
 		obj_list = drm_malloc_ab(sizeof(*obj_list), command_list[i].buffer_count);
 
-		for (j = 0; j < command_list[i].buffer_count; j++) {
-			ret = copy_from_user(obj_list,
+		ret = copy_from_user(obj_list,
 			     (struct drm_nouveau_pscmm_exec_object *)
 			     (uintptr_t) command_list[i].buffers_ptr,
 			     sizeof(*obj_list) * command_list[i].buffer_count);
+		for (j = 0; j < command_list[i].buffer_count; j++) {
 
 			/* prefault and mark*/
-			pscmm_command_prefault(dev_priv, command_list[i].buffer_count, obj_list)
+			pscmm_command_prefault(dev_priv, obj_list[j].handle);
+				
+		}
 
-
-			/* Copy the new  offsets back to the user's exec_object list. */
-			ret = copy_to_user(obj_list,
+		/* Copy the new  offsets back to the user's exec_object list. */
+		ret = copy_to_user(obj_list,
 			     (struct drm_nouveau_pscmm_exec_object *)
 			     (uintptr_t) command_list[i].buffers_ptr,
 			     sizeof(*obj_list) * command_list[i].buffer_count);
-				
+			
+		gem = drm_gem_object_lookup(dev, file_priv, obj_list[j-1].handle);
+	
+		nvbo = gem ? gem->driver_private : NULL;
+
+		/* Emit the command buffer */
+		nv50_dma_push(chan, nvbo, 0, gem->size);
+
+		/* Add seqno into command buffer. */ 
+		command_list[i].seqno = pscmm_add_request(dev);
+		for (j = 0; j < command_list[i].buffer_count; j++) {
+
+			gem = drm_gem_object_lookup(dev, file_priv, obj_list[j].handle);
+	
+			nvbo = gem ? gem->driver_private : NULL;
+			nvbo->last_rendering_seqno = command_list[i].seqno;
 		}
 
 		drm_free_large(obj_list);
 
-		/* Add seqno into command buffer. */ 
-
-		/* Emit the command buffer */
-
+	}
 		/* Copy the seqno back to the user's exec_object list. */
-		ret = copy_to_user(command_list,
+	ret = copy_to_user(command_list,
 			     (struct drm_nouveau_pscmm_exec_command *)
 			     (uintptr_t) args->command_ptr,
 			     sizeof(*command_list) * args->command_count);
-	}
 
 	drm_free_large(command_list);
 }
+
+
+/***********************************
+ * finally, the ioctl table
+ ***********************************/
+
+struct drm_ioctl_desc nouveau_ioctls[] = {
+	DRM_IOCTL_DEF(DRM_NOUVEAU_GETPARAM, nouveau_ioctl_getparam, DRM_AUTH),
+	DRM_IOCTL_DEF(DRM_NOUVEAU_SETPARAM, nouveau_ioctl_setparam, DRM_AUTH|DRM_MASTER|DRM_ROOT_ONLY),
+	DRM_IOCTL_DEF(DRM_NOUVEAU_CHANNEL_ALLOC, nouveau_ioctl_fifo_alloc, DRM_AUTH),
+	DRM_IOCTL_DEF(DRM_NOUVEAU_CHANNEL_FREE, nouveau_ioctl_fifo_free, DRM_AUTH),
+	DRM_IOCTL_DEF(DRM_NOUVEAU_GROBJ_ALLOC, nouveau_ioctl_grobj_alloc, DRM_AUTH),
+	DRM_IOCTL_DEF(DRM_NOUVEAU_NOTIFIEROBJ_ALLOC, nouveau_ioctl_notifier_alloc, DRM_AUTH),
+	DRM_IOCTL_DEF(DRM_NOUVEAU_GPUOBJ_FREE, nouveau_ioctl_gpuobj_free, DRM_AUTH),
+	DRM_IOCTL_DEF(DRM_NOUVEAU_PSCMM_NEW, nouveau_pscmm_ioctl_new, DRM_AUTH),
+	DRM_IOCTL_DEF(DRM_NOUVEAU_PSCMM_MMAP, nouveau_pscmm_ioctl_mmap, DRM_AUTH),
+	DRM_IOCTL_DEF(DRM_NOUVEAU_PSCMM_RANGE_FLUSH, nouveau_pscmm_ioctl_range_flush, DRM_AUTH),
+	DRM_IOCTL_DEF(DRM_NOUVEAU_PSCMM_READ, nouveau_pscmm_ioctl_read, DRM_AUTH),
+	DRM_IOCTL_DEF(DRM_NOUVEAU_PSCMM_WRITE, nouveau_pscmm_ioctl_write, DRM_AUTH),
+	DRM_IOCTL_DEF(DRM_NOUVEAU_PSCMM_MOVE, nouveau_pscmm_ioctl_move, DRM_AUTH),
+	DRM_IOCTL_DEF(DRM_NOUVEAU_PSCMM_EXEC, nouveau_pscmm_ioctl_exec, DRM_AUTH),
+	DRM_IOCTL_DEF(DRM_NOUVEAU_PSCMM_CHAN_MAP, nouveau_pscmm_ioctl_chan_map, DRM_AUTH),
+	DRM_IOCTL_DEF(DRM_NOUVEAU_PSCMM_CHAN_UNMAP, nouveau_pscmm_ioctl_chan_unmap, DRM_AUTH),
+};
+
+int nouveau_max_ioctl = DRM_ARRAY_SIZE(nouveau_ioctls);
+
