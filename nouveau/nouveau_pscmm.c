@@ -273,14 +273,14 @@ nouveau_channel_map(struct drm_device *dev, struct nouveau_channel *chan, struct
 	/* Get free vm from per-channel page table using the function in drm_mm.c or bitmap_block*/
 	/* bind the vm with the physical address in block_array */
        /* Since the per-channel page table init at the channel_init and not changed then, */
-	addr_ptr = nvbo->block_offset_node->start  + dev_priv->vm_vram_base;
+	addr_ptr = nvbo->block_offset_node->start << PAGE_SHIFT + dev_priv->vm_vram_base;
 
 	/* bind the vm */
 	/* need? */
 	ret = nv50_mem_vm_bind_linear(dev,
-			nvbo->block_offset_node->start + dev_priv->vm_vram_base,
+			nvbo->block_offset_node->start << PAGE_SHIFT + dev_priv->vm_vram_base,
 			nvbo->gem->size, nvbo->tile_flags,
-			nvbo->block_offset_node->start);
+			nvbo->block_offset_node->start << PAGE_SHIFT);
 	if (ret) {
 		NV_ERROR(dev, "Failed to bind");
 			return NULL;
@@ -305,7 +305,7 @@ nouveau_channel_unmap(struct drm_device *dev,
 	
 	/* unbind */
 	/* need? */
-	nv50_mem_vm_unbind(dev, nvbo->block_offset_node->start + dev_priv->vm_vram_base, nvbo->gem->size);
+	nv50_mem_vm_unbind(dev, nvbo->block_offset_node->start << PAGE_SHIFT + dev_priv->vm_vram_base, nvbo->gem->size);
 	/* drm_mm_put_block or update the bitmap_block in nouveau_channel */
 	nvbo->channel = NULL;
 	
@@ -320,7 +320,7 @@ pscmm_move_memcpy(struct drm_device *dev,
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	/* only support RAM->VRAM & VRAM->RAM */
 	if (nvbo->virtual == NULL)
-		nvbo->virtual = ioremap(dev_priv->fb_block->io_offset + nvbo->block_offset_node->start,  gem->size);
+		nvbo->virtual = ioremap(dev_priv->fb_block->io_offset + nvbo->block_offset_node->start << PAGE_SHIFT,  gem->size);
 	
 	if (old_domain == NOUVEAU_PSCMM_DOMAIN_CPU && 
 		new_domain == NOUVEAU_PSCMM_DOMAIN_VRAM) {
@@ -745,7 +745,7 @@ nouveau_pscmm_new(struct drm_device *dev,  struct drm_file *file_priv,
 	}
 
 	if (mappable) {
-		nvbo->virtual = ioremap(dev_priv->fb_block->io_offset + nvbo->block_offset_node->start,  gem->size);
+		nvbo->virtual = ioremap(dev_priv->fb_block->io_offset + nvbo->block_offset_node->start << PAGE_SHIFT,  gem->size);
 	}
 
 	*pnvbo = nvbo;
@@ -956,7 +956,7 @@ nouveau_pscmm_ioctl_read(DRM_IOCTL_ARGS)
 			pscmm_prefault(dev_priv, nvbo);
 				
 			/* read the VRAM to user space address */
-			addr = ioremap(dev_priv->fb_block->io_offset + nvbo->block_offset_node->start,  gem->size);
+			addr = ioremap(dev_priv->fb_block->io_offset + nvbo->block_offset_node->start << PAGE_SHIFT,  gem->size);
 			if (!addr) {
 				NV_ERROR(dev, "bo shared between channels are not supported by now");
 				return -ENOMEM;
@@ -1017,7 +1017,7 @@ nouveau_pscmm_ioctl_write(DRM_IOCTL_ARGS)
 			pscmm_prefault(dev_priv, nvbo);
 				
 			/* write the VRAM to user space address */
-			addr = ioremap(dev_priv->fb_block->io_offset + nvbo->block_offset_node->start,  gem->size);
+			addr = ioremap(dev_priv->fb_block->io_offset + nvbo->block_offset_node->start << PAGE_SHIFT,  gem->size);
 			if (!addr) {
 				NV_ERROR(dev, "bo shared between channels are not supported by now");
 				return -ENOMEM;

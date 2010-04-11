@@ -113,7 +113,7 @@ nouveau_bo_rd32(struct nouveau_bo *nvbo, unsigned index)
 	return *(volatile uint32_t *)((uintptr_t)(nvbo->virtual) + (index * 4));
 }
 
-static __must_check inline int
+static inline int
 RING_SPACE(struct nouveau_channel *chan, int size)
 {
 	int ret;
