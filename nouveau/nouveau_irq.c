@@ -30,6 +30,11 @@
  *   Ben Skeggs <darktama@iinet.net.au>
  */
 
+/*
+ * Copyright 2010 PathScale Inc.  All rights reserved.
+ * Use is subject to license terms.
+ */
+ 
 #include "drmP.h"
 #include "drm.h"
 #include "nouveau_drm.h"
@@ -50,8 +55,10 @@ nouveau_irq_preinstall(struct drm_device *dev)
 	nv_wr32(dev, NV03_PMC_INTR_EN_0, 0);
 
 	if (dev_priv->card_type == NV_50) {
+/*
 		INIT_WORK(&dev_priv->irq_work, nv50_display_irq_handler_bh);
 		INIT_WORK(&dev_priv->hpd_work, nv50_display_irq_hotplug_bh);
+*/
 		INIT_LIST_HEAD(&dev_priv->vbl_waiting);
 	}
 }
@@ -329,11 +336,11 @@ nouveau_print_enum_names_(uint32_t value,
 	int i;
 	for (i = 0; i < namelist_len; ++i) {
 		if (value == namelist[i].value) {
-			printk("%s", namelist[i].name);
+			NV_INFO("%s", namelist[i].name);
 			return;
 		}
 	}
-	printk("unknown value 0x%08x", value);
+	NV_INFO("unknown value 0x%08x", value);
 }
 #define nouveau_print_enum_names(val, namelist) \
 	nouveau_print_enum_names_((val), (namelist), ARRAY_SIZE(namelist))
@@ -456,12 +463,12 @@ nouveau_graph_dump_trap_info(struct drm_device *dev, const char *id,
 	if (dev_priv->card_type < NV_50) {
 		NV_INFO(dev, "%s - nSource:", id);
 		nouveau_print_bitfield_names(nsource, nsource_names);
-		printk(", nStatus:");
+		NV_INFO(", nStatus:");
 		if (dev_priv->card_type < NV_10)
 			nouveau_print_bitfield_names(nstatus, nstatus_names);
 		else
 			nouveau_print_bitfield_names(nstatus, nstatus_names_nv10);
-		printk("\n");
+		NV_INFO("\n");
 	}
 
 	NV_INFO(dev, "%s - Ch %d/%d Class 0x%04x Mthd 0x%04x "
@@ -505,11 +512,10 @@ nouveau_pgraph_intr_notify(struct drm_device *dev, uint32_t nsource)
 		nouveau_graph_dump_trap_info(dev, "PGRAPH_NOTIFY", &trap);
 }
 
-static DEFINE_RATELIMIT_STATE(nouveau_ratelimit_state, 3 * HZ, 20);
-
 static int nouveau_ratelimit(void)
 {
-	return __ratelimit(&nouveau_ratelimit_state);
+//	return __ratelimit(&nouveau_ratelimit_state);
+	return 0;
 }
 
 
@@ -676,7 +682,7 @@ nv50_pgraph_mp_trap(struct drm_device *dev, int tpid, int display)
 					"TP %d MP %d: ", tpid, i);
 			nouveau_print_enum_names(status,
 					nv50_mp_exec_error_names);
-			printk(" at %06x warp %d, opcode %08x %08x\n",
+			NV_INFO(" at %06x warp %d, opcode %08x %08x\n",
 					pc&0xffffff, pc >> 24,
 					oplow, ophigh);
 		}
@@ -1212,12 +1218,12 @@ nouveau_irq_handler(DRM_IRQ_ARGS)
 		return IRQ_NONE;
 
 	spin_lock_irqsave(&dev_priv->context_switch_lock, flags);
-
+/*
 	if (dev_priv->fbdev_info) {
 		fbdev_flags = dev_priv->fbdev_info->flags;
 		dev_priv->fbdev_info->flags |= FBINFO_HWACCEL_DISABLED;
 	}
-
+*/
 	if (status & NV_PMC_INTR_0_PFIFO_PENDING) {
 		nouveau_fifo_irq_handler(dev);
 		status &= ~NV_PMC_INTR_0_PFIFO_PENDING;
@@ -1239,7 +1245,8 @@ nouveau_irq_handler(DRM_IRQ_ARGS)
 
 	if (status & (NV_PMC_INTR_0_NV50_DISPLAY_PENDING |
 		      NV_PMC_INTR_0_NV50_I2C_PENDING)) {
-		nv50_display_irq_handler(dev);
+		NV_ERROR("need fix");
+//		nv50_display_irq_handler(dev);
 		status &= ~(NV_PMC_INTR_0_NV50_DISPLAY_PENDING |
 			    NV_PMC_INTR_0_NV50_I2C_PENDING);
 	}
@@ -1247,8 +1254,8 @@ nouveau_irq_handler(DRM_IRQ_ARGS)
 	if (status)
 		NV_ERROR(dev, "Unhandled PMC INTR status bits 0x%08x\n", status);
 
-	if (dev_priv->fbdev_info)
-		dev_priv->fbdev_info->flags = fbdev_flags;
+//	if (dev_priv->fbdev_info)
+//		dev_priv->fbdev_info->flags = fbdev_flags;
 
 	spin_unlock_irqrestore(&dev_priv->context_switch_lock, flags);
 

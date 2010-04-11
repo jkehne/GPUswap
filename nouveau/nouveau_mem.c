@@ -29,7 +29,11 @@
  *    Keith Whitwell <keith@tungstengraphics.com>
  */
 
-
+/*
+ * Copyright 2010 PathScale Inc.  All rights reserved.
+ * Use is subject to license terms.
+ */
+ 
 #include "drmP.h"
 #include "drm.h"
 #include "drm_sarea.h"
@@ -189,92 +193,6 @@ void nouveau_mem_release(struct drm_file *file_priv, struct mem_block *heap)
 			kfree(q);
 		}
 	}
-}
-
-/*
- * NV10-NV40 tiling helpers
- */
-
-static void
-nv10_mem_set_region_tiling(struct drm_device *dev, int i, uint32_t addr,
-			   uint32_t size, uint32_t pitch)
-{
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_fifo_engine *pfifo = &dev_priv->engine.fifo;
-	struct nouveau_fb_engine *pfb = &dev_priv->engine.fb;
-	struct nouveau_pgraph_engine *pgraph = &dev_priv->engine.graph;
-	struct nouveau_tile_reg *tile = &dev_priv->tile.reg[i];
-
-	tile->addr = addr;
-	tile->size = size;
-	tile->used = !!pitch;
-	nouveau_fence_unref((void **)&tile->fence);
-
-	if (!pfifo->cache_flush(dev))
-		return;
-
-	pfifo->reassign(dev, false);
-	pfifo->cache_flush(dev);
-	pfifo->cache_pull(dev, false);
-
-	nouveau_wait_for_idle(dev);
-
-	pgraph->set_region_tiling(dev, i, addr, size, pitch);
-	pfb->set_region_tiling(dev, i, addr, size, pitch);
-
-	pfifo->cache_pull(dev, true);
-	pfifo->reassign(dev, true);
-}
-
-struct nouveau_tile_reg *
-nv10_mem_set_tiling(struct drm_device *dev, uint32_t addr, uint32_t size,
-		    uint32_t pitch)
-{
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_fb_engine *pfb = &dev_priv->engine.fb;
-	struct nouveau_tile_reg *tile = dev_priv->tile.reg, *found = NULL;
-	int i;
-
-	spin_lock(&dev_priv->tile.lock);
-
-	for (i = 0; i < pfb->num_tiles; i++) {
-		if (tile[i].used)
-			/* Tile region in use. */
-			continue;
-
-		if (tile[i].fence &&
-		    !nouveau_fence_signalled(tile[i].fence, NULL))
-			/* Pending tile region. */
-			continue;
-
-		if (max(tile[i].addr, addr) <
-		    min(tile[i].addr + tile[i].size, addr + size))
-			/* Kill an intersecting tile region. */
-			nv10_mem_set_region_tiling(dev, i, 0, 0, 0);
-
-		if (pitch && !found) {
-			/* Free tile region. */
-			nv10_mem_set_region_tiling(dev, i, addr, size, pitch);
-			found = &tile[i];
-		}
-	}
-
-	spin_unlock(&dev_priv->tile.lock);
-
-	return found;
-}
-
-void
-nv10_mem_expire_tiling(struct drm_device *dev, struct nouveau_tile_reg *tile,
-		       struct nouveau_fence *fence)
-{
-	if (fence) {
-		/* Mark it as pending. */
-		tile->fence = fence;
-		nouveau_fence_ref(fence);
-	}
-
-	tile->used = false;
 }
 
 /*
@@ -441,14 +359,7 @@ void nouveau_mem_takedown(struct mem_block **heap)
 void nouveau_mem_close(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-
-	nouveau_bo_unpin(dev_priv->vga_ram);
-	nouveau_bo_ref(NULL, &dev_priv->vga_ram);
-
-	ttm_bo_device_release(&dev_priv->ttm.bdev);
-
-	nouveau_ttm_global_release(dev_priv);
-
+	nouveau_pscmm_remove(dev, dev_priv->vga_ram);
 	if (drm_core_has_AGP(dev) && dev->agp &&
 	    drm_core_check_feature(dev, DRIVER_MODESET)) {
 		struct drm_agp_mem *entry, *tempe;
@@ -470,11 +381,6 @@ void nouveau_mem_close(struct drm_device *dev)
 		dev->agp->enabled = 0;
 	}
 
-	if (dev_priv->fb_mtrr) {
-		drm_mtrr_del(dev_priv->fb_mtrr, drm_get_resource_start(dev, 1),
-			     drm_get_resource_len(dev, 1), DRM_MTRR_WC);
-		dev_priv->fb_mtrr = 0;
-	}
 }
 
 static uint32_t
@@ -503,10 +409,36 @@ static uint32_t
 nouveau_mem_detect_nforce(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct pci_dev *bridge;
+	struct drm_nouveau_bridge_dev *bridge;
 	uint32_t mem;
 
+	NV_DEBUG("detect_nforce");
+
+	/* OSOL Begin */
+
+	if (bridge->ldi_id) {
+		NV_ERROR("end");
+		return 0;
+	}
+
+	if (ldi_ident_from_dip(dev->devinfo, &bridge->ldi_id)) {
+		bridge->ldi_id = NULL;
+		NV_ERROR("failed");
+		return -1;
+	};
+
+	if (ldi_open_by_name("/dev/agp/agptarget1", 0, kcred,
+	    &bridge->bridge_dev_hdl, bridge->ldi_id)) {
+	    	NV_ERROR("failed");
+		ldi_ident_release(bridge->ldi_id);
+		bridge->ldi_id = NULL;
+		bridge->bridge_dev_hdl = NULL;
+		return -1;
+	}
+	/* OSOL End */
+/*
 	bridge = pci_get_bus_and_slot(0, PCI_DEVFN(0, 1));
+*/
 	if (!bridge) {
 		NV_ERROR(dev, "no bridge device\n");
 		return 0;
@@ -629,12 +561,11 @@ int
 nouveau_mem_init(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct ttm_bo_device *bdev = &dev_priv->ttm.bdev;
 	int ret, dma_bits = 32;
 
 	dev_priv->fb_phys = drm_get_resource_start(dev, 1);
 	dev_priv->gart_info.type = NOUVEAU_GART_NONE;
-
+/*
 	if (dev_priv->card_type >= NV_50 &&
 	    pci_dma_supported(dev->pdev, DMA_BIT_MASK(40)))
 		dma_bits = 40;
@@ -644,6 +575,9 @@ nouveau_mem_init(struct drm_device *dev)
 		NV_ERROR(dev, "Error setting DMA mask: %d\n", ret);
 		return ret;
 	}
+
+
+
 
 	ret = nouveau_ttm_global_init(dev_priv);
 	if (ret)
@@ -657,10 +591,11 @@ nouveau_mem_init(struct drm_device *dev)
 		NV_ERROR(dev, "Error initialising bo driver: %d\n", ret);
 		return ret;
 	}
+*/
 
-	INIT_LIST_HEAD(&dev_priv->ttm.bo_list);
-	spin_lock_init(&dev_priv->ttm.bo_list_lock);
-	spin_lock_init(&dev_priv->tile.lock);
+	INIT_LIST_HEAD(&dev_priv->bo_list);
+	spin_lock_init(&dev_priv->bo_list_lock);
+	spin_lock_init(&dev_priv->lock);
 
 	dev_priv->fb_available_size = dev_priv->vram_size;
 	dev_priv->fb_mappable_pages = dev_priv->fb_available_size;
@@ -672,13 +607,27 @@ nouveau_mem_init(struct drm_device *dev)
 	dev_priv->fb_available_size -= dev_priv->ramin_rsvd_vram;
 	dev_priv->fb_aper_free = dev_priv->fb_available_size;
 
+	NV_INFO(dev, "%d MiB VRAM \n",
+		(int)(dev_priv->fb_available_size >> 20));
+	
 	/* mappable vram */
+	drm_mm_init(&dev_priv->fb_block->core_manager, 0, dev_priv->fb_available_size >> PAGE_SHIFT);
+
+	/* reserve VGA memory */
+	ret = nouveau_pscmm_new(dev, NULL, 256*1024, PAGE_SIZE, MEM_PL_FLAG_VRAM,,
+			      true, true, &dev_priv->vga_ram);
+	if (ret) {
+		NV_ERROR(dev, "error getting PRAMIN backing pages: %d\n", ret);
+		return ret;
+	}
+#if 0
 	ret = ttm_bo_init_mm(bdev, TTM_PL_VRAM,
 			     dev_priv->fb_available_size >> PAGE_SHIFT);
 	if (ret) {
 		NV_ERROR(dev, "Failed VRAM mm init: %d\n", ret);
 		return ret;
 	}
+
 
 	ret = nouveau_bo_new(dev, NULL, 256*1024, 0, TTM_PL_FLAG_VRAM,
 			     0, 0, true, true, &dev_priv->vga_ram);
@@ -688,7 +637,7 @@ nouveau_mem_init(struct drm_device *dev)
 		NV_WARN(dev, "failed to reserve VGA memory\n");
 		nouveau_bo_ref(NULL, &dev_priv->vga_ram);
 	}
-
+#endif
 	/* GART */
 #if !defined(__powerpc__) && !defined(__ia64__)
 	if (drm_device_is_agp(dev) && dev->agp) {
@@ -710,16 +659,7 @@ nouveau_mem_init(struct drm_device *dev)
 		(int)(dev_priv->gart_info.aper_size >> 20));
 	dev_priv->gart_info.aper_free = dev_priv->gart_info.aper_size;
 
-	ret = ttm_bo_init_mm(bdev, TTM_PL_TT,
-			     dev_priv->gart_info.aper_size >> PAGE_SHIFT);
-	if (ret) {
-		NV_ERROR(dev, "Failed TT mm init: %d\n", ret);
-		return ret;
-	}
-
-	dev_priv->fb_mtrr = drm_mtrr_add(drm_get_resource_start(dev, 1),
-					 drm_get_resource_len(dev, 1),
-					 DRM_MTRR_WC);
+	drm_mm_init(&dev_priv->fb_block->gart_manager, 0, dev_priv->gart_info.aper_size >> PAGE_SHIFT);
 
 	return 0;
 }

@@ -24,6 +24,11 @@
  *
  */
 
+/*
+ * Copyright 2010 PathScale Inc.  All rights reserved.
+ * Use is subject to license terms.
+ */
+ 
 #include "drmP.h"
 #include "drm.h"
 #include "nouveau_drv.h"
@@ -87,15 +92,15 @@ nouveau_dma_init(struct nouveau_channel *chan)
 		return ret;
 
 	/* Map push buffer */
-	ret = nouveau_bo_map(chan->pushbuf_bo);
-	if (ret)
-		return ret;
+	chan->pushbuf_bo->virtual = ioremap(dev_priv->fb_block->io_offset + chan->pushbuf_bo->block_offset_node->start,  chan->pushbuf_bo->gem->size);
+	if (!chan->pushbuf_bo->virtual)
+		return -EINVAL;
 
 	/* Map M2MF notifier object - fbcon. */
 	if (drm_core_check_feature(dev, DRIVER_MODESET)) {
-		ret = nouveau_bo_map(chan->notifier_bo);
-		if (ret)
-			return ret;
+		chan->pushbuf_bo->virtual = ioremap(dev_priv->fb_block->io_offset + chan->pushbuf_bo->block_offset_node->start,  chan->pushbuf_bo->gem->size);
+		if (!chan->pushbuf_bo->virtual)
+			return -EINVAL;
 	}
 
 	/* Insert NOPS for NOUVEAU_DMA_SKIPS */
@@ -127,7 +132,7 @@ nouveau_dma_init(struct nouveau_channel *chan)
 
 	return 0;
 }
-
+/*
 void
 OUT_RINGp(struct nouveau_channel *chan, const void *data, unsigned nr_dwords)
 {
@@ -140,7 +145,7 @@ OUT_RINGp(struct nouveau_channel *chan, const void *data, unsigned nr_dwords)
 		memcpy(mem, data, nr_dwords * 4);
 	chan->dma.cur += nr_dwords;
 }
-
+*/
 /* Fetch and adjust GPU GET pointer
  *
  * Returns:

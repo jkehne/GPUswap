@@ -25,12 +25,17 @@
  *
  */
 
+/*
+ * Copyright 2010 PathScale Inc.  All rights reserved.
+ * Use is subject to license terms.
+ */
+ 
 #include "drmP.h"
 #include "drm.h"
 #include "nouveau_drv.h"
 
 int
-nouveau_notifier_init_channel(struct nouveau_channel *chan)
+nouveau_notifier_init_channel(struct nouveau_channel *chan, struct drm_file *file_priv)
 {
 	struct drm_device *dev = chan->dev;
 	struct nouveau_bo *ntfy = NULL;
@@ -38,15 +43,15 @@ nouveau_notifier_init_channel(struct nouveau_channel *chan)
 	int ret;
 
 	if (nouveau_vram_notify)
-		flags = TTM_PL_FLAG_VRAM;
+		flags = MEM_PL_FLAG_VRAM;
 	else
-		flags = TTM_PL_FLAG_TT;
+		flags = MEM_PL_FLAG_TT;
 
-	ret = nouveau_gem_new(dev, NULL, PAGE_SIZE, 0, flags,
-			      0, 0x0000, false, true, &ntfy);
+	ret = nouveau_pscmm_new(dev, file_priv, PAGE_SIZE, PAGE_SIZE, flags,
+			      true, true, &ntfy);
 	if (ret)
 		return ret;
-
+/*
 	ret = nouveau_bo_pin(ntfy, flags);
 	if (ret)
 		goto out_err;
@@ -54,7 +59,7 @@ nouveau_notifier_init_channel(struct nouveau_channel *chan)
 	ret = nouveau_bo_map(ntfy);
 	if (ret)
 		goto out_err;
-
+*/
 	ret = nouveau_mem_init_heap(&chan->notifier_heap, 0, ntfy->bo.mem.size);
 	if (ret)
 		goto out_err;
@@ -62,7 +67,7 @@ nouveau_notifier_init_channel(struct nouveau_channel *chan)
 	chan->notifier_bo = ntfy;
 out_err:
 	if (ret)
-		drm_gem_object_unreference_unlocked(ntfy->gem);
+		drm_gem_object_unreference(ntfy->gem);
 
 	return ret;
 }
@@ -75,11 +80,10 @@ nouveau_notifier_takedown_channel(struct nouveau_channel *chan)
 	if (!chan->notifier_bo)
 		return;
 
-	nouveau_bo_unmap(chan->notifier_bo);
 	mutex_lock(&dev->struct_mutex);
-	nouveau_bo_unpin(chan->notifier_bo);
+	nouveau_pscmm_remove(dev, chan->notifier_bo);
 	mutex_unlock(&dev->struct_mutex);
-	drm_gem_object_unreference_unlocked(chan->notifier_bo->gem);
+	drm_gem_object_unreference(chan->notifier_bo->gem);
 	nouveau_mem_takedown(&chan->notifier_heap);
 }
 
@@ -118,10 +122,10 @@ nouveau_notifier_alloc(struct nouveau_channel *chan, uint32_t handle,
 	}
 
 	offset = chan->notifier_bo->bo.mem.mm_node->start << PAGE_SHIFT;
-	if (chan->notifier_bo->bo.mem.mem_type == TTM_PL_VRAM) {
+	if (chan->notifier_bo->bo.mem.mem_type == MEM_PL_VRAM) {
 		target = NV_DMA_TARGET_VIDMEM;
 	} else
-	if (chan->notifier_bo->bo.mem.mem_type == TTM_PL_TT) {
+	if (chan->notifier_bo->bo.mem.mem_type == MEM_PL_TT) {
 		if (dev_priv->gart_info.type == NOUVEAU_GART_SGDMA &&
 		    dev_priv->card_type < NV_50) {
 			ret = nouveau_sgdma_get_page(dev, offset, &offset);
@@ -182,8 +186,7 @@ nouveau_notifier_offset(struct nouveau_gpuobj *nobj, uint32_t *poffset)
 }
 
 int
-nouveau_ioctl_notifier_alloc(struct drm_device *dev, void *data,
-			     struct drm_file *file_priv)
+nouveau_ioctl_notifier_alloc(DRM_IOCTL_ARGS)
 {
 	struct drm_nouveau_notifierobj_alloc *na = data;
 	struct nouveau_channel *chan;

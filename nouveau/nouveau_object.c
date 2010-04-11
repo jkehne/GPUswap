@@ -30,6 +30,11 @@
  *   Ben Skeggs <darktama@iinet.net.au>
  */
 
+/*
+ * Copyright 2010 PathScale Inc.  All rights reserved.
+ * Use is subject to license terms.
+ */
+ 
 #include "drmP.h"
 #include "drm.h"
 #include "nouveau_drv.h"
@@ -1221,8 +1226,7 @@ nouveau_gpuobj_resume(struct drm_device *dev)
 	nouveau_gpuobj_suspend_cleanup(dev);
 }
 
-int nouveau_ioctl_grobj_alloc(struct drm_device *dev, void *data,
-			      struct drm_file *file_priv)
+int nouveau_ioctl_grobj_alloc(DRM_IOCTL_ARGS)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct drm_nouveau_grobj_alloc *init = data;
@@ -1254,7 +1258,7 @@ int nouveau_ioctl_grobj_alloc(struct drm_device *dev, void *data,
 		return -EEXIST;
 
 	if (!grc->software)
-		ret = nouveau_gpuobj_gr_new(chan, grc->id, &gr);
+		ret = nouveau_gpuobj_gr_new(chan, file_priv, grc->id, &gr);
 	else
 		ret = nouveau_gpuobj_sw_new(chan, grc->id, &gr);
 
@@ -1275,8 +1279,7 @@ int nouveau_ioctl_grobj_alloc(struct drm_device *dev, void *data,
 	return 0;
 }
 
-int nouveau_ioctl_gpuobj_free(struct drm_device *dev, void *data,
-			      struct drm_file *file_priv)
+int nouveau_ioctl_gpuobj_free(DRM_IOCTL_ARGS)
 {
 	struct drm_nouveau_gpuobj_free *objfree = data;
 	struct nouveau_gpuobj_ref *ref;

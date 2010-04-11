@@ -25,6 +25,11 @@
  *
  */
 
+/*
+ * Copyright 2010 PathScale Inc.  All rights reserved.
+ * Use is subject to license terms.
+ */
+ 
 #include "drmP.h"
 #include "drm.h"
 #include "nouveau_drv.h"
@@ -381,6 +386,7 @@ int
 nv50_instmem_populate(struct drm_device *dev, struct nouveau_gpuobj *gpuobj,
 		      uint32_t *sz)
 {
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	int ret;
 
 	if (gpuobj->im_backing)
@@ -390,6 +396,14 @@ nv50_instmem_populate(struct drm_device *dev, struct nouveau_gpuobj *gpuobj,
 	if (*sz == 0)
 		return -EINVAL;
 
+	/*should alloc in the non-page part need fix!!!!*/
+	NV_DEBUG(dev, "getting PRAMIN backing pages 0x%x ", *sz);
+	gpuobj->im_backing = pscmm_alloc(dev_priv, *sz, no_evicted);
+	if (ret) {
+		NV_ERROR(dev, "error getting PRAMIN backing pages: %d\n", ret);
+		return ret;
+	}
+/*
 	ret = nouveau_bo_new(dev, NULL, *sz, 0, TTM_PL_FLAG_VRAM, 0, 0x0000,
 			     true, false, &gpuobj->im_backing);
 	if (ret) {
@@ -403,8 +417,8 @@ nv50_instmem_populate(struct drm_device *dev, struct nouveau_gpuobj *gpuobj,
 		nouveau_bo_ref(NULL, &gpuobj->im_backing);
 		return ret;
 	}
-
-	gpuobj->im_backing_start = gpuobj->im_backing->bo.mem.mm_node->start;
+*/
+	gpuobj->im_backing_start = gpuobj->im_backing->block_offset_node->start;
 	gpuobj->im_backing_start <<= PAGE_SHIFT;
 
 	return 0;
@@ -418,8 +432,8 @@ nv50_instmem_clear(struct drm_device *dev, struct nouveau_gpuobj *gpuobj)
 	if (gpuobj && gpuobj->im_backing) {
 		if (gpuobj->im_bound)
 			dev_priv->engine.instmem.unbind(dev, gpuobj);
-		nouveau_bo_unpin(gpuobj->im_backing);
-		nouveau_bo_ref(NULL, &gpuobj->im_backing);
+
+		nouveau_pscmm_remove(dev, gpuobj->im_backing);
 		gpuobj->im_backing = NULL;
 	}
 }

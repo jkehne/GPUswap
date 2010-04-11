@@ -1,11 +1,10 @@
 #include "drmP.h"
 #include "nouveau_drv.h"
-#include <linux/pagemap.h>
 
 #define NV_CTXDMA_PAGE_SHIFT 12
 #define NV_CTXDMA_PAGE_SIZE  (1 << NV_CTXDMA_PAGE_SHIFT)
 #define NV_CTXDMA_PAGE_MASK  (NV_CTXDMA_PAGE_SIZE - 1)
-
+#if 0
 struct nouveau_sgdma_be {
 	struct ttm_backend backend;
 	struct drm_device *dev;
@@ -236,6 +235,7 @@ nouveau_sgdma_init_ttm(struct drm_device *dev)
 
 	return &nvbe->backend;
 }
+#endif
 
 int
 nouveau_sgdma_init(struct drm_device *dev)
@@ -263,14 +263,14 @@ nouveau_sgdma_init(struct drm_device *dev)
 		NV_ERROR(dev, "Error creating sgdma object: %d\n", ret);
 		return ret;
 	}
-
+/*
 	dev_priv->gart_info.sg_dummy_page =
 		alloc_page(GFP_KERNEL|__GFP_DMA32);
 	set_bit(PG_locked, &dev_priv->gart_info.sg_dummy_page->flags);
 	dev_priv->gart_info.sg_dummy_bus =
 		pci_map_page(dev->pdev, dev_priv->gart_info.sg_dummy_page, 0,
 			     PAGE_SIZE, PCI_DMA_BIDIRECTIONAL);
-
+*/
 	dev_priv->engine.instmem.prepare_access(dev, true);
 	if (dev_priv->card_type < NV_50) {
 		/* Maybe use NV_DMA_TARGET_AGP for PCIE? NVIDIA do this, and
@@ -306,7 +306,7 @@ void
 nouveau_sgdma_takedown(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-
+/*
 	if (dev_priv->gart_info.sg_dummy_page) {
 		pci_unmap_page(dev->pdev, dev_priv->gart_info.sg_dummy_bus,
 			       NV_CTXDMA_PAGE_SIZE, PCI_DMA_BIDIRECTIONAL);
@@ -315,7 +315,7 @@ nouveau_sgdma_takedown(struct drm_device *dev)
 		dev_priv->gart_info.sg_dummy_page = NULL;
 		dev_priv->gart_info.sg_dummy_bus = 0;
 	}
-
+*/
 	nouveau_gpuobj_del(dev, &dev_priv->gart_info.sg_ctxdma);
 }
 

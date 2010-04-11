@@ -313,12 +313,25 @@ nouveau_channel_unmap(struct drm_device *dev,
 }
 
 static int
-pscmm_move_memcpy(struct drm_nouveau_private* dev_priv,  
+pscmm_move_memcpy(struct drm_device *dev,  
 				struct drm_gem_object* gem, struct nouveau_bo *nvbo, 
 				uint32_t old_domain, uint32_t new_domain, bool no_evicted)
 {
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	/* only support RAM->VRAM & VRAM->RAM */
+	if (nvbo->virtual == NULL)
+		nvbo->virtual = ioremap(dev_priv->fb_block->io_offset + nvbo->block_offset_node->start,  gem->size);
 	
+	if (old_domain == NOUVEAU_PSCMM_DOMAIN_CPU && 
+		new_domain == NOUVEAU_PSCMM_DOMAIN_VRAM) {
+		memcpy(gem->kaddr, nvbo->virtual, gem->size);
+	} else if (old_domain == NOUVEAU_PSCMM_DOMAIN_VRAM && 
+		new_domain == NOUVEAU_PSCMM_DOMAIN_CPU) {
+		memcpy(nvbo->virtual, gem->kaddr, gem->size);
+	} else 
+		NV_ERROR(dev, "Not support %d -> %d copy", old_domain, new_domain);
 }
+
 static int
 pscmm_move_m2mf(struct drm_nouveau_private* dev_priv,  
 				struct drm_gem_object* gem, struct nouveau_bo *nvbo, 
@@ -407,10 +420,11 @@ pscmm_move_m2mf(struct drm_nouveau_private* dev_priv,
 }
 
 int
-pscmm_move(struct drm_nouveau_private* dev_priv,  
+pscmm_move(struct drm_device *dev,  
 				struct drm_gem_object* gem, struct nouveau_bo *nvbo, 
 				uint32_t old_domain, uint32_t new_domain, bool no_evicted)
 {
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	int ret;
 
 	/* no need to move */
@@ -442,7 +456,7 @@ pscmm_move(struct drm_nouveau_private* dev_priv,
 
 	/* we should use Hardware assisted copy here*/
 	/* need to fix */
-	pscmm_move_memcpy(dev_priv, gem, nvbo, old_domain, new_domain);
+	pscmm_move_memcpy(dev, gem, nvbo, old_domain, new_domain);
 	//pscmm_move_m2mf(dev_priv, gem, nvbo, old_domain, new_domain);
 	
 	nvbo->placements = new_domain;
@@ -454,16 +468,37 @@ pscmm_move(struct drm_nouveau_private* dev_priv,
 	return ret;
 }
 
+void
+pscmm_move_active_list(struct drm_nouveau_private *dev_priv,
+							struct drm_gem_object *gem, struct nouveau_bo *nvbo)
+{
+	if (!nvbo->active) {
+		drm_gem_object_reference(gem);
+		nvbo->active = 1;
+	}
+	list_move_tail(&nvbo->active_list, &dev_priv->active_list);
+}
+
+void
+pscmm_remove_active_list(struct drm_nouveau_private *dev_priv,
+							struct drm_gem_object *gem, struct nouveau_bo *nvbo)
+{
+
+	list_del_init(&nvbo->active_list);
+
+	nvbo->last_rendering_seqno = 0;	
+	if (nvbo->active) {
+		nvbo->active = 0;
+		drm_gem_object_unreference(gem);
+	}
+}
+
 int
 pscmm_set_no_evicted(struct drm_nouveau_private *dev_priv,
 					struct nouveau_bo *nvbo)
 {
-		struct nouveau_bo *nvbo_tmp;
-		nvbo_tmp = list_entry(dev_priv->no_evicted_list.prev, struct nouveau_bo, list);
-		if (nvbo_tmp == NULL)
-			nvbo->last_rendering_seqno = 0;
-		else
-			nvbo->last_rendering_seqno = nvbo_tmp->last_rendering_seqno;
+
+		nvbo->last_rendering_seqno = 0xFFFFFFFF;
 		
 		nvbo->old_type= nvbo->type;
 		nvbo->type= no_evicted;
@@ -509,8 +544,9 @@ pscmm_prefault(struct drm_nouveau_private *dev_priv,
 		}
 }
 int
-pscmm_command_prefault(struct drm_nouveau_private *dev_priv, uint32_t handle)
+pscmm_command_prefault(struct drm_device *dev, struct drm_file *file_priv, uint32_t handle)
 {
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct drm_gem_object *gem;
 	struct nouveau_bo *nvbo;
 	int i, j;
@@ -523,7 +559,7 @@ pscmm_command_prefault(struct drm_nouveau_private *dev_priv, uint32_t handle)
 
 	/* check if nvbo is empty? */
 	if (nvbo == NULL) {
-		pscmm_move(dev_priv->fb_block, gem, nvbo, 0, NOUVEAU_PSCMM_DOMAIN_VRAM, true);
+		pscmm_move(dev, gem, nvbo, 0, NOUVEAU_PSCMM_DOMAIN_VRAM, true);
 	}
 
 	if (nvbo->type == no_evicted) {
@@ -560,23 +596,21 @@ pscmm_retire_request(struct drm_device *dev,
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	/* move bo out of no_evicted list */
-
-	while (!list_empty(&dev_priv->no_evicted_list)) {
+	while (!list_empty(&dev_priv->active_list)) {
 		struct nouveau_bo *nvbo;
 
-		nvbo = list_entry(dev_priv->no_evicted_list,
+		nvbo = list_entry(dev_priv->active_list,
 					    struct nouveau_bo,
-					    list);
+					    active_list);
 
 		/* If the seqno being retired doesn't match the oldest in the
 		 * list, then the oldest in the list must still be newer than
 		 * this seqno.
 		 */
-		 /* need fix!!!*/
 		if (nvbo->last_rendering_seqno != request->seqno)
-			return;
+			break;
 
-		pscmm_set_normal(dev_priv, nvbo);
+		pscmm_remove_active_list(dev_priv, nvbo->gem, nvbo);
 	}
 
 }
@@ -673,9 +707,53 @@ pscmm_add_request(struct drm_device *dev)
 	return seqno;
 }
 
+
+void
+nouveau_pscmm_remove(struct drm_device *dev,  struct nouveau_bo *nvbo)
+{
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	
+	if (nvbo->virtual) {
+		iounmap(nvbo->virtual);
+	}
+
+	pscmm_set_normal(dev_priv, nvbo);
+
+}
+
 int
-nouveau_pscmm_ioctl_new(struct drm_device *dev, void *data,
-		      struct drm_file *file_priv)
+nouveau_pscmm_new(struct drm_device *dev,  struct drm_file *file_priv,
+		int size, int align, uint32_t flags,
+		bool no_evicted, bool mappable,
+		struct nouveau_bo **pnvbo)
+{
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_bo *nvbo;
+	u32 handle;
+	struct drm_gem_object *gem;
+	int ret;
+	
+ 	/* alloc gem object */
+	gem = drm_gem_object_alloc(dev, size);
+
+	if (file_priv)
+		ret = drm_gem_handle_create(file_priv, gem, &handle);
+
+	/* if vram, need to move */
+	if (flags == MEM_PL_FLAG_VRAM) {
+		pscmm_move(dev, gem, nvbo, NOUVEAU_PSCMM_DOMAIN_CPU, NOUVEAU_PSCMM_DOMAIN_VRAM, no_evicted);
+	}
+
+	if (mappable) {
+		nvbo->virtual = ioremap(dev_priv->fb_block->io_offset + nvbo->block_offset_node->start,  gem->size);
+	}
+
+	*pnvbo = nvbo;
+	return 0;
+}
+
+int
+nouveau_pscmm_ioctl_new(DRM_IOCTL_ARGS)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct drm_nouveau_pscmm_new *arg = data;
@@ -684,7 +762,6 @@ nouveau_pscmm_ioctl_new(struct drm_device *dev, void *data,
 
 	/* page-align check */
 	
-
  	/* alloc gem object */
 	gem = drm_gem_object_alloc(dev, arg->size);
 
@@ -695,8 +772,7 @@ nouveau_pscmm_ioctl_new(struct drm_device *dev, void *data,
 }
 
 int
-nouveau_pscmm_ioctl_mmap(struct drm_device *dev, void *data,
-		      struct drm_file *file_priv)
+nouveau_pscmm_ioctl_mmap(DRM_IOCTL_ARGS)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct nouveau_pscmm_mmap *req = data;
@@ -748,8 +824,7 @@ return -1;
 
 
 int
-nouveau_pscmm_ioctl_range_flush(struct drm_device *dev, void *data,
-		      struct drm_file *file_priv)
+nouveau_pscmm_ioctl_range_flush(DRM_IOCTL_ARGS)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct nouveau_pscmm_range_flush *arg = data;
@@ -789,8 +864,7 @@ return -1;
 }
 
 int
-nouveau_pscmm_ioctl_chan_map(struct drm_device *dev, void *data,
-		      struct drm_file *file_priv)
+nouveau_pscmm_ioctl_chan_map(DRM_IOCTL_ARGS)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct drm_nouveau_pscmm_chanmap *arg= data;
@@ -807,9 +881,9 @@ nouveau_pscmm_ioctl_chan_map(struct drm_device *dev, void *data,
 	/* get channel */
 	NOUVEAU_GET_USER_CHANNEL_WITH_RETURN(arg->channel, file_priv, chan);
 	
-	if (nvbo = NULL) {
+	if (nvbo == NULL) {
 
-		pscmm_move(dev_priv, gem, nvbo, nvbo->placements, NOUVEAU_PSCMM_DOMAIN_VRAM, false);
+		pscmm_move(dev, gem, nvbo, NOUVEAU_PSCMM_DOMAIN_CPU, NOUVEAU_PSCMM_DOMAIN_VRAM, false);
 
 	}
 
@@ -829,8 +903,7 @@ nouveau_pscmm_ioctl_chan_map(struct drm_device *dev, void *data,
 }
 
 int
-nouveau_pscmm_ioctl_chan_unmap(struct drm_device *dev, void *data,
-		      struct drm_file *file_priv)
+nouveau_pscmm_ioctl_chan_unmap(DRM_IOCTL_ARGS)
 {
 	struct drm_nouveau_pscmm_chanunmap *arg = data;
 	struct drm_gem_object *gem;
@@ -854,8 +927,7 @@ nouveau_pscmm_ioctl_chan_unmap(struct drm_device *dev, void *data,
 }
 
 int
-nouveau_pscmm_ioctl_read(struct drm_device *dev, void *data,
-		      struct drm_file *file_priv)
+nouveau_pscmm_ioctl_read(DRM_IOCTL_ARGS)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct nouveau_pscmm_read *arg= data;
@@ -906,13 +978,18 @@ nouveau_pscmm_ioctl_read(struct drm_device *dev, void *data,
 	}
 	
 	/* read the GEM object */
+	user_data = (uint32_t *) (uintptr_t) arg->data_ptr;
+	unwritten = DRM_COPY_TO_USER(user_data, gem->kaddr + arg->offset, arg->size);
+        if (unwritten) {
+                ret = EFAULT;
+                DRM_ERROR("i915_gem_pread error!!! unwritten %d", unwritten);
+        }
 	
 }
 
 
 int
-nouveau_pscmm_ioctl_write(struct drm_device *dev, void *data,
-		      struct drm_file *file_priv)
+nouveau_pscmm_ioctl_write(DRM_IOCTL_ARGS)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct nouveau_pscmm_write *arg = data;
@@ -947,7 +1024,7 @@ nouveau_pscmm_ioctl_write(struct drm_device *dev, void *data,
 			}
 
 			user_data = (uint32_t *) (uintptr_t) arg->data_ptr;
-			unwritten = DRM_COPY_FROM_USER(user_data, addr + arg->offset, arg->size);
+			unwritten = DRM_COPY_FROM_USER( addr + arg->offset, user_data, arg->size);
        		if (unwritten) {
                 		ret = EFAULT;
                 		NV_ERROR(dev, "failed to read, unwritten %d", unwritten);
@@ -963,7 +1040,13 @@ nouveau_pscmm_ioctl_write(struct drm_device *dev, void *data,
 	}
 	
 	/* Write the GEM object */
-
+	user_data = (uint32_t *) (uintptr_t) arg->data_ptr;
+	unwritten = DRM_COPY_FROM_USER(gem->kaddr + arg->offset, user_data, arg->size);
+        if (unwritten) {
+                ret = EFAULT;
+                NV_ERROR("i915_gem_gtt_pwrite error!!! unwritten %d", unwritten);
+                return ret;
+        }
 	
 }
 
@@ -973,8 +1056,7 @@ nouveau_pscmm_ioctl_write(struct drm_device *dev, void *data,
 // if the user want to save their bos, just move the bo to RAM.
 
 int
-nouveau_pscmm_ioctl_move(struct drm_device *dev, void *data,
-		      struct drm_file *file_priv)
+nouveau_pscmm_ioctl_move(DRM_IOCTL_ARGS)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct drm_nouveau_pscmm_move *arg = data;
@@ -986,7 +1068,7 @@ nouveau_pscmm_ioctl_move(struct drm_device *dev, void *data,
 	
 	nvbo = gem ? gem->driver_private : NULL;
 	
-	pscmm_move(dev_priv, gem, nvbo, arg->old_domain, arg->new_domain, false);
+	pscmm_move(dev, gem, nvbo, arg->old_domain, arg->new_domain, false);
 
 end:
 		/* think about new is RAM. User space will ignore the firstblock if the bo is not in the VRAM*/
@@ -997,8 +1079,7 @@ end:
 
 
 int
-nouveau_pscmm_ioctl_exec(struct drm_device *dev, void *data,
-		      struct drm_file *file_priv)
+nouveau_pscmm_ioctl_exec(DRM_IOCTL_ARGS)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct drm_nouveau_pscmm_exec *args = data;
@@ -1028,7 +1109,7 @@ nouveau_pscmm_ioctl_exec(struct drm_device *dev, void *data,
 		for (j = 0; j < command_list[i].buffer_count; j++) {
 
 			/* prefault and mark*/
-			pscmm_command_prefault(dev_priv, obj_list[j].handle);
+			pscmm_command_prefault(dev, file_priv, obj_list[j].handle);
 				
 		}
 
@@ -1053,6 +1134,7 @@ nouveau_pscmm_ioctl_exec(struct drm_device *dev, void *data,
 	
 			nvbo = gem ? gem->driver_private : NULL;
 			nvbo->last_rendering_seqno = command_list[i].seqno;
+			pscmm_move_active_list(dev_priv, gem, nvbo);
 		}
 
 		drm_free_large(obj_list);

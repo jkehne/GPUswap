@@ -48,7 +48,7 @@ nouveau_channel_pushbuf_ctxdma_init(struct nouveau_channel *chan)
 					     NV_DMA_TARGET_AGP, &pushbuf);
 		chan->pushbuf_base = pb->bo.offset;
 	} else
-	if (pb->bo.mem.mem_type == TTM_PL_TT) {
+	if (pb->bo.mem.mem_type == MEM_PL_TT) {
 		ret = nouveau_gpuobj_gart_dma_new(chan, 0,
 						  dev_priv->gart_info.aper_size,
 						  NV_DMA_ACCESS_RO, &pushbuf,
@@ -86,16 +86,23 @@ nouveau_channel_pushbuf_ctxdma_init(struct nouveau_channel *chan)
 }
 
 static struct nouveau_bo *
-nouveau_channel_user_pushbuf_alloc(struct drm_device *dev)
+nouveau_channel_user_pushbuf_alloc(struct drm_device *dev, struct drm_file *file_priv)
 {
 	struct nouveau_bo *pushbuf = NULL;
 	int location, ret;
 
 	if (nouveau_vram_pushbuf)
-		location = TTM_PL_FLAG_VRAM;
+		location = MEM_PL_FLAG_VRAM;
 	else
-		location = TTM_PL_FLAG_TT;
+		location = MEM_PL_FLAG_TT;
 
+	ret = nouveau_pscmm_new(dev, file_priv, 65536, PAGE_SIZE, location,
+			      true, true, &pushbuf);
+	if (ret) {
+		NV_ERROR(dev, "error getting PRAMIN backing pages: %d\n", ret);
+		return ret;
+	}
+/*	
 	ret = nouveau_bo_new(dev, NULL, 65536, 0, location, 0, 0x0000, false,
 			     true, &pushbuf);
 	if (ret) {
@@ -109,7 +116,7 @@ nouveau_channel_user_pushbuf_alloc(struct drm_device *dev)
 		nouveau_bo_ref(NULL, &pushbuf);
 		return NULL;
 	}
-
+*/
 	return pushbuf;
 }
 
@@ -149,7 +156,6 @@ nouveau_channel_alloc(struct drm_device *dev, struct nouveau_channel **chan_ret,
 		return -ENOMEM;
 	chan = dev_priv->fifos[channel];
 	INIT_LIST_HEAD(&chan->nvsw.vbl_wait);
-	INIT_LIST_HEAD(&chan->fence.pending);
 	chan->dev = dev;
 	chan->id = channel;
 	chan->file_priv = file_priv;
@@ -159,7 +165,7 @@ nouveau_channel_alloc(struct drm_device *dev, struct nouveau_channel **chan_ret,
 	NV_INFO(dev, "Allocating FIFO number %d\n", channel);
 
 	/* Allocate DMA push buffer */
-	chan->pushbuf_bo = nouveau_channel_user_pushbuf_alloc(dev);
+	chan->pushbuf_bo = nouveau_channel_user_pushbuf_alloc(dev, file_priv);
 	if (!chan->pushbuf_bo) {
 		ret = -ENOMEM;
 		NV_ERROR(dev, "pushbuf %d\n", ret);
@@ -178,18 +184,22 @@ nouveau_channel_alloc(struct drm_device *dev, struct nouveau_channel **chan_ret,
 	else
 		user = NV50_USER(channel);
 
-	chan->user = ioremap(pci_resource_start(dev->pdev, 0) + user,
-								PAGE_SIZE);
-	if (!chan->user) {
+	chan->user = drm_alloc(sizeof (drm_local_map_t), DRM_MEM_MAPS);
+	chan->user->offset = pci_resource_start(dev->pdev, 0) + user;
+	chan->user->size = PAGE_SIZE;
+	chan->user->type = _DRM_REGISTERS;
+	chan->user->flags = _DRM_REMOVABLE;
+	if (drm_ioremap(dev, chan->user)) {
 		NV_ERROR(dev, "ioremap of regs failed.\n");
 		nouveau_channel_free(chan);
 		return -ENOMEM;
 	}
+	
 	chan->user_put = 0x40;
 	chan->user_get = 0x44;
 
 	/* Allocate space for per-channel fixed notifier memory */
-	ret = nouveau_notifier_init_channel(chan);
+	ret = nouveau_notifier_init_channel(chan, file_priv);
 	if (ret) {
 		NV_ERROR(dev, "ntfy %d\n", ret);
 		nouveau_channel_free(chan);
@@ -232,8 +242,6 @@ nouveau_channel_alloc(struct drm_device *dev, struct nouveau_channel **chan_ret,
 	pfifo->reassign(dev, true);
 
 	ret = nouveau_dma_init(chan);
-	if (!ret)
-		ret = nouveau_fence_init(chan);
 	if (ret) {
 		nouveau_channel_free(chan);
 		return ret;
@@ -261,6 +269,9 @@ nouveau_channel_free(struct nouveau_channel *chan)
 
 	nouveau_debugfs_channel_fini(chan);
 
+	/* Ensure all outstanding fences are signaled */
+	/* need fix!!!*/
+#if 0
 	/* Give outstanding push buffers a chance to complete */
 	spin_lock_irqsave(&chan->fence.lock, flags);
 	nouveau_fence_update(chan);
@@ -283,6 +294,7 @@ nouveau_channel_free(struct nouveau_channel *chan)
 	 * we're done with the buffers.
 	 */
 	nouveau_fence_fini(chan);
+#endif
 
 	/* This will prevent pfifo from switching channels. */
 	pfifo->reassign(dev, false);
@@ -316,13 +328,12 @@ nouveau_channel_free(struct nouveau_channel *chan)
 	/* Release the channel's resources */
 	nouveau_gpuobj_ref_del(dev, &chan->pushbuf);
 	if (chan->pushbuf_bo) {
-		nouveau_bo_unpin(chan->pushbuf_bo);
-		nouveau_bo_ref(NULL, &chan->pushbuf_bo);
+		nouveau_pscmm_remove(dev, chan->pushbuf_bo);
 	}
 	nouveau_gpuobj_channel_takedown(chan);
 	nouveau_notifier_takedown_channel(chan);
 	if (chan->user)
-		iounmap(chan->user);
+		drm_ioremapfree(chan->user);
 
 	dev_priv->fifos[chan->id] = NULL;
 	kfree(chan);
@@ -365,8 +376,7 @@ nouveau_channel_owner(struct drm_device *dev, struct drm_file *file_priv,
  ***********************************/
 
 static int
-nouveau_ioctl_fifo_alloc(struct drm_device *dev, void *data,
-			 struct drm_file *file_priv)
+nouveau_ioctl_fifo_alloc(DRM_IOCTL_ARGS)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct drm_nouveau_channel_alloc *init = data;
@@ -391,7 +401,7 @@ nouveau_ioctl_fifo_alloc(struct drm_device *dev, void *data,
 	if (chan->dma.ib_max)
 		init->pushbuf_domains = NOUVEAU_GEM_DOMAIN_VRAM |
 					NOUVEAU_GEM_DOMAIN_GART;
-	else if (chan->pushbuf_bo->bo.mem.mem_type == TTM_PL_VRAM)
+	else if (chan->pushbuf_bo->bo.mem.mem_type == MEM_PL_VRAM)
 		init->pushbuf_domains = NOUVEAU_GEM_DOMAIN_VRAM;
 	else
 		init->pushbuf_domains = NOUVEAU_GEM_DOMAIN_GART;
@@ -417,8 +427,7 @@ nouveau_ioctl_fifo_alloc(struct drm_device *dev, void *data,
 }
 
 static int
-nouveau_ioctl_fifo_free(struct drm_device *dev, void *data,
-			struct drm_file *file_priv)
+nouveau_ioctl_fifo_free(DRM_IOCTL_ARGS)
 {
 	struct drm_nouveau_channel_free *cfree = data;
 	struct nouveau_channel *chan;
