@@ -41,7 +41,7 @@
  * Aligned allocations can also see improvement.
  *
  * Authors:
- * Thomas Hellström <thomas-at-tungstengraphics-dot-com>
+ * Thomas Hellstrȵm <thomas-at-tungstengraphics-dot-com>
  */
 
 /*

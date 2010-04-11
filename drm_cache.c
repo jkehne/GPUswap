@@ -27,7 +27,7 @@
  *
  */
 /*
- * Authors: Thomas HellstrÃƒÂ¶m <thomas-at-tungstengraphics-dot-com>
+ * Authors: Thomas HellstrÈâÃµm <thomas-at-tungstengraphics-dot-com>
  */
 
 /*

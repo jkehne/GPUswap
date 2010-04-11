@@ -22,7 +22,7 @@
  * DEALINGS IN THE SOFTWARE.
  */
 #define	 CORE_AUTHOR	\
-	"Gareth Hughes, Leif Delgass, JosÈ¨ Fonseca, Jon Smirl"
+	"Gareth Hughes, Leif Delgass, Jos®¿ Fonseca, Jon Smirl"
 
 #define	CORE_NAME	"drm"
 #define	CORE_DESC	"DRM shared core routines"

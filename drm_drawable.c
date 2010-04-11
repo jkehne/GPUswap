@@ -6,7 +6,7 @@
  *
  * \author Rickard E. (Rik) Faith <faith@valinux.com>
  * \author Gareth Hughes <gareth@valinux.com>
- * \author Michel DÃ¤nzer <michel@tungstengraphics.com>
+ * \author Michel DÈñnzer <michel@tungstengraphics.com>
  */
 
 /*
