@@ -1,4 +1,5 @@
 
+
 This driver is for OpenSolaris. there will be no KMS support and only for computing.
 
 nouveau_pscmm.c and nouveau_pscmm.h are the core part of PathScale memory manager which is part of nouveau kernel driver.
@@ -25,6 +26,10 @@ Any feedback or suggestions, please send to me lkice@hotmail.com.
 
 
 
-
+HOW TO BUILD
+1. Build OpenSolaris b134 or later from source.
+2. cp the project to usr/src/uts/intel/ (E.g. cp -r pscmm /WORKSPCAE/usr/src/uts/intel/)
+3. make all (build drm binarie)
+4. cd nouveau && make all (build nouveau binarie)
 
 
