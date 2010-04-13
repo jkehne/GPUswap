@@ -149,7 +149,7 @@ find_mem_space(struct drm_nouveau_private* dev_priv, struct nouveau_bo *nvbo,
   * 1. c: total block number
   * 2. bo as schedule unit
   * 3. New list for non-evicted bo.  bo from non-evicted list will be added into tail of T1/T2 according to old_type and ref = 1
-  * 4. CAR is used for replacement, need a good aglorithm to search free page in VRAM more efficiently, using drm_mm?
+  * 4. CAR is used for replacement, need a good algorithm to search free page in VRAM more efficiently, using drm_mm?
   * 5. if the bo was del, it will be removed directly from list.
   */
 	struct nouveau_bo *temp;
@@ -272,7 +272,7 @@ nouveau_channel_map(struct drm_device *dev, struct nouveau_channel *chan, struct
 
 	/* Get free vm from per-channel page table using the function in drm_mm.c or bitmap_block*/
 	/* bind the vm with the physical address in block_array */
-       /* Since the per-channel page table init at the channel_init and not changed then, */
+	/* Since the per-channel page table init at the channel_init and not changed then, */
 	addr_ptr = nvbo->block_offset_node->start << PAGE_SHIFT + dev_priv->vm_vram_base;
 
 	/* bind the vm */
