@@ -40,13 +40,8 @@
 #include "nouveau_drm.h"
 #include "nouveau_drv.h"
 #include "nouveau_reg.h"
-#include <linux/ratelimit.h>
 
-/* needed for hotplug irq */
-#include "nouveau_connector.h"
-#include "nv50_display.h"
-
-void
+int
 nouveau_irq_preinstall(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
@@ -61,14 +56,14 @@ nouveau_irq_preinstall(struct drm_device *dev)
 */
 		INIT_LIST_HEAD(&dev_priv->vbl_waiting);
 	}
+	return 0;
 }
 
-int
+void
 nouveau_irq_postinstall(struct drm_device *dev)
 {
 	/* Master enable */
 	nv_wr32(dev, NV03_PMC_INTR_EN_0, NV_PMC_INTR_EN_0_MASTER_ENABLE);
-	return 0;
 }
 
 void
@@ -309,12 +304,12 @@ nouveau_print_bitfield_names_(uint32_t value,
 	for (i = 0; i < namelist_len; ++i) {
 		uint32_t mask = namelist[i].mask;
 		if (value & mask) {
-			printk(" %s", namelist[i].name);
+			DRM_ERROR(" %s", namelist[i].name);
 			value &= ~mask;
 		}
 	}
 	if (value)
-		printk(" (unknown bits 0x%08x)", value);
+		DRM_ERROR(" (unknown bits 0x%08x)", value);
 }
 #define nouveau_print_bitfield_names(val, namelist) \
 	nouveau_print_bitfield_names_((val), (namelist), ARRAY_SIZE(namelist))
@@ -336,11 +331,11 @@ nouveau_print_enum_names_(uint32_t value,
 	int i;
 	for (i = 0; i < namelist_len; ++i) {
 		if (value == namelist[i].value) {
-			NV_INFO("%s", namelist[i].name);
+			DRM_INFO("%s", namelist[i].name);
 			return;
 		}
 	}
-	NV_INFO("unknown value 0x%08x", value);
+	DRM_INFO("unknown value 0x%08x", value);
 }
 #define nouveau_print_enum_names(val, namelist) \
 	nouveau_print_enum_names_((val), (namelist), ARRAY_SIZE(namelist))
@@ -463,12 +458,11 @@ nouveau_graph_dump_trap_info(struct drm_device *dev, const char *id,
 	if (dev_priv->card_type < NV_50) {
 		NV_INFO(dev, "%s - nSource:", id);
 		nouveau_print_bitfield_names(nsource, nsource_names);
-		NV_INFO(", nStatus:");
+		NV_INFO(dev, ", nStatus:");
 		if (dev_priv->card_type < NV_10)
 			nouveau_print_bitfield_names(nstatus, nstatus_names);
 		else
 			nouveau_print_bitfield_names(nstatus, nstatus_names_nv10);
-		NV_INFO("\n");
 	}
 
 	NV_INFO(dev, "%s - Ch %d/%d Class 0x%04x Mthd 0x%04x "
@@ -558,11 +552,11 @@ nouveau_pgraph_intr_context_switch(struct drm_device *dev)
 
 	switch (dev_priv->card_type) {
 	case NV_04:
-		nv04_graph_context_switch(dev);
-		break;
+//		nv04_graph_context_switch(dev);
+//		break;
 	case NV_10:
-		nv10_graph_context_switch(dev);
-		break;
+//		nv10_graph_context_switch(dev);
+//		break;
 	default:
 		NV_ERROR(dev, "Context switch not implemented\n");
 		break;
@@ -682,7 +676,7 @@ nv50_pgraph_mp_trap(struct drm_device *dev, int tpid, int display)
 					"TP %d MP %d: ", tpid, i);
 			nouveau_print_enum_names(status,
 					nv50_mp_exec_error_names);
-			NV_INFO(" at %06x warp %d, opcode %08x %08x\n",
+			NV_INFO(dev, " at %06x warp %d, opcode %08x %08x\n",
 					pc&0xffffff, pc >> 24,
 					oplow, ophigh);
 		}
@@ -1139,10 +1133,9 @@ nv50_pgraph_irq_handler(struct drm_device *dev)
 			if (nouveau_ratelimit()) {
 				nouveau_graph_dump_trap_info(dev,
 						"PGRAPH_DATA_ERROR", &trap);
-				NV_INFO (dev, "PGRAPH_DATA_ERROR - ");
+				NV_INFO(dev, "PGRAPH_DATA_ERROR - ");
 				nouveau_print_enum_names(nv_rd32(dev, 0x400110),
 						nv50_data_error_names);
-				printk("\n");
 			}
 			status &= ~0x00100000;
 			nv_wr32(dev, NV03_PGRAPH_INTR, 0x00100000);
@@ -1191,8 +1184,12 @@ nv50_pgraph_irq_handler(struct drm_device *dev)
 	}
 
 	nv_wr32(dev, NV03_PMC_INTR_0, NV_PMC_INTR_0_PGRAPH_PENDING);
-	if (nv_rd32(dev, 0x400824) & (1 << 31))
-		nv_wr32(dev, 0x400824, nv_rd32(dev, 0x400824) & ~(1 << 31));
+
+//	if (nv_rd32(dev, 0x400824) & (1 << 31))
+//		nv_wr32(dev, 0x400824, nv_rd32(dev, 0x400824) & ~(1 << 31));
+	if (nv_rd32(dev, 0x400824) & (0x80000000))
+		nv_wr32(dev, 0x400824, nv_rd32(dev, 0x400824) & ~(0x80000000));
+
 }
 
 static void
@@ -1245,7 +1242,7 @@ nouveau_irq_handler(DRM_IRQ_ARGS)
 
 	if (status & (NV_PMC_INTR_0_NV50_DISPLAY_PENDING |
 		      NV_PMC_INTR_0_NV50_I2C_PENDING)) {
-		NV_ERROR("need fix");
+		DRM_ERROR("need fix");
 //		nv50_display_irq_handler(dev);
 		status &= ~(NV_PMC_INTR_0_NV50_DISPLAY_PENDING |
 			    NV_PMC_INTR_0_NV50_I2C_PENDING);

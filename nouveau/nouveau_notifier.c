@@ -60,7 +60,7 @@ nouveau_notifier_init_channel(struct nouveau_channel *chan, struct drm_file *fil
 	if (ret)
 		goto out_err;
 */
-	ret = nouveau_mem_init_heap(&chan->notifier_heap, 0, ntfy->bo.mem.size);
+	ret = nouveau_mem_init_heap(&chan->notifier_heap, 0, ntfy->gem->size);
 	if (ret)
 		goto out_err;
 
@@ -121,11 +121,11 @@ nouveau_notifier_alloc(struct nouveau_channel *chan, uint32_t handle,
 		return -ENOMEM;
 	}
 
-	offset = chan->notifier_bo->bo.mem.mm_node->start << PAGE_SHIFT;
-	if (chan->notifier_bo->bo.mem.mem_type == MEM_PL_VRAM) {
+	offset = chan->notifier_bo->firstblock;
+	if (chan->notifier_bo->placements == NOUVEAU_PSCMM_DOMAIN_VRAM) {
 		target = NV_DMA_TARGET_VIDMEM;
 	} else
-	if (chan->notifier_bo->bo.mem.mem_type == MEM_PL_TT) {
+	if (chan->notifier_bo->placements == NOUVEAU_PSCMM_DOMAIN_GART) {
 		if (dev_priv->gart_info.type == NOUVEAU_GART_SGDMA &&
 		    dev_priv->card_type < NV_50) {
 			ret = nouveau_sgdma_get_page(dev, offset, &offset);
@@ -139,7 +139,7 @@ nouveau_notifier_alloc(struct nouveau_channel *chan, uint32_t handle,
 		}
 	} else {
 		NV_ERROR(dev, "Bad DMA target, mem_type %d!\n",
-			 chan->notifier_bo->bo.mem.mem_type);
+			 chan->notifier_bo->placements);
 		return -EINVAL;
 	}
 	offset += mem->start;

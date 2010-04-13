@@ -39,10 +39,10 @@ MODULE		= drm
 OBJECTS		= $(DRM_OBJS:%=$(OBJS_DIR)/%)
 LINTS		= $(DRM_OBJS:%.o=$(LINTS_DIR)/%.ln)
 ROOTMODULE	= $(ROOT_MISC_DIR)/$(MODULE)
-DRM_SRC		= $(UTSBASE)/i86pc/io/drm
+DRM_SRC		= $(UTSBASE)/intel/pscmm
 GFX_DIR		= $(UTSBASE)/i86pc/io/gfx_private
 
-INC_PATH	+= -I$(DRM_SRC) -I$(GFX_DIR)
+INC_PATH	+= -I$(UTSBASE)/intel/pscmm -I$(GFX_DIR)
 
 # Dependency
 LDFLAGS		+= -dy -Nmisc/agpmaster -Nmisc/gfx_private
@@ -84,3 +84,9 @@ install:	$(INSTALL_DEPS)
 #	Include common targets.
 #
 include $(UTSBASE)/intel/Makefile.targ
+$(OBJS_DIR)/%.o:		$(UTSBASE)/intel/pscmm/%.c
+	$(COMPILE.c) -o $@ $<
+	$(CTFCONVERT_O)
+
+$(LINTS_DIR)/%.ln:		$(UTSBASE)/intel/pscmm/%.c
+	@($(LHEAD) $(LINT.c) $< $(LTAIL))

@@ -62,6 +62,9 @@ struct nouveau_grctx;
 #define NV50_VM_VRAM_NR  (NV50_VM_MAX_VRAM / NV50_VM_BLOCK)
 
 /* for pscmm */
+#define upper_32_bits(n) ((u32)(((n) >> 16) >> 16))
+#define lower_32_bits(n) ((u32)(n))
+
 #define BLOCK_SIZE	PAGE_SIZE
 
 #define NOUVEAU_PSCMM_DOMAIN_CPU       (1 << 0)
@@ -99,8 +102,8 @@ struct nouveau_bo {
 	bool mappable;
 	bool no_vm;
 
-	struct drm_file *cpu_filp;
-	int pin_refcnt;
+//	struct drm_file *cpu_filp;
+//	int pin_refcnt;
 
 	/* for pscmm */
 	u32 placements;
@@ -383,7 +386,7 @@ struct nouveau_engine {
 	struct nouveau_pgraph_engine  graph;
 	struct nouveau_fifo_engine    fifo;
 };
-
+#if 0
 struct nouveau_pll_vals {
 	union {
 		struct {
@@ -505,7 +508,7 @@ struct nv04_mode_state {
 
 	struct nv04_crtc_reg crtc_reg[2];
 };
-
+#endif
 enum nouveau_card_type {
 	NV_04      = 0x00,
 	NV_10      = 0x10,
@@ -648,8 +651,8 @@ struct drm_nouveau_private {
 
 //	struct nvbios vbios;
 
-	struct nv04_mode_state mode_reg;
-	struct nv04_mode_state saved_reg;
+//	struct nv04_mode_state mode_reg;
+//	struct nv04_mode_state saved_reg;
 	uint32_t saved_vga_font[4][16384];
 	uint32_t crtc_owner;
 	uint32_t dac_users[4];
@@ -777,7 +780,7 @@ extern void nv50_mem_vm_unbind(struct drm_device *, uint64_t virt,
 			       uint32_t size);
 
 /* nouveau_notifier.c */
-extern int  nouveau_notifier_init_channel(struct nouveau_channel *);
+extern int  nouveau_notifier_init_channel(struct nouveau_channel *, struct drm_file *);
 extern void nouveau_notifier_takedown_channel(struct nouveau_channel *);
 extern int  nouveau_notifier_alloc(struct nouveau_channel *, uint32_t handle,
 				   int cout, uint32_t *offset);
@@ -845,8 +848,8 @@ extern int nouveau_ioctl_gpuobj_free(DRM_IOCTL_ARGS);
 
 /* nouveau_irq.c */
 extern irqreturn_t nouveau_irq_handler(DRM_IRQ_ARGS);
-extern void        nouveau_irq_preinstall(struct drm_device *);
-extern int         nouveau_irq_postinstall(struct drm_device *);
+extern int         nouveau_irq_preinstall(struct drm_device *);
+extern void        nouveau_irq_postinstall(struct drm_device *);
 extern void        nouveau_irq_uninstall(struct drm_device *);
 
 /* nouveau_sgdma.c */
@@ -974,6 +977,15 @@ extern void nv04_timer_takedown(struct drm_device *);
 extern long nouveau_compat_ioctl(struct file *file, unsigned int cmd,
 				 unsigned long arg);
 
+/* nouveau_pscmm.c */
+extern int
+nouveau_pscmm_new(struct drm_device *dev,  struct drm_file *file_priv,
+		int size, int align, uint32_t flags,
+		bool no_evicted, bool mappable,
+		struct nouveau_bo **pnvbo);
+extern void
+nouveau_pscmm_remove(struct drm_device *dev,  struct nouveau_bo *nvbo);
+
 /* channel control reg access */
 static inline u32 nvchan_rd32(struct nouveau_channel *chan, unsigned reg)
 {
@@ -1044,10 +1056,40 @@ static inline void nv_wo32(struct drm_device *dev, struct nouveau_gpuobj *obj,
  * Logging
  * Argument d is (struct drm_device *).
  */
- #define NV_DEBUG(d, fmt, arg...)	DRM_DEBUG(fmt, ...)
- #define NV_ERROR(d, fmt, arg...)	DRM_ERROR(fmt, ...)
- #define NV_INFO(d, fmt, arg...)	DRM_INFO(fmt, ...)
- #if 0
+void
+nv_debug(struct drm_device *d, const char *fmt, ...)
+{
+	va_list ap;
+
+	va_start(ap, fmt);
+	vcmn_err(CE_NOTE, fmt, ap);
+	va_end(ap);
+}
+
+void
+nv_error(struct drm_device *d, const char *fmt, ...)
+{
+	va_list ap;
+
+	va_start(ap, fmt);
+	vcmn_err(CE_WARN, fmt, ap);
+	va_end(ap);
+}
+
+void
+nv_info(struct drm_device *d, const char *fmt, ...)
+{
+	va_list ap;
+
+	va_start(ap, fmt);
+	vcmn_err(CE_NOTE, fmt, ap);
+	va_end(ap);
+}
+
+#define NV_DEBUG	nv_debug
+#define NV_ERROR	nv_error
+#define NV_INFO		nv_info
+#if 0
 #define NV_PRINTK(level, d, fmt, arg...) \
 	printk(level "[" DRM_NAME "] " DRIVER_NAME " %s: " fmt, \
 					pci_name(d->pdev), ##arg)

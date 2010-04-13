@@ -29,6 +29,7 @@
  
 #include "drmP.h"
 #include "drm.h"
+#include "drm_linux.h"
 #include "nouveau_drv.h"
 #include "nouveau_drm.h"
 #include "nouveau_dma.h"
@@ -48,7 +49,7 @@ nouveau_channel_pushbuf_ctxdma_init(struct nouveau_channel *chan)
 					     NV_DMA_TARGET_AGP, &pushbuf);
 		chan->pushbuf_base = pb->firstblock;
 	} else
-	if (pb->bo.mem.mem_type == MEM_PL_TT) {
+	if (pb->placements == NOUVEAU_GEM_DOMAIN_GART) {
 		ret = nouveau_gpuobj_gart_dma_new(chan, 0,
 						  dev_priv->gart_info.aper_size,
 						  NV_DMA_ACCESS_RO, &pushbuf,
@@ -100,7 +101,7 @@ nouveau_channel_user_pushbuf_alloc(struct drm_device *dev, struct drm_file *file
 			      true, true, &pushbuf);
 	if (ret) {
 		NV_ERROR(dev, "error getting PRAMIN backing pages: %d\n", ret);
-		return ret;
+		return NULL;
 	}
 /*	
 	ret = nouveau_bo_new(dev, NULL, 65536, 0, location, 0, 0x0000, false,
@@ -336,7 +337,7 @@ nouveau_channel_free(struct nouveau_channel *chan)
 		drm_ioremapfree(chan->user);
 
 	dev_priv->fifos[chan->id] = NULL;
-	kfree(chan);
+	kfree(chan, sizeof(*chan));
 }
 
 /* cleans up all the fifos from file_priv */
@@ -347,7 +348,7 @@ nouveau_channel_cleanup(struct drm_device *dev, struct drm_file *file_priv)
 	struct nouveau_engine *engine = &dev_priv->engine;
 	int i;
 
-	NV_DEBUG(dev, "clearing FIFO enables from file_priv\n");
+	NV_DEBUG(dev, "clearing FIFO enables from file_priv");
 	for (i = 0; i < engine->fifo.channels; i++) {
 		struct nouveau_channel *chan = dev_priv->fifos[i];
 
@@ -401,7 +402,7 @@ nouveau_ioctl_fifo_alloc(DRM_IOCTL_ARGS)
 	if (chan->dma.ib_max)
 		init->pushbuf_domains = NOUVEAU_GEM_DOMAIN_VRAM |
 					NOUVEAU_GEM_DOMAIN_GART;
-	else if (chan->pushbuf_bo->bo.mem.mem_type == MEM_PL_VRAM)
+	else if (chan->pushbuf_bo->placements == NOUVEAU_GEM_DOMAIN_VRAM)
 		init->pushbuf_domains = NOUVEAU_GEM_DOMAIN_VRAM;
 	else
 		init->pushbuf_domains = NOUVEAU_GEM_DOMAIN_GART;

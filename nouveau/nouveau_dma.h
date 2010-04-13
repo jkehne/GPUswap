@@ -61,10 +61,30 @@ enum {
 	NvSubImageBlit  = 4
 };
 
+#define	NvM2MF	0x80000001
+#define	NvDmaFB	0x80000002
+#define	NvDmaTT	0x80000003
+#define	NvDmaVRAM	0x80000004
+#define	NvDmaGART	0x80000005
+#define	NvNotify0	0x80000006
+#define Nv2D	0x80000007
+#define NvCtxSurf2D	0x80000008
+#define	NvRop	0x80000009
+#define	NvImagePatt	0x8000000a
+#define	NvClipRect	0x8000000b
+#define	NvGdiRect	0x8000000c
+#define	NvImageBlit	0x8000000d
+#define	NvSw	0x8000000e
+/* G80+ display objects */
+#define	NvEvoVRAM	0x01000000
+#define	NvEvoFB16	0x01000001
+#define	NvEvoFB32	0x01000002
+
+#if 0
 /* Object handles. */
 enum {
 	NvM2MF		= 0x80000001,
-	NvDmaFB		= 0x80000002,
+			= 0x80000002,
 	NvDmaTT		= 0x80000003,
 	NvDmaVRAM	= 0x80000004,
 	NvDmaGART	= 0x80000005,
@@ -83,6 +103,7 @@ enum {
 	NvEvoFB16	= 0x01000001,
 	NvEvoFB32	= 0x01000002
 };
+#endif
 
 #define NV_MEMORY_TO_MEMORY_FORMAT                                    0x00000039
 #define NV_MEMORY_TO_MEMORY_FORMAT_NAME                               0x00000000

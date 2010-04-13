@@ -41,16 +41,16 @@ nouveau_dma_pre_init(struct nouveau_channel *chan)
 	struct nouveau_bo *pushbuf = chan->pushbuf_bo;
 
 	if (dev_priv->card_type == NV_50) {
-		const int ib_size = pushbuf->bo.mem.size / 2;
+		const int ib_size = pushbuf->gem->size / 2;
 
-		chan->dma.ib_base = (pushbuf->bo.mem.size - ib_size) >> 2;
+		chan->dma.ib_base = (pushbuf->gem->size - ib_size) >> 2;
 		chan->dma.ib_max = (ib_size / 8) - 1;
 		chan->dma.ib_put = 0;
 		chan->dma.ib_free = chan->dma.ib_max - chan->dma.ib_put;
 
-		chan->dma.max = (pushbuf->bo.mem.size - ib_size) >> 2;
+		chan->dma.max = (pushbuf->gem->size - ib_size) >> 2;
 	} else {
-		chan->dma.max  = (pushbuf->bo.mem.size >> 2) - 2;
+		chan->dma.max  = (pushbuf->gem->size >> 2) - 2;
 	}
 
 	chan->dma.put  = 0;
@@ -187,9 +187,8 @@ nv50_dma_push(struct nouveau_channel *chan, struct nouveau_bo *bo,
 	      int delta, int length)
 {
 	struct nouveau_bo *pb = chan->pushbuf_bo;
-	uint64_t offset = bo->bo.offset + delta;
+	uint64_t offset = bo->firstblock + delta;
 	int ip = (chan->dma.ib_put * 2) + chan->dma.ib_base;
-
 	BUG_ON(chan->dma.ib_free < 1);
 	nouveau_bo_wr32(pb, ip++, lower_32_bits(offset));
 	nouveau_bo_wr32(pb, ip++, upper_32_bits(offset) | length << 8);

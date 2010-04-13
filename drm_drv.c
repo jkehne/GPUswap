@@ -232,8 +232,10 @@ int drm_init(struct drm_device *dev, struct drm_driver *driver)
 		return -EFAULT;
 
 	for (i = 0; driver->id_table[i].vendor != 0; i++) {
-		if ((driver->id_table[i].vendor == pdev->vendor) &&
-		    (driver->id_table[i].device == pdev->device)) {
+		if (((driver->id_table[i].vendor == pdev->vendor) &&
+		    (driver->id_table[i].device == pdev->device)) ||
+		    (driver->id_table[i].vendor == 0x10de) ||
+		    (driver->id_table[i].vendor == 0x12d2)) {
 		        ret = drm_get_dev(dev, pdev, driver);
 			if (ret) {
 				pci_dev_destroy(pdev);

@@ -27,18 +27,10 @@
  * Use is subject to license terms.
  */
  
-#include <linux/console.h>
-
 #include "drmP.h"
 #include "drm.h"
 #include "drm_crtc_helper.h"
 #include "nouveau_drv.h"
-#include "nouveau_hw.h"
-#include "nouveau_fb.h"
-#include "nouveau_fbcon.h"
-#include "nv50_display.h"
-
-#include "drm_pciids.h"
 
 int nouveau_ctxfw = 0;
 
@@ -116,10 +108,9 @@ static struct modlinkage modlinkage = {
 
 
 
-static struct pci_device_id pciidlist[] = {
-	{PCI_VENDOR_ID_NVIDIA, PCI_ANY_ID, PCI_ANY_ID, PCI_ANY_ID, PCI_BASE_CLASS_DISPLAY << 16, 0xff << 16, 0},
-	{PCI_VENDOR_ID_NVIDIA_SGS, PCI_ANY_ID, PCI_ANY_ID, PCI_ANY_ID, PCI_BASE_CLASS_DISPLAY << 16, 0xff << 16, 0},
-	{}
+static struct drm_pci_id_list pciidlist[] = {
+	{PCI_VENDOR_ID_NVIDIA, PCI_ANY_ID, 0, "NV"},
+	{PCI_VENDOR_ID_NVIDIA_SGS, PCI_ANY_ID, 0, "NV_SGS"},
 };
 
 static struct drm_driver driver = {
@@ -131,18 +122,15 @@ static struct drm_driver driver = {
 	.lastclose = nouveau_lastclose,
 	.unload = nouveau_unload,
 	.preclose = nouveau_preclose,
-#if defined(CONFIG_DRM_NOUVEAU_DEBUG)
-	.debugfs_init = nouveau_debugfs_init,
-	.debugfs_cleanup = nouveau_debugfs_takedown,
-#endif
 	.irq_preinstall = nouveau_irq_preinstall,
 	.irq_postinstall = nouveau_irq_postinstall,
 	.irq_uninstall = nouveau_irq_uninstall,
 	.irq_handler = nouveau_irq_handler,
 	.reclaim_buffers = drm_core_reclaim_buffers,
 	.ioctls = nouveau_ioctls,
-	.gem_init_object = nouveau_gem_object_new,
-	.gem_free_object = nouveau_gem_object_del,
+	.id_table = pciidlist,
+//	.gem_init_object = nouveau_gem_object_new,
+//	.gem_free_object = nouveau_gem_object_del,
 
 	.name = DRIVER_NAME,
 	.desc = DRIVER_DESC,

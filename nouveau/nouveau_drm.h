@@ -186,8 +186,8 @@ enum nouveau_bus_type {
 	NV_PCIE    = 2,
 };
 
-struct drm_nouveau_sarea {
-};
+//struct drm_nouveau_sarea {
+//};
 
 #define DRM_NOUVEAU_GETPARAM           0x00
 #define DRM_NOUVEAU_SETPARAM           0x01

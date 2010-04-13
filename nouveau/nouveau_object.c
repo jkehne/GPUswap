@@ -147,7 +147,7 @@ nouveau_ramht_insert(struct drm_device *dev, struct nouveau_gpuobj_ref *ref)
 			nv_wo32(dev, ramht, (co + 0)/4, ref->handle);
 			nv_wo32(dev, ramht, (co + 4)/4, ctx);
 
-			list_add_tail(&ref->list, &chan->ramht_refs);
+			list_add_tail(&ref->list, &chan->ramht_refs, (caddr_t)ref);
 			instmem->finish_access(dev);
 			return 0;
 		}
@@ -230,7 +230,7 @@ nouveau_gpuobj_new(struct drm_device *dev, struct nouveau_channel *chan,
 	gpuobj->flags = flags;
 	gpuobj->im_channel = chan;
 
-	list_add_tail(&gpuobj->list, &dev_priv->gpuobj_list);
+	list_add_tail(&gpuobj->list, &dev_priv->gpuobj_list, (caddr_t)gpuobj);
 
 	/* Choose between global instmem heap, and per-channel private
 	 * instmem heap.  On <NV50 allow requests for private instmem
@@ -389,7 +389,7 @@ nouveau_gpuobj_del(struct drm_device *dev, struct nouveau_gpuobj **pgpuobj)
 
 	if (gpuobj->im_pramin) {
 		if (gpuobj->flags & NVOBJ_FLAG_FAKE)
-			kfree(gpuobj->im_pramin);
+			kfree(gpuobj->im_pramin, sizeof(struct mem_block));
 		else
 			nouveau_mem_free_block(gpuobj->im_pramin);
 	}
@@ -397,7 +397,7 @@ nouveau_gpuobj_del(struct drm_device *dev, struct nouveau_gpuobj **pgpuobj)
 	list_del(&gpuobj->list);
 
 	*pgpuobj = NULL;
-	kfree(gpuobj);
+	kfree(gpuobj, sizeof(*gpuobj));
 	return 0;
 }
 
@@ -489,7 +489,7 @@ nouveau_gpuobj_ref_add(struct drm_device *dev, struct nouveau_channel *chan,
 
 		ret = nouveau_ramht_insert(dev, ref);
 		if (ret) {
-			kfree(ref);
+			kfree(ref, sizeof(*ref));
 			return ret;
 		}
 	} else {
@@ -524,7 +524,7 @@ int nouveau_gpuobj_ref_del(struct drm_device *dev, struct nouveau_gpuobj_ref **p
 	}
 
 	*pref = NULL;
-	kfree(ref);
+	kfree(ref, sizeof(*ref));
 	return 0;
 }
 
@@ -591,7 +591,7 @@ nouveau_gpuobj_new_fake(struct drm_device *dev, uint32_t p_offset,
 	gpuobj->im_channel = NULL;
 	gpuobj->flags      = flags | NVOBJ_FLAG_FAKE;
 
-	list_add_tail(&gpuobj->list, &dev_priv->gpuobj_list);
+	list_add_tail(&gpuobj->list, &dev_priv->gpuobj_list, (caddr_t)gpuobj);
 
 	if (p_offset != ~0) {
 		gpuobj->im_pramin = kzalloc(sizeof(struct mem_block),
@@ -903,7 +903,7 @@ nouveau_gpuobj_sw_new(struct nouveau_channel *chan, int class,
 	gpuobj->engine = NVOBJ_ENGINE_SW;
 	gpuobj->class = class;
 
-	list_add_tail(&gpuobj->list, &dev_priv->gpuobj_list);
+	list_add_tail(&gpuobj->list, &dev_priv->gpuobj_list, (caddr_t)gpuobj);
 	*gpuobj_ret = gpuobj;
 	return 0;
 }
@@ -1159,7 +1159,7 @@ nouveau_gpuobj_suspend(struct drm_device *dev)
 		return 0;
 	}
 
-	list_for_each_entry(gpuobj, &dev_priv->gpuobj_list, list) {
+	list_for_each_entry(gpuobj, struct nouveau_gpuobj, &dev_priv->gpuobj_list, list) {
 		if (!gpuobj->im_backing || (gpuobj->flags & NVOBJ_FLAG_FAKE))
 			continue;
 
@@ -1190,7 +1190,7 @@ nouveau_gpuobj_suspend_cleanup(struct drm_device *dev)
 		return;
 	}
 
-	list_for_each_entry(gpuobj, &dev_priv->gpuobj_list, list) {
+	list_for_each_entry(gpuobj, struct nouveau_gpuobj, &dev_priv->gpuobj_list, list) {
 		if (!gpuobj->im_backing_suspend)
 			continue;
 
@@ -1213,7 +1213,7 @@ nouveau_gpuobj_resume(struct drm_device *dev)
 		return;
 	}
 
-	list_for_each_entry(gpuobj, &dev_priv->gpuobj_list, list) {
+	list_for_each_entry(gpuobj, struct nouveau_gpuobj, &dev_priv->gpuobj_list, list) {
 		if (!gpuobj->im_backing_suspend)
 			continue;
 

@@ -125,7 +125,7 @@ void nouveau_mem_free_block(struct mem_block *p)
 		p->size += q->size;
 		p->next = q->next;
 		p->next->prev = p;
-		kfree(q);
+		kfree(q, sizeof(*q));
 	}
 
 	if (p->prev->file_priv == NULL) {
@@ -133,7 +133,7 @@ void nouveau_mem_free_block(struct mem_block *p)
 		q->size += p->size;
 		q->next = p->next;
 		q->next->prev = q;
-		kfree(p);
+		kfree(p, sizeof(*p));
 	}
 }
 
@@ -149,7 +149,7 @@ int nouveau_mem_init_heap(struct mem_block **heap, uint64_t start,
 
 	*heap = kmalloc(sizeof(**heap), GFP_KERNEL);
 	if (!*heap) {
-		kfree(blocks);
+		kfree(blocks, sizeof(*blocks));
 		return -ENOMEM;
 	}
 
@@ -190,7 +190,7 @@ void nouveau_mem_release(struct drm_file *file_priv, struct mem_block *heap)
 			p->size += q->size;
 			p->next = q->next;
 			p->next->prev = p;
-			kfree(q);
+			kfree(q, sizeof(*q));
 		}
 	}
 }
@@ -349,10 +349,10 @@ void nouveau_mem_takedown(struct mem_block **heap)
 	for (p = (*heap)->next; p != *heap;) {
 		struct mem_block *q = p;
 		p = p->next;
-		kfree(q);
+		kfree(q, sizeof(*q));
 	}
 
-	kfree(*heap);
+	kfree(*heap, sizeof(*heap));
 	*heap = NULL;
 }
 
@@ -366,12 +366,15 @@ void nouveau_mem_close(struct drm_device *dev)
 
 		/* Remove AGP resources, but leave dev->agp
 		   intact until drv_cleanup is called. */
-		list_for_each_entry_safe(entry, tempe, &dev->agp->memory, head) {
+NV_ERROR(dev, "nouveau_mem_close need support release mem");
+#if 0
+		list_for_each_entry_safe(entry, tempe, struct drm_agp_mem, &dev->agp->memory, head) {
 			if (entry->bound)
 				drm_unbind_agp(entry->memory);
 			drm_free_agp(entry->memory, entry->pages);
-			kfree(entry);
+			kfree(entry, sizeof(*entry));
 		}
+#endif
 		INIT_LIST_HEAD(&dev->agp->memory);
 
 		if (dev->agp->acquired)
@@ -412,24 +415,24 @@ nouveau_mem_detect_nforce(struct drm_device *dev)
 	struct drm_nouveau_bridge_dev *bridge;
 	uint32_t mem;
 
-	NV_DEBUG("detect_nforce");
-
+	NV_ERROR(dev, "detect_nforce, not support!!!");
+#if 0
 	/* OSOL Begin */
 
 	if (bridge->ldi_id) {
-		NV_ERROR("end");
+		DRM_ERROR("end");
 		return 0;
 	}
 
 	if (ldi_ident_from_dip(dev->devinfo, &bridge->ldi_id)) {
 		bridge->ldi_id = NULL;
-		NV_ERROR("failed");
+		DRM_ERROR("failed");
 		return -1;
 	};
 
 	if (ldi_open_by_name("/dev/agp/agptarget1", 0, kcred,
 	    &bridge->bridge_dev_hdl, bridge->ldi_id)) {
-	    	NV_ERROR("failed");
+	    	DRM_ERROR("failed");
 		ldi_ident_release(bridge->ldi_id);
 		bridge->ldi_id = NULL;
 		bridge->bridge_dev_hdl = NULL;
@@ -454,6 +457,7 @@ nouveau_mem_detect_nforce(struct drm_device *dev)
 	}
 
 	NV_ERROR(dev, "impossible!\n");
+#endif
 	return 0;
 }
 
@@ -595,7 +599,7 @@ nouveau_mem_init(struct drm_device *dev)
 
 	INIT_LIST_HEAD(&dev_priv->bo_list);
 	spin_lock_init(&dev_priv->bo_list_lock);
-	spin_lock_init(&dev_priv->lock);
+//	spin_lock_init(&dev_priv->lock);
 
 	dev_priv->fb_available_size = dev_priv->vram_size;
 	dev_priv->fb_mappable_pages = dev_priv->fb_available_size;
@@ -614,7 +618,7 @@ nouveau_mem_init(struct drm_device *dev)
 	drm_mm_init(&dev_priv->fb_block->core_manager, 0, dev_priv->fb_available_size >> PAGE_SHIFT);
 
 	/* reserve VGA memory */
-	ret = nouveau_pscmm_new(dev, NULL, 256*1024, PAGE_SIZE, MEM_PL_FLAG_VRAM,,
+	ret = nouveau_pscmm_new(dev, NULL, 256*1024, PAGE_SIZE, MEM_PL_FLAG_VRAM,
 			      true, true, &dev_priv->vga_ram);
 	if (ret) {
 		NV_ERROR(dev, "error getting PRAMIN backing pages: %d\n", ret);
