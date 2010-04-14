@@ -376,7 +376,7 @@ nouveau_channel_owner(struct drm_device *dev, struct drm_file *file_priv,
  * ioctls wrapping the functions
  ***********************************/
 
-static int
+int
 nouveau_ioctl_fifo_alloc(DRM_IOCTL_ARGS)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
@@ -427,7 +427,7 @@ nouveau_ioctl_fifo_alloc(DRM_IOCTL_ARGS)
 	return 0;
 }
 
-static int
+int
 nouveau_ioctl_fifo_free(DRM_IOCTL_ARGS)
 {
 	struct drm_nouveau_channel_free *cfree = data;

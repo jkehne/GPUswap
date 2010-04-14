@@ -19,7 +19,7 @@
 
 #define NV_RAMHT_HANDLE_OFFSET                             0
 #define NV_RAMHT_CONTEXT_OFFSET                            4
-#    define NV_RAMHT_CONTEXT_VALID                         (1<<31)
+#    define NV_RAMHT_CONTEXT_VALID                         0x80000000
 #    define NV_RAMHT_CONTEXT_CHANNEL_SHIFT                 24
 #    define NV_RAMHT_CONTEXT_ENGINE_SHIFT                  16
 #        define NV_RAMHT_CONTEXT_ENGINE_SOFTWARE           0

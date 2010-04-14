@@ -123,7 +123,7 @@ struct nouveau_bo {
 	uintptr_t *block_array;	//the GPU physical address at which the bo is
 	struct drm_mm_node *block_offset_node;	//same as block_array, used in drm_mm
 
-//	boot swap_out;		//the bo has been swap out
+	bool swap_out;		//the bo has been swap out
 
 	struct list_head list;	//The object's place on the T1/T2/B1/B2 no_evict list
 	enum list_type type;	//The object's in which listes
@@ -274,6 +274,15 @@ struct nouveau_channel {
 	} nvsw;
 
 	/* for pscmm */
+
+	uint32_t next_seqno;
+
+	/**
+	   * List of breadcrumbs associated with GPU requests currently
+	   * outstanding.
+	   */
+	struct list_head request_list;
+
 	// this structure is private to each channel, it a simple bitmap used
 
 	// to allocate GPU memory on behalf of the channel (one bit perblock)
@@ -688,14 +697,6 @@ struct drm_nouveau_private {
 
 	struct list_head no_evicted_list;		//the bo which don't evicted
 
-	uint32_t next_seqno;
-
-	/**
-	   * List of breadcrumbs associated with GPU requests currently
-	   * outstanding.
-	   */
-	struct list_head request_list;
-
 	spinlock_t bo_list_lock;
 	struct list_head bo_list;
 	atomic_t validate_sequence;
@@ -799,6 +800,8 @@ extern int  nouveau_channel_alloc(struct drm_device *dev,
 				  struct drm_file *file_priv,
 				  uint32_t fb_ctxdma, uint32_t tt_ctxdma);
 extern void nouveau_channel_free(struct nouveau_channel *);
+extern int nouveau_ioctl_fifo_alloc(DRM_IOCTL_ARGS);
+extern int nouveau_ioctl_fifo_free(DRM_IOCTL_ARGS);
 
 /* nouveau_object.c */
 extern int  nouveau_gpuobj_early_init(struct drm_device *);

@@ -196,10 +196,39 @@ enum nouveau_bus_type {
 #define DRM_NOUVEAU_GROBJ_ALLOC        0x04
 #define DRM_NOUVEAU_NOTIFIEROBJ_ALLOC  0x05
 #define DRM_NOUVEAU_GPUOBJ_FREE        0x06
-#define DRM_NOUVEAU_GEM_NEW            0x40
-#define DRM_NOUVEAU_GEM_PUSHBUF        0x41
-#define DRM_NOUVEAU_GEM_CPU_PREP       0x42
-#define DRM_NOUVEAU_GEM_CPU_FINI       0x43
-#define DRM_NOUVEAU_GEM_INFO           0x44
+#define DRM_NOUVEAU_PSCMM_NEW	       0x07
+#define DRM_NOUVEAU_PSCMM_MMAP         0x08
+#define DRM_NOUVEAU_PSCMM_RANGE_FLUSH  0x09
+#define DRM_NOUVEAU_PSCMM_READ         0x0a
+#define DRM_NOUVEAU_PSCMM_WRITE        0x0b
+#define DRM_NOUVEAU_PSCMM_MOVE         0x0c
+#define DRM_NOUVEAU_PSCMM_EXEC         0x0d
+#define DRM_NOUVEAU_PSCMM_CHAN_MAP     0x0e
+#define DRM_NOUVEAU_PSCMM_CHAN_UNMAP   0x0f
+
+#define DRM_IOCTL_NOUVEAU_GETPARAM           DRM_IOWR(DRM_COMMAND_BASE + DRM_NOUVEAU_GETPARAM, struct drm_nouveau_getparam)
+#define DRM_IOCTL_NOUVEAU_SETPARAM           DRM_IOW(DRM_COMMAND_BASE + DRM_NOUVEAU_SETPARAM, struct drm_nouveau_setparam)
+#define DRM_IOCTL_NOUVEAU_CHANNEL_ALLOC      DRM_IOWR(DRM_COMMAND_BASE + DRM_NOUVEAU_CHANNEL_ALLOC, struct drm_nouveau_channel_alloc)
+#define DRM_IOCTL_NOUVEAU_CHANNEL_FREE       DRM_IOW(DRM_COMMAND_BASE + DRM_NOUVEAU_CHANNEL_FREE, struct drm_nouveau_channel_free)
+#define DRM_IOCTL_NOUVEAU_GROBJ_ALLOC        DRM_IOW(DRM_COMMAND_BASE + DRM_NOUVEAU_GROBJ_ALLOC, struct drm_nouveau_grobj_alloc)
+#define DRM_IOCTL_NOUVEAU_NOTIFIEROBJ_ALLOC  DRM_IOW(DRM_COMMAND_BASE + DRM_NOUVEAU_NOTIFIEROBJ_ALLOC, struct drm_nouveau_notifierobj_alloc)
+#define DRM_IOCTL_NOUVEAU_GPUOBJ_FREE        DRM_IOW(DRM_COMMAND_BASE + DRM_NOUVEAU_GPUOBJ_FREE, struct drm_nouveau_gpuobj_free)
+#define DRM_IOCTL_NOUVEAU_PSCMM_NEW          DRM_IOWR(DRM_COMMAND_BASE + DRM_NOUVEAU_PSCMM_NEW, struct drm_nouveau_pscmm_new)
+#define DRM_IOCTL_NOUVEAU_PSCMM_MMAP         DRM_IOWR(DRM_COMMAND_BASE + DRM_NOUVEAU_PSCMM_MMAP, struct nouveau_pscmm_mmap)
+#define DRM_IOCTL_NOUVEAU_PSCMM_RANGE_FLUSH  DRM_IOW(DRM_COMMAND_BASE + DRM_NOUVEAU_PSCMM_RANGE_FLUSH, struct nouveau_pscmm_range_flush)
+#define DRM_IOCTL_NOUVEAU_PSCMM_READ         DRM_IOW(DRM_COMMAND_BASE + DRM_NOUVEAU_PSCMM_READ, struct nouveau_pscmm_read)
+#define DRM_IOCTL_NOUVEAU_PSCMM_WRITE        DRM_IOW(DRM_COMMAND_BASE + DRM_NOUVEAU_PSCMM_WRITE, struct nouveau_pscmm_write)
+#define DRM_IOCTL_NOUVEAU_PSCMM_MOVE         DRM_IOWR(DRM_COMMAND_BASE + DRM_NOUVEAU_PSCMM_MOVE, struct drm_nouveau_pscmm_move)
+#define DRM_IOCTL_NOUVEAU_PSCMM_EXEC         DRM_IOWR(DRM_COMMAND_BASE + DRM_NOUVEAU_PSCMM_EXEC, struct drm_nouveau_pscmm_exec)
+#define DRM_IOCTL_NOUVEAU_PSCMM_CHAN_MAP     DRM_IOWR(DRM_COMMAND_BASE + DRM_NOUVEAU_PSCMM_CHAN_MAP, struct drm_nouveau_pscmm_chanmap)
+#define DRM_IOCTL_NOUVEAU_PSCMM_CHAN_UNMAP   DRM_IOW(DRM_COMMAND_BASE + DRM_NOUVEAU_PSCMM_CHAN_UNMAP, struct drm_nouveau_pscmm_chanunmap)
+
+#ifdef _MULTI_DATAMODEL
+#define NOUVEAU_IOCTL_DEF(ioctl, _func, _flags, _copyin32, _copyout32) \
+	[DRM_IOCTL_NR(ioctl) - DRM_COMMAND_BASE] = {.cmd = ioctl, .flags = _flags, .func = _func, .copyin32 = _copyin32, .copyout32 = _copyout32}
+#else
+#define NOUVEAU_IOCTL_DEF(ioctl, _func, _flags, _copyin32, _copyout32) \
+	[DRM_IOCTL_NR(ioctl) - DRM_COMMAND_BASE] = {.cmd = ioctl, .flags = _flags, .func = _func, .copyin32 = NULL, .copyout32 = NULL}
+#endif
 
 #endif /* __NOUVEAU_DRM_H__ */

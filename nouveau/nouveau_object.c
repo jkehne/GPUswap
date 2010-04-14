@@ -445,7 +445,7 @@ nouveau_gpuobj_instance_get(struct drm_device *dev,
 		return 0;
 	}
 
-	return -EINVAL;
+//	return -EINVAL;
 }
 
 int
@@ -1142,90 +1142,6 @@ nouveau_gpuobj_channel_takedown(struct nouveau_channel *chan)
 
 }
 
-int
-nouveau_gpuobj_suspend(struct drm_device *dev)
-{
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_gpuobj *gpuobj;
-	int i;
-
-	if (dev_priv->card_type < NV_50) {
-		dev_priv->susres.ramin_copy = vmalloc(dev_priv->ramin_rsvd_vram);
-		if (!dev_priv->susres.ramin_copy)
-			return -ENOMEM;
-
-		for (i = 0; i < dev_priv->ramin_rsvd_vram; i += 4)
-			dev_priv->susres.ramin_copy[i/4] = nv_ri32(dev, i);
-		return 0;
-	}
-
-	list_for_each_entry(gpuobj, struct nouveau_gpuobj, &dev_priv->gpuobj_list, list) {
-		if (!gpuobj->im_backing || (gpuobj->flags & NVOBJ_FLAG_FAKE))
-			continue;
-
-		gpuobj->im_backing_suspend = vmalloc(gpuobj->im_pramin->size);
-		if (!gpuobj->im_backing_suspend) {
-			nouveau_gpuobj_resume(dev);
-			return -ENOMEM;
-		}
-
-		dev_priv->engine.instmem.prepare_access(dev, false);
-		for (i = 0; i < gpuobj->im_pramin->size / 4; i++)
-			gpuobj->im_backing_suspend[i] = nv_ro32(dev, gpuobj, i);
-		dev_priv->engine.instmem.finish_access(dev);
-	}
-
-	return 0;
-}
-
-void
-nouveau_gpuobj_suspend_cleanup(struct drm_device *dev)
-{
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_gpuobj *gpuobj;
-
-	if (dev_priv->card_type < NV_50) {
-		vfree(dev_priv->susres.ramin_copy);
-		dev_priv->susres.ramin_copy = NULL;
-		return;
-	}
-
-	list_for_each_entry(gpuobj, struct nouveau_gpuobj, &dev_priv->gpuobj_list, list) {
-		if (!gpuobj->im_backing_suspend)
-			continue;
-
-		vfree(gpuobj->im_backing_suspend);
-		gpuobj->im_backing_suspend = NULL;
-	}
-}
-
-void
-nouveau_gpuobj_resume(struct drm_device *dev)
-{
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_gpuobj *gpuobj;
-	int i;
-
-	if (dev_priv->card_type < NV_50) {
-		for (i = 0; i < dev_priv->ramin_rsvd_vram; i += 4)
-			nv_wi32(dev, i, dev_priv->susres.ramin_copy[i/4]);
-		nouveau_gpuobj_suspend_cleanup(dev);
-		return;
-	}
-
-	list_for_each_entry(gpuobj, struct nouveau_gpuobj, &dev_priv->gpuobj_list, list) {
-		if (!gpuobj->im_backing_suspend)
-			continue;
-
-		dev_priv->engine.instmem.prepare_access(dev, true);
-		for (i = 0; i < gpuobj->im_pramin->size / 4; i++)
-			nv_wo32(dev, gpuobj, i, gpuobj->im_backing_suspend[i]);
-		dev_priv->engine.instmem.finish_access(dev);
-	}
-
-	nouveau_gpuobj_suspend_cleanup(dev);
-}
-
 int nouveau_ioctl_grobj_alloc(DRM_IOCTL_ARGS)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
@@ -1258,7 +1174,7 @@ int nouveau_ioctl_grobj_alloc(DRM_IOCTL_ARGS)
 		return -EEXIST;
 
 	if (!grc->software)
-		ret = nouveau_gpuobj_gr_new(chan, file_priv, grc->id, &gr);
+		ret = nouveau_gpuobj_gr_new(chan, grc->id, &gr);
 	else
 		ret = nouveau_gpuobj_sw_new(chan, grc->id, &gr);
 

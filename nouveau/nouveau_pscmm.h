@@ -24,6 +24,12 @@
  * Use is subject to license terms.
  */
 
+#include "drmP.h"
+#include "drm.h"
+#include "nouveau_drv.h"
+#include "nouveau_drm.h"
+#include "nouveau_dma.h"
+
 struct drm_nouveau_pscmm_new {
 
 	/**
@@ -75,7 +81,7 @@ struct nouveau_pscmm_range_flush {
 
 	uint32_t handle;
 				
-	uint32_t pad
+	uint32_t pad;
 
 	/**
 	   * Length of data to flush/dma.
@@ -262,20 +268,3 @@ struct drm_nouveau_pscmm_exec_object {
 
 };
 
-
-#define DRM_NOUVEAU_GETPARAM           0x00
-#define DRM_NOUVEAU_SETPARAM           0x01
-#define DRM_NOUVEAU_CHANNEL_ALLOC      0x02
-#define DRM_NOUVEAU_CHANNEL_FREE       0x03
-#define DRM_NOUVEAU_GROBJ_ALLOC        0x04
-#define DRM_NOUVEAU_NOTIFIEROBJ_ALLOC  0x05
-#define DRM_NOUVEAU_GPUOBJ_FREE        0x06
-#define DRM_NOUVEAU_PSCMM_NEW            0x40
-#define DRM_NOUVEAU_PSCMM_MMAP        0x41
-#define DRM_NOUVEAU_PSCMM_RANGE_FLUSH       0x42
-#define DRM_NOUVEAU_PSCMM_READ       0x43
-#define DRM_NOUVEAU_PSCMM_WRITE           0x44
-#define DRM_NOUVEAU_PSCMM_MOVE           0x45
-#define DRM_NOUVEAU_PSCMM_EXEC           0x46
-#define DRM_NOUVEAU_PSCMM_CHAN_MAP           0x47
-#define DRM_NOUVEAU_PSCMM_CHAN_UNMAP           0x48
