@@ -329,16 +329,18 @@ nv50_instmem_takedown(struct drm_device *dev)
 		nouveau_mem_takedown(&chan->ramin_heap);
 
 		dev_priv->fifos[0] = dev_priv->fifos[127] = NULL;
-		kfree(chan);
+		kfree(chan, sizeof(*chan));
 	}
 
 	dev_priv->engine.instmem.priv = NULL;
-	kfree(priv);
+	kfree(priv, sizeof(*priv));
 }
 
 int
 nv50_instmem_suspend(struct drm_device *dev)
 {
+return 0;
+#if 0
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct nouveau_channel *chan = dev_priv->fifos[0];
 	struct nouveau_gpuobj *ramin = chan->ramin->gpuobj;
@@ -351,11 +353,13 @@ nv50_instmem_suspend(struct drm_device *dev)
 	for (i = 0; i < ramin->im_pramin->size; i += 4)
 		ramin->im_backing_suspend[i/4] = nv_ri32(dev, i);
 	return 0;
+#endif
 }
 
 void
 nv50_instmem_resume(struct drm_device *dev)
 {
+#if 0
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct nv50_instmem_priv *priv = dev_priv->engine.instmem.priv;
 	struct nouveau_channel *chan = dev_priv->fifos[0];
@@ -380,6 +384,7 @@ nv50_instmem_resume(struct drm_device *dev)
 
 	for (i = 0; i < 8; i++)
 		nv_wr32(dev, 0x1900 + (i*4), 0);
+#endif
 }
 
 int

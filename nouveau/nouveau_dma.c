@@ -355,3 +355,15 @@ nouveau_dma_wait(struct nouveau_channel *chan, int slots, int size)
 	return 0;
 }
 
+void
+nouveau_bo_wr32(struct nouveau_bo *nvbo, unsigned index, u32 val)
+{
+        *(volatile uint32_t *)((uintptr_t)(nvbo->virtual) + (index * 4)) = (val);
+}
+
+u32
+nouveau_bo_rd32(struct nouveau_bo *nvbo, unsigned index)
+{
+        return *(volatile uint32_t *)((uintptr_t)(nvbo->virtual) + (index * 4));
+}
+

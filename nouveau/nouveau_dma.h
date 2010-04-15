@@ -122,17 +122,11 @@ enum {
 #define NV50_MEMORY_TO_MEMORY_FORMAT_OFFSET_IN_HIGH                   0x00000238
 #define NV50_MEMORY_TO_MEMORY_FORMAT_OFFSET_OUT_HIGH                  0x0000023c
 
-void
-nouveau_bo_wr32(struct nouveau_bo *nvbo, unsigned index, u32 val)
-{
-	*(volatile uint32_t *)((uintptr_t)(nvbo->virtual) + (index * 4)) = (val);
-}
+extern void
+nouveau_bo_wr32(struct nouveau_bo *nvbo, unsigned index, u32 val);
 
-u32
-nouveau_bo_rd32(struct nouveau_bo *nvbo, unsigned index)
-{
-	return *(volatile uint32_t *)((uintptr_t)(nvbo->virtual) + (index * 4));
-}
+extern u32
+nouveau_bo_rd32(struct nouveau_bo *nvbo, unsigned index);
 
 static inline int
 RING_SPACE(struct nouveau_channel *chan, int size)

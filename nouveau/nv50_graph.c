@@ -27,7 +27,6 @@
 #include "drmP.h"
 #include "drm.h"
 #include "nouveau_drv.h"
-
 #include "nouveau_grctx.h"
 
 #define IS_G80 ((dev_priv->chipset & 0xf0) == 0x50)
@@ -107,11 +106,12 @@ nv50_graph_init_ctxctl(struct drm_device *dev)
 	NV_DEBUG(dev, "\n");
 
 	if (nouveau_ctxfw) {
-		nouveau_grctx_prog_load(dev);
+		NV_ERROR(dev, "no support nouveau_grctx");
+//		nouveau_grctx_prog_load(dev);
 		dev_priv->engine.graph.grctx_size = 0x70000;
 	}
 	if (!dev_priv->engine.graph.ctxprog) {
-		struct nouveau_grctx ctx = {};
+		struct nouveau_grctx ctx;
 		uint32_t *cp = kmalloc(512 * 4, GFP_KERNEL);
 		int i;
 		if (!cp) {
@@ -132,7 +132,7 @@ nv50_graph_init_ctxctl(struct drm_device *dev)
 		} else {
 			dev_priv->engine.graph.accel_blocked = true;
 		}
-		kfree(cp);
+		kfree(cp, sizeof(*cp));
 	}
 
 	nv_wr32(dev, 0x400320, 4);
@@ -164,7 +164,8 @@ void
 nv50_graph_takedown(struct drm_device *dev)
 {
 	NV_DEBUG(dev, "\n");
-	nouveau_grctx_fini(dev);
+	NV_ERROR(dev, "no support nouveau_grctx");
+//	nouveau_grctx_fini(dev);
 }
 
 void
@@ -238,13 +239,14 @@ nv50_graph_create_context(struct nouveau_channel *chan)
 
 	dev_priv->engine.instmem.prepare_access(dev, true);
 	if (!pgraph->ctxprog) {
-		struct nouveau_grctx ctx = {};
+		struct nouveau_grctx ctx;
 		ctx.dev = chan->dev;
 		ctx.mode = NOUVEAU_GRCTX_VALS;
 		ctx.data = chan->ramin_grctx->gpuobj;
 		nv50_grctx_init(&ctx);
 	} else {
-		nouveau_grctx_vals_load(dev, ctx);
+		NV_ERROR(dev, "no support nouveau_grctx");
+//		nouveau_grctx_vals_load(dev, ctx);
 	}
 	nv_wo32(dev, ctx, 0x00000/4, chan->ramin->instance >> 12);
 	dev_priv->engine.instmem.finish_access(dev);
@@ -287,7 +289,7 @@ nv50_graph_do_load_context(struct drm_device *dev, uint32_t inst)
 	nv_wr32(dev, 0x400304, nv_rd32(dev, 0x400304) | 1);
 
 	if (nouveau_wait_for_idle(dev))
-		nv_wr32(dev, 0x40032c, inst | (1<<31));
+		nv_wr32(dev, 0x40032c, inst | (0x80000000));
 	nv_wr32(dev, 0x400500, fifo);
 
 	return 0;
@@ -392,7 +394,7 @@ nv50_graph_nvsw_vblsem_release(struct nouveau_channel *chan, int grclass,
 			NV50_PDISPLAY_INTR_EN_VBLANK_CRTC_(data));
 	}
 
-	list_add(&chan->nvsw.vbl_wait, &dev_priv->vbl_waiting);
+	list_add(&chan->nvsw.vbl_wait, &dev_priv->vbl_waiting, (caddr_t)chan);
 	return 0;
 }
 
@@ -401,7 +403,6 @@ static struct nouveau_pgraph_object_method nv50_graph_nvsw_methods[] = {
 	{ 0x0400, nv50_graph_nvsw_vblsem_offset },
 	{ 0x0404, nv50_graph_nvsw_vblsem_release_val },
 	{ 0x0408, nv50_graph_nvsw_vblsem_release },
-	{}
 };
 
 struct nouveau_pgraph_object_class nv50_graph_grclass[] = {
@@ -415,5 +416,4 @@ struct nouveau_pgraph_object_class nv50_graph_grclass[] = {
 	{ 0x8297, false, NULL }, /* tesla (nv8x/nv9x) */
 	{ 0x8397, false, NULL }, /* tesla (nva0, nvaa, nvac) */
 	{ 0x8597, false, NULL }, /* tesla (nva3, nva5, nva8) */
-	{}
 };

@@ -988,6 +988,8 @@ nouveau_pscmm_new(struct drm_device *dev,  struct drm_file *file_priv,
 		struct nouveau_bo **pnvbo);
 extern void
 nouveau_pscmm_remove(struct drm_device *dev,  struct nouveau_bo *nvbo);
+extern struct nouveau_bo *
+pscmm_alloc(struct drm_nouveau_private* dev_priv, size_t bo_size, bool no_evicted);
 
 /* channel control reg access */
 static inline u32 nvchan_rd32(struct nouveau_channel *chan, unsigned reg)
@@ -1059,35 +1061,14 @@ static inline void nv_wo32(struct drm_device *dev, struct nouveau_gpuobj *obj,
  * Logging
  * Argument d is (struct drm_device *).
  */
-void
-nv_debug(struct drm_device *d, const char *fmt, ...)
-{
-	va_list ap;
+extern void
+nv_debug(struct drm_device *d, const char *fmt, ...);
 
-	va_start(ap, fmt);
-	vcmn_err(CE_NOTE, fmt, ap);
-	va_end(ap);
-}
+extern void
+nv_error(struct drm_device *d, const char *fmt, ...);
 
-void
-nv_error(struct drm_device *d, const char *fmt, ...)
-{
-	va_list ap;
-
-	va_start(ap, fmt);
-	vcmn_err(CE_WARN, fmt, ap);
-	va_end(ap);
-}
-
-void
-nv_info(struct drm_device *d, const char *fmt, ...)
-{
-	va_list ap;
-
-	va_start(ap, fmt);
-	vcmn_err(CE_NOTE, fmt, ap);
-	va_end(ap);
-}
+extern void
+nv_info(struct drm_device *d, const char *fmt, ...);
 
 #define NV_DEBUG	nv_debug
 #define NV_ERROR	nv_error

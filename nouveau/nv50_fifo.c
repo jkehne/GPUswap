@@ -227,7 +227,7 @@ nv50_fifo_takedown(struct drm_device *dev)
 	nouveau_gpuobj_ref_del(dev, &priv->thingo[1]);
 
 	dev_priv->engine.fifo.priv = NULL;
-	kfree(priv);
+	kfree(priv, sizeof(*priv));
 }
 
 int

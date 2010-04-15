@@ -36,11 +36,12 @@ UTSBASE	= ../..
 #	Define the module and object file sets.
 #
 MODULE		= drm
-OBJECTS		= $(DRM_OBJS:%=$(OBJS_DIR)/%)
-LINTS		= $(DRM_OBJS:%.o=$(LINTS_DIR)/%.ln)
+OBJECTS		= $(NOUVEAU_DRM_OBJS:%=$(OBJS_DIR)/%)
+LINTS		= $(NOUVEAU_DRM_OBJS:%.o=$(LINTS_DIR)/%.ln)
 ROOTMODULE	= $(ROOT_MISC_DIR)/$(MODULE)
 DRM_SRC		= $(UTSBASE)/intel/pscmm
 GFX_DIR		= $(UTSBASE)/i86pc/io/gfx_private
+
 
 INC_PATH	+= -I$(UTSBASE)/intel/pscmm -I$(GFX_DIR)
 
@@ -51,6 +52,17 @@ LDFLAGS		+= -dy -Nmisc/agpmaster -Nmisc/gfx_private
 #	Include common rules.
 #
 include $(UTSBASE)/intel/Makefile.intel
+
+NOUVEAU_DRM_OBJS += drm_sunmod.o drm_kstat.o drm_agpsupport.o \
+            drm_auth.o drm_bufs.o drm_context.o drm_dma.o \
+            drm_drawable.o drm_drv.o drm_fops.o drm_ioctl.o drm_irq.o \
+            drm_lock.o drm_memory.o drm_msg.o drm_pci.o drm_scatter.o \
+            drm_cache.o drm_gem.o drm_mm.o drm_io32.o ati_pcigart.o \
+            drm_modes.o drm_crtc_helper.o drm_crtc.o drm_edid.o \
+            drm_sun_idr.o drm_sun_pci.o drm_sun_i2c.o drm_stub.o \
+            drm_sysfs.o
+
+MISC_KMODS     += drm
 
 #
 #	Define targets

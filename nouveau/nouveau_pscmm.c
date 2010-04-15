@@ -612,10 +612,12 @@ pscmm_retire_request(struct drm_device *dev,
 	/* move bo out of no_evicted list */
 	while (!list_empty(&dev_priv->active_list)) {
 		struct nouveau_bo *nvbo;
+		struct list_head *entry;
+		entry = &dev_priv->active_list;
 
-		nvbo = list_entry(&dev_priv->active_list,
-					    struct nouveau_bo,
-					    active_list);
+		nvbo = list_entry(entry,
+				  struct nouveau_bo,
+				  active_list);
 
 		/* If the seqno being retired doesn't match the oldest in the
 		 * list, then the oldest in the list must still be newer than
@@ -948,7 +950,7 @@ nouveau_pscmm_ioctl_read(DRM_IOCTL_ARGS)
 	struct nouveau_pscmm_read *arg= data;
 	struct drm_gem_object *gem;
 	struct nouveau_bo *nvbo;
-	void *addr;
+	caddr_t addr;
 	unsigned long unwritten = 0;
 	uint32_t *user_data;
 	int ret;
@@ -999,7 +1001,7 @@ nouveau_pscmm_ioctl_read(DRM_IOCTL_ARGS)
                 ret = EFAULT;
                 DRM_ERROR("i915_gem_pread error!!! unwritten %d", unwritten);
         }
-	
+	return 0;	
 }
 
 
@@ -1010,7 +1012,7 @@ nouveau_pscmm_ioctl_write(DRM_IOCTL_ARGS)
 	struct nouveau_pscmm_write *arg = data;
 	struct drm_gem_object *gem;
 	struct nouveau_bo *nvbo;
-	void *addr;
+	caddr_t addr;
 	unsigned long unwritten = 0;
 	uint32_t *user_data;
 	int ret;
@@ -1039,7 +1041,7 @@ nouveau_pscmm_ioctl_write(DRM_IOCTL_ARGS)
 			}
 
 			user_data = (uint32_t *) (uintptr_t) arg->data_ptr;
-			unwritten = DRM_COPY_FROM_USER( addr + arg->offset, user_data, arg->size);
+			unwritten = DRM_COPY_FROM_USER((void *)(uintptr_t)(addr + arg->offset), (void __user *) user_data, arg->size);
        		if (unwritten) {
                 		ret = EFAULT;
                 		NV_ERROR(dev, "failed to read, unwritten %d", unwritten);
@@ -1062,7 +1064,7 @@ nouveau_pscmm_ioctl_write(DRM_IOCTL_ARGS)
                 NV_ERROR(dev, "i915_gem_gtt_pwrite error!!! unwritten %d", unwritten);
                 return ret;
         }
-	
+	return 0;	
 }
 
 
@@ -1163,6 +1165,7 @@ nouveau_pscmm_ioctl_exec(DRM_IOCTL_ARGS)
 			     sizeof(*command_list) * args->command_count);
 
 	drm_free(command_list, sizeof(*command_list) * args->command_count, DRM_MEM_DRIVER);
+	return ret;
 }
 
 

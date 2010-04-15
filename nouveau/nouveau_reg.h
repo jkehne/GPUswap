@@ -112,9 +112,9 @@
 #define NV50_PUNK_BAR_CFG_BASE                             0x00001704
 #define NV50_PUNK_BAR_CFG_BASE_VALID                          (1<<30)
 #define NV50_PUNK_BAR1_CTXDMA                              0x00001708
-#define NV50_PUNK_BAR1_CTXDMA_VALID                           (1<<31)
+#define NV50_PUNK_BAR1_CTXDMA_VALID                        0x80000000
 #define NV50_PUNK_BAR3_CTXDMA                              0x0000170C
-#define NV50_PUNK_BAR3_CTXDMA_VALID                           (1<<31)
+#define NV50_PUNK_BAR3_CTXDMA_VALID                        0x80000000 
 #define NV50_PUNK_UNK1710                                  0x00001710
 
 #define NV04_PBUS_PCI_NV_1                                 0x00001804
@@ -439,7 +439,7 @@
 #define NV04_PFIFO_SIZE                                    0x0000250c
 #define NV50_PFIFO_CTX_TABLE(c)                        (0x2600+(c)*4)
 #define NV50_PFIFO_CTX_TABLE__SIZE                                128
-#define NV50_PFIFO_CTX_TABLE_CHANNEL_ENABLED                  (1<<31)
+#define NV50_PFIFO_CTX_TABLE_CHANNEL_ENABLED               0x80000000 
 #define NV50_PFIFO_CTX_TABLE_UNK30_BAD                        (1<<30)
 #define NV50_PFIFO_CTX_TABLE_INSTANCE_MASK_G80             0x0FFFFFFF
 #define NV50_PFIFO_CTX_TABLE_INSTANCE_MASK_G84             0x00FFFFFF

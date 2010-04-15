@@ -28,7 +28,6 @@
  * Use is subject to license terms.
  */
  
-#include <linux/swab.h>
 #include "drmP.h"
 #include "drm.h"
 #include "drm_sarea.h"
@@ -36,7 +35,7 @@
 
 #include "nouveau_drv.h"
 #include "nouveau_drm.h"
-#include "nv50_display.h"
+#include "nouveau_dma.h"
 
 static void nouveau_stub_takedown(struct drm_device *dev) {}
 
@@ -395,8 +394,8 @@ int nouveau_load(struct drm_device *dev, unsigned long flags)
 	dev_priv->flags = flags & NOUVEAU_FLAGS;
 	dev_priv->init_state = NOUVEAU_CARD_INIT_DOWN;
 
-	NV_DEBUG(dev, "vendor: 0x%X device: 0x%X class: 0x%X\n",
-		 dev->pci_vendor, dev->pci_device, dev->pdev->class);
+	NV_DEBUG(dev, "vendor: 0x%x device: 0x%x\n",
+		 dev->pci_vendor, dev->pci_device);
 
 	dev_priv->wq = create_workqueue(dev->devinfo, "nouveau");
 	if (!dev_priv->wq)
@@ -418,7 +417,7 @@ int nouveau_load(struct drm_device *dev, unsigned long flags)
 	if (drm_ioremap(dev, dev_priv->mmio)) {
 		NV_ERROR(dev, "Unable to initialize the mmio mapping. "
 			 "Please report your setup to " DRIVER_EMAIL "\n");
-		goto -EINVAL;
+		return -EINVAL;
 	}
 
 	NV_DEBUG(dev, "regs mapped ok at 0x%llx\n",
@@ -551,16 +550,18 @@ int nouveau_unload(struct drm_device *dev)
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 
 	if (drm_core_check_feature(dev, DRIVER_MODESET)) {
+/*
 		if (dev_priv->card_type >= NV_50)
 			nv50_display_destroy(dev);
 		else
 			nv04_display_destroy(dev);
+*/
 		nouveau_close(dev);
 	}
 	drm_ioremapfree(dev_priv->mmio);
 	drm_ioremapfree(dev_priv->ramin);
 
-	kfree(dev_priv);
+	kfree(dev_priv, sizeof(*dev_priv));
 	dev->dev_private = NULL;
 	return 0;
 }
@@ -643,8 +644,7 @@ nouveau_ioctl_setparam(DRM_IOCTL_ARGS)
 		NV_ERROR(dev, "unknown parameter %lld\n", setparam->param);
 		return -EINVAL;
 	}
-
-	return 0;
+//	return 0;
 }
 
 /* Wait until (value(reg) & mask) == val, up until timeout has hit */

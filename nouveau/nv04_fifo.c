@@ -198,7 +198,7 @@ nv04_fifo_load_context(struct nouveau_channel *chan)
 	nv_wr32(chan->dev, NV04_PFIFO_CACHE1_DMA_PUSH, 1);
 
 	/* Reset NV04_PFIFO_CACHE1_DMA_CTL_AT_INFO to INVALID */
-	tmp = nv_rd32(chan->dev, NV04_PFIFO_CACHE1_DMA_CTL) & ~(1 << 31);
+	tmp = nv_rd32(chan->dev, NV04_PFIFO_CACHE1_DMA_CTL) & ~(0x80000000);
 	nv_wr32(chan->dev, NV04_PFIFO_CACHE1_DMA_CTL, tmp);
 
 	return 0;

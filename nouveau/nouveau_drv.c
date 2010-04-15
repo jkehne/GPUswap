@@ -315,3 +315,33 @@ _info(struct modinfo *modinfop)
 	return (mod_info(&modlinkage, modinfop));
 }
 
+void
+nv_debug(struct drm_device *d, const char *fmt, ...)
+{
+        va_list ap;
+
+        va_start(ap, fmt);
+        vcmn_err(CE_NOTE, fmt, ap);
+        va_end(ap);
+}
+
+void
+nv_error(struct drm_device *d, const char *fmt, ...)
+{
+        va_list ap;
+
+        va_start(ap, fmt);
+        vcmn_err(CE_WARN, fmt, ap);
+        va_end(ap);
+}
+
+void
+nv_info(struct drm_device *d, const char *fmt, ...)
+{
+        va_list ap;
+
+        va_start(ap, fmt);
+        vcmn_err(CE_NOTE, fmt, ap);
+        va_end(ap);
+}
+
