@@ -49,7 +49,7 @@ INC_PATH        += -I$(UTSBASE)/intel/pscmm -I$(UTSBASE)/pscmm/nouveau
 
 #
 #	dependency
-LDFLAGS	+= -dy -Nmisc/drm
+LDFLAGS	+= -dy -Nmisc/nouveau_drm
 
 #
 #	Include common rules.

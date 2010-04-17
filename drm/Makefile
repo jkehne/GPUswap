@@ -18,7 +18,7 @@
 #
 # CDDL HEADER END
 #
-# uts/intel/drm/Makefile
+# uts/intel/pscmm/drm/Makefile
 #
 # Copyright 2010 PathScale Inc.  All rights reserved.
 #  Use is subject to license terms.
@@ -30,20 +30,20 @@
 #
 #	Path to the base of the uts directory tree (usually /usr/src/uts).
 #
-UTSBASE	= ../..
+UTSBASE	= ../../..
 
 #
 #	Define the module and object file sets.
 #
-MODULE		= drm
-OBJECTS		= $(NOUVEAU_DRM_OBJS:%=$(OBJS_DIR)/%)
-LINTS		= $(NOUVEAU_DRM_OBJS:%.o=$(LINTS_DIR)/%.ln)
+MODULE		= nouveau_drm
+OBJECTS		= $(NOUVEAU_DRM_OBJS:%=$(DRM_OBJS_DIR)/%)
+LINTS		= $(NOUVEAU_DRM_OBJS:%.o=$(DRM_LINTS_DIR)/%.ln)
 ROOTMODULE	= $(ROOT_MISC_DIR)/$(MODULE)
-DRM_SRC		= $(UTSBASE)/intel/pscmm
+DRM_SRC		= $(UTSBASE)/intel/pscmm/drm
 GFX_DIR		= $(UTSBASE)/i86pc/io/gfx_private
 
 
-INC_PATH	+= -I$(UTSBASE)/intel/pscmm -I$(GFX_DIR)
+INC_PATH	+= -I$(UTSBASE)/intel/pscmm/drm -I$(GFX_DIR)
 
 # Dependency
 LDFLAGS		+= -dy -Nmisc/agpmaster -Nmisc/gfx_private
@@ -57,12 +57,12 @@ NOUVEAU_DRM_OBJS += drm_sunmod.o drm_kstat.o drm_agpsupport.o \
             drm_auth.o drm_bufs.o drm_context.o drm_dma.o \
             drm_drawable.o drm_drv.o drm_fops.o drm_ioctl.o drm_irq.o \
             drm_lock.o drm_memory.o drm_msg.o drm_pci.o drm_scatter.o \
-            drm_cache.o drm_gem.o drm_mm.o drm_io32.o ati_pcigart.o \
+            drm_cache.o drm_gem.o drm_mm.o drm_io32.o \
             drm_modes.o drm_crtc_helper.o drm_crtc.o drm_edid.o \
             drm_sun_idr.o drm_sun_pci.o drm_sun_i2c.o drm_stub.o \
             drm_sysfs.o
 
-MISC_KMODS     += drm
+MISC_KMODS     += nouveau_drm
 
 #
 #	Define targets
@@ -96,9 +96,10 @@ install:	$(INSTALL_DEPS)
 #	Include common targets.
 #
 include $(UTSBASE)/intel/Makefile.targ
-$(OBJS_DIR)/%.o:		$(UTSBASE)/intel/pscmm/%.c
+
+$(DRM_OBJS_DIR)/%.o:		$(UTSBASE)/intel/pscmm/drm/%.c
 	$(COMPILE.c) -o $@ $<
 	$(CTFCONVERT_O)
 
-$(LINTS_DIR)/%.ln:		$(UTSBASE)/intel/pscmm/%.c
+$(DRM_LINTS_DIR)/%.ln:		$(UTSBASE)/intel/pscmm/drm/%.c
 	@($(LHEAD) $(LINT.c) $< $(LTAIL))
