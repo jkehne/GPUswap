@@ -257,7 +257,7 @@ static int __init nouveau_init(void)
 {
 	driver.num_ioctls = nouveau_max_ioctl;
 
-//	driver.driver_features |= DRIVER_MODESET;
+	driver.driver_features |= DRIVER_MODESET;
 
 	return 0;
 }

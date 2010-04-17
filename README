@@ -5,15 +5,16 @@ This driver is for OpenSolaris. there will be no KMS support and only for comput
 nouveau_pscmm.c and nouveau_pscmm.h are the core part of PathScale memory manager which is part of nouveau kernel driver.
 The ioctls reserved from current nouveau will not be shown here. They includes nouveau_ioctl_fifo_alloc, nouveau_ioctl_fifo_free, nouveau_ioctl_grobj_alloc nouveau_ioctl_notifier_alloc and etc.
 
-The init code of drm/nouveau have not done yet. (Implement soon)
-
 It assume that 
     VRAM can be divided into two parts, non-page and page.
     non-page includes scanout, hardware-status page etc which will not be evicted and shared by all channels.
     page part for user bos. pscmm files are only focus on user bo alloc/free, evict, move, mmap, exec and etc. 
+
+By now:
     Only two types of memory: VRAM and system RAM. No GART support by now. (Improved at next)
     The per-channel page table init at the channel_init and not changed then. (Improved at next)
     No mmap/flush_range at first (Improved at next)
+    No VBIOS init (Improved at next)
 
 For bo alloc/free, it use the algorithm in drm_mm.c (buddy). 
 For bo evict/replacement, it introduce a no_evicted list to track the no_evicted bo. For other bo, it will use modified CAR to do replacement if the VRAM is full.
@@ -29,7 +30,7 @@ Any feedback or suggestions, please send to me lkice@hotmail.com.
 HOW TO BUILD
 1. Build OpenSolaris b134 or later from source.
 2. cp the project to usr/src/uts/intel/ (E.g. cp -r pscmm /WORKSPCAE/usr/src/uts/intel/)
-3. make all (build drm binarie)
+3. cd drm && make all (build drm binarie)
 4. cd nouveau && make all (build nouveau binarie)
 
 

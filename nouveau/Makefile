@@ -59,7 +59,8 @@ include $(UTSBASE)/intel/Makefile.intel
 #nouveau files
 NOUVEAU_OBJS += nouveau_channel.o nouveau_dma.o nouveau_drv.o nouveau_irq.o \
 		nouveau_mem.o nouveau_notifier.o nouveau_object.o nouveau_pscmm.o \
-		nouveau_sgdma.o nouveau_state.o nv04_fifo.o nv04_timer.o nv50_fb.o \
+		nouveau_sgdma.o nouveau_state.o \
+		nv04_fifo.o nv04_timer.o nv50_fb.o \
 		nv50_fifo.o nv50_grctx.o nv50_graph.o nv50_instmem.o nv50_mc.o
 
 DRV_KMODS       += nouveau

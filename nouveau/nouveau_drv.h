@@ -395,20 +395,15 @@ struct nouveau_engine {
 	struct nouveau_pgraph_engine  graph;
 	struct nouveau_fifo_engine    fifo;
 };
-#if 0
+
 struct nouveau_pll_vals {
-	union {
-		struct {
 #ifdef __BIG_ENDIAN
-			uint8_t N1, M1, N2, M2;
+	uint8_t N1, M1, N2, M2;
 #else
-			uint8_t M1, N1, M2, N2;
+	uint8_t M1, N1, M2, N2;
 #endif
-		};
-		struct {
-			uint16_t NM1, NM2;
-		} __attribute__((packed));
-	};
+	uint16_t NM1, NM2;
+
 	int log2P;
 
 	int refclk;
@@ -517,7 +512,7 @@ struct nv04_mode_state {
 
 	struct nv04_crtc_reg crtc_reg[2];
 };
-#endif
+
 enum nouveau_card_type {
 	NV_04      = 0x00,
 	NV_10      = 0x10,
