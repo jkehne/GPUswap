@@ -45,7 +45,7 @@ LINTS		= $(NOUVEAU_OBJS:%.o=$(LINTS_DIR)/%.ln)
 ROOTMODULE	= $(ROOT_DRV_DIR)/$(MODULE)
 
 # nouveau driver depends on drm, agpmaster and gfx_private misc modules
-INC_PATH        += -I$(UTSBASE)/intel/pscmm -I$(UTSBASE)/pscmm/nouveau
+INC_PATH        += -I$(UTSBASE)/intel/pscmm/drm -I$(UTSBASE)/pscmm/nouveau
 
 #
 #	dependency
