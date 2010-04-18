@@ -11,7 +11,6 @@ It assume that
     page part for user bos. pscmm files are only focus on user bo alloc/free, evict, move, mmap, exec and etc. 
 
 By now:
-    Only two types of memory: VRAM and system RAM. No GART support by now. (Improved at next)
     The per-channel page table init at the channel_init and not changed then. (Improved at next)
     No mmap/flush_range at first (Improved at next)
     No VBIOS init (Improved at next)

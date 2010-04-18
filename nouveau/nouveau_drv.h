@@ -117,11 +117,27 @@ struct nouveau_bo {
 
 	struct drm_gem_object *gem;
 
+	/** Current space allocated to this object in the GART, if any. */
+	struct drm_mm_node *gart_space;
+
+	int	agp_mem;
+	caddr_t *page_list;
+	/**
+	 * Current offset of the object in GART space.
+	 *
+	 * This is the same as gart_space->start
+	 */
+	uint32_t gart_offset;
+
+
+	/* now, there is no bind/unbind support for GPU vm to GPU phy */
 	uint32_t nblock;		//VRAM is split in block; the number of blocks
 	uintptr_t firstblock;	//GPU vm address, == block_offset_node->start << PAGE_SHIFT
 	
 	uintptr_t *block_array;	//the GPU physical address at which the bo is
 	struct drm_mm_node *block_offset_node;	//same as block_array, used in drm_mm
+
+	void *virtual;			//vram mapped address
 
 	bool swap_out;		//the bo has been swap out
 
@@ -131,8 +147,6 @@ struct nouveau_bo {
 
 	// bo reference bit
 	bool bo_ref;
-
-	void *virtual;			//mapped address
 
 	/** Breadcrumb of last rendering to the buffer. */
 	uint32_t last_rendering_seqno;
@@ -983,8 +997,6 @@ nouveau_pscmm_new(struct drm_device *dev,  struct drm_file *file_priv,
 		struct nouveau_bo **pnvbo);
 extern void
 nouveau_pscmm_remove(struct drm_device *dev,  struct nouveau_bo *nvbo);
-extern struct nouveau_bo *
-pscmm_alloc(struct drm_nouveau_private* dev_priv, size_t bo_size, bool no_evicted);
 
 /* channel control reg access */
 static inline u32 nvchan_rd32(struct nouveau_channel *chan, unsigned reg)

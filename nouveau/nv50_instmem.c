@@ -403,7 +403,8 @@ nv50_instmem_populate(struct drm_device *dev, struct nouveau_gpuobj *gpuobj,
 
 	/*should alloc in the non-page part need fix!!!!*/
 	NV_DEBUG(dev, "getting PRAMIN backing pages 0x%x ", *sz);
-	gpuobj->im_backing = pscmm_alloc(dev_priv, *sz, no_evicted);
+	ret = nouveau_pscmm_new(dev, NULL, *sz, NV50_INSTMEM_PAGE_SIZE,
+			    MEM_PL_FLAG_VRAM, true, false, &gpuobj->im_backing);
 	if (ret) {
 		NV_ERROR(dev, "error getting PRAMIN backing pages: %d\n", ret);
 		return ret;
