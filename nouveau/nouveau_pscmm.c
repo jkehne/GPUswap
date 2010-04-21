@@ -54,6 +54,31 @@ int pscmm_set_no_evicted(struct drm_nouveau_private *dev_priv,
                                         struct nouveau_bo *nvbo);
 
 
+
+int
+nouveau_gem_object_new(struct drm_gem_object *gem)
+{
+	return 0;
+}
+
+void
+nouveau_gem_object_del(struct drm_gem_object *gem)
+{
+	struct nouveau_bo *nvbo = gem->driver_private;
+
+	if (!nvbo)
+		return;
+	nvbo->gem = NULL;
+
+	/* unpin bo */
+	if (nvbo->agp_mem) {
+		pscmm_object_unbind(nvbo, 1);
+	}
+	/* release bo */
+	pscmm_free(nvbo);
+
+}
+
 /*
   * need a algorithm to find the free page more efficiently and less fragment.
   */
@@ -234,6 +259,7 @@ free_blocks(struct nouveau_bo* nvbo)
 	int nblock;
 
 	drm_mm_put_block(nvbo->block_offset_node);
+	nvbo->block_offset_node = NULL;
 }
 
 static int
@@ -398,9 +424,14 @@ void
 pscmm_free(struct nouveau_bo* nvbo)
 {
 
+	if (nvbo->block_offset_node) {
 	/* remove from T1/T2/B1/B2 */
-	free_blocks(nvbo);
-	kfree(nvbo->block_array, sizeof(uintptr_t) * nvbo->gem->size / BLOCK_SIZE);
+		free_blocks(nvbo);
+	}
+	if (nvbo->block_array) {
+		kfree(nvbo->block_array, sizeof(uintptr_t) * nvbo->gem->size / BLOCK_SIZE);
+		nvbo->block_array = NULL;
+	}
 	kfree(nvbo, sizeof(*nvbo));
 }
 
@@ -748,11 +779,13 @@ pscmm_command_prefault(struct drm_device *dev, struct drm_file *file_priv, uint3
 	}
 
 	if (nvbo->type == no_evicted) {
+		drm_gem_object_unreference(gem);
 		return ret;
 	}
 		
 	ret = pscmm_prefault(dev_priv, nvbo, align);
 
+	drm_gem_object_unreference(gem);
 	return ret;
 }
 
@@ -1091,6 +1124,7 @@ nouveau_pscmm_ioctl_chan_map(DRM_IOCTL_ARGS)
 	 	NV_DEBUG(dev, "bo shared between channels are not supported by now");
 	}
 
+	drm_gem_object_unreference(gem);
 	return ret;
 }
 
@@ -1115,6 +1149,8 @@ nouveau_pscmm_ioctl_chan_unmap(DRM_IOCTL_ARGS)
 		ret = nouveau_channel_unmap(dev, nvbo->channel, nvbo);
 	}
 
+	drm_gem_object_unreference(gem);
+	
 	return ret;
 }
 
@@ -1164,6 +1200,7 @@ nouveau_pscmm_ioctl_read(DRM_IOCTL_ARGS)
 			
 			/* mark the block as normal*/
 			pscmm_set_normal(dev_priv, nvbo);
+			drm_gem_object_unreference(gem);
         		return ret;
 		}
 
@@ -1176,6 +1213,7 @@ nouveau_pscmm_ioctl_read(DRM_IOCTL_ARGS)
                 ret = EFAULT;
                 DRM_ERROR("i915_gem_pread error!!! unwritten %d", unwritten);
         }
+	drm_gem_object_unreference(gem);
 	return 0;	
 }
 
@@ -1212,6 +1250,7 @@ nouveau_pscmm_ioctl_write(DRM_IOCTL_ARGS)
 			addr = ioremap(dev_priv->fb_block->io_offset + nvbo->block_offset_node->start << PAGE_SHIFT,  gem->size);
 			if (!addr) {
 				NV_ERROR(dev, "bo shared between channels are not supported by now");
+				drm_gem_object_unreference(gem);
 				return -ENOMEM;
 			}
 
@@ -1225,7 +1264,7 @@ nouveau_pscmm_ioctl_write(DRM_IOCTL_ARGS)
 			
 			/* mark the block as normal*/
 			pscmm_set_normal(dev_priv, nvbo);
-				
+			drm_gem_object_unreference(gem);
         		return ret;
 		}
 
@@ -1235,10 +1274,12 @@ nouveau_pscmm_ioctl_write(DRM_IOCTL_ARGS)
 	user_data = (uint32_t *) (uintptr_t) arg->data_ptr;
 	unwritten = DRM_COPY_FROM_USER(gem->kaddr + arg->offset, user_data, arg->size);
         if (unwritten) {
-                ret = EFAULT;
-                NV_ERROR(dev, "i915_gem_gtt_pwrite error!!! unwritten %d", unwritten);
-                return ret;
+		ret = EFAULT;
+		NV_ERROR(dev, "i915_gem_gtt_pwrite error!!! unwritten %d", unwritten);
+		drm_gem_object_unreference(gem);
+		return ret;
         }
+	drm_gem_object_unreference(gem);
 	return 0;	
 }
 
@@ -1263,9 +1304,10 @@ nouveau_pscmm_ioctl_move(DRM_IOCTL_ARGS)
 	pscmm_move(dev, gem, nvbo, arg->old_domain, arg->new_domain, false, PAGE_SIZE);
 
 end:
-		/* think about new is RAM. User space will ignore the firstblock if the bo is not in the VRAM*/
-		arg->presumed_offset = nvbo->firstblock;		//bo gpu vm address
-		arg->presumed_domain = nvbo->placements;	
+	/* think about new is RAM. User space will ignore the firstblock if the bo is not in the VRAM*/
+	arg->presumed_offset = nvbo->firstblock;		//bo gpu vm address
+	arg->presumed_domain = nvbo->placements;	
+	drm_gem_object_unreference(gem);
 	return 0;
 }
 
@@ -1322,16 +1364,17 @@ nouveau_pscmm_ioctl_exec(DRM_IOCTL_ARGS)
 		/* Add seqno into command buffer. */ 
 		command_list[i].seqno = pscmm_add_request(dev);
 		for (j = 0; j < command_list[i].buffer_count; j++) {
-
-			gem = drm_gem_object_lookup(dev, file_priv, obj_list[j].handle);
+			struct drm_gem_object *tmp_gem;
+			tmp_gem = drm_gem_object_lookup(dev, file_priv, obj_list[j].handle);
 	
-			nvbo = gem ? gem->driver_private : NULL;
+			nvbo = tmp_gem ? tmp_gem->driver_private : NULL;
 			nvbo->last_rendering_seqno = command_list[i].seqno;
-			pscmm_move_active_list(dev_priv, gem, nvbo);
+			pscmm_move_active_list(dev_priv, tmp_gem, nvbo);
+			drm_gem_object_unreference(tmp_gem);
 		}
 
 		drm_free(obj_list, sizeof(*obj_list) * command_list[i].buffer_count, DRM_MEM_DRIVER);
-
+		drm_gem_object_unreference(gem);
 	}
 		/* Copy the seqno back to the user's exec_object list. */
 	ret = copy_to_user(command_list,

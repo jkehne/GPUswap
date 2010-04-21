@@ -36,7 +36,7 @@ int nouveau_ctxfw = 0;
 
 int nouveau_noagp = 0;		    /* no agp need fix !!!!*/
 
-static int nouveau_modeset = 0; /* kms */
+static int nouveau_modeset = 1; /* kms */
 
 char *nouveau_vbios;
 
@@ -129,8 +129,8 @@ static struct drm_driver driver = {
 	.reclaim_buffers = drm_core_reclaim_buffers,
 	.ioctls = nouveau_ioctls,
 	.id_table = pciidlist,
-//	.gem_init_object = nouveau_gem_object_new,
-//	.gem_free_object = nouveau_gem_object_del,
+	.gem_init_object = nouveau_gem_object_new,
+	.gem_free_object = nouveau_gem_object_del,
 
 	.name = DRIVER_NAME,
 	.desc = DRIVER_DESC,
