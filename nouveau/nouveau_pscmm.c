@@ -54,6 +54,9 @@ int nouveau_pscmm_set_no_evicted(struct drm_nouveau_private *dev_priv,
                                         struct nouveau_bo *nvbo);
 uintptr_t *nouveau_get_new_space(struct nouveau_bo *nvbo,
 		struct drm_nouveau_private* dev_priv, uint32_t bnum, uint32_t align);
+void nouveau_pscmm_free(struct nouveau_bo* nvbo);
+int nouveau_pscmm_object_unbind(struct nouveau_bo* nvbo, uint32_t type);
+
 
 
 

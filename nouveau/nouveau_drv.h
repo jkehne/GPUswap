@@ -1002,7 +1002,7 @@ nouveau_gem_object_new(struct drm_gem_object *gem);
 extern void
 nouveau_gem_object_del(struct drm_gem_object *gem);
 
-s/* channel control reg access */
+/* channel control reg access */
 static inline u32 nvchan_rd32(struct nouveau_channel *chan, unsigned reg)
 {
 	return DRM_READ32(chan->user, reg);

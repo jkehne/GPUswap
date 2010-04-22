@@ -54,7 +54,10 @@ int DoTest(int fd)
 	struct drm_nouveau_getparam get_param;
 	int ret;
 	int tmp[11], i, j;
-	char param_name[11][15];
+	char param_name[11][15] = {"chipset_id", "vender", "device", "bus type",
+					"fb addr", "AGP addr", "pci addr", "fb size",
+					"agp size", "vm vram base", "graph units"};
+
 	tmp[0] = NOUVEAU_GETPARAM_CHIPSET_ID;
 	tmp[1] = NOUVEAU_GETPARAM_PCI_VENDOR;
 	tmp[2] = NOUVEAU_GETPARAM_PCI_DEVICE;
@@ -67,17 +70,6 @@ int DoTest(int fd)
 	tmp[9] = NOUVEAU_GETPARAM_VM_VRAM_BASE;
 	tmp[10] = NOUVEAU_GETPARAM_GRAPH_UNITS;
 
-	param_name[0] = "chipset_id";
-	param_name[1] = "vender";
-	param_name[2] = "device";
-	param_name[3] = "bus type";
-	param_name[4] = "fb addr";
-	param_name[5] = "AGP addr";
-	param_name[6] = "pci addr";
-	param_name[7] = "fb size";
-	param_name[8] = "agp size";
-	param_name[9] = "vm vram base";
-	param_name[10] = "graph units";
 	
 	for (i = 0; i < 11; i++) {
 		get_param.param = tmp[i];
