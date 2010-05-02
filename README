@@ -15,21 +15,27 @@ By now:
     No mmap/flush_range at first (Improved at next)
     No VBIOS init (Improved at next)
 
+Known issue:
+    Console doesn't work after enable the driver, you can only access by ssh.
+
 For bo alloc/free, it use the algorithm in drm_mm.c (buddy). 
 For bo evict/replacement, it introduce a no_evicted list to track the no_evicted bo. For other bo, it will use modified CAR to do replacement if the VRAM is full.
 
 For more detail, please check the pscmm plan.
 
-By now, it's only a skeletal code, can't be build or use. More implement will be next. 
+By now, it's only a skeletal code, only can do attach. More implement and test will be next. 
 
 Any feedback or suggestions, please send to me lkice@hotmail.com.
 
 
 
-HOW TO BUILD
+HOW TO BUILD:
 1. Build OpenSolaris b134 or later from source.
 2. cp the project to usr/src/uts/intel/ (E.g. cp -r pscmm /WORKSPCAE/usr/src/uts/intel/)
 3. cd drm && make all (build drm binarie)
 4. cd nouveau && make all (build nouveau binarie)
 
+Install:
+cp nouveau_drm /kernel/misc or /kernel/misc/amd64
+cp nouveau /kernel/drv or /kernel/drv/amd64
 

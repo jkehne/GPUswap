@@ -42,11 +42,10 @@ int drm_open_any(void)
 		sprintf(name, "/dev/fbs/drm%d", i);
 		fd = open(name, O_RDWR);
 		if (fd != -1) {
-
 			return fd;
 		}
 	}
-	printf("Failed to open drm");
+	printf("Failed to open drm\n");
 	return -1;
 }
 
@@ -54,36 +53,29 @@ int drm_open_any(void)
 
 int DoTest(int fd)
 {
-	struct drm_nouveau_getparam get_param;
+	struct drm_nouveau_channel_alloc nvchan;
+	struct drm_nouveau_channel_free cfree;
 	int ret;
-	int i, j;
-	uint64_t tmp[11];
-	char param_name[11][15] = {"chipset_id", "vender", "device", "bus type",
-					"fb addr", "AGP addr", "PCI addr", "FB size",
-					"agp size", "vm vram base", "graph units"};
-
-	tmp[0] = NOUVEAU_GETPARAM_CHIPSET_ID;
-	tmp[1] = NOUVEAU_GETPARAM_PCI_VENDOR;
-	tmp[2] = NOUVEAU_GETPARAM_PCI_DEVICE;
-	tmp[3] = NOUVEAU_GETPARAM_BUS_TYPE;
-	tmp[4] = NOUVEAU_GETPARAM_FB_PHYSICAL;
-	tmp[5] = NOUVEAU_GETPARAM_AGP_PHYSICAL;
-	tmp[6] = NOUVEAU_GETPARAM_PCI_PHYSICAL;
-	tmp[7] = NOUVEAU_GETPARAM_FB_SIZE;
-	tmp[8] = NOUVEAU_GETPARAM_AGP_SIZE;
-	tmp[9] = NOUVEAU_GETPARAM_VM_VRAM_BASE;
-	tmp[10] = NOUVEAU_GETPARAM_GRAPH_UNITS;
-
 	
-	for (i = 0; i < 11; i++) {
-		get_param.param = tmp[i];
-		ret = ioctl(fd, DRM_IOCTL_NOUVEAU_GETPARAM, &get_param);
-		if (ret==0) {
-			printf("%s : 0x%x\n", param_name[i], get_param.value);
-		} else {
-			printf("%s : failed ret = %d\n", param_name[i], ret);
-		}
+	/* for 2D */
+	nvchan.fb_ctxdma_handle = 0xD8000001;
+	nvchan.tt_ctxdma_handle = 0xD8000002;
+	nvchan.channel = -1;
+	ret = ioctl(fd, DRM_IOCTL_NOUVEAU_CHANNEL_ALLOC, &nvchan);
+	if (ret==0) {
+		printf(" creat channel id = %d\n", nvchan.channel);
+	} else {
+		printf("failed create ret = %d\n", ret);
+		return ret;
 	}
+
+	cfree.channel = nvchan.channel;
+        ret = ioctl(fd, DRM_IOCTL_NOUVEAU_CHANNEL_FREE, &cfree);
+        if (ret==0) {
+                printf(" free channel id = %d\n", cfree.channel);
+        } else {
+                printf("failed to free ret = %d\n", ret);
+        }
 	return ret;
 }
 

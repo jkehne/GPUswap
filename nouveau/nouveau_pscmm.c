@@ -73,7 +73,6 @@ nouveau_gem_object_del(struct drm_gem_object *gem)
 
 	if (!nvbo)
 		return;
-	nvbo->gem = NULL;
 
 	/* unpin bo */
 	if (nvbo->agp_mem) {
@@ -81,7 +80,6 @@ nouveau_gem_object_del(struct drm_gem_object *gem)
 	}
 	/* release bo */
 	nouveau_pscmm_free(nvbo);
-
 }
 
 static inline void
@@ -447,6 +445,7 @@ nouveau_pscmm_free(struct nouveau_bo* nvbo)
 		kfree(nvbo->block_array, sizeof(uintptr_t) * nvbo->gem->size / BLOCK_SIZE);
 		nvbo->block_array = NULL;
 	}
+	nvbo->gem = NULL;
 	kfree(nvbo, sizeof(*nvbo));
 }
 
