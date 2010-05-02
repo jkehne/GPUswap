@@ -101,7 +101,7 @@ struct drm_master *drm_master_create(struct drm_minor *minor)
 		return NULL;
 
 	kref_init(&master->refcount);
-	mutex_init(&master->lock.lock_mutex, NULL, MUTEX_DRIVER, (void *)minor->dev->pdev->intr_block);
+	mutex_init(&master->lock.lock_mutex, NULL, MUTEX_DRIVER, NULL);
 	cv_init(&master->lock.lock_cv, NULL, CV_DRIVER, NULL);
 
 	for (i = 0; i < DRM_HASH_SIZE; i++) {
@@ -213,17 +213,16 @@ static int drm_fill_in_dev(struct drm_device * dev, struct pci_dev *pdev,
 	INIT_LIST_HEAD(&dev->filelist);
 	INIT_LIST_HEAD(&dev->ctxlist);
 	INIT_LIST_HEAD(&dev->maplist);
+	dev->pdev = pdev;
 
-	mutex_init(&dev->count_lock, NULL, MUTEX_DRIVER, (void *)dev->pdev->intr_block);
-	mutex_init(&dev->drw_lock, NULL, MUTEX_DRIVER, (void *)dev->pdev->intr_block);
+	mutex_init(&dev->count_lock, NULL, MUTEX_DRIVER, NULL);
+	mutex_init(&dev->drw_lock, NULL, MUTEX_DRIVER, NULL);
 	init_timer(&dev->timer);
 	mutex_init(&dev->struct_mutex, NULL, MUTEX_DRIVER, NULL);
 	mutex_init(&dev->ctxlist_mutex, NULL, MUTEX_DRIVER, NULL);
-	mutex_init(&dev->irq_lock, NULL, MUTEX_DRIVER, (void *)dev->pdev->intr_block);
 
 	idr_init(&dev->drw_idr);
 
-	dev->pdev = pdev;
 	dev->pci_device = pdev->device;
 	dev->pci_vendor = pdev->vendor;
 
@@ -449,6 +448,7 @@ void drm_put_dev(struct drm_device *dev)
 	}
 	driver = dev->driver;
 
+	DRM_DEBUG("dev->num_crtcs %d", dev->num_crtcs);
 	drm_vblank_cleanup(dev);
 
 	drm_lastclose(dev);

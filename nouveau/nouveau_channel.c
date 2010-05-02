@@ -54,14 +54,14 @@ nouveau_channel_pushbuf_ctxdma_init(struct nouveau_channel *chan)
 						  dev_priv->gart_info.aper_size,
 						  NV_DMA_ACCESS_RO, &pushbuf,
 						  NULL);
-		chan->pushbuf_base = pb->block_offset_node->start << PAGE_SHIFT;
+		chan->pushbuf_base = pb->block_offset_node->start;
 	} else
 	if (dev_priv->card_type != NV_04) {
 		ret = nouveau_gpuobj_dma_new(chan, NV_CLASS_DMA_IN_MEMORY, 0,
 					     dev_priv->fb_available_size,
 					     NV_DMA_ACCESS_RO,
 					     NV_DMA_TARGET_VIDMEM, &pushbuf);
-		chan->pushbuf_base = pb->block_offset_node->start << PAGE_SHIFT;
+		chan->pushbuf_base = pb->block_offset_node->start;
 	} else {
 		/* NV04 cmdbuf hack, from original ddx.. not sure of it's
 		 * exact reason for existing :)  PCI access to cmdbuf in
@@ -72,7 +72,7 @@ nouveau_channel_pushbuf_ctxdma_init(struct nouveau_channel *chan)
 					     dev_priv->fb_available_size,
 					     NV_DMA_ACCESS_RO,
 					     NV_DMA_TARGET_PCI, &pushbuf);
-		chan->pushbuf_base = pb->block_offset_node->start  << PAGE_SHIFT;
+		chan->pushbuf_base = pb->block_offset_node->start;
 	}
 
 	ret = nouveau_gpuobj_ref_add(dev, chan, 0, pushbuf, &chan->pushbuf);
@@ -133,7 +133,6 @@ nouveau_channel_alloc(struct drm_device *dev, struct nouveau_channel **chan_ret,
 	struct nouveau_channel *chan;
 	int channel, user;
 	int ret;
-
 	/*
 	 * Alright, here is the full story
 	 * Nvidia cards have multiple hw fifo contexts (praise them for that,
@@ -157,6 +156,7 @@ nouveau_channel_alloc(struct drm_device *dev, struct nouveau_channel **chan_ret,
 		return -ENOMEM;
 	chan = dev_priv->fifos[channel];
 	INIT_LIST_HEAD(&chan->nvsw.vbl_wait);
+	INIT_LIST_HEAD(&chan->request_list);
 	chan->dev = dev;
 	chan->id = channel;
 	chan->file_priv = file_priv;
@@ -229,6 +229,7 @@ nouveau_channel_alloc(struct drm_device *dev, struct nouveau_channel **chan_ret,
 	/* Create a graphics context for new channel */
 	ret = pgraph->create_context(chan);
 	if (ret) {
+		NV_ERROR(dev, " pgraph->create_context %d\n", ret);
 		nouveau_channel_free(chan);
 		return ret;
 	}
@@ -236,14 +237,15 @@ nouveau_channel_alloc(struct drm_device *dev, struct nouveau_channel **chan_ret,
 	/* Construct inital RAMFC for new channel */
 	ret = pfifo->create_context(chan);
 	if (ret) {
+		NV_ERROR(dev, " pfifo->create_context %d\n", ret);
 		nouveau_channel_free(chan);
 		return ret;
 	}
-
 	pfifo->reassign(dev, true);
 
 	ret = nouveau_dma_init(chan);
 	if (ret) {
+		NV_ERROR(dev, "dma_init %d\n", ret);
 		nouveau_channel_free(chan);
 		return ret;
 	}

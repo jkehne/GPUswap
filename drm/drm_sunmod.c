@@ -40,7 +40,7 @@
 #include <sys/kmem.h>
 #include <vm/seg_kmem.h>
 
-int drm_debug_flag = 0;
+int drm_debug_flag = 2;
 
 static ddi_device_acc_attr_t dev_attr = {
 	DDI_DEVICE_ATTR_V0,

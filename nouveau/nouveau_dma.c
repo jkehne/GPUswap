@@ -92,14 +92,14 @@ nouveau_dma_init(struct nouveau_channel *chan)
 		return ret;
 
 	/* Map push buffer */
-	chan->pushbuf_bo->virtual = ioremap(dev_priv->fb_block->io_offset + chan->pushbuf_bo->block_offset_node->start << PAGE_SHIFT,  chan->pushbuf_bo->gem->size);
+	chan->pushbuf_bo->virtual = ioremap(dev_priv->fb_block->io_offset + chan->pushbuf_bo->block_offset_node->start,  chan->pushbuf_bo->gem->size);
 	if (!chan->pushbuf_bo->virtual)
 		return -EINVAL;
 
 	/* Map M2MF notifier object - fbcon. */
 	if (drm_core_check_feature(dev, DRIVER_MODESET)) {
-		chan->pushbuf_bo->virtual = ioremap(dev_priv->fb_block->io_offset + chan->pushbuf_bo->block_offset_node->start << PAGE_SHIFT,  chan->pushbuf_bo->gem->size);
-		if (!chan->pushbuf_bo->virtual)
+		chan->notifier_bo->virtual = ioremap(dev_priv->fb_block->io_offset + chan->notifier_bo->block_offset_node->start,  chan->notifier_bo->gem->size);
+		if (!chan->notifier_bo->virtual)
 			return -EINVAL;
 	}
 

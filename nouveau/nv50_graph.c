@@ -110,6 +110,7 @@ nv50_graph_init_ctxctl(struct drm_device *dev)
 //		nouveau_grctx_prog_load(dev);
 		dev_priv->engine.graph.grctx_size = 0x70000;
 	}
+
 	if (!dev_priv->engine.graph.ctxprog) {
 		struct nouveau_grctx ctx;
 		uint32_t *cp = kmalloc(512 * 4, GFP_KERNEL);
@@ -123,6 +124,11 @@ nv50_graph_init_ctxctl(struct drm_device *dev)
 		ctx.mode = NOUVEAU_GRCTX_PROG;
 		ctx.data = cp;
 		ctx.ctxprog_max = 512;
+		ctx.ctxprog_len = 0;
+		ctx.ctxprog_reg = 0;
+		memset(ctx.ctxprog_label,0,32*sizeof(int));
+		ctx.ctxvals_pos = 0;
+		ctx.ctxvals_base = 0;
 		if (!nv50_grctx_init(&ctx)) {
 			dev_priv->engine.graph.grctx_size = ctx.ctxvals_pos * 4;
 
@@ -138,6 +144,7 @@ nv50_graph_init_ctxctl(struct drm_device *dev)
 	nv_wr32(dev, 0x400320, 4);
 	nv_wr32(dev, NV40_PGRAPH_CTXCTL_CUR, 0);
 	nv_wr32(dev, NV20_PGRAPH_CHANNEL_CTX_POINTER, 0);
+
 	return 0;
 }
 
@@ -146,7 +153,7 @@ nv50_graph_init(struct drm_device *dev)
 {
 	int ret;
 
-	NV_DEBUG(dev, "\n");
+	NV_DEBUG(dev, "nv50_graph_init\n");
 
 	nv50_graph_init_reset(dev);
 	nv50_graph_init_regs__nv(dev);

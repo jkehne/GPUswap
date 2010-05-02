@@ -1205,6 +1205,7 @@ nouveau_crtc_irq_handler(struct drm_device *dev, int crtc)
 irqreturn_t
 nouveau_irq_handler(DRM_IRQ_ARGS)
 {
+
 	struct drm_device *dev = (struct drm_device *)arg;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	uint32_t status, fbdev_flags = 0;
@@ -1213,6 +1214,10 @@ nouveau_irq_handler(DRM_IRQ_ARGS)
 	status = nv_rd32(dev, NV03_PMC_INTR_0);
 	if (!status)
 		return IRQ_NONE;
+
+	nv_wr32(dev, NV03_PMC_INTR_0, status);	
+
+	(void) nv_rd32(dev, NV03_PMC_INTR_0); /* Flush posted writes */
 
 	spin_lock_irqsave(&dev_priv->context_switch_lock, flags);
 /*

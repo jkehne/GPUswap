@@ -182,7 +182,6 @@ nouveau_get_new_space(struct nouveau_bo *nvbo,
 	int i;
 
 	free_space = drm_mm_search_free(&dev_priv->fb_block->core_manager, bnum, align, 0);
-	nvbo->block_offset_node = drm_mm_get_block(free_space, bnum, align);
 
 	if (free_space != NULL) {
 		nvbo->block_offset_node = drm_mm_get_block(free_space, bnum, align);
@@ -195,7 +194,7 @@ nouveau_get_new_space(struct nouveau_bo *nvbo,
 	} else {
 		block_array = kzalloc(sizeof(uintptr_t) * bnum, GFP_KERNEL);
 		for (i = 0; i < bnum; i++) {
-			block_array[i] = nvbo->block_offset_node->start + sizeof(*block_array) * i;
+			block_array[i] = nvbo->block_offset_node->start + BLOCK_SIZE * i;
 		}
 	}
 	return block_array;
@@ -260,10 +259,7 @@ nouveau_find_mem_space(struct drm_nouveau_private* dev_priv, struct nouveau_bo *
 	if (no_evicted) {
 		nouveau_pscmm_set_no_evicted(dev_priv, nvbo);
 	}
-	
 	return block_array;
-
-
 }
 
 /*
@@ -424,15 +420,18 @@ nouveau_pscmm_alloc_vram(struct drm_nouveau_private* dev_priv, size_t bo_size,
 
 	bnum = bo_size / BLOCK_SIZE;
 	nvbo = kzalloc(sizeof(struct nouveau_bo), GFP_KERNEL);
-
+	INIT_LIST_HEAD(&nvbo->head);
+	INIT_LIST_HEAD(&nvbo->list);
+	INIT_LIST_HEAD(&nvbo->active_list);
+	nvbo->block_offset_node = NULL;
 	/* find the blank VRAM and reserve */
 	block_array = nouveau_find_mem_space(dev_priv, nvbo, bnum, no_evicted, align);
 
 	nvbo->channel = NULL;
 
 	nvbo->nblock = bnum;		//VRAM is split in block 
-	nvbo->block_array = block_array;			//the GPU physical address at which the bo is
 
+	nvbo->block_array = block_array;			//the GPU physical address at which the bo is
 
 	return nvbo;
 }
@@ -440,12 +439,11 @@ nouveau_pscmm_alloc_vram(struct drm_nouveau_private* dev_priv, size_t bo_size,
 void
 nouveau_pscmm_free(struct nouveau_bo* nvbo)
 {
-
-	if (nvbo->block_offset_node) {
+	if (nvbo->block_offset_node != NULL) {
 	/* remove from T1/T2/B1/B2 */
 		nouveau_free_blocks(nvbo);
 	}
-	if (nvbo->block_array) {
+	if (nvbo->block_array != NULL) {
 		kfree(nvbo->block_array, sizeof(uintptr_t) * nvbo->gem->size / BLOCK_SIZE);
 		nvbo->block_array = NULL;
 	}
@@ -463,14 +461,14 @@ nouveau_channel_map(struct drm_device *dev, struct nouveau_channel *chan, struct
 	/* Get free vm from per-channel page table using the function in drm_mm.c or bitmap_block*/
 	/* bind the vm with the physical address in block_array */
 	/* Since the per-channel page table init at the channel_init and not changed then, */
-	addr_ptr = nvbo->block_offset_node->start << PAGE_SHIFT + dev_priv->vm_vram_base;
+	addr_ptr = nvbo->block_offset_node->start + dev_priv->vm_vram_base;
 
 	/* bind the vm */
 	/* need? */
 	ret = nv50_mem_vm_bind_linear(dev,
-			nvbo->block_offset_node->start << PAGE_SHIFT + dev_priv->vm_vram_base,
+			nvbo->block_offset_node->start + dev_priv->vm_vram_base,
 			nvbo->gem->size, nvbo->tile_flags,
-			nvbo->block_offset_node->start << PAGE_SHIFT);
+			nvbo->block_offset_node->start);
 	if (ret) {
 		NV_ERROR(dev, "Failed to bind");
 			return NULL;
@@ -495,7 +493,7 @@ nouveau_channel_unmap(struct drm_device *dev,
 	
 	/* unbind */
 	/* need? */
-	nv50_mem_vm_unbind(dev, nvbo->block_offset_node->start << PAGE_SHIFT + dev_priv->vm_vram_base, nvbo->gem->size);
+	nv50_mem_vm_unbind(dev, nvbo->block_offset_node->start + dev_priv->vm_vram_base, nvbo->gem->size);
 	/* drm_mm_put_block or update the bitmap_block in nouveau_channel */
 	nvbo->channel = NULL;
 	
@@ -510,7 +508,7 @@ nouveau_pscmm_move_memcpy(struct drm_device *dev,
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	/* RAM->VRAM & VRAM->RAM */
 	if (nvbo->virtual == NULL)
-		nvbo->virtual = ioremap(dev_priv->fb_block->io_offset + nvbo->block_offset_node->start << PAGE_SHIFT,  gem->size);
+		nvbo->virtual = ioremap(dev_priv->fb_block->io_offset + nvbo->block_offset_node->start,  gem->size);
 	
 	if (new_domain == NOUVEAU_PSCMM_DOMAIN_VRAM) {
 		memcpy(gem->kaddr, nvbo->virtual, gem->size);
@@ -562,12 +560,12 @@ nouveau_pscmm_move_m2mf(struct drm_device *dev,
 	}
 
 	if (old_domain == NOUVEAU_PSCMM_DOMAIN_VRAM) {
-		src_offset = nvbo->block_offset_node->start << PAGE_SHIFT + (chan == dev_priv->channel) ? 0 : dev_priv->vm_vram_base;
+		src_offset = nvbo->block_offset_node->start + (chan == dev_priv->channel) ? 0 : dev_priv->vm_vram_base;
 		dst_offset = nvbo->gart_offset + (chan == dev_priv->channel) ? 0 : dev_priv->vm_gart_base;
 
 	} else {
 		src_offset = nvbo->gart_offset + (chan == dev_priv->channel) ? 0 : dev_priv->vm_gart_base;
-		dst_offset = nvbo->block_offset_node->start << PAGE_SHIFT + (chan == dev_priv->channel) ? 0 : dev_priv->vm_vram_base;
+		dst_offset = nvbo->block_offset_node->start + (chan == dev_priv->channel) ? 0 : dev_priv->vm_vram_base;
 		
 	}
 
@@ -636,9 +634,10 @@ nouveau_pscmm_move_m2mf(struct drm_device *dev,
 
 int
 nouveau_pscmm_move(struct drm_device *dev, struct drm_gem_object* gem,
-	    struct nouveau_bo *nvbo, uint32_t old_domain, uint32_t new_domain,
+	    struct nouveau_bo **pnvbo, uint32_t old_domain, uint32_t new_domain,
 	    bool no_evicted, uint32_t align)
 {
+	struct nouveau_bo *nvbo;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	int ret;
 
@@ -646,20 +645,22 @@ nouveau_pscmm_move(struct drm_device *dev, struct drm_gem_object* gem,
 	if (old_domain == new_domain)
 		return ret;
 	
-	if (nvbo == NULL && new_domain == NOUVEAU_PSCMM_DOMAIN_VRAM) {
+	if (gem->driver_private == NULL && new_domain == NOUVEAU_PSCMM_DOMAIN_VRAM) {
 		/* alloc bo */
-
 		nvbo = nouveau_pscmm_alloc_vram(dev_priv, gem->size, no_evicted, align);
-		
  		/* alloc gem object */
 		nvbo->gem = gem;
 
 		nvbo->gem->driver_private = nvbo;
+		nvbo->placements = NOUVEAU_PSCMM_DOMAIN_VRAM;
+		*pnvbo = nvbo;
 
 	}
 
-	if (nvbo->placements == new_domain)
+	if (nvbo->placements == new_domain) {
+		NV_DEBUG(dev, "same as new_domain, just return");
 		return ret;
+	}
 
 	/* check if the bo is non-evict */
 	if (nvbo->type == no_evicted) {
@@ -694,7 +695,6 @@ out:
 	if (no_evicted && nvbo->placements == NOUVEAU_PSCMM_DOMAIN_VRAM) {
 		nouveau_pscmm_set_no_evicted(dev_priv, nvbo);
 	}
-
 	return ret;
 }
 
@@ -791,7 +791,7 @@ nouveau_pscmm_command_prefault(struct drm_device *dev, struct drm_file *file_pri
 
 	/* check if nvbo is empty? */
 	if (nvbo == NULL) {
-		ret = nouveau_pscmm_move(dev, gem, nvbo, 0, NOUVEAU_PSCMM_DOMAIN_VRAM, true, align);
+		ret = nouveau_pscmm_move(dev, gem, &nvbo, 0, NOUVEAU_PSCMM_DOMAIN_VRAM, true, align);
 	}
 
 	if (nvbo->type == no_evicted) {
@@ -964,7 +964,7 @@ nouveau_pscmm_new(struct drm_device *dev,  struct drm_file *file_priv,
 		struct nouveau_bo **pnvbo)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_bo *nvbo;
+	struct nouveau_bo *nvbo = NULL;
 	u32 handle;
 	struct drm_gem_object *gem;
 	int ret;
@@ -978,17 +978,18 @@ nouveau_pscmm_new(struct drm_device *dev,  struct drm_file *file_priv,
 
  	/* alloc gem object */
 	gem = drm_gem_object_alloc(dev, size);
-
+	gem->driver_private = NULL;
 	if (file_priv)
 		ret = drm_gem_handle_create(file_priv, gem, &handle);
 
-	nouveau_pscmm_move(dev, gem, nvbo, NOUVEAU_PSCMM_DOMAIN_CPU, flags, no_evicted, align);
+	nouveau_pscmm_move(dev, gem, &nvbo, NOUVEAU_PSCMM_DOMAIN_CPU, flags, no_evicted, align);
 
 	if (mappable) {
-		nvbo->virtual = ioremap(dev_priv->fb_block->io_offset + nvbo->block_offset_node->start << PAGE_SHIFT,  gem->size);
+		nvbo->virtual = ioremap(dev_priv->fb_block->io_offset + nvbo->block_offset_node->start,  gem->size);
 	}
 
 	*pnvbo = nvbo;
+
 	return 0;
 }
 
@@ -1004,7 +1005,7 @@ nouveau_pscmm_ioctl_new(DRM_IOCTL_ARGS)
 	
  	/* alloc gem object */
 	gem = drm_gem_object_alloc(dev, arg->size);
-
+	gem->driver_private = NULL;
 	ret = drm_gem_handle_create(file_priv, gem, &arg->handle);
 
 	return ret;
@@ -1124,7 +1125,7 @@ nouveau_pscmm_ioctl_chan_map(DRM_IOCTL_ARGS)
 	
 	if (nvbo == NULL) {
 
-		nouveau_pscmm_move(dev, gem, nvbo, NOUVEAU_PSCMM_DOMAIN_CPU, NOUVEAU_PSCMM_DOMAIN_VRAM, false, PAGE_SIZE);
+		nouveau_pscmm_move(dev, gem, &nvbo, NOUVEAU_PSCMM_DOMAIN_CPU, NOUVEAU_PSCMM_DOMAIN_VRAM, false, PAGE_SIZE);
 
 	}
 
@@ -1200,7 +1201,7 @@ nouveau_pscmm_ioctl_read(DRM_IOCTL_ARGS)
 			nouveau_pscmm_prefault(dev_priv, nvbo, PAGE_SIZE);
 				
 			/* read the VRAM to user space address */
-			addr = ioremap(dev_priv->fb_block->io_offset + nvbo->block_offset_node->start << PAGE_SHIFT,  gem->size);
+			addr = ioremap(dev_priv->fb_block->io_offset + nvbo->block_offset_node->start,  gem->size);
 			if (!addr) {
 				NV_ERROR(dev, "bo shared between channels are not supported by now");
 				return -ENOMEM;
@@ -1263,7 +1264,7 @@ nouveau_pscmm_ioctl_write(DRM_IOCTL_ARGS)
 			nouveau_pscmm_prefault(dev_priv, nvbo, PAGE_SIZE);
 				
 			/* write the VRAM to user space address */
-			addr = ioremap(dev_priv->fb_block->io_offset + nvbo->block_offset_node->start << PAGE_SHIFT,  gem->size);
+			addr = ioremap(dev_priv->fb_block->io_offset + nvbo->block_offset_node->start,  gem->size);
 			if (!addr) {
 				NV_ERROR(dev, "bo shared between channels are not supported by now");
 				drm_gem_object_unreference(gem);
@@ -1317,7 +1318,7 @@ nouveau_pscmm_ioctl_move(DRM_IOCTL_ARGS)
 	
 	nvbo = gem ? gem->driver_private : NULL;
 	
-	nouveau_pscmm_move(dev, gem, nvbo, arg->old_domain, arg->new_domain, false, PAGE_SIZE);
+	nouveau_pscmm_move(dev, gem, &nvbo, arg->old_domain, arg->new_domain, false, PAGE_SIZE);
 
 end:
 	/* think about new is RAM. User space will ignore the firstblock if the bo is not in the VRAM*/

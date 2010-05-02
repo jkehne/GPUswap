@@ -74,17 +74,6 @@ pci_dev_create(struct drm_device *dev)
 	if (ret > 0)
 		pdev->irq = pci_config_get8(pdev->pci_cfg_acc_handle, PCI_CONF_ILINE);
 
-	if (ddi_intr_hilevel(dip, 0) != 0) {
-		DRM_ERROR("high-level interrupts are not supported");
-		goto err_irq;
-	}
-
-	if (ddi_get_iblock_cookie(dip, (uint_t)0,
-	    &pdev->intr_block) != DDI_SUCCESS) {
-		DRM_ERROR("cannot get iblock cookie");
-		goto err_irq;
-	}
-
 	/* regions */
 	ret = ddi_getlongprop(DDI_DEV_T_ANY, dip,
 	    DDI_PROP_DONTPASS, "assigned-addresses", (caddr_t)&regspec, &len);

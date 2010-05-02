@@ -132,7 +132,7 @@ struct nouveau_bo {
 
 	/* now, there is no bind/unbind support for GPU vm to GPU phy */
 	uint32_t nblock;		//VRAM is split in block; the number of blocks
-	uintptr_t firstblock;	//GPU vm address, == block_offset_node->start << PAGE_SHIFT
+	uintptr_t firstblock;	//GPU vm address, == block_offset_node->start 
 	
 	uintptr_t *block_array;	//the GPU physical address at which the bo is
 	struct drm_mm_node *block_offset_node;	//same as block_array, used in drm_mm
@@ -1181,12 +1181,13 @@ nv_two_reg_pll(struct drm_device *dev)
  * Memory regions for data placement.
  */
 
-#define MEM_PL_SYSTEM           0
-#define MEM_PL_TT               1
-#define MEM_PL_VRAM             2
+#define MEM_PL_SYSTEM		0
+#define MEM_PL_VRAM		1
+#define MEM_PL_TT		2
+
 
 #define MEM_PL_FLAG_SYSTEM      (1 << MEM_PL_SYSTEM)
-#define MEM_PL_FLAG_TT          (1 << MEM_PL_TT)
 #define MEM_PL_FLAG_VRAM        (1 << MEM_PL_VRAM)
+#define MEM_PL_FLAG_TT          (1 << MEM_PL_TT)
 
 #endif /* __NOUVEAU_DRV_H__ */

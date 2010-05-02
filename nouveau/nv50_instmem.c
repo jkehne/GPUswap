@@ -425,8 +425,7 @@ nv50_instmem_populate(struct drm_device *dev, struct nouveau_gpuobj *gpuobj,
 	}
 */
 	gpuobj->im_backing_start = gpuobj->im_backing->block_offset_node->start;
-	gpuobj->im_backing_start <<= PAGE_SHIFT;
-
+//	gpuobj->im_backing_start <<= PAGE_SHIFT;
 	return 0;
 }
 
@@ -453,8 +452,10 @@ nv50_instmem_bind(struct drm_device *dev, struct nouveau_gpuobj *gpuobj)
 	uint32_t pte, pte_end;
 	uint64_t vram;
 
-	if (!gpuobj->im_backing || !gpuobj->im_pramin || gpuobj->im_bound)
+	if (!gpuobj->im_backing || !gpuobj->im_pramin || gpuobj->im_bound) {
+		NV_ERROR(dev, "error inval");
 		return -EINVAL;
+	}
 
 	NV_DEBUG(dev, "st=0x%0llx sz=0x%0llx\n",
 		 gpuobj->im_pramin->start, gpuobj->im_pramin->size);

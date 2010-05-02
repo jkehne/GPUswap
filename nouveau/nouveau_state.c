@@ -121,7 +121,7 @@ nouveau_card_init_channel(struct drm_device *dev)
 	int ret;
 
 	ret = nouveau_channel_alloc(dev, &dev_priv->channel,
-				    (struct drm_file *)-2,
+				  	NULL, 
 				    NvDmaFB, NvDmaTT);
 	if (ret)
 		return ret;
@@ -249,12 +249,9 @@ nouveau_card_init(struct drm_device *dev)
 	if (ret)
 		goto out_fifo;
 
-	ret = drm_vblank_init(dev, 0);
-	if (ret)
-		goto out_irq;
+	drm_vblank_init(dev, 0);
 
 	/* what about PVIDEO/PCRTC/PRAMDAC etc? */
-
 	if (!engine->graph.accel_blocked) {
 		ret = nouveau_card_init_channel(dev);
 		if (ret)
@@ -308,9 +305,9 @@ out_gpuobj:
 out_mem:
 	nouveau_mem_close(dev);
 out_instmem:
+	nouveau_gpuobj_late_takedown(dev);
 	engine->instmem.takedown(dev);
 out_gpuobj_early:
-	nouveau_gpuobj_late_takedown(dev);
 out_bios:
 out:
 	return ret;
@@ -345,12 +342,12 @@ static void nouveau_card_takedown(struct drm_device *dev)
 
 		nouveau_gpuobj_takedown(dev);
 		nouveau_mem_close(dev);
-		engine->instmem.takedown(dev);
 
 		if (drm_core_check_feature(dev, DRIVER_MODESET))
 			drm_irq_uninstall(dev);
 
 		nouveau_gpuobj_late_takedown(dev);
+		engine->instmem.takedown(dev);
 //		nouveau_bios_takedown(dev);
 
 //		vga_client_register(dev->pdev, NULL, NULL, NULL);
@@ -394,6 +391,13 @@ int nouveau_load(struct drm_device *dev, unsigned long flags)
 	dev_priv->flags = flags & NOUVEAU_FLAGS;
 	dev_priv->init_state = NOUVEAU_CARD_INIT_DOWN;
 
+	INIT_LIST_HEAD(&dev_priv->T1_list);
+	INIT_LIST_HEAD(&dev_priv->T2_list);
+	INIT_LIST_HEAD(&dev_priv->B1_list);
+	INIT_LIST_HEAD(&dev_priv->B2_list);
+	INIT_LIST_HEAD(&dev_priv->no_evicted_list);
+	INIT_LIST_HEAD(&dev_priv->bo_list);
+	INIT_LIST_HEAD(&dev_priv->active_list);
 	NV_DEBUG(dev, "vendor: 0x%x device: 0x%x\n",
 		 dev->pci_vendor, dev->pci_device);
 
@@ -523,7 +527,6 @@ int nouveau_load(struct drm_device *dev, unsigned long flags)
 		if (ret)
 			return ret;
 	}
-
 	return 0;
 }
 

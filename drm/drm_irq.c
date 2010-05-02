@@ -71,8 +71,27 @@ static irqreturn_t __irq_handler_wrap_msi(caddr_t arg1, caddr_t arg2)
 
 static int __install_irq_handler(struct drm_device *dev)
 {
+	dev_info_t *dip = dev->devinfo;
 	struct pci_dev *pdev = dev->pdev;
 	int i, ret;
+
+	if (dip == NULL) {
+		DRM_ERROR("cannot get dip");
+		return (DDI_FAILURE);
+	}
+
+	if (ddi_intr_hilevel(dip, 0) != 0) {
+		DRM_ERROR("high-level interrupts are not supported");
+		return (DDI_FAILURE);
+	}
+
+	if (ddi_get_iblock_cookie(dip, (uint_t)0,
+	    &pdev->intr_block) != DDI_SUCCESS) {
+		DRM_ERROR("cannot get iblock cookie");
+		return (DDI_FAILURE);
+	}
+
+	mutex_init(&dev->irq_lock, "drmirq", MUTEX_DRIVER, (void *)dev->pdev->intr_block);
 
 	if (pdev->msi_handle) {
 		/* Call ddi_intr_add_handler() */
@@ -95,7 +114,7 @@ static int __install_irq_handler(struct drm_device *dev)
 		}
 	} else {
 		/* setup the interrupt handler */
-		if (ddi_add_intr(dev->devinfo, 0, &pdev->intr_block,
+		if (ddi_add_intr(dip, 0, &pdev->intr_block,
 		    (ddi_idevice_cookie_t *)NULL, __irq_handler_wrap,
 		    (caddr_t)dev) != DDI_SUCCESS) {
 			DRM_ERROR("ddi_add_intr failed");
@@ -306,7 +325,7 @@ int drm_vblank_init(struct drm_device *dev, int num_crtcs)
 	init_timer(&dev->vblank_disable_timer);
 	setup_timer(&dev->vblank_disable_timer, vblank_disable_fn,
 		dev);
-	mutex_init(&dev->vbl_lock, NULL, MUTEX_DRIVER, (void *)dev->pdev->intr_block);
+	mutex_init(&dev->vbl_lock, NULL, MUTEX_DRIVER, NULL);
 	dev->num_crtcs = num_crtcs;
 
 	dev->vbl_queue = kmalloc(sizeof(wait_queue_head_t) * num_crtcs,
@@ -417,6 +436,7 @@ int drm_irq_install(struct drm_device *dev)
 		mutex_lock(&dev->struct_mutex);
 		dev->irq_enabled = 0;
 		mutex_unlock(&dev->struct_mutex);
+		DRM_ERROR("failed to enable irq");
 		return ret;
 	}
 

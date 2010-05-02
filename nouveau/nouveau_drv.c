@@ -72,12 +72,13 @@ int nouveau_fbpercrtc;
 #define PCI_VENDOR_ID_NVIDIA_SGS	0x12d2
 
 
-static void *nouveau_statep;
+static void *nouveau_statep = NULL;
 
 static int nouveau_info(dev_info_t *, ddi_info_cmd_t, void *, void **);
 static int nouveau_attach(dev_info_t *, ddi_attach_cmd_t);
 static int nouveau_detach(dev_info_t *, ddi_detach_cmd_t);
 static int nouveau_quiesce(dev_info_t *);
+static int nouveau_probe(dev_info_t *);
 
 extern struct cb_ops drm_cb_ops;
 
@@ -86,7 +87,7 @@ static struct dev_ops nouveau_dev_ops = {
 	0,			/* devo_refcnt */
 	nouveau_info,		/* devo_getinfo */
 	nulldev,		/* devo_identify */
-	nulldev,		/* devo_probe */
+	nouveau_probe,		/* devo_probe */
 	nouveau_attach,		/* devo_attach */
 	nouveau_detach,		/* devo_detach */
 	nodev,			/* devo_reset */
@@ -167,6 +168,7 @@ nouveau_attach(dev_info_t *dip, ddi_attach_cmd_t cmd)
 
 		dev->devinfo = dip;
 
+
 		ret = drm_init(dev, &driver);
 		if (ret != DDI_SUCCESS)
 			(void) ddi_soft_state_free(nouveau_statep, item);
@@ -213,6 +215,22 @@ nouveau_detach(dev_info_t *dip, ddi_detach_cmd_t cmd)
 
 	DRM_ERROR("only supports detach or suspend");
 	return (DDI_FAILURE);
+}
+
+static int
+nouveau_probe(dev_info_t *dip)
+{
+	ddi_acc_handle_t dev_hdl;
+	ddi_device_acc_attr_t dev_attr;
+	/*
+	 * if the device is self identifying, no need to probe
+	 */
+	if (ddi_dev_is_sid(dip) == DDI_SUCCESS) {
+		DRM_DEBUG("no need to probe");
+		return (DDI_PROBE_DONTCARE);
+	}
+	DRM_DEBUG("need probe");
+	return (DDI_PROBE_SUCCESS);
 }
 
 static int
