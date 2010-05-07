@@ -1018,16 +1018,17 @@ nouveau_pscmm_ioctl_mmap(DRM_IOCTL_ARGS)
 	struct nouveau_pscmm_mmap *req = data;
 	struct drm_gem_object *gem;
 	struct nouveau_bo *nvbo;
+	caddr_t vvaddr = NULL;
 	int ret;
 
 
 /* need fix */
-NV_ERROR(dev, "Not support by now");
-return -1;
+NV_ERROR(dev, "Not support VRAM map by now");
 
-#if 0
 	gem = drm_gem_object_lookup(dev, file_priv, req->handle);
-	
+	if (gem == NULL)
+		return -EINVAL;
+#if 0
 	nvbo = gem ? gem->driver_private : NULL;
 
 	if (nvbo != NULL) {
@@ -1054,12 +1055,22 @@ return -1;
 		return ret;
 
 	}
-
+#endif
 	
 	/* mmap the GEM object to user space */
-	
+	ret = ddi_devmap_segmap(dev_id, (off_t)gem->maplist.user_token,
+	    ttoproc(curthread)->p_as, &vvaddr, gem->maplist.map->size,
+	    PROT_ALL, PROT_ALL, MAP_SHARED, credp);
+	if (ret)
+		return ret;
+
+	mutex_lock(&dev->struct_mutex);
+	drm_gem_object_unreference(gem);
+	mutex_unlock(&dev->struct_mutex);
+
+	req->addr_ptr = (uint64_t)(uintptr_t)vvaddr;
 	return ret;
-#endif	
+
 }
 
 
@@ -1333,72 +1344,83 @@ nouveau_pscmm_ioctl_exec(DRM_IOCTL_ARGS)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct drm_nouveau_pscmm_exec *args = data;
-	struct drm_nouveau_pscmm_exec_command *command_list;
 	struct drm_nouveau_pscmm_exec_object *obj_list;
 	struct drm_gem_object *gem;
 	struct nouveau_bo *nvbo;
 	struct nouveau_channel* chan;
 	int i, j;
 	int ret;
-
-	command_list = drm_calloc(sizeof(*command_list), args->command_count, DRM_MEM_DRIVER);
-
-	ret = copy_from_user(command_list,
-			     (struct drm_nouveau_pscmm_exec_command *)
-			     (uintptr_t) args->command_ptr,
-			     sizeof(*command_list) * args->command_count);
 	
-	for (i = 0; i < args->command_count; i++) {
-		/* get channel */
-		NOUVEAU_GET_USER_CHANNEL_WITH_RETURN(command_list[i].channel, file_priv, chan);
-		obj_list = drm_calloc(sizeof(*obj_list), command_list[i].buffer_count, DRM_MEM_DRIVER);
 
-		ret = copy_from_user(obj_list,
-			     (struct drm_nouveau_pscmm_exec_object *)
-			     (uintptr_t) command_list[i].buffers_ptr,
-			     sizeof(*obj_list) * command_list[i].buffer_count);
-		for (j = 0; j < command_list[i].buffer_count; j++) {
+	/* get channel */
+	NOUVEAU_GET_USER_CHANNEL_WITH_RETURN(args->channel, file_priv, chan);
+	obj_list = drm_calloc(sizeof(*obj_list), args->buffer_count, DRM_MEM_DRIVER);
 
-			/* prefault and mark*/
-			nouveau_pscmm_command_prefault(dev, file_priv, obj_list[j].handle, PAGE_SIZE);
+	ret = copy_from_user(obj_list,
+		     (struct drm_nouveau_pscmm_exec_object *)
+		     (uintptr_t) args->buffers_ptr,
+			sizeof(*obj_list) * args->buffer_count);
+	for (j = 0; j < args->buffer_count; j++) {
+
+		/* prefault and mark*/
+		nouveau_pscmm_command_prefault(dev, file_priv, obj_list[j].handle, PAGE_SIZE);
 				
-		}
+	}
 
-		/* Copy the new  offsets back to the user's exec_object list. */
-		ret = copy_to_user(obj_list,
-			     (struct drm_nouveau_pscmm_exec_object *)
-			     (uintptr_t) command_list[i].buffers_ptr,
-			     sizeof(*obj_list) * command_list[i].buffer_count);
-			
-		gem = drm_gem_object_lookup(dev, file_priv, obj_list[j-1].handle);
+	/* Copy the new  offsets back to the user's exec_object list. */
+	ret = copy_to_user(obj_list,
+			(struct drm_nouveau_pscmm_exec_object *)
+			(uintptr_t) args->buffers_ptr,
+			sizeof(*obj_list) * args->buffer_count);
+
+	/* pushbuf are the last obj */
+	uint32_t nr_pushbuf = obj_list[args->buffer_count -1].nr_dwords;
+	gem = drm_gem_object_lookup(dev, file_priv, obj_list[args->buffer_count -1].handle);
 	
-		nvbo = gem ? gem->driver_private : NULL;
+	nvbo = gem ? gem->driver_private : NULL;
 
-		/* Emit the command buffer */
-		nv50_dma_push(chan, nvbo, 0, gem->size);
+#if 0
+/* use batchbuffer */
+	
+	ret = nouveau_dma_wait(chan, nr_pushbuf + 1, 6);
+	if (ret) {
+		NV_INFO(dev, "pscmm_exec_space: %d\n", ret);
+		goto out;
+	}
 
+	for (i = 0; i < nr_pushbuf; i++) {
+		struct nouveau_bo *nvbo = (void *)(unsigned long)
+			bo[push[i].bo_index].user_priv;
+
+		nv50_dma_push(chan, nvbo, push[i].offset,
+			      push[i].length);
+	}
+		
+	nv50_dma_push(chan, nvbo, 0, gem->size);
+#else
+/* use one command by one command*/
+	uint32_t *data = gem->kaddr;
+	RING_SPACE(chan, nr_pushbuf);
+	for (i = 0; i < nr_pushbuf; i++) {
+		OUT_RING(chan, data[i]);
+	}
+	FIRE_RING(chan);
+#endif
 		/* Add seqno into command buffer. */ 
-		command_list[i].seqno = nouveau_pscmm_add_request(dev);
-		for (j = 0; j < command_list[i].buffer_count; j++) {
+		args->seqno = nouveau_pscmm_add_request(dev);
+		for (j = 0; j < args->buffer_count; j++) {
 			struct drm_gem_object *tmp_gem;
 			tmp_gem = drm_gem_object_lookup(dev, file_priv, obj_list[j].handle);
 	
 			nvbo = tmp_gem ? tmp_gem->driver_private : NULL;
 			
-			nouveau_pscmm_move_active_list(dev_priv, tmp_gem, nvbo, command_list[i].seqno);
+			nouveau_pscmm_move_active_list(dev_priv, tmp_gem, nvbo, args->seqno);
 			drm_gem_object_unreference(tmp_gem);
 		}
 
-		drm_free(obj_list, sizeof(*obj_list) * command_list[i].buffer_count, DRM_MEM_DRIVER);
+		drm_free(obj_list, sizeof(*obj_list) * args->buffer_count, DRM_MEM_DRIVER);
 		drm_gem_object_unreference(gem);
-	}
-		/* Copy the seqno back to the user's exec_object list. */
-	ret = copy_to_user(command_list,
-			     (struct drm_nouveau_pscmm_exec_command *)
-			     (uintptr_t) args->command_ptr,
-			     sizeof(*command_list) * args->command_count);
 
-	drm_free(command_list, sizeof(*command_list) * args->command_count, DRM_MEM_DRIVER);
 	return ret;
 }
 

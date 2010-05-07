@@ -210,21 +210,7 @@ struct drm_nouveau_pscmm_move {
 };
 
 
- struct drm_nouveau_pscmm_exec {
-
-	/**
-	   * This is a pointer to an array of drm_nouveau_pscmm_exec_command.
-	   */
-
-	uint32_t command_count;
-			
-	uint32_t pad;
-
-	uintptr_t command_ptr;
-
-};
-
- struct drm_nouveau_pscmm_exec_command {
+ struct drm_nouveau_pscmm_exec{
 
 	uint32_t channel;
 
@@ -248,7 +234,7 @@ struct drm_nouveau_pscmm_exec_object {
 
 	uint32_t handle;
 
-	uint32_t pad;
+	uint32_t nr_dwords;
 
 	/** Address of the object. */
 
