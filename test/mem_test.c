@@ -27,10 +27,8 @@
 #include <fcntl.h>
 #include <assert.h>
 #include <errno.h>
-#include "drm.h"
 #include <stdio.h>
-#include "nouveau_drm.h"
-
+#include "mem_test.h"
 
 #define CPREGS 4
 #define START_STRIDED 0
@@ -70,63 +68,6 @@ uint32_t cpcode[] = {
 
 #define CPSZ sizeof(cpcode)
 
-struct nouveau_object {
-	uint32_t handle;
-	uint32_t tile_mode;
-	uint32_t tile_flags;
-	uint32_t placement;
-	uint64_t size;
-	uint64_t offset; //vram offset
-	uintptr_t chan_map;	//chan map offest
-	uintptr_t gem_map;
-	uint32_t channel;	//channel id
-	uint32_t remaining;	//just for pushbuf
-	
-};
-
-struct nouveau_grobj {
-	struct nouveau_chan *channel;
-	int grclass;
-	uint32_t handle;
-
-	enum {
-		NOUVEAU_GROBJ_UNBOUND = 0,
-		NOUVEAU_GROBJ_BOUND = 1,
-		NOUVEAU_GROBJ_BOUND_EXPLICIT = 2
-	} bound;
-	int subc;
-};
-
-struct nouveau_subchannel {
-	struct nouveau_grobj *gr;
-	unsigned sequence;
-};
-
-struct nouveau_chan {
-	int fd;
-	int id;
-
-	struct nouveau_object *pushbuf;
-
-	struct nouveau_grobj *nullobj;
-	struct nouveau_grobj *vram;
-	struct nouveau_grobj *gart;
-
-	void *user_private;
-	void (*hang_notify)(struct nouveau_channel *);
-	void (*flush_notify)(struct nouveau_channel *);
-
-	struct nouveau_subchannel subc[8];
-	unsigned subc_sequence;
-};
-
-struct nouveau_notifier {
-	struct nouveau_chan *channel;
-	uint32_t handle;
-	uint32_t size;
-	uint32_t offset;
-};
-
 struct nouveau_object *in;
 struct nouveau_object *out;
 struct nouveau_object *cp;
@@ -138,6 +79,10 @@ struct drm_nouveau_pscmm_exec_object * exec_objects;
 int exec_buf_nr = 0;
 
 int bytes, ints, threads, ctas;
+
+static void
+BEGIN_RING(struct nouveau_chan *chan, struct nouveau_grobj *gr,
+           unsigned mthd, unsigned size);
 
 int drm_open_any(void)
 {
@@ -166,7 +111,7 @@ nouveau_grobj_ref(struct nouveau_chan *chan, uint32_t handle,
 	nvgrobj->handle = handle;
 	nvgrobj->grclass = 0;
 
-	*grobj = &nvgrobj->base;
+	*grobj = nvgrobj;
 	return 0;
 }
 
@@ -174,7 +119,7 @@ int nouveau_channel_alloc(int fd, uint32_t fb_ctxdma, uint32_t tt_ctxdma, struct
 {
 	struct drm_nouveau_channel_alloc nv_chan;
 	struct nouveau_chan *channel;
-	int ret;
+	int ret, i;
 
 	nv_chan.fb_ctxdma_handle = fb_ctxdma;
 	nv_chan.tt_ctxdma_handle = tt_ctxdma;
@@ -195,19 +140,19 @@ int nouveau_channel_alloc(int fd, uint32_t fb_ctxdma, uint32_t tt_ctxdma, struct
 			      &channel->vram) ||
 	    nouveau_grobj_ref(channel, tt_ctxdma,
 		    	      &channel->gart)) {
-		nouveau_channel_free((void *)&nvchan);
+		nouveau_channel_free(channel);
 		return -EINVAL;
 	}
 
 	/* Mark all DRM-assigned subchannels as in-use */
-	for (i = 0; i < nvchan.nr_subchan; i++) {
+	for (i = 0; i < nv_chan.nr_subchan; i++) {
 		struct nouveau_grobj *gr = calloc(1, sizeof(*gr));
 
 		gr->bound = NOUVEAU_GROBJ_BOUND_EXPLICIT;
 		gr->subc = i;
-		gr->handle = nvchan.subchan[i].handle;
-		gr->grclass = nvchan.subchan[i].grclass;
-		gr->channel = &nvchan->base;
+		gr->handle = nv_chan.subchan[i].handle;
+		gr->grclass = nv_chan.subchan[i].grclass;
+		gr->channel = channel;
 
 		channel->subc[i].gr = gr;
 	}
@@ -226,7 +171,7 @@ int nouveau_channel_free(struct nouveau_chan *chan)
         int ret;
 	cfree.channel = chan->id;
 
-        ret = ioctl(fd, DRM_IOCTL_NOUVEAU_CHANNEL_ALLOC, &cfree);
+        ret = ioctl(chan->fd, DRM_IOCTL_NOUVEAU_CHANNEL_ALLOC, &cfree);
         if (ret < 0) {
                 printf("free channel failed\n");
                 return ret;
@@ -240,15 +185,15 @@ int nouveau_grobj_alloc(int fd, struct nouveau_chan *chan, uint32_t handle,
 			int class, struct nouveau_grobj **grobj)
 {
 	int ret;
-	struct drm_nouveau_grobj_alloc grobj;
+	struct drm_nouveau_grobj_alloc new_grobj;
 	struct nouveau_grobj *gr;
 
 	gr = calloc(1, sizeof(struct nouveau_grobj));	
 
-	grobj.channel = chan->id;
-	grobj.handle = handle;
-	grobj.class = class;
-	ret = ioctl(fd, DRM_IOCTL_NOUVEAU_GROBJ_ALLOC, &grobj);
+	new_grobj.channel = chan->id;
+	new_grobj.handle = handle;
+	new_grobj.class = class;
+	ret = ioctl(fd, DRM_IOCTL_NOUVEAU_GROBJ_ALLOC, &new_grobj);
         if (ret < 0) {
                 printf("nouveau_grobj_alloc failed\n");
 		free(gr);
@@ -265,20 +210,20 @@ int nouveau_grobj_alloc(int fd, struct nouveau_chan *chan, uint32_t handle,
 	return ret;
 }
 
-int nouveau_grobj_free(int fd, int chanid, uint32_t handle)
+int nouveau_grobj_free(int fd, int chanid, struct nouveau_grobj *grobj)
 {
 	struct drm_nouveau_gpuobj_free objfree;
         int ret;
 
         objfree.channel = chanid;
-        objfree.handle = handle;
+        objfree.handle = grobj->handle;
         ret = ioctl(fd, DRM_IOCTL_NOUVEAU_GPUOBJ_FREE, &objfree);
         if (ret < 0) {
                 printf("nouveau_grobj_free failed\n");
                 return ret;
         }
 
-	free(gr);
+	free(grobj);
         return ret;
 }
 
@@ -303,7 +248,7 @@ int nouveau_notifier_alloc(int fd, struct nouveau_chan *chan, uint32_t handle,
 	notifier->channel = chan;
 	notifier->handle = handle;
 	notifier->size = size;
-	notifier->offest = na.offest;
+	notifier->offset = na.offset;
 
 	*notify = notifier;
         return ret;
@@ -315,7 +260,7 @@ nouveau_bo_new_tile(int fd, uint32_t size,
 {
 	struct drm_nouveau_pscmm_new bo; 
 	struct drm_nouveau_pscmm_move bo_move;
-	struct nouveau_object *object
+	struct nouveau_object *object;
         int ret;
 
 	object = calloc(1, sizeof(struct nouveau_object));
@@ -343,7 +288,7 @@ nouveau_bo_new_tile(int fd, uint32_t size,
 	        }
 
               object->placement = placement;
-		object->offest = bo_move.presumed_offset;
+		object->offset = bo_move.presumed_offset;
 		object->placement = bo_move.presumed_domain;
 	}
 	*nv_object = object;
@@ -352,15 +297,15 @@ nouveau_bo_new_tile(int fd, uint32_t size,
 }
 
 int
-nouveau_bo_write(int fd, uint64_t size, uint64_t offest, uintptr_t data_ptr, struct nouveau_object *nv_object)
+nouveau_bo_write(int fd, uint64_t size, uint64_t offset, uintptr_t data_ptr, struct nouveau_object *nv_object)
 {
 	struct nouveau_pscmm_write bo_write;
 	int ret;
 
 	bo_write.handle = nv_object->handle;
-	bo_write.tail_mode = nv_object->tail_mode;
+	bo_write.tile_mode = nv_object->tile_mode;
 	bo_write.size = size;
-	bo_write.offest = offest;
+	bo_write.offset = offset;
 	bo_write.data_ptr = data_ptr;
 
 	ret = ioctl(fd, DRM_IOCTL_NOUVEAU_PSCMM_WRITE, &bo_write);
@@ -373,15 +318,15 @@ nouveau_bo_write(int fd, uint64_t size, uint64_t offest, uintptr_t data_ptr, str
 }
 
 int
-nouveau_bo_read(int fd, uint64_t size, uint64_t offest, uintptr_t data_ptr, struct nouveau_object *nv_object)
+nouveau_bo_read(int fd, uint64_t size, uint64_t offset, uintptr_t data_ptr, struct nouveau_object *nv_object)
 {
         struct nouveau_pscmm_read bo_read;
         int ret;
 
         bo_read.handle = nv_object->handle;
-        bo_read.tail_mode = nv_object->tail_mode;
+        bo_read.tile_mode = nv_object->tile_mode;
         bo_read.size = size;
-        bo_read.offest = offest;
+        bo_read.offset = offset;
         bo_read.data_ptr = data_ptr;
 
         ret = ioctl(fd, DRM_IOCTL_NOUVEAU_PSCMM_READ, &bo_read);
@@ -400,7 +345,7 @@ nouveau_bo_chan_map(int fd, uint32_t chanid, uint32_t low, struct nouveau_object
         int ret;
 
         chanmap.handle = nv_object->handle;
-        chanmap.tail_flags = nv_object->tail_flags;
+        chanmap.tile_flags = nv_object->tile_flags;
         chanmap.channel = chanid;
         chanmap.low = low;
 
@@ -410,7 +355,7 @@ nouveau_bo_chan_map(int fd, uint32_t chanid, uint32_t low, struct nouveau_object
                 return ret;
         }
 	nv_object->channel = chanid;
-        nv_object->chan_map = chanmap.data_ptr;
+        nv_object->chan_map = chanmap.addr_ptr;
 
         return ret;
 }
@@ -442,7 +387,7 @@ nouveau_bo_map(int fd, struct nouveau_object *nv_object)
         int ret;
 
         bomap.handle = nv_object->handle;
-        bomap.tail_flags = nv_object->tail_flags;
+        bomap.tile_flags = nv_object->tile_flags;
         bomap.size= nv_object->size;
         bomap.offset= 0;
 
@@ -451,7 +396,7 @@ nouveau_bo_map(int fd, struct nouveau_object *nv_object)
                 printf("chan map failed %d \n", ret);
                 return ret;
         }
-	nv_object->gem_map = bomap.addr_ptr;
+	nv_object->gem_map = (uint32_t *)bomap.addr_ptr;
 
         return ret;
 }
@@ -469,8 +414,8 @@ nouveau_add_validate_buffer(struct nouveau_object *obj)
 void
 nouveau_pushbufs_alloc(struct nouveau_chan *chan, uint32_t size)
 {
-	nouveau_bo_new_tile(fd, 4096, NOUVEAU_PSCMM_DOMAIN_VRAM, &pushbuf);
-	nouveau_bo_map(fd, pushbuf);
+	nouveau_bo_new_tile(chan->fd, 4096, NOUVEAU_PSCMM_DOMAIN_VRAM, &pushbuf);
+	nouveau_bo_map(chan->fd, pushbuf);
 	pushbuf->remaining = (size - 8) / 4;
 	chan->pushbuf = pushbuf;
 }
@@ -479,7 +424,7 @@ void
 nouveau_pushbufs_submit(struct nouveau_chan *chan)
 {
 	struct drm_nouveau_pscmm_exec execbuf;
-	int i;
+	int ret;
 
 	nouveau_add_validate_buffer(chan->pushbuf);
 	exec_objects[exec_buf_nr - 1].nr_dwords = (chan->pushbuf->size - 8) / 4 - chan->pushbuf->remaining;
@@ -496,13 +441,13 @@ nouveau_pushbufs_submit(struct nouveau_chan *chan)
 	chan->pushbuf = NULL;
 }
 
-static __inline__ void
+static void
 FIRE_RING(struct nouveau_chan *chan)
 {
 	nouveau_pushbufs_submit(chan);
 }
 
-static __inline__ void
+static void
 OUT_RING(struct nouveau_chan *chan, unsigned data)
 {
 	*(chan->pushbuf->gem_map++) = (data);
@@ -537,7 +482,7 @@ nouveau_grobj_autobind(struct nouveau_grobj *grobj)
 	OUT_RING  (grobj->channel, grobj->handle);
 }
 
-static __inline__ void
+static void
 BEGIN_RING(struct nouveau_chan *chan, struct nouveau_grobj *gr,
 	   unsigned mthd, unsigned size)
 {
@@ -549,17 +494,18 @@ BEGIN_RING(struct nouveau_chan *chan, struct nouveau_grobj *gr,
 	chan->pushbuf->remaining -= (size + 1);
 }
 
-void init() {
-	int fd, err;
+void init(int *drm_fd) {
+	int fd, err, ret;
 	int chan_id;
 	uint32_t notifier_offset;
 
-	fd = drm_open_any(void));	// open device
+	fd = drm_open_any();	// open device
 	if (fd == -1) {
 		printf ("failed to open drm");
 		exit(1);
 	}
 	
+	*drm_fd = fd;
 	err = nouveau_channel_alloc(fd, 0xdeadbeef, 0xbeefdead, &chan); // open FIFO
 	if (err < 0){
 		printf ("chan: %s\n", strerror(-err));
@@ -596,7 +542,7 @@ void init() {
 		exit(1);
 	}
 
-	if (err = nouveau_bo_write(fd, CPSZ, 0, cpcode, cp)) {
+	if (err = nouveau_bo_write(fd, CPSZ, 0, (uintptr_t)cpcode, cp)) {
 		printf ("write: %s\n", strerror(-err));
 		exit(1);
 	}
@@ -628,7 +574,7 @@ void init() {
 
 struct timeval tvb, tve;
 
-void prepare_mem() {
+void prepare_mem(int fd) {
 	int err;
 	uint32_t *test;
 /*
@@ -641,7 +587,7 @@ void prepare_mem() {
 */
 	test = calloc(31360, sizeof(uint32_t));
 	memset(test, 1, bytes);
-	if (err = nouveau_bo_write(fd, bytes, 0, test, in)) {
+	if (err = nouveau_bo_write(fd, bytes, 0, (uintptr_t)test, in)) {
 		printf ("write: %s\n", strerror(-err));
 		exit(1);
 	}
@@ -654,7 +600,7 @@ void prepare_mem() {
 	nouveau_bo_unmap (out);
 */
 	memset(test, 0, bytes);
-	if (err = nouveau_bo_write(fd, bytes, 0, test, out)) {
+	if (err = nouveau_bo_write(fd, bytes, 0, (uintptr_t)test, out)) {
 		printf ("write: %s\n", strerror(-err));
 		exit(1);
 	}
@@ -662,7 +608,7 @@ void prepare_mem() {
 	gettimeofday(&tvb, 0);
 }
 
-void check_mem() {
+void check_mem(int fd) {
 	int *intptr, i;
 	int err;
 /*
@@ -677,7 +623,7 @@ void check_mem() {
 	printf ("\t%fs ", secdiff);
 
 	intptr = calloc(31360, sizeof(uint32_t));
-	if (err = nouveau_bo_read(fd, bytes, 0, intptr, out)) {
+	if (err = nouveau_bo_read(fd, bytes, 0, (uintptr_t)intptr, out)) {
 		printf ("write: %s\n", strerror(-err));
 		exit(1);
 	}
@@ -693,9 +639,9 @@ void check_mem() {
 	printf ("Passed.\n");
 }
 
-void stridetest() {
+void stridetest(int fd) {
 	printf ("Trying strided access... ");
-	prepare_mem();
+	prepare_mem(fd);
 
 	nouveau_pushbufs_alloc(chan, 4096);
 	
@@ -757,12 +703,12 @@ void stridetest() {
 
 	FIRE_RING(chan);
 
-	check_mem();
+	check_mem(fd);
 }
 
-void lineartest() {
+void lineartest(int fd) {
 	printf ("Trying linear access... ");
-	prepare_mem();
+	prepare_mem(fd);
 
 	nouveau_pushbufs_alloc(chan, 4096);
 	
@@ -826,14 +772,16 @@ void lineartest() {
 
 	FIRE_RING(chan);
 
-	check_mem();
+	check_mem(fd);
 }
 int main(int argc, char **argv) {
 	int c;
+	int fd;
 //	bytes = 1000000;
 	bytes = 245 * 4096;
 	ctas = 10;
 	threads = 128;
+
 	
 	while ((c = getopt (argc, argv, "s:c:t:")) != -1)
 		switch (c) {
@@ -850,11 +798,11 @@ int main(int argc, char **argv) {
 
 	ints = bytes / sizeof(int);
 
-	init();
+	init(&fd);
 
 
-	stridetest();
-	lineartest();
+	stridetest(fd);
+	lineartest(fd);
 
 	return 0;
 }

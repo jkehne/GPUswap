@@ -24,11 +24,16 @@
  * Use is subject to license terms.
  */
 
-#include "drmP.h"
+#include <fcntl.h>
+#include <assert.h>
+#include <errno.h>
 #include "drm.h"
-#include "nouveau_drv.h"
+#include <stdio.h>
 #include "nouveau_drm.h"
-#include "nouveau_dma.h"
+
+#define NOUVEAU_PSCMM_DOMAIN_CPU       (1 << 0)
+#define NOUVEAU_PSCMM_DOMAIN_VRAM      (1 << 1)
+#define NOUVEAU_PSCMM_DOMAIN_GART      (1 << 2)
 
 struct drm_nouveau_pscmm_new {
 
@@ -252,5 +257,60 @@ struct drm_nouveau_pscmm_exec_object {
 
 	uint32_t presumed_domain;
 
+};
+
+struct nouveau_object {
+        uint32_t handle;
+        uint32_t tile_mode;
+        uint32_t tile_flags;
+        uint32_t placement;
+        uint64_t size;
+        uint64_t offset; //vram offset
+        uintptr_t chan_map;     //chan map offset
+        uint32_t *gem_map;
+        uint32_t channel;       //channel id
+        uint32_t remaining;     //just for pushbuf
+
+};
+
+struct nouveau_grobj {
+        struct nouveau_chan *channel;
+        int grclass;
+        uint32_t handle;
+
+        enum {
+                NOUVEAU_GROBJ_UNBOUND = 0,
+                NOUVEAU_GROBJ_BOUND = 1,
+                NOUVEAU_GROBJ_BOUND_EXPLICIT = 2
+        } bound;
+        int subc;
+};
+
+struct nouveau_subchannel {
+        struct nouveau_grobj *gr;
+        unsigned sequence;
+};
+
+struct nouveau_chan {
+        int fd;
+        int id;
+
+        struct nouveau_object *pushbuf;
+        uint32_t     pushbuf_domains;
+        struct nouveau_grobj *nullobj;
+        struct nouveau_grobj *vram;
+        struct nouveau_grobj *gart;
+
+        void *user_private;
+
+        struct nouveau_subchannel subc[8];
+        unsigned subc_sequence;
+};
+
+struct nouveau_notifier {
+        struct nouveau_chan *channel;
+        uint32_t handle;
+        uint32_t size;
+        uint32_t offset;
 };
 

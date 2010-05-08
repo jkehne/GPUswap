@@ -451,7 +451,7 @@ nouveau_pscmm_free(struct nouveau_bo* nvbo)
 
 uintptr_t
 nouveau_channel_map(struct drm_device *dev, struct nouveau_channel *chan, struct nouveau_bo *nvbo, 
-			uint32_t low, uint32_t tail_flags)
+			uint32_t low, uint32_t tile_flags)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	uintptr_t addr_ptr;
@@ -476,7 +476,7 @@ nouveau_channel_map(struct drm_device *dev, struct nouveau_channel *chan, struct
 
 
 	nvbo->channel = chan;
-	nvbo->tile_flags = tail_flags;
+	nvbo->tile_flags = tile_flags;
 	nvbo->firstblock = addr_ptr;
 	nvbo->low = low;
 		
@@ -1141,8 +1141,8 @@ nouveau_pscmm_ioctl_chan_map(DRM_IOCTL_ARGS)
 
 
 	if (!nvbo->channel) {
-		/* chanmap, need low and tail_flags */
-		arg->addr_ptr = nouveau_channel_map(dev, chan, nvbo, arg->low, arg->tail_flags);
+		/* chanmap, need low and tile_flags */
+		arg->addr_ptr = nouveau_channel_map(dev, chan, nvbo, arg->low, arg->tile_flags);
 
 	} else {
 		/* bo can be shared between channels 
@@ -1398,11 +1398,12 @@ nouveau_pscmm_ioctl_exec(DRM_IOCTL_ARGS)
 		
 	nv50_dma_push(chan, nvbo, 0, gem->size);
 #else
-/* use one command by one command*/
-	uint32_t *data = gem->kaddr;
+/* use one command by one command */
+	uint32_t *pushbuf_data;
+	pushbuf_data = (uint32_t *)(uintptr_t)gem->kaddr;
 	RING_SPACE(chan, nr_pushbuf);
 	for (i = 0; i < nr_pushbuf; i++) {
-		OUT_RING(chan, data[i]);
+		OUT_RING(chan, pushbuf_data[i]);
 	}
 	FIRE_RING(chan);
 #endif
