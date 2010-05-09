@@ -888,6 +888,8 @@ nouveau_pscmm_retire_work_handler(void *device)
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct nouveau_channel* chan = dev_priv->channel;
 
+DRM_ERROR("fix me");
+#if 0
 	/* Return if gem idle */
 	if (worktimer_id == NULL) {
 		return;
@@ -899,7 +901,7 @@ nouveau_pscmm_retire_work_handler(void *device)
 		NV_DEBUG(dev, "schedule_delayed_work");
 		worktimer_id = timeout(nouveau_pscmm_retire_work_handler, (void *) dev, DRM_HZ);
 	}
-
+#endif
 }
 
 static uint32_t
@@ -939,7 +941,7 @@ nouveau_pscmm_add_request(struct drm_device *dev)
 	if (was_empty)
 	{
 		/* change to delay HZ and then run work (not insert to workqueue of Linux) */ 
-		worktimer_id = timeout(nouveau_pscmm_retire_work_handler, (void *) chan, DRM_HZ);
+		worktimer_id = timeout(nouveau_pscmm_retire_work_handler, (void *) dev, DRM_HZ);
 		DRM_DEBUG("i915_gem: schedule_delayed_work");
 	}
 	return seqno;
@@ -1371,7 +1373,7 @@ nouveau_pscmm_ioctl_exec(DRM_IOCTL_ARGS)
 	struct nouveau_bo *nvbo;
 	struct nouveau_channel* chan;
 	int i, j;
-	int ret;
+	int ret = 0;
 	
 
 	/* get channel */
@@ -1384,10 +1386,9 @@ nouveau_pscmm_ioctl_exec(DRM_IOCTL_ARGS)
 			sizeof(*obj_list) * args->buffer_count);
 
 	if (ret != 0) {
-		NV_ERROR(dev, "copy %d obj entries failed %d\n",
+		NV_ERROR(dev, "copy to %d obj entries failed %d\n",
 			  args->buffer_count, ret);
-		drm_free(obj_list, sizeof(*obj_list) * args->buffer_count, DRM_MEM_DRIVER);
-		return ret;
+		goto err1;
 	}
 	for (j = 0; j < args->buffer_count; j++) {
 		/* prefault and mark*/
@@ -1396,17 +1397,23 @@ nouveau_pscmm_ioctl_exec(DRM_IOCTL_ARGS)
 	}
 
 	/* Copy the new  offsets back to the user's exec_object list. */
-	ret = copy_to_user(obj_list,
-			(struct drm_nouveau_pscmm_exec_object *)
-			(uintptr_t) args->buffers_ptr,
+	ret = copy_to_user((struct drm_nouveau_pscmm_exec_object *)
+			(uintptr_t) args->buffers_ptr, obj_list,
 			sizeof(*obj_list) * args->buffer_count);
+
+        if (ret != 0) {
+                NV_ERROR(dev, "copy from %d obj entries failed %d\n",
+                          args->buffer_count, ret);
+                goto err1;
+        }
 
 	/* pushbuf are the last obj */
 	uint32_t nr_pushbuf = obj_list[args->buffer_count -1].nr_dwords;
 	gem = drm_gem_object_lookup(dev, file_priv, obj_list[args->buffer_count -1].handle);
         if (gem == NULL) {
 		NV_ERROR(dev, "Can't find gem 0x%x", obj_list[args->buffer_count -1].handle);
-                return -EINVAL;
+		ret = -EINVAL;
+                goto err1;
 	}
         nvbo = gem->driver_private;
 
@@ -1439,20 +1446,26 @@ nouveau_pscmm_ioctl_exec(DRM_IOCTL_ARGS)
 	}
 	FIRE_RING(chan);
 #endif
-		/* Add seqno into command buffer. */ 
-		args->seqno = nouveau_pscmm_add_request(dev);
-		for (j = 0; j < args->buffer_count; j++) {
-			struct drm_gem_object *tmp_gem;
-			tmp_gem = drm_gem_object_lookup(dev, file_priv, obj_list[j].handle);
-	
-			nvbo = tmp_gem ? tmp_gem->driver_private : NULL;
-			
-			nouveau_pscmm_move_active_list(dev_priv, tmp_gem, nvbo, args->seqno);
-			drm_gem_object_unreference(tmp_gem);
-		}
+	/* Add seqno into command buffer. */ 
+	args->seqno = nouveau_pscmm_add_request(dev);
+	for (j = 0; j < args->buffer_count; j++) {
+		struct drm_gem_object *tmp_gem;
+		tmp_gem = drm_gem_object_lookup(dev, file_priv, obj_list[j].handle);
 
-		drm_free(obj_list, sizeof(*obj_list) * args->buffer_count, DRM_MEM_DRIVER);
-		drm_gem_object_unreference(gem);
+		if (tmp_gem == NULL) {
+			NV_ERROR(dev, "Can't find gem 0x%x", obj_list[j].handle);
+			ret = -EINVAL;
+			goto err2;
+		}
+		nvbo = tmp_gem->driver_private;
+
+		nouveau_pscmm_move_active_list(dev_priv, tmp_gem, nvbo, args->seqno);
+		drm_gem_object_unreference(tmp_gem);
+	}
+err2:
+	drm_gem_object_unreference(gem);
+err1:
+	drm_free(obj_list, sizeof(*obj_list) * args->buffer_count, DRM_MEM_DRIVER);
 
 	return ret;
 }

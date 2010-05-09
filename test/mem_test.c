@@ -573,7 +573,7 @@ struct timeval tvb, tve;
 
 void prepare_mem(int fd) {
 	int err;
-	uint32_t *test;
+	uint32_t* test;
 /*
 	if (err = nouveau_bo_map(in, NOUVEAU_BO_RD|NOUVEAU_BO_WR)) {
 		printf ("mapin: %s\n", strerror(-err));
@@ -582,7 +582,7 @@ void prepare_mem(int fd) {
 	memset (in->map, 1, bytes);
 	nouveau_bo_unmap (in);
 */
-	test = calloc(31360, sizeof(uint32_t));
+	test = malloc(bytes);
 	memset(test, 1, bytes);
 	if (err = nouveau_bo_write(fd, bytes, 0, test, in)) {
 		printf ("write: %s\n", strerror(-err));
@@ -619,7 +619,7 @@ void check_mem(int fd) {
 	secdiff += (tve.tv_usec - tvb.tv_usec) / 1000000.0;
 	printf ("\t%fs ", secdiff);
 
-	intptr = calloc(31360, sizeof(uint32_t));
+	intptr = malloc(bytes);
 	if (err = nouveau_bo_read(fd, bytes, 0, intptr, out)) {
 		printf ("write: %s\n", strerror(-err));
 		exit(1);
@@ -797,8 +797,8 @@ int main(int argc, char **argv) {
 
 	init(&fd);
 
-//	stridetest(fd);
-//	lineartest(fd);
+	stridetest(fd);
+	lineartest(fd);
 
 	return 0;
 }
