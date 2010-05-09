@@ -297,7 +297,7 @@ nouveau_bo_new_tile(int fd, uint32_t size,
 }
 
 int
-nouveau_bo_write(int fd, uint64_t size, uint64_t offset, uintptr_t data_ptr, struct nouveau_object *nv_object)
+nouveau_bo_write(int fd, uint64_t size, uint64_t offset, const void *data, struct nouveau_object *nv_object)
 {
 	struct nouveau_pscmm_write bo_write;
 	int ret;
@@ -306,7 +306,7 @@ nouveau_bo_write(int fd, uint64_t size, uint64_t offset, uintptr_t data_ptr, str
 	bo_write.tile_mode = nv_object->tile_mode;
 	bo_write.size = size;
 	bo_write.offset = offset;
-	bo_write.data_ptr = data_ptr;
+	bo_write.data_ptr = (uint64_t)(uintptr_t)data;
 	ret = ioctl(fd, DRM_IOCTL_NOUVEAU_PSCMM_WRITE, &bo_write);
 	if (ret < 0) {
 		printf("write bo 0x%lx failed %d \n", bo_write.data_ptr, ret);
@@ -317,7 +317,7 @@ nouveau_bo_write(int fd, uint64_t size, uint64_t offset, uintptr_t data_ptr, str
 }
 
 int
-nouveau_bo_read(int fd, uint64_t size, uint64_t offset, uintptr_t data_ptr, struct nouveau_object *nv_object)
+nouveau_bo_read(int fd, uint64_t size, uint64_t offset, const void *data, struct nouveau_object *nv_object)
 {
         struct nouveau_pscmm_read bo_read;
         int ret;
@@ -326,7 +326,7 @@ nouveau_bo_read(int fd, uint64_t size, uint64_t offset, uintptr_t data_ptr, stru
         bo_read.tile_mode = nv_object->tile_mode;
         bo_read.size = size;
         bo_read.offset = offset;
-        bo_read.data_ptr = data_ptr;
+        bo_read.data_ptr = (uint64_t)(uintptr_t)data;
 
         ret = ioctl(fd, DRM_IOCTL_NOUVEAU_PSCMM_READ, &bo_read);
         if (ret < 0) {
@@ -396,7 +396,6 @@ nouveau_bo_map(int fd, struct nouveau_object *nv_object)
                 return ret;
         }
 	nv_object->gem_map = (uint32_t *)bomap.addr_ptr;
-printf("nv_object->gem_map 0x%x \n", bomap.addr_ptr);
         return ret;
 }
 
@@ -429,8 +428,8 @@ nouveau_pushbufs_submit(struct nouveau_chan *chan)
 	exec_objects[exec_buf_nr - 1].nr_dwords = (chan->pushbuf->size - 8) / 4 - chan->pushbuf->remaining;
 	execbuf.channel = chan->id;
 	execbuf.buffer_count = exec_buf_nr;
-	execbuf.buffers_ptr = exec_objects;
-	
+	execbuf.buffers_ptr = (uint64_t)(uintptr_t)exec_objects;
+
         ret = ioctl(chan->fd, DRM_IOCTL_NOUVEAU_PSCMM_EXEC, &execbuf);
         if (ret < 0) {
                 printf("pushbufs_submit failed %d \n", ret);
@@ -541,7 +540,7 @@ void init(int *drm_fd) {
 		exit(1);
 	}
 
-	if (err = nouveau_bo_write(fd, CPSZ, 0, (uintptr_t)cpcode, cp)) {
+	if (err = nouveau_bo_write(fd, CPSZ, 0, cpcode, cp)) {
 		printf ("write: %s\n", strerror(-err));
 		exit(1);
 	}
@@ -585,7 +584,7 @@ void prepare_mem(int fd) {
 */
 	test = calloc(31360, sizeof(uint32_t));
 	memset(test, 1, bytes);
-	if (err = nouveau_bo_write(fd, bytes, 0, (uintptr_t)test, in)) {
+	if (err = nouveau_bo_write(fd, bytes, 0, test, in)) {
 		printf ("write: %s\n", strerror(-err));
 		exit(1);
 	}
@@ -598,7 +597,7 @@ void prepare_mem(int fd) {
 	nouveau_bo_unmap (out);
 */
 	memset(test, 0, bytes);
-	if (err = nouveau_bo_write(fd, bytes, 0, (uintptr_t)test, out)) {
+	if (err = nouveau_bo_write(fd, bytes, 0, test, out)) {
 		printf ("write: %s\n", strerror(-err));
 		exit(1);
 	}
@@ -621,7 +620,7 @@ void check_mem(int fd) {
 	printf ("\t%fs ", secdiff);
 
 	intptr = calloc(31360, sizeof(uint32_t));
-	if (err = nouveau_bo_read(fd, bytes, 0, (uintptr_t)intptr, out)) {
+	if (err = nouveau_bo_read(fd, bytes, 0, intptr, out)) {
 		printf ("write: %s\n", strerror(-err));
 		exit(1);
 	}
@@ -798,8 +797,8 @@ int main(int argc, char **argv) {
 
 	init(&fd);
 
-	stridetest(fd);
-	lineartest(fd);
+//	stridetest(fd);
+//	lineartest(fd);
 
 	return 0;
 }

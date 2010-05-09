@@ -1382,8 +1382,14 @@ nouveau_pscmm_ioctl_exec(DRM_IOCTL_ARGS)
 		     (struct drm_nouveau_pscmm_exec_object *)
 		     (uintptr_t) args->buffers_ptr,
 			sizeof(*obj_list) * args->buffer_count);
-	for (j = 0; j < args->buffer_count; j++) {
 
+	if (ret != 0) {
+		NV_ERROR(dev, "copy %d obj entries failed %d\n",
+			  args->buffer_count, ret);
+		drm_free(obj_list, sizeof(*obj_list) * args->buffer_count, DRM_MEM_DRIVER);
+		return ret;
+	}
+	for (j = 0; j < args->buffer_count; j++) {
 		/* prefault and mark*/
 		nouveau_pscmm_command_prefault(dev, file_priv, obj_list[j].handle, PAGE_SIZE);
 				

@@ -76,7 +76,7 @@ struct nouveau_pscmm_mmap {
 				
 	/** Returned pointer the data was mapped at */
 
-	uintptr_t addr_ptr;	/* void * */
+	uint64_t addr_ptr;	/* void * */
 
 };
 
@@ -120,7 +120,7 @@ struct drm_nouveau_pscmm_chanmap {
 
 	/** Returned pointer the data was mapped at */
 
-	uintptr_t addr_ptr;	/* void * */
+	uint64_t addr_ptr;	/* void * */
 
 };
 
@@ -159,7 +159,7 @@ struct nouveau_pscmm_read {
 	   * Pointer to write the data into.
 	   */
 
-	uintptr_t data_ptr;
+	uint64_t data_ptr;
 
 };
 
@@ -184,7 +184,7 @@ struct nouveau_pscmm_write {
 
 	/** Pointer to read the data from. */
 
-	uintptr_t data_ptr;	/* void * */
+	uint64_t data_ptr;	/* void * */
 
 };
 
@@ -206,7 +206,7 @@ struct drm_nouveau_pscmm_move {
 
 	/* * Returned value of the updated address of the object */
 
-	uintptr_t presumed_offset;
+	uint64_t presumed_offset;
 
 	/* Returned value of the updated domain of the object */
 
@@ -225,7 +225,7 @@ struct drm_nouveau_pscmm_move {
 
 	uint32_t buffer_count;
 
-	uintptr_t buffers_ptr;
+	uint64_t buffers_ptr;
 
 	/* Returned sequence number for sync*/
 
@@ -243,13 +243,13 @@ struct drm_nouveau_pscmm_exec_object {
 
 	/** Address of the object. */
 
-	uintptr_t add_ptr;
+	uint64_t add_ptr;
 
 	/**
 	   * Returned value of the updated address of the object
 	   */
 
-	uintptr_t presumed_offset;
+	uint64_t presumed_offset;
 
 	/**
 	   * Returned value of the updated domain of the object
@@ -266,7 +266,7 @@ struct nouveau_object {
         uint32_t placement;
         uint64_t size;
         uint64_t offset; //vram offset
-        uintptr_t chan_map;     //chan map offset
+        uint64_t chan_map;     //chan map offset
         uint32_t *gem_map;
         uint32_t channel;       //channel id
         uint32_t remaining;     //just for pushbuf

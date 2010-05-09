@@ -71,7 +71,7 @@ struct nouveau_pscmm_mmap {
 				
 	/** Returned pointer the data was mapped at */
 
-	uintptr_t addr_ptr;	/* void * */
+	uint64_t addr_ptr;	/* void * */
 
 };
 
@@ -115,7 +115,7 @@ struct drm_nouveau_pscmm_chanmap {
 
 	/** Returned pointer the data was mapped at */
 
-	uintptr_t addr_ptr;	/* void * */
+	uint64_t addr_ptr;	/* void * */
 
 };
 
@@ -152,9 +152,10 @@ struct nouveau_pscmm_read {
 
 	/**
 	   * Pointer to write the data into.
+	   * This is a fixed-size type for 32/64 compatibility.
 	   */
 
-	uintptr_t data_ptr;
+	uint64_t data_ptr;
 
 };
 
@@ -178,8 +179,9 @@ struct nouveau_pscmm_write {
 	uint64_t offset;
 
 	/** Pointer to read the data from. */
+	/* This is a fixed-size type for 32/64 compatibility. */
 
-	uintptr_t data_ptr;	/* void * */
+	uint64_t data_ptr;	/* void * */
 
 };
 
@@ -201,7 +203,7 @@ struct drm_nouveau_pscmm_move {
 
 	/* * Returned value of the updated address of the object */
 
-	uintptr_t presumed_offset;
+	uint64_t presumed_offset;
 
 	/* Returned value of the updated domain of the object */
 
@@ -220,7 +222,7 @@ struct drm_nouveau_pscmm_move {
 
 	uint32_t buffer_count;
 
-	uintptr_t buffers_ptr;
+	uint64_t buffers_ptr;
 
 	/* Returned sequence number for sync*/
 
@@ -238,13 +240,13 @@ struct drm_nouveau_pscmm_exec_object {
 
 	/** Address of the object. */
 
-	uintptr_t add_ptr;
+	uint64_t add_ptr;
 
 	/**
 	   * Returned value of the updated address of the object
 	   */
 
-	uintptr_t presumed_offset;
+	uint64_t presumed_offset;
 
 	/**
 	   * Returned value of the updated domain of the object
