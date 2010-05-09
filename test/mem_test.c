@@ -437,6 +437,9 @@ nouveau_pushbufs_submit(struct nouveau_chan *chan)
         }
 	free(chan->pushbuf);
 	chan->pushbuf = NULL;
+	exec_buf_nr = 0;
+	free(exec_objects);
+	exec_objects = NULL;
 }
 
 static void

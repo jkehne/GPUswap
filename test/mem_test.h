@@ -231,6 +231,7 @@ struct drm_nouveau_pscmm_move {
 
 	uint32_t seqno;
 
+	uint32_t pad;
 };
 		
 		
@@ -257,6 +258,7 @@ struct drm_nouveau_pscmm_exec_object {
 
 	uint32_t presumed_domain;
 
+	uint32_t pad;
 };
 
 struct nouveau_object {
