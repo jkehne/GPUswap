@@ -785,8 +785,11 @@ nouveau_pscmm_command_prefault(struct drm_device *dev, struct drm_file *file_pri
 	int nblock;
 
 	gem = drm_gem_object_lookup(dev, file_priv, handle);
-	
-	nvbo = gem ? gem->driver_private : NULL;
+	if (gem == NULL) {
+		NV_ERROR(dev, "Can't find gem 0x%x", handle);
+		return -EINVAL;
+	}
+	nvbo = gem->driver_private;
 
 	/* check if nvbo is empty? */
 	if (nvbo == NULL) {
@@ -1026,10 +1029,12 @@ nouveau_pscmm_ioctl_mmap(DRM_IOCTL_ARGS)
 NV_ERROR(dev, "Not support VRAM map by now");
 
 	gem = drm_gem_object_lookup(dev, file_priv, req->handle);
-	if (gem == NULL)
-		return -EINVAL;
+        if (gem == NULL) {
+                NV_ERROR(dev, "Can't find gem 0x%x", req->handle);
+                return -EINVAL;
+        }
 #if 0
-	nvbo = gem ? gem->driver_private : NULL;
+	nvbo = gem->driver_private;
 
 	if (nvbo != NULL) {
 		
@@ -1089,9 +1094,12 @@ NV_ERROR(dev, "Not support by now");
 return -1;
 #if 0
 	gem = drm_gem_object_lookup(dev, file_priv, arg->handle);
-	
-	nvbo = gem ? gem->driver_private : NULL;
-	
+        if (gem == NULL) {
+                NV_ERROR(dev, "Can't find gem 0x%x", arg->handle);
+                return -EINVAL;
+        }
+        nvbo = gem->driver_private;
+
 	if (nvbo != NULL) {
 		
 		if (nvbo->placements == NOUVEAU_PSCMM_DOMAIN_VRAM) {
@@ -1127,8 +1135,12 @@ nouveau_pscmm_ioctl_chan_map(DRM_IOCTL_ARGS)
 	int ret;
 
 	gem = drm_gem_object_lookup(dev, file_priv, arg->handle);
+        if (gem == NULL) {
+                NV_ERROR(dev, "Can't find gem 0x%x", arg->handle);
+                return -EINVAL;
+        }
 
-	nvbo = gem ? gem->driver_private : NULL;
+        nvbo = gem->driver_private;
 
 	/* get channel */
 	NOUVEAU_GET_USER_CHANNEL_WITH_RETURN(arg->channel, file_priv, chan);
@@ -1164,9 +1176,12 @@ nouveau_pscmm_ioctl_chan_unmap(DRM_IOCTL_ARGS)
 	int ret;
 	
 	gem = drm_gem_object_lookup(dev, file_priv, arg->handle);
-	
-	nvbo = gem ? gem->driver_private : NULL;
-	
+        if (gem == NULL) {
+                NV_ERROR(dev, "Can't find gem 0x%x", arg->handle);
+                return -EINVAL;
+        }
+        nvbo = gem->driver_private;
+
 	if (nvbo == NULL)
 		return EINVAL;
 	
@@ -1189,13 +1204,15 @@ nouveau_pscmm_ioctl_read(DRM_IOCTL_ARGS)
 	struct drm_gem_object *gem;
 	struct nouveau_bo *nvbo;
 	caddr_t addr;
-	unsigned long unwritten = 0;
 	uint32_t *user_data;
 	int ret;
 	
 	gem = drm_gem_object_lookup(dev, file_priv, arg->handle);
-	
-	nvbo = gem ? gem->driver_private : NULL;
+        if (gem == NULL) {
+                NV_ERROR(dev, "Can't find gem 0x%x", arg->handle);
+                return -EINVAL;
+        }
+        nvbo = gem->driver_private;
 
 	if (nvbo != NULL) {
 		
@@ -1218,10 +1235,10 @@ nouveau_pscmm_ioctl_read(DRM_IOCTL_ARGS)
 			}
 
 			user_data = (uint32_t *) (uintptr_t) arg->data_ptr;
-			unwritten = DRM_COPY_TO_USER(user_data, addr + arg->offset, arg->size);
-       		if (unwritten) {
+			ret = DRM_COPY_TO_USER(user_data, addr + arg->offset, arg->size);
+			if (ret) {
                 		ret = EFAULT;
-                		NV_ERROR(dev, "failed to read, unwritten %d", unwritten);
+                		NV_ERROR(dev, "failed to read, ret %d", ret);
         		}
 			
 			
@@ -1235,10 +1252,10 @@ nouveau_pscmm_ioctl_read(DRM_IOCTL_ARGS)
 	
 	/* read the GEM object */
 	user_data = (uint32_t *) (uintptr_t) arg->data_ptr;
-	unwritten = DRM_COPY_TO_USER(user_data, gem->kaddr + arg->offset, arg->size);
-        if (unwritten) {
+	ret = DRM_COPY_TO_USER(user_data, gem->kaddr + arg->offset, arg->size);
+        if (ret) {
                 ret = EFAULT;
-                DRM_ERROR("i915_gem_pread error!!! unwritten %d", unwritten);
+                DRM_ERROR("nouveau_read error!!! ret %d", ret);
         }
 	drm_gem_object_unreference(gem);
 	return 0;	
@@ -1253,13 +1270,15 @@ nouveau_pscmm_ioctl_write(DRM_IOCTL_ARGS)
 	struct drm_gem_object *gem;
 	struct nouveau_bo *nvbo;
 	caddr_t addr;
-	unsigned long unwritten = 0;
 	uint32_t *user_data;
 	int ret;
 	
 	gem = drm_gem_object_lookup(dev, file_priv, arg->handle);
-	
-	nvbo = gem ? gem->driver_private : NULL;
+        if (gem == NULL) {
+                NV_ERROR(dev, "Can't find gem 0x%x", arg->handle);
+                return -EINVAL;
+        }
+        nvbo = gem->driver_private;
 
 	if (nvbo != NULL) {
 		
@@ -1282,13 +1301,13 @@ nouveau_pscmm_ioctl_write(DRM_IOCTL_ARGS)
 			}
 
 			user_data = (uint32_t *) (uintptr_t) arg->data_ptr;
-			unwritten = DRM_COPY_FROM_USER((void *)(uintptr_t)(addr + arg->offset), (void __user *) user_data, arg->size);
-       		if (unwritten) {
+
+			ret = DRM_COPY_FROM_USER(addr + arg->offset, user_data, arg->size);
+			if (ret) {
                 		ret = EFAULT;
-                		NV_ERROR(dev, "failed to read, unwritten %d", unwritten);
+                		NV_ERROR(dev, "failed to write, unwritten %d", ret);
         		}
 
-			
 			/* mark the block as normal*/
 			nouveau_pscmm_set_normal(dev_priv, nvbo);
 			drm_gem_object_unreference(gem);
@@ -1299,10 +1318,10 @@ nouveau_pscmm_ioctl_write(DRM_IOCTL_ARGS)
 	
 	/* Write the GEM object */
 	user_data = (uint32_t *) (uintptr_t) arg->data_ptr;
-	unwritten = DRM_COPY_FROM_USER(gem->kaddr + arg->offset, user_data, arg->size);
-        if (unwritten) {
+	ret = DRM_COPY_FROM_USER(gem->kaddr + arg->offset, user_data, arg->size);
+        if (ret) {
 		ret = EFAULT;
-		NV_ERROR(dev, "i915_gem_gtt_pwrite error!!! unwritten %d", unwritten);
+		NV_ERROR(dev, "nouveau_gem_write error!!! unwritten %d", ret);
 		drm_gem_object_unreference(gem);
 		return ret;
         }
@@ -1325,9 +1344,12 @@ nouveau_pscmm_ioctl_move(DRM_IOCTL_ARGS)
 	int ret;
 	
 	gem = drm_gem_object_lookup(dev, file_priv, arg->handle);
-	
-	nvbo = gem ? gem->driver_private : NULL;
-	
+        if (gem == NULL) {
+                NV_ERROR(dev, "Can't find gem 0x%x", arg->handle);
+                return -EINVAL;
+        }
+        nvbo = gem->driver_private;
+
 	nouveau_pscmm_move(dev, gem, &nvbo, arg->old_domain, arg->new_domain, false, PAGE_SIZE);
 
 end:
@@ -1376,8 +1398,12 @@ nouveau_pscmm_ioctl_exec(DRM_IOCTL_ARGS)
 	/* pushbuf are the last obj */
 	uint32_t nr_pushbuf = obj_list[args->buffer_count -1].nr_dwords;
 	gem = drm_gem_object_lookup(dev, file_priv, obj_list[args->buffer_count -1].handle);
-	
-	nvbo = gem ? gem->driver_private : NULL;
+        if (gem == NULL) {
+		NV_ERROR(dev, "Can't find gem 0x%x", obj_list[args->buffer_count -1].handle);
+                return -EINVAL;
+	}
+        nvbo = gem->driver_private;
+
 
 #if 0
 /* use batchbuffer */

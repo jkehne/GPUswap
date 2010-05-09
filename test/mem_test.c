@@ -307,10 +307,9 @@ nouveau_bo_write(int fd, uint64_t size, uint64_t offset, uintptr_t data_ptr, str
 	bo_write.size = size;
 	bo_write.offset = offset;
 	bo_write.data_ptr = data_ptr;
-
 	ret = ioctl(fd, DRM_IOCTL_NOUVEAU_PSCMM_WRITE, &bo_write);
 	if (ret < 0) {
-		printf("write bo failed %d \n", ret);
+		printf("write bo 0x%lx failed %d \n", bo_write.data_ptr, ret);
 		return ret;
 	}
 
@@ -349,7 +348,7 @@ nouveau_bo_chan_map(int fd, uint32_t chanid, uint32_t low, struct nouveau_object
         chanmap.channel = chanid;
         chanmap.low = low;
 
-        ret = ioctl(fd, DRM_NOUVEAU_PSCMM_CHAN_MAP, &chanmap);
+        ret = ioctl(fd, DRM_IOCTL_NOUVEAU_PSCMM_CHAN_MAP, &chanmap);
         if (ret < 0) {
                 printf("chan map failed %d \n", ret);
                 return ret;
@@ -369,7 +368,7 @@ nouveau_bo_chan_unmap(int fd, struct nouveau_object *nv_object)
         chanunmap.handle = nv_object->handle;
         chanunmap.channel = nv_object->channel;
 
-        ret = ioctl(fd, DRM_NOUVEAU_PSCMM_CHAN_UNMAP, &chanunmap);
+        ret = ioctl(fd, DRM_IOCTL_NOUVEAU_PSCMM_CHAN_MAP, &chanunmap);
         if (ret < 0) {
                 printf("chan unmap failed %d \n", ret);
                 return ret;
@@ -391,13 +390,13 @@ nouveau_bo_map(int fd, struct nouveau_object *nv_object)
         bomap.size= nv_object->size;
         bomap.offset= 0;
 
-        ret = ioctl(fd, DRM_NOUVEAU_PSCMM_MMAP, &bomap);
+        ret = ioctl(fd, DRM_IOCTL_NOUVEAU_PSCMM_MMAP, &bomap);
         if (ret < 0) {
                 printf("chan map failed %d \n", ret);
                 return ret;
         }
 	nv_object->gem_map = (uint32_t *)bomap.addr_ptr;
-
+printf("nv_object->gem_map 0x%x \n", bomap.addr_ptr);
         return ret;
 }
 
@@ -414,7 +413,7 @@ nouveau_add_validate_buffer(struct nouveau_object *obj)
 void
 nouveau_pushbufs_alloc(struct nouveau_chan *chan, uint32_t size)
 {
-	nouveau_bo_new_tile(chan->fd, 4096, NOUVEAU_PSCMM_DOMAIN_VRAM, &pushbuf);
+	nouveau_bo_new_tile(chan->fd, 4096, NOUVEAU_PSCMM_DOMAIN_CPU, &pushbuf);
 	nouveau_bo_map(chan->fd, pushbuf);
 	pushbuf->remaining = (size - 8) / 4;
 	chan->pushbuf = pushbuf;
@@ -432,7 +431,7 @@ nouveau_pushbufs_submit(struct nouveau_chan *chan)
 	execbuf.buffer_count = exec_buf_nr;
 	execbuf.buffers_ptr = exec_objects;
 	
-        ret = ioctl(chan->fd, DRM_NOUVEAU_PSCMM_EXEC, &execbuf);
+        ret = ioctl(chan->fd, DRM_IOCTL_NOUVEAU_PSCMM_EXEC, &execbuf);
         if (ret < 0) {
                 printf("pushbufs_submit failed %d \n", ret);
                 return;
@@ -567,7 +566,6 @@ void init(int *drm_fd) {
 	OUT_RING(chan, 0x1);
 	BEGIN_RING(chan, turing, 0x3b8, 1);
 	OUT_RING(chan, 0x2);
-
 	/* nouveau_pushbufs_submit */
 	FIRE_RING(chan);
 }
@@ -799,7 +797,6 @@ int main(int argc, char **argv) {
 	ints = bytes / sizeof(int);
 
 	init(&fd);
-
 
 	stridetest(fd);
 	lineartest(fd);
