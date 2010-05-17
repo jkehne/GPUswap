@@ -620,12 +620,12 @@ nouveau_mem_init(struct drm_device *dev)
 	drm_mm_init(&dev_priv->fb_block->core_manager, 0, dev_priv->fb_available_size);
         dev_priv->total_block_num = dev_priv->fb_available_size / BLOCK_SIZE;
         dev_priv->free_block_num = dev_priv->total_block_num;
-DRM_ERROR("core_manager_end 0x%x", dev_priv->fb_available_size);
+
 	/* reserve VGA memory */
 	ret = nouveau_pscmm_new(dev, NULL, 256*1024, PAGE_SIZE, MEM_PL_FLAG_VRAM,
 			      true, true, &dev_priv->vga_ram);
 	if (ret) {
-		NV_ERROR(dev, "error getting PRAMIN backing pages: %d\n", ret);
+		NV_ERROR(dev, "failed to reserve VGA memory: %d\n", ret);
 		return ret;
 	}
 

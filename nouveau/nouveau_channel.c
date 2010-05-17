@@ -100,7 +100,7 @@ nouveau_channel_user_pushbuf_alloc(struct drm_device *dev, struct drm_file *file
 	ret = nouveau_pscmm_new(dev, file_priv, 65536, PAGE_SIZE, location,
 			      true, true, &pushbuf);
 	if (ret) {
-		NV_ERROR(dev, "error getting PRAMIN backing pages: %d\n", ret);
+		NV_ERROR(dev, "error allocating DMA push buffer: %d\n", ret);
 		return NULL;
 	}
 /*	
