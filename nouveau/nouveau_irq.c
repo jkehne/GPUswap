@@ -41,6 +41,100 @@
 #include "nouveau_drv.h"
 #include "nouveau_reg.h"
 
+struct nouveau_bitfield_names {
+	uint32_t mask;
+	const char *name;
+};
+
+static struct nouveau_bitfield_names nstatus_names[] =
+{
+	{ NV04_PGRAPH_NSTATUS_STATE_IN_USE,       "STATE_IN_USE" },
+	{ NV04_PGRAPH_NSTATUS_INVALID_STATE,      "INVALID_STATE" },
+	{ NV04_PGRAPH_NSTATUS_BAD_ARGUMENT,       "BAD_ARGUMENT" },
+	{ NV04_PGRAPH_NSTATUS_PROTECTION_FAULT,   "PROTECTION_FAULT" }
+};
+
+static struct nouveau_bitfield_names nstatus_names_nv10[] =
+{
+	{ NV10_PGRAPH_NSTATUS_STATE_IN_USE,       "STATE_IN_USE" },
+	{ NV10_PGRAPH_NSTATUS_INVALID_STATE,      "INVALID_STATE" },
+	{ NV10_PGRAPH_NSTATUS_BAD_ARGUMENT,       "BAD_ARGUMENT" },
+	{ NV10_PGRAPH_NSTATUS_PROTECTION_FAULT,   "PROTECTION_FAULT" }
+};
+
+static struct nouveau_bitfield_names nsource_names[] =
+{
+	{ NV03_PGRAPH_NSOURCE_NOTIFICATION,       "NOTIFICATION" },
+	{ NV03_PGRAPH_NSOURCE_DATA_ERROR,         "DATA_ERROR" },
+	{ NV03_PGRAPH_NSOURCE_PROTECTION_ERROR,   "PROTECTION_ERROR" },
+	{ NV03_PGRAPH_NSOURCE_RANGE_EXCEPTION,    "RANGE_EXCEPTION" },
+	{ NV03_PGRAPH_NSOURCE_LIMIT_COLOR,        "LIMIT_COLOR" },
+	{ NV03_PGRAPH_NSOURCE_LIMIT_ZETA,         "LIMIT_ZETA" },
+	{ NV03_PGRAPH_NSOURCE_ILLEGAL_MTHD,       "ILLEGAL_MTHD" },
+	{ NV03_PGRAPH_NSOURCE_DMA_R_PROTECTION,   "DMA_R_PROTECTION" },
+	{ NV03_PGRAPH_NSOURCE_DMA_W_PROTECTION,   "DMA_W_PROTECTION" },
+	{ NV03_PGRAPH_NSOURCE_FORMAT_EXCEPTION,   "FORMAT_EXCEPTION" },
+	{ NV03_PGRAPH_NSOURCE_PATCH_EXCEPTION,    "PATCH_EXCEPTION" },
+	{ NV03_PGRAPH_NSOURCE_STATE_INVALID,      "STATE_INVALID" },
+	{ NV03_PGRAPH_NSOURCE_DOUBLE_NOTIFY,      "DOUBLE_NOTIFY" },
+	{ NV03_PGRAPH_NSOURCE_NOTIFY_IN_USE,      "NOTIFY_IN_USE" },
+	{ NV03_PGRAPH_NSOURCE_METHOD_CNT,         "METHOD_CNT" },
+	{ NV03_PGRAPH_NSOURCE_BFR_NOTIFICATION,   "BFR_NOTIFICATION" },
+	{ NV03_PGRAPH_NSOURCE_DMA_VTX_PROTECTION, "DMA_VTX_PROTECTION" },
+	{ NV03_PGRAPH_NSOURCE_DMA_WIDTH_A,        "DMA_WIDTH_A" },
+	{ NV03_PGRAPH_NSOURCE_DMA_WIDTH_B,        "DMA_WIDTH_B" },
+};
+
+static void
+nouveau_print_bitfield_names_(uint32_t value,
+				const struct nouveau_bitfield_names *namelist,
+				const int namelist_len)
+{
+	/*
+	 * Caller must have already printed the KERN_* log level for us.
+	 * Also the caller is responsible for adding the newline.
+	 */
+	int i;
+	for (i = 0; i < namelist_len; ++i) {
+		uint32_t mask = namelist[i].mask;
+		if (value & mask) {
+			DRM_INFO(" %s", namelist[i].name);
+			value &= ~mask;
+		}
+	}
+	if (value)
+		DRM_INFO(" (unknown bits 0x%08x)", value);
+}
+#define nouveau_print_bitfield_names(val, namelist) \
+	nouveau_print_bitfield_names_((val), (namelist), ARRAY_SIZE(namelist))
+
+struct nouveau_enum_names {
+	uint32_t value;
+	const char *name;
+};
+
+static void
+nouveau_print_enum_names_(uint32_t value,
+				const struct nouveau_enum_names *namelist,
+				const int namelist_len)
+{
+	/*
+	 * Caller must have already printed the KERN_* log level for us.
+	 * Also the caller is responsible for adding the newline.
+	 */
+	int i;
+	for (i = 0; i < namelist_len; ++i) {
+		if (value == namelist[i].value) {
+			DRM_INFO("%s", namelist[i].name);
+			return;
+		}
+	}
+	DRM_INFO("unknown value 0x%08x", value);
+}
+#define nouveau_print_enum_names(val, namelist) \
+	nouveau_print_enum_names_((val), (namelist), ARRAY_SIZE(namelist))
+
+
 int
 nouveau_irq_preinstall(struct drm_device *dev)
 {
@@ -132,6 +226,16 @@ nouveau_fifo_swmthd(struct nouveau_channel *chan, uint32_t addr, uint32_t data)
 	return true;
 }
 
+static struct nouveau_enum_names nouveau_dma_pusher_reasons[] =
+{
+	{ 0, "NO_ERROR" },
+	{ 1, "CALL" },
+	{ 2, "NON_CACHE" },
+	{ 3, "RETURN" },
+	{ 4, "RESERVED_CMD" },
+	{ 6, "PROTECTION" },
+};
+
 static void
 nouveau_fifo_irq_handler(struct drm_device *dev)
 {
@@ -202,7 +306,12 @@ nouveau_fifo_irq_handler(struct drm_device *dev)
 		}
 
 		if (status & NV_PFIFO_INTR_DMA_PUSHER) {
-			NV_INFO(dev, "PFIFO_DMA_PUSHER - Ch %d\n", chid);
+			int reason = (nv_rd32(dev, NV04_PFIFO_CACHE1_DMA_STATE) >> 29) & 7;
+			NV_INFO(dev, "PFIFO_DMA_PUSHER - Ch %d - ", chid);
+			nouveau_print_enum_names(reason, nouveau_dma_pusher_reasons);
+			if (dev_priv->chipset >= 0x5)
+				NV_INFO(dev, "PFIFO_DMA_PUSHER - jump: %08x rsvd: %08x data: %08x\n",
+						nv_rd32(dev, 0x32a4), nv_rd32(dev, 0x32a8), nv_rd32(dev, 0x32ac));
 
 			status &= ~NV_PFIFO_INTR_DMA_PUSHER;
 			nv_wr32(dev, NV03_PFIFO_INTR_0,
@@ -211,7 +320,14 @@ nouveau_fifo_irq_handler(struct drm_device *dev)
 			nv_wr32(dev, NV04_PFIFO_CACHE1_DMA_STATE, 0x00000000);
 			if (nv_rd32(dev, NV04_PFIFO_CACHE1_DMA_PUT) != get)
 				nv_wr32(dev, NV04_PFIFO_CACHE1_DMA_GET,
-								get + 4);
+					nv_rd32(dev, NV04_PFIFO_CACHE1_DMA_PUT));
+			if (dev_priv->chipset >= 0x17 || dev_priv->chipset == 0x11)
+				nv_wr32(dev, NV10_PFIFO_CACHE1_DMA_SUBROUTINE, 0);
+			nv_wr32(dev, NV03_PFIFO_CACHE1_PUSH0,
+				nv_rd32(dev, NV03_PFIFO_CACHE1_PUSH0) | 1);
+			nv_wr32(dev, NV04_PFIFO_CACHE1_DMA_PUSH,
+				nv_rd32(dev, NV04_PFIFO_CACHE1_DMA_PUSH) | 1);
+
 		}
 
 		if (status & NV_PFIFO_INTR_SEMAPHORE) {
@@ -246,99 +362,6 @@ nouveau_fifo_irq_handler(struct drm_device *dev)
 
 	nv_wr32(dev, NV03_PMC_INTR_0, NV_PMC_INTR_0_PFIFO_PENDING);
 }
-
-struct nouveau_bitfield_names {
-	uint32_t mask;
-	const char *name;
-};
-
-static struct nouveau_bitfield_names nstatus_names[] =
-{
-	{ NV04_PGRAPH_NSTATUS_STATE_IN_USE,       "STATE_IN_USE" },
-	{ NV04_PGRAPH_NSTATUS_INVALID_STATE,      "INVALID_STATE" },
-	{ NV04_PGRAPH_NSTATUS_BAD_ARGUMENT,       "BAD_ARGUMENT" },
-	{ NV04_PGRAPH_NSTATUS_PROTECTION_FAULT,   "PROTECTION_FAULT" }
-};
-
-static struct nouveau_bitfield_names nstatus_names_nv10[] =
-{
-	{ NV10_PGRAPH_NSTATUS_STATE_IN_USE,       "STATE_IN_USE" },
-	{ NV10_PGRAPH_NSTATUS_INVALID_STATE,      "INVALID_STATE" },
-	{ NV10_PGRAPH_NSTATUS_BAD_ARGUMENT,       "BAD_ARGUMENT" },
-	{ NV10_PGRAPH_NSTATUS_PROTECTION_FAULT,   "PROTECTION_FAULT" }
-};
-
-static struct nouveau_bitfield_names nsource_names[] =
-{
-	{ NV03_PGRAPH_NSOURCE_NOTIFICATION,       "NOTIFICATION" },
-	{ NV03_PGRAPH_NSOURCE_DATA_ERROR,         "DATA_ERROR" },
-	{ NV03_PGRAPH_NSOURCE_PROTECTION_ERROR,   "PROTECTION_ERROR" },
-	{ NV03_PGRAPH_NSOURCE_RANGE_EXCEPTION,    "RANGE_EXCEPTION" },
-	{ NV03_PGRAPH_NSOURCE_LIMIT_COLOR,        "LIMIT_COLOR" },
-	{ NV03_PGRAPH_NSOURCE_LIMIT_ZETA,         "LIMIT_ZETA" },
-	{ NV03_PGRAPH_NSOURCE_ILLEGAL_MTHD,       "ILLEGAL_MTHD" },
-	{ NV03_PGRAPH_NSOURCE_DMA_R_PROTECTION,   "DMA_R_PROTECTION" },
-	{ NV03_PGRAPH_NSOURCE_DMA_W_PROTECTION,   "DMA_W_PROTECTION" },
-	{ NV03_PGRAPH_NSOURCE_FORMAT_EXCEPTION,   "FORMAT_EXCEPTION" },
-	{ NV03_PGRAPH_NSOURCE_PATCH_EXCEPTION,    "PATCH_EXCEPTION" },
-	{ NV03_PGRAPH_NSOURCE_STATE_INVALID,      "STATE_INVALID" },
-	{ NV03_PGRAPH_NSOURCE_DOUBLE_NOTIFY,      "DOUBLE_NOTIFY" },
-	{ NV03_PGRAPH_NSOURCE_NOTIFY_IN_USE,      "NOTIFY_IN_USE" },
-	{ NV03_PGRAPH_NSOURCE_METHOD_CNT,         "METHOD_CNT" },
-	{ NV03_PGRAPH_NSOURCE_BFR_NOTIFICATION,   "BFR_NOTIFICATION" },
-	{ NV03_PGRAPH_NSOURCE_DMA_VTX_PROTECTION, "DMA_VTX_PROTECTION" },
-	{ NV03_PGRAPH_NSOURCE_DMA_WIDTH_A,        "DMA_WIDTH_A" },
-	{ NV03_PGRAPH_NSOURCE_DMA_WIDTH_B,        "DMA_WIDTH_B" },
-};
-
-static void
-nouveau_print_bitfield_names_(uint32_t value,
-				const struct nouveau_bitfield_names *namelist,
-				const int namelist_len)
-{
-	/*
-	 * Caller must have already printed the KERN_* log level for us.
-	 * Also the caller is responsible for adding the newline.
-	 */
-	int i;
-	for (i = 0; i < namelist_len; ++i) {
-		uint32_t mask = namelist[i].mask;
-		if (value & mask) {
-			DRM_ERROR(" %s", namelist[i].name);
-			value &= ~mask;
-		}
-	}
-	if (value)
-		DRM_ERROR(" (unknown bits 0x%08x)", value);
-}
-#define nouveau_print_bitfield_names(val, namelist) \
-	nouveau_print_bitfield_names_((val), (namelist), ARRAY_SIZE(namelist))
-
-struct nouveau_enum_names {
-	uint32_t value;
-	const char *name;
-};
-
-static void
-nouveau_print_enum_names_(uint32_t value,
-				const struct nouveau_enum_names *namelist,
-				const int namelist_len)
-{
-	/*
-	 * Caller must have already printed the KERN_* log level for us.
-	 * Also the caller is responsible for adding the newline.
-	 */
-	int i;
-	for (i = 0; i < namelist_len; ++i) {
-		if (value == namelist[i].value) {
-			DRM_INFO("%s", namelist[i].name);
-			return;
-		}
-	}
-	DRM_INFO("unknown value 0x%08x", value);
-}
-#define nouveau_print_enum_names(val, namelist) \
-	nouveau_print_enum_names_((val), (namelist), ARRAY_SIZE(namelist))
 
 static int
 nouveau_graph_chid_from_grctx(struct drm_device *dev)
