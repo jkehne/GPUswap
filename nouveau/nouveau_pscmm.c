@@ -178,11 +178,12 @@ nouveau_get_new_space(struct nouveau_bo *nvbo,
   	struct drm_mm_node *free_space;
 	uintptr_t *block_array;
 	int i;
+	size_t size = bnum * BLOCK_SIZE;
 
-	free_space = drm_mm_search_free(&dev_priv->fb_block->core_manager, bnum, align, 0);
+	free_space = drm_mm_search_free(&dev_priv->fb_block->core_manager, size, align, 0);
 
 	if (free_space != NULL) {
-		nvbo->block_offset_node = drm_mm_get_block(free_space, bnum, align);
+		nvbo->block_offset_node = drm_mm_get_block(free_space, size, align);
 	}
 
 	if (nvbo->block_offset_node == NULL) {
@@ -431,6 +432,8 @@ nouveau_pscmm_alloc_vram(struct drm_nouveau_private* dev_priv, size_t bo_size,
 
 	nvbo->block_array = block_array;			//the GPU physical address at which the bo is
 
+	nvbo->firstblock = nvbo->block_offset_node->start;
+
 	return nvbo;
 }
 
@@ -453,6 +456,9 @@ uintptr_t
 nouveau_channel_map(struct drm_device *dev, struct nouveau_channel *chan, struct nouveau_bo *nvbo, 
 			uint32_t low, uint32_t tile_flags)
 {
+NV_ERROR(dev, "channel_map not ready");
+return NULL;
+#if 0
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	uintptr_t addr_ptr;
 	int ret;
@@ -477,16 +483,21 @@ nouveau_channel_map(struct drm_device *dev, struct nouveau_channel *chan, struct
 
 	nvbo->channel = chan;
 	nvbo->tile_flags = tile_flags;
-	nvbo->firstblock = addr_ptr;
+//	nvbo->firstblock = addr_ptr;
 	nvbo->low = low;
 		
 	return addr_ptr;
+#endif
 }
 
 int
 nouveau_channel_unmap(struct drm_device *dev,
-							struct nouveau_channel *chan, struct nouveau_bo *nvbo)
+			struct nouveau_channel *chan, struct nouveau_bo *nvbo)
 {
+
+NV_ERROR(dev, "channel_unmap not ready");
+return 0;
+#if 0
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	int ret;
 	
@@ -497,6 +508,7 @@ nouveau_channel_unmap(struct drm_device *dev,
 	nvbo->channel = NULL;
 	
 	return ret;
+#endif
 }
 
 static int
@@ -656,6 +668,16 @@ nouveau_pscmm_move(struct drm_device *dev, struct drm_gem_object* gem,
 
 	}
 
+	if (new_domain == NOUVEAU_PSCMM_DOMAIN_VRAM) {
+		ret = nv50_mem_vm_bind_linear(dev,
+				nvbo->block_offset_node->start + dev_priv->vm_vram_base,
+				nvbo->gem->size, nvbo->tile_flags,
+				nvbo->block_offset_node->start);
+		if (ret) {
+			NV_ERROR(dev, "Failed to bind vm");
+			return ret;
+		}
+	}
 	if (nvbo->placements == new_domain) {
 		NV_DEBUG(dev, "same as new_domain, just return");
 		return ret;
@@ -987,7 +1009,7 @@ nouveau_pscmm_new(struct drm_device *dev,  struct drm_file *file_priv,
 		ret = drm_gem_handle_create(file_priv, gem, &handle);
 
 	nouveau_pscmm_move(dev, gem, &nvbo, NOUVEAU_PSCMM_DOMAIN_CPU, flags, no_evicted, align);
-
+	nvbo->virtual = NULL;
 	if (mappable) {
 		nvbo->virtual = ioremap(dev_priv->fb_block->io_offset + nvbo->block_offset_node->start,  gem->size);
 	}

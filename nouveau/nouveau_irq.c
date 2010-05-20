@@ -41,6 +41,11 @@
 #include "nouveau_drv.h"
 #include "nouveau_reg.h"
 
+static void
+nv50_pfb_vm_trap(struct drm_device *dev, int display, const char *name);
+
+int error_log_times = 0;
+
 struct nouveau_bitfield_names {
 	uint32_t mask;
 	const char *name;
@@ -244,8 +249,11 @@ nouveau_fifo_irq_handler(struct drm_device *dev)
 	uint32_t status, reassign;
 	int cnt = 0;
 
+	/* to avoid infinite error loop */
+	error_log_times++;
 	reassign = nv_rd32(dev, NV03_PFIFO_CACHES) & 1;
-	while ((status = nv_rd32(dev, NV03_PFIFO_INTR_0)) && (cnt++ < 100)) {
+
+	while ((status = nv_rd32(dev, NV03_PFIFO_INTR_0)) && (cnt++ < 10)) {
 		struct nouveau_channel *chan = NULL;
 		uint32_t chid, get;
 
@@ -306,6 +314,7 @@ nouveau_fifo_irq_handler(struct drm_device *dev)
 		}
 
 		if (status & NV_PFIFO_INTR_DMA_PUSHER) {
+			nv50_pfb_vm_trap(dev, 1, "PFIFO_DMA_PUSHER_FAULT");
 			int reason = (nv_rd32(dev, NV04_PFIFO_CACHE1_DMA_STATE) >> 29) & 7;
 			NV_INFO(dev, "PFIFO_DMA_PUSHER - Ch %d - ", chid);
 			nouveau_print_enum_names(reason, nouveau_dma_pusher_reasons);
@@ -345,6 +354,7 @@ nouveau_fifo_irq_handler(struct drm_device *dev)
 		}
 
 		if (status) {
+			nv50_pfb_vm_trap(dev, 1, "PFIFO_INTR_FAULT");
 			NV_INFO(dev, "PFIFO_INTR 0x%08x - Ch %d\n",
 				status, chid);
 			nv_wr32(dev, NV03_PFIFO_INTR_0, status);
@@ -590,10 +600,14 @@ static void
 nouveau_pgraph_irq_handler(struct drm_device *dev)
 {
 	uint32_t status;
+	/* to avoid infinite error loop */
+        error_log_times++;
 
 	while ((status = nv_rd32(dev, NV03_PGRAPH_INTR))) {
 		uint32_t nsource = nv_rd32(dev, NV03_PGRAPH_NSOURCE);
-
+		if (error_log_times > 5) {
+			break;
+		}
 		if (status & NV_PGRAPH_INTR_NOTIFY) {
 			nouveau_pgraph_intr_notify(dev, nsource);
 
@@ -1236,6 +1250,10 @@ nouveau_irq_handler(DRM_IRQ_ARGS)
 
 	status = nv_rd32(dev, NV03_PMC_INTR_0);
 	if (!status)
+		return IRQ_NONE;
+
+	/* to avoid infinite error loop */
+        if (error_log_times > 10)
 		return IRQ_NONE;
 
 	nv_wr32(dev, NV03_PMC_INTR_0, status);	

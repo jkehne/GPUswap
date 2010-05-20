@@ -153,7 +153,6 @@ struct nouveau_bo {
 
 	struct list_head active_list;   //The bo active list
 	bool active;
-	
 };
 
 
@@ -548,7 +547,7 @@ struct pscmm_core {
 	struct drm_mm core_manager;	//VRAM phy mem manager
 	struct drm_mm gart_manager;	//GART mem manager
 
-	unsigned long io_offset;			//drm_get_resource_start(dev, 1);   vram bus_base
+	uint64_t io_offset;			//drm_get_resource_start(dev, 1);   vram bus_base
 #if 0
 	// Does the block pined?
 

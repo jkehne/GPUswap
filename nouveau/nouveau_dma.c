@@ -92,17 +92,19 @@ nouveau_dma_init(struct nouveau_channel *chan)
 		return ret;
 
 	/* Map push buffer */
+	if (chan->pushbuf_bo->virtual == NULL) {
 	chan->pushbuf_bo->virtual = ioremap(dev_priv->fb_block->io_offset + chan->pushbuf_bo->block_offset_node->start,  chan->pushbuf_bo->gem->size);
 	if (!chan->pushbuf_bo->virtual)
 		return -EINVAL;
-
+	}
+	if (chan->notifier_bo->virtual == NULL) {
 	/* Map M2MF notifier object - fbcon. */
 	if (drm_core_check_feature(dev, DRIVER_MODESET)) {
 		chan->notifier_bo->virtual = ioremap(dev_priv->fb_block->io_offset + chan->notifier_bo->block_offset_node->start,  chan->notifier_bo->gem->size);
 		if (!chan->notifier_bo->virtual)
 			return -EINVAL;
 	}
-
+	}
 	/* Insert NOPS for NOUVEAU_DMA_SKIPS */
 	ret = RING_SPACE(chan, NOUVEAU_DMA_SKIPS);
 	if (ret)
@@ -187,7 +189,7 @@ nv50_dma_push(struct nouveau_channel *chan, struct nouveau_bo *bo,
 	      int delta, int length)
 {
 	struct nouveau_bo *pb = chan->pushbuf_bo;
-	uint64_t offset = bo->firstblock + delta;
+	uint64_t offset =  chan->pushbuf_base + delta;
 	int ip = (chan->dma.ib_put * 2) + chan->dma.ib_base;
 	BUG_ON(chan->dma.ib_free < 1);
 	nouveau_bo_wr32(pb, ip++, lower_32_bits(offset));

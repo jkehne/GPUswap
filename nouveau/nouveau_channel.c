@@ -47,7 +47,7 @@ nouveau_channel_pushbuf_ctxdma_init(struct nouveau_channel *chan)
 		ret = nouveau_gpuobj_dma_new(chan, NV_CLASS_DMA_IN_MEMORY, 0,
 					     dev_priv->vm_end, NV_DMA_ACCESS_RO,
 					     NV_DMA_TARGET_AGP, &pushbuf);
-		chan->pushbuf_base = pb->firstblock;
+		chan->pushbuf_base = pb->firstblock + dev_priv->vm_vram_base;
 	} else
 	if (pb->placements == NOUVEAU_GEM_DOMAIN_GART) {
 		ret = nouveau_gpuobj_gart_dma_new(chan, 0,
