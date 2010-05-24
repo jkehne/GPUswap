@@ -531,7 +531,8 @@ void init(int *drm_fd) {
 		exit(1);
 	}
 
-	if (err = nouveau_bo_new_tile(fd, 4096,
+	// PAGE_SIZE is enough for cp. But if the bo size < 16 PAGE and access the map page will cause PFIFO error. :(
+	if (err = nouveau_bo_new_tile(fd, 16 * 4096,
 		NOUVEAU_PSCMM_DOMAIN_VRAM, &cp)) { // allocate code segment
 		printf ("cp: %s\n", strerror(-err));
 		exit(1);
@@ -543,7 +544,7 @@ void init(int *drm_fd) {
 		exit(1);
 	}
 
-	if (err = nouveau_bo_write(fd, CPSZ, 0, cpcode, cp)) {
+	if (err = nouveau_bo_write(fd, CPSZ * sizeof(uint32_t), 0, cpcode, cp)) {
 		printf ("write: %s\n", strerror(-err));
 		exit(1);
 	}
@@ -570,6 +571,7 @@ void init(int *drm_fd) {
 	OUT_RING(chan, 0x2);
 	/* nouveau_pushbufs_submit */
 	FIRE_RING(chan);
+
 }
 
 struct timeval tvb, tve;
@@ -651,7 +653,7 @@ void stridetest(int fd) {
 //	OUT_RELOC(chan, cp, 0, NOUVEAU_BO_VRAM | NOUVEAU_BO_RD | NOUVEAU_BO_LOW, 0, 0);
 	OUT_RING(chan, cp->offset >> 32);
 	OUT_RING(chan, cp->offset);
-	
+	printf("cp offset 0x%x\n", cp->offset);	
 
 	BEGIN_RING(chan, turing, 0x2b4, 1);
 	OUT_RING(chan, threads);	// THREADS_PER_BLOCK
@@ -675,6 +677,7 @@ void stridetest(int fd) {
 	OUT_RING(chan, 0x00000);
 	OUT_RING(chan, (bytes-1) | 0xff); // alignment...
 	OUT_RING(chan, 1);
+	printf("in offset 0x%x\n", in->offset);
 
 	nouveau_add_validate_buffer(out);
 	BEGIN_RING(chan, turing, 0x420, 5);	// output segment
@@ -685,6 +688,7 @@ void stridetest(int fd) {
 	OUT_RING(chan, 0x00000);
 	OUT_RING(chan, (bytes-1) | 0xff);
 	OUT_RING(chan, 1);
+	printf("out offset 0x%x\n", out->offset);
 
 	BEGIN_RING(chan, turing, 0x374, 1);	// USER_PARAM_COUNT
 	OUT_RING(chan, 1 << 8);
@@ -702,6 +706,9 @@ void stridetest(int fd) {
 	OUT_RING(chan, 0);		// LAUNCH
 
 	FIRE_RING(chan);
+
+	/* wait until the command done */
+	sleep(10);
 
 	check_mem(fd);
 }
@@ -772,6 +779,9 @@ void lineartest(int fd) {
 
 	FIRE_RING(chan);
 
+        /* wait until the command done, need fix*/
+        sleep(10);
+
 	check_mem(fd);
 }
 int main(int argc, char **argv) {
@@ -779,6 +789,7 @@ int main(int argc, char **argv) {
 	int fd;
 //	bytes = 1000000;
 	bytes = 245 * 4096;
+	bytes = 50 * 4096;
 	ctas = 10;
 	threads = 128;
 

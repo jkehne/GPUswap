@@ -677,6 +677,7 @@ nouveau_pscmm_move(struct drm_device *dev, struct drm_gem_object* gem,
 			NV_ERROR(dev, "Failed to bind vm");
 			return ret;
 		}
+		NV_INFO(dev, "bind vm 0x%x tile_flags 0x%x", nvbo->block_offset_node->start, nvbo->tile_flags);
 	}
 	if (nvbo->placements == new_domain) {
 		NV_DEBUG(dev, "same as new_domain, just return");
@@ -815,7 +816,7 @@ nouveau_pscmm_command_prefault(struct drm_device *dev, struct drm_file *file_pri
 
 	/* check if nvbo is empty? */
 	if (nvbo == NULL) {
-		ret = nouveau_pscmm_move(dev, gem, &nvbo, 0, NOUVEAU_PSCMM_DOMAIN_VRAM, true, align);
+		ret = nouveau_pscmm_move(dev, gem, &nvbo, NOUVEAU_PSCMM_DOMAIN_CPU, NOUVEAU_PSCMM_DOMAIN_VRAM, true, align);
 	}
 
 	if (nvbo->type == no_evicted) {
@@ -1317,7 +1318,9 @@ nouveau_pscmm_ioctl_write(DRM_IOCTL_ARGS)
 			nouveau_pscmm_prefault(dev_priv, nvbo, PAGE_SIZE);
 				
 			/* write the VRAM to user space address */
-			addr = ioremap(dev_priv->fb_block->io_offset + nvbo->block_offset_node->start,  gem->size);
+			if (nvbo->virtual == NULL)
+				nvbo->virtual = ioremap(dev_priv->fb_block->io_offset + nvbo->block_offset_node->start,  gem->size);
+			addr = nvbo->virtual;
 			if (!addr) {
 				NV_ERROR(dev, "bo shared between channels are not supported by now");
 				drm_gem_object_unreference(gem);
@@ -1327,10 +1330,10 @@ nouveau_pscmm_ioctl_write(DRM_IOCTL_ARGS)
 			user_data = (uint32_t *) (uintptr_t) arg->data_ptr;
 
 			ret = DRM_COPY_FROM_USER(addr + arg->offset, user_data, arg->size);
-			if (ret) {
-                		ret = EFAULT;
-                		NV_ERROR(dev, "failed to write, unwritten %d", ret);
-        		}
+                        if (ret) {
+                                ret = EFAULT;
+                                NV_ERROR(dev, "failed to write, unwritten %d", ret);
+                        }
 
 			/* mark the block as normal*/
 			nouveau_pscmm_set_normal(dev_priv, nvbo);
@@ -1378,7 +1381,7 @@ nouveau_pscmm_ioctl_move(DRM_IOCTL_ARGS)
 
 end:
 	/* think about new is RAM. User space will ignore the firstblock if the bo is not in the VRAM*/
-	arg->presumed_offset = nvbo->firstblock;		//bo gpu vm address
+	arg->presumed_offset = nvbo->firstblock + dev_priv->vm_vram_base;		//bo gpu vm address
 	arg->presumed_domain = nvbo->placements;	
 	drm_gem_object_unreference(gem);
 	return 0;

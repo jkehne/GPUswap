@@ -542,7 +542,7 @@ nouveau_pgraph_intr_notify(struct drm_device *dev, uint32_t nsource)
 static int nouveau_ratelimit(void)
 {
 //	return __ratelimit(&nouveau_ratelimit_state);
-	return 0;
+	return 1;
 }
 
 

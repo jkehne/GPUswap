@@ -173,7 +173,6 @@ nouveau_channel_alloc(struct drm_device *dev, struct nouveau_channel **chan_ret,
 		nouveau_channel_free(chan);
 		return ret;
 	}
-
 	nouveau_dma_pre_init(chan);
 
 	/* Locate channel's user control regs */
