@@ -1,6 +1,11 @@
 /*
  * Copyright (C) 2007 Ben Skeggs.
  *
+/*
+ * Copyright 2010 PathScale Inc.  All rights reserved.
+ * Use is subject to license terms.
+ */
+ 
  * All Rights Reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining

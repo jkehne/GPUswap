@@ -1,7 +1,11 @@
 /*
  * Copyright (C) The Weather Channel, Inc.  2002.  All Rights Reserved.
  * Copyright 2005 Stephane Marchesin
- *
+/*
+ * Copyright 2010 PathScale Inc.  All rights reserved.
+ * Use is subject to license terms.
+ */
+ 
  * The Weather Channel (TM) funded Tungsten Graphics to develop the
  * initial release of the Radeon 8500 driver under the XFree86 license.
  * This notice must be preserved.

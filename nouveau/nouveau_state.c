@@ -28,10 +28,13 @@
  * Use is subject to license terms.
  */
  
+#include <linux/swab.h>
 #include "drmP.h"
 #include "drm.h"
 #include "drm_sarea.h"
 #include "drm_crtc_helper.h"
+#include <linux/vgaarb.h>
+#include <linux/vga_switcheroo.h>
 
 #include "nouveau_drv.h"
 #include "nouveau_drm.h"
@@ -401,7 +404,7 @@ int nouveau_load(struct drm_device *dev, unsigned long flags)
 	NV_DEBUG(dev, "vendor: 0x%x device: 0x%x\n",
 		 dev->pci_vendor, dev->pci_device);
 
-	dev_priv->wq = create_workqueue(dev->devinfo, "nouveau");
+	dev_priv->wq = create_workqueue("nouveau");
 	if (!dev_priv->wq)
 		return -EINVAL;
 
@@ -412,13 +415,8 @@ int nouveau_load(struct drm_device *dev, unsigned long flags)
 
 	/* map the mmio regs */
 	mmio_start_offs = pci_resource_start(dev->pdev, 0);
-	
-	dev_priv->mmio = drm_alloc(sizeof (drm_local_map_t), DRM_MEM_MAPS);
-	dev_priv->mmio->offset = mmio_start_offs;
-	dev_priv->mmio->size = 0x00800000;
-	dev_priv->mmio->type = _DRM_REGISTERS;
-	dev_priv->mmio->flags = _DRM_REMOVABLE;
-	if (drm_ioremap(dev, dev_priv->mmio)) {
+	dev_priv->mmio = ioremap(mmio_start_offs, 0x00800000);	
+	if (!dev_priv->mmio) {
 		NV_ERROR(dev, "Unable to initialize the mmio mapping. "
 			 "Please report your setup to " DRIVER_EMAIL "\n");
 		return -EINVAL;
@@ -484,13 +482,10 @@ int nouveau_load(struct drm_device *dev, unsigned long flags)
 			ramin_bar = 3;
 
 		dev_priv->ramin_size = pci_resource_len(dev->pdev, ramin_bar);
-
-		dev_priv->ramin = drm_alloc(sizeof (drm_local_map_t), DRM_MEM_MAPS);
-		dev_priv->ramin->offset = pci_resource_start(dev->pdev, ramin_bar);
-		dev_priv->ramin->size = dev_priv->ramin_size;
-		dev_priv->ramin->type = _DRM_REGISTERS;
-		dev_priv->ramin->flags = _DRM_REMOVABLE;
-			if (drm_ioremap(dev, dev_priv->ramin)) {
+		dev_priv->ramin = ioremap(
+				pci_resource_start(dev->pdev, ramin_bar),
+				dev_priv->ramin_size);
+		if (!dev_priv->ramin) {
 				NV_ERROR(dev, "Failed to init RAMIN mapping, "
 					      "limited instance memory available\n");
 		}
@@ -501,12 +496,9 @@ int nouveau_load(struct drm_device *dev, unsigned long flags)
 	 * the BAR0 PRAMIN aperture */
 	if (!dev_priv->ramin) {
 		dev_priv->ramin_size = 1 * 1024 * 1024;
-		dev_priv->ramin = drm_alloc(sizeof (drm_local_map_t), DRM_MEM_MAPS);
-		dev_priv->ramin->offset = mmio_start_offs + NV_RAMIN;
-		dev_priv->ramin->size = dev_priv->ramin_size;
-		dev_priv->ramin->type = _DRM_REGISTERS;
-		dev_priv->ramin->flags = _DRM_REMOVABLE;
-			if (drm_ioremap(dev, dev_priv->ramin)) {
+		dev_priv->ramin = ioremap(mmio_start_offs + NV_RAMIN,
+					dev_priv->ramin_size);
+		if (!dev_priv->ramin) {
 				NV_ERROR(dev, "Failed to map BAR0 PRAMIN.\n");
 				return -ENOMEM;
 		}
@@ -561,15 +553,16 @@ int nouveau_unload(struct drm_device *dev)
 */
 		nouveau_close(dev);
 	}
-	drm_ioremapfree(dev_priv->mmio);
-	drm_ioremapfree(dev_priv->ramin);
+	iounmap(dev_priv->mmio);
+	iounmap(dev_priv->ramin);
 
-	kfree(dev_priv, sizeof(*dev_priv));
+	kfree(dev_priv);
 	dev->dev_private = NULL;
 	return 0;
 }
 
-int nouveau_ioctl_getparam(DRM_IOCTL_ARGS)
+int nouveau_ioctl_getparam(struct drm_device *dev, void *data,
+			struct drm_file *file_priv)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct drm_nouveau_getparam *getparam = data;
@@ -636,7 +629,8 @@ int nouveau_ioctl_getparam(DRM_IOCTL_ARGS)
 }
 
 int
-nouveau_ioctl_setparam(DRM_IOCTL_ARGS)
+nouveau_ioctl_setparam(struct drm_device *dev, void *data,
+			struct drm_file *file_priv)
 {
 	struct drm_nouveau_setparam *setparam = data;
 

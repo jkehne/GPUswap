@@ -1,12 +1,10 @@
 #include "drmP.h"
 #include "nouveau_drv.h"
-
-#define NV_CTXDMA_PAGE_SHIFT 12
 #define NV_CTXDMA_PAGE_SIZE  (1 << NV_CTXDMA_PAGE_SHIFT)
 #define NV_CTXDMA_PAGE_MASK  (NV_CTXDMA_PAGE_SIZE - 1)
 #if 0
 struct nouveau_sgdma_be {
-	struct ttm_backend backend;
+#if 0
 	struct drm_device *dev;
 
 	dma_addr_t *pages;
