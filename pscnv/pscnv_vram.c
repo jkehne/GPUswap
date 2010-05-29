@@ -91,7 +91,7 @@ pscnv_vram_split_left (struct drm_device *dev, struct pscnv_vram_region *reg, ui
 	reg->size -= left->size;
 	reg->start += left->size;
 #ifdef PSCNV_VRAM_DEBUG
-	NV_INFO(dev, "Split left type %d: %10llx:%10llx:%10llx\n", reg->type,
+	NV_INFO(dev, "Split left type %d: %llx:%llx:%llx\n", reg->type,
 			left->start, reg->start, reg->start + reg->size);
 #endif
 	return left;
@@ -111,7 +111,7 @@ pscnv_vram_split_right (struct drm_device *dev, struct pscnv_vram_region *reg, u
 	list_add(&right->global_list, &reg->global_list);
 	reg->size -= right->size;
 #ifdef PSCNV_VRAM_DEBUG
-	NV_INFO(dev, "Split right type %d: %10llx:%10llx:%10llx\n", reg->type,
+	NV_INFO(dev, "Split right type %d: %llx:%llx:%llx\n", reg->type,
 			reg->start, right->start, right->start + right->size);
 #endif
 	return right;
@@ -133,7 +133,7 @@ pscnv_vram_try_merge (struct drm_device *dev, struct pscnv_vram_region *a, struc
 	if (a->type != b->type)
 		return a;
 #ifdef PSCNV_VRAM_DEBUG
-	NV_INFO(dev, "Merging type %d: %10llx:%10llx:%10llx\n", a->type,
+	NV_INFO(dev, "Merging type %d: %llx:%llx:%llx\n", a->type,
 			c->start, d->start, d->start + d->size);
 #endif
 	c->size += d->size;
@@ -388,7 +388,7 @@ pscnv_vram_alloc(struct drm_device *dev,
 				else
 					list_add_tail(&cur->local_list, &res->regions);
 #ifdef PSCNV_VRAM_DEBUG
-				NV_INFO (dev, "Using block at %10llx-%10llx\n",
+				NV_INFO (dev, "Using block at %llx-%llx\n",
 						cur->start, cur->start + cur->size);
 #endif
 				size -= cur->size;
