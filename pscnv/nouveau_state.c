@@ -582,9 +582,11 @@ static void nouveau_card_takedown(struct drm_device *dev)
 			engine->fifo.takedown(dev);
 			engine->graph.takedown(dev);
 		}
+#endif
 		engine->fb.takedown(dev);
 		engine->timer.takedown(dev);
 		engine->mc.takedown(dev);
+#if 0
 
 		mutex_lock(&dev->struct_mutex);
 		ttm_bo_clean_mm(&dev_priv->ttm.bdev, TTM_PL_VRAM);
