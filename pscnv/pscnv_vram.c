@@ -408,6 +408,8 @@ pscnv_vram_alloc(struct drm_device *dev,
 				NV_INFO (dev, "Using block at %llx-%llx\n",
 						cur->start, cur->start + cur->size);
 #endif
+				if (flags & PSCNV_VO_CONTIG)
+					res->start = cur->start;
 				cur->vo = res;
 				size -= cur->size;
 			}

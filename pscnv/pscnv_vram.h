@@ -41,6 +41,9 @@ struct pscnv_vo {
 	uint32_t cookie;
 	/* only used for debug */
 	int serial;
+	/* only for contig blocks. same info as start of first [and only]
+	 * region, but more convenient to access */
+	uint64_t start;
 	/* a linked list of VRAM regions making up this VO. */
 	struct list_head regions;
 };
