@@ -882,7 +882,7 @@ int nouveau_dp_auxch(struct nouveau_i2c_chan *auxch, int cmd, int addr,
 		     uint8_t *data, int data_nr);
 bool nouveau_dp_detect(struct drm_encoder *);
 bool nouveau_dp_link_train(struct drm_encoder *);
-#if 0
+
 /* nv04_fb.c */
 extern int  nv04_fb_init(struct drm_device *);
 extern void nv04_fb_takedown(struct drm_device *);
@@ -905,7 +905,7 @@ extern void nv50_fb_takedown(struct drm_device *);
 /* nv50_fb.c */
 extern int  nv50_fb_init(struct drm_device *);
 extern void nv50_fb_takedown(struct drm_device *);
-
+#if 0
 /* nv04_fifo.c */
 extern int  nv04_fifo_init(struct drm_device *);
 extern void nv04_fifo_disable(struct drm_device *);

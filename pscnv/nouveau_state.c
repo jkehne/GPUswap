@@ -57,6 +57,23 @@ static int nouveau_init_engine_ptrs(struct drm_device *dev)
 		engine->mc.takedown		= nv50_mc_takedown;
 	}
 
+	/* PFB */
+	if (dev_priv->card_type == NV_04) {
+		engine->fb.init			= nv04_fb_init;
+		engine->fb.takedown		= nv04_fb_takedown;
+	} else if (dev_priv->card_type < NV_40) {
+		engine->fb.init			= nv10_fb_init;
+		engine->fb.takedown		= nv10_fb_takedown;
+		engine->fb.set_region_tiling	= nv10_fb_set_region_tiling;
+	} else if (dev_priv->card_type == NV_40) {
+		engine->fb.init			= nv40_fb_init;
+		engine->fb.takedown		= nv40_fb_takedown;
+		engine->fb.set_region_tiling	= nv40_fb_set_region_tiling;
+	} else {
+		engine->fb.init			= nv50_fb_init;
+		engine->fb.takedown		= nv50_fb_takedown;
+	}
+
 	/* PTIMER */
 	engine->timer.init		= nv04_timer_init;
 	engine->timer.read		= nv04_timer_read;
@@ -75,8 +92,6 @@ static int nouveau_init_engine_ptrs(struct drm_device *dev)
 		engine->instmem.unbind		= nv04_instmem_unbind;
 		engine->instmem.prepare_access	= nv04_instmem_prepare_access;
 		engine->instmem.finish_access	= nv04_instmem_finish_access;
-		engine->fb.init			= nv04_fb_init;
-		engine->fb.takedown		= nv04_fb_takedown;
 		engine->graph.grclass		= nv04_graph_grclass;
 		engine->graph.init		= nv04_graph_init;
 		engine->graph.takedown		= nv04_graph_takedown;
@@ -113,9 +128,6 @@ static int nouveau_init_engine_ptrs(struct drm_device *dev)
 		engine->instmem.unbind		= nv04_instmem_unbind;
 		engine->instmem.prepare_access	= nv04_instmem_prepare_access;
 		engine->instmem.finish_access	= nv04_instmem_finish_access;
-		engine->fb.init			= nv10_fb_init;
-		engine->fb.takedown		= nv10_fb_takedown;
-		engine->fb.set_region_tiling	= nv10_fb_set_region_tiling;
 		engine->graph.grclass		= nv10_graph_grclass;
 		engine->graph.init		= nv10_graph_init;
 		engine->graph.takedown		= nv10_graph_takedown;
@@ -153,9 +165,6 @@ static int nouveau_init_engine_ptrs(struct drm_device *dev)
 		engine->instmem.unbind		= nv04_instmem_unbind;
 		engine->instmem.prepare_access	= nv04_instmem_prepare_access;
 		engine->instmem.finish_access	= nv04_instmem_finish_access;
-		engine->fb.init			= nv10_fb_init;
-		engine->fb.takedown		= nv10_fb_takedown;
-		engine->fb.set_region_tiling	= nv10_fb_set_region_tiling;
 		engine->graph.grclass		= nv20_graph_grclass;
 		engine->graph.init		= nv20_graph_init;
 		engine->graph.takedown		= nv20_graph_takedown;
@@ -193,9 +202,6 @@ static int nouveau_init_engine_ptrs(struct drm_device *dev)
 		engine->instmem.unbind		= nv04_instmem_unbind;
 		engine->instmem.prepare_access	= nv04_instmem_prepare_access;
 		engine->instmem.finish_access	= nv04_instmem_finish_access;
-		engine->fb.init			= nv10_fb_init;
-		engine->fb.takedown		= nv10_fb_takedown;
-		engine->fb.set_region_tiling	= nv10_fb_set_region_tiling;
 		engine->graph.grclass		= nv30_graph_grclass;
 		engine->graph.init		= nv30_graph_init;
 		engine->graph.takedown		= nv20_graph_takedown;
@@ -234,9 +240,6 @@ static int nouveau_init_engine_ptrs(struct drm_device *dev)
 		engine->instmem.unbind		= nv04_instmem_unbind;
 		engine->instmem.prepare_access	= nv04_instmem_prepare_access;
 		engine->instmem.finish_access	= nv04_instmem_finish_access;
-		engine->fb.init			= nv40_fb_init;
-		engine->fb.takedown		= nv40_fb_takedown;
-		engine->fb.set_region_tiling	= nv40_fb_set_region_tiling;
 		engine->graph.grclass		= nv40_graph_grclass;
 		engine->graph.init		= nv40_graph_init;
 		engine->graph.takedown		= nv40_graph_takedown;
@@ -277,8 +280,6 @@ static int nouveau_init_engine_ptrs(struct drm_device *dev)
 		engine->instmem.unbind		= nv50_instmem_unbind;
 		engine->instmem.prepare_access	= nv50_instmem_prepare_access;
 		engine->instmem.finish_access	= nv50_instmem_finish_access;
-		engine->fb.init			= nv50_fb_init;
-		engine->fb.takedown		= nv50_fb_takedown;
 		engine->graph.grclass		= nv50_graph_grclass;
 		engine->graph.init		= nv50_graph_init;
 		engine->graph.takedown		= nv50_graph_takedown;
@@ -462,12 +463,12 @@ nouveau_card_init(struct drm_device *dev)
 	ret = engine->timer.init(dev);
 	if (ret)
 		goto out_mc;
-#if 0
+
 	/* PFB */
 	ret = engine->fb.init(dev);
 	if (ret)
 		goto out_timer;
-
+#if 0
 	if (nouveau_noaccel)
 		engine->graph.accel_blocked = true;
 	else {
@@ -537,9 +538,9 @@ out_graph:
 	if (!nouveau_noaccel)
 		engine->graph.takedown(dev);
 out_fb:
+#endif
 	engine->fb.takedown(dev);
 out_timer:
-#endif
 	engine->timer.takedown(dev);
 out_mc:
 	engine->mc.takedown(dev);
