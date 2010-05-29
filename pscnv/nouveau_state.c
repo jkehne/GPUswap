@@ -43,6 +43,11 @@ static int nouveau_init_engine_ptrs(struct drm_device *dev)
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct nouveau_engine *engine = &dev_priv->engine;
 
+	/* PTIMER */
+	engine->timer.init		= nv04_timer_init;
+	engine->timer.read		= nv04_timer_read;
+	engine->timer.takedown		= nv04_timer_takedown;
+
 	switch (dev_priv->chipset & 0xf0) {
 	case 0x00:
 #if 0
@@ -58,9 +63,6 @@ static int nouveau_init_engine_ptrs(struct drm_device *dev)
 		engine->instmem.finish_access	= nv04_instmem_finish_access;
 		engine->mc.init			= nv04_mc_init;
 		engine->mc.takedown		= nv04_mc_takedown;
-		engine->timer.init		= nv04_timer_init;
-		engine->timer.read		= nv04_timer_read;
-		engine->timer.takedown		= nv04_timer_takedown;
 		engine->fb.init			= nv04_fb_init;
 		engine->fb.takedown		= nv04_fb_takedown;
 		engine->graph.grclass		= nv04_graph_grclass;
@@ -101,9 +103,6 @@ static int nouveau_init_engine_ptrs(struct drm_device *dev)
 		engine->instmem.finish_access	= nv04_instmem_finish_access;
 		engine->mc.init			= nv04_mc_init;
 		engine->mc.takedown		= nv04_mc_takedown;
-		engine->timer.init		= nv04_timer_init;
-		engine->timer.read		= nv04_timer_read;
-		engine->timer.takedown		= nv04_timer_takedown;
 		engine->fb.init			= nv10_fb_init;
 		engine->fb.takedown		= nv10_fb_takedown;
 		engine->fb.set_region_tiling	= nv10_fb_set_region_tiling;
@@ -146,9 +145,6 @@ static int nouveau_init_engine_ptrs(struct drm_device *dev)
 		engine->instmem.finish_access	= nv04_instmem_finish_access;
 		engine->mc.init			= nv04_mc_init;
 		engine->mc.takedown		= nv04_mc_takedown;
-		engine->timer.init		= nv04_timer_init;
-		engine->timer.read		= nv04_timer_read;
-		engine->timer.takedown		= nv04_timer_takedown;
 		engine->fb.init			= nv10_fb_init;
 		engine->fb.takedown		= nv10_fb_takedown;
 		engine->fb.set_region_tiling	= nv10_fb_set_region_tiling;
@@ -191,9 +187,6 @@ static int nouveau_init_engine_ptrs(struct drm_device *dev)
 		engine->instmem.finish_access	= nv04_instmem_finish_access;
 		engine->mc.init			= nv04_mc_init;
 		engine->mc.takedown		= nv04_mc_takedown;
-		engine->timer.init		= nv04_timer_init;
-		engine->timer.read		= nv04_timer_read;
-		engine->timer.takedown		= nv04_timer_takedown;
 		engine->fb.init			= nv10_fb_init;
 		engine->fb.takedown		= nv10_fb_takedown;
 		engine->fb.set_region_tiling	= nv10_fb_set_region_tiling;
@@ -237,9 +230,6 @@ static int nouveau_init_engine_ptrs(struct drm_device *dev)
 		engine->instmem.finish_access	= nv04_instmem_finish_access;
 		engine->mc.init			= nv40_mc_init;
 		engine->mc.takedown		= nv40_mc_takedown;
-		engine->timer.init		= nv04_timer_init;
-		engine->timer.read		= nv04_timer_read;
-		engine->timer.takedown		= nv04_timer_takedown;
 		engine->fb.init			= nv40_fb_init;
 		engine->fb.takedown		= nv40_fb_takedown;
 		engine->fb.set_region_tiling	= nv40_fb_set_region_tiling;
@@ -285,9 +275,6 @@ static int nouveau_init_engine_ptrs(struct drm_device *dev)
 		engine->instmem.finish_access	= nv50_instmem_finish_access;
 		engine->mc.init			= nv50_mc_init;
 		engine->mc.takedown		= nv50_mc_takedown;
-		engine->timer.init		= nv04_timer_init;
-		engine->timer.read		= nv04_timer_read;
-		engine->timer.takedown		= nv04_timer_takedown;
 		engine->fb.init			= nv50_fb_init;
 		engine->fb.takedown		= nv50_fb_takedown;
 		engine->graph.grclass		= nv50_graph_grclass;
@@ -468,12 +455,12 @@ nouveau_card_init(struct drm_device *dev)
 	ret = engine->mc.init(dev);
 	if (ret)
 		goto out_gpuobj;
-
+#endif
 	/* PTIMER */
 	ret = engine->timer.init(dev);
 	if (ret)
 		goto out_mc;
-
+#if 0
 	/* PFB */
 	ret = engine->fb.init(dev);
 	if (ret)
@@ -550,8 +537,10 @@ out_graph:
 out_fb:
 	engine->fb.takedown(dev);
 out_timer:
+#endif
 	engine->timer.takedown(dev);
 out_mc:
+#if 0
 	engine->mc.takedown(dev);
 out_gpuobj:
 	nouveau_gpuobj_takedown(dev);
