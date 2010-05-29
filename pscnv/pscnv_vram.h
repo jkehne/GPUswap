@@ -39,6 +39,8 @@ struct pscnv_vo {
 	int tile_flags;
 	/* cookie: free-form 32-bit number displayed in debug info. */
 	uint32_t cookie;
+	/* only used for debug */
+	int serial;
 	/* a linked list of VRAM regions making up this VO. */
 	struct list_head regions;
 };
@@ -69,6 +71,7 @@ struct pscnv_vram_region {
 	} type;
 	uint64_t start;
 	uint64_t size;
+	struct pscnv_vo *vo;
 };
 
 extern int pscnv_vram_init(struct drm_device *);

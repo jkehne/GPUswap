@@ -233,6 +233,7 @@ struct pscnv_vo *
 pscnv_vram_alloc(struct drm_device *dev,
 		uint64_t size, int flags, int tile_flags, uint32_t cookie)
 {
+	static int serial = 0;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	int lsr;
 	struct pscnv_vo *res;
@@ -323,8 +324,9 @@ pscnv_vram_alloc(struct drm_device *dev,
 	INIT_LIST_HEAD(&res->regions);
 
 	mutex_lock(&dev_priv->vram_mutex);
+	res->serial = serial++;
 #ifdef PSCNV_VRAM_DEBUG
-	NV_INFO(dev, "Allocating %#llx-byte %sVO of type %08x, tile_flags %x\n", size,
+	NV_INFO(dev, "Allocating %d, %#llx-byte %sVO of type %08x, tile_flags %x\n", res->serial, size,
 			(flags & PSCNV_VO_CONTIG ? "contig " : ""), cookie, tile_flags);
 #endif
 	if (list_empty(&dev_priv->vram_free_list)) {
@@ -390,6 +392,7 @@ pscnv_vram_alloc(struct drm_device *dev,
 #ifdef PSCNV_VRAM_DEBUG
 				NV_INFO (dev, "Using block at %llx-%llx\n",
 						cur->start, cur->start + cur->size);
+				cur->vo = res;
 #endif
 				size -= cur->size;
 			}
@@ -460,7 +463,7 @@ pscnv_vram_free(struct pscnv_vo *vo)
 {
 	struct list_head *pos, *next;
 #ifdef PSCNV_VRAM_DEBUG
-	NV_INFO(vo->dev, "Freeing %#llx-byte %sVO of type %08x, tile_flags %x\n", vo->size,
+	NV_INFO(vo->dev, "Freeing %d, %#llx-byte %sVO of type %08x, tile_flags %x\n", vo->serial, vo->size,
 			(vo->flags & PSCNV_VO_CONTIG ? "contig " : ""), vo->cookie, vo->tile_flags);
 #endif
 	list_for_each_safe(pos, next, &vo->regions) {
