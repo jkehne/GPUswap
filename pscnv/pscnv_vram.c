@@ -407,8 +407,8 @@ pscnv_vram_alloc(struct drm_device *dev,
 #ifdef PSCNV_VRAM_DEBUG
 				NV_INFO (dev, "Using block at %llx-%llx\n",
 						cur->start, cur->start + cur->size);
-				cur->vo = res;
 #endif
+				cur->vo = res;
 				size -= cur->size;
 			}
 			if (!size) {
