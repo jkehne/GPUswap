@@ -43,6 +43,20 @@ static int nouveau_init_engine_ptrs(struct drm_device *dev)
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct nouveau_engine *engine = &dev_priv->engine;
 
+	/* PMC */
+	/* XXX: This is some kind of a joke. 3 files and 6 functions for
+	 * a total of 5 reg writes... inline & nuke? */
+	if (dev_priv->card_type < NV_40) {
+		engine->mc.init			= nv04_mc_init;
+		engine->mc.takedown		= nv04_mc_takedown;
+	} else if (dev_priv->card_type == NV_40) {
+		engine->mc.init			= nv40_mc_init;
+		engine->mc.takedown		= nv40_mc_takedown;
+	} else {
+		engine->mc.init			= nv50_mc_init;
+		engine->mc.takedown		= nv50_mc_takedown;
+	}
+
 	/* PTIMER */
 	engine->timer.init		= nv04_timer_init;
 	engine->timer.read		= nv04_timer_read;
@@ -61,8 +75,6 @@ static int nouveau_init_engine_ptrs(struct drm_device *dev)
 		engine->instmem.unbind		= nv04_instmem_unbind;
 		engine->instmem.prepare_access	= nv04_instmem_prepare_access;
 		engine->instmem.finish_access	= nv04_instmem_finish_access;
-		engine->mc.init			= nv04_mc_init;
-		engine->mc.takedown		= nv04_mc_takedown;
 		engine->fb.init			= nv04_fb_init;
 		engine->fb.takedown		= nv04_fb_takedown;
 		engine->graph.grclass		= nv04_graph_grclass;
@@ -101,8 +113,6 @@ static int nouveau_init_engine_ptrs(struct drm_device *dev)
 		engine->instmem.unbind		= nv04_instmem_unbind;
 		engine->instmem.prepare_access	= nv04_instmem_prepare_access;
 		engine->instmem.finish_access	= nv04_instmem_finish_access;
-		engine->mc.init			= nv04_mc_init;
-		engine->mc.takedown		= nv04_mc_takedown;
 		engine->fb.init			= nv10_fb_init;
 		engine->fb.takedown		= nv10_fb_takedown;
 		engine->fb.set_region_tiling	= nv10_fb_set_region_tiling;
@@ -143,8 +153,6 @@ static int nouveau_init_engine_ptrs(struct drm_device *dev)
 		engine->instmem.unbind		= nv04_instmem_unbind;
 		engine->instmem.prepare_access	= nv04_instmem_prepare_access;
 		engine->instmem.finish_access	= nv04_instmem_finish_access;
-		engine->mc.init			= nv04_mc_init;
-		engine->mc.takedown		= nv04_mc_takedown;
 		engine->fb.init			= nv10_fb_init;
 		engine->fb.takedown		= nv10_fb_takedown;
 		engine->fb.set_region_tiling	= nv10_fb_set_region_tiling;
@@ -185,8 +193,6 @@ static int nouveau_init_engine_ptrs(struct drm_device *dev)
 		engine->instmem.unbind		= nv04_instmem_unbind;
 		engine->instmem.prepare_access	= nv04_instmem_prepare_access;
 		engine->instmem.finish_access	= nv04_instmem_finish_access;
-		engine->mc.init			= nv04_mc_init;
-		engine->mc.takedown		= nv04_mc_takedown;
 		engine->fb.init			= nv10_fb_init;
 		engine->fb.takedown		= nv10_fb_takedown;
 		engine->fb.set_region_tiling	= nv10_fb_set_region_tiling;
@@ -228,8 +234,6 @@ static int nouveau_init_engine_ptrs(struct drm_device *dev)
 		engine->instmem.unbind		= nv04_instmem_unbind;
 		engine->instmem.prepare_access	= nv04_instmem_prepare_access;
 		engine->instmem.finish_access	= nv04_instmem_finish_access;
-		engine->mc.init			= nv40_mc_init;
-		engine->mc.takedown		= nv40_mc_takedown;
 		engine->fb.init			= nv40_fb_init;
 		engine->fb.takedown		= nv40_fb_takedown;
 		engine->fb.set_region_tiling	= nv40_fb_set_region_tiling;
@@ -273,8 +277,6 @@ static int nouveau_init_engine_ptrs(struct drm_device *dev)
 		engine->instmem.unbind		= nv50_instmem_unbind;
 		engine->instmem.prepare_access	= nv50_instmem_prepare_access;
 		engine->instmem.finish_access	= nv50_instmem_finish_access;
-		engine->mc.init			= nv50_mc_init;
-		engine->mc.takedown		= nv50_mc_takedown;
 		engine->fb.init			= nv50_fb_init;
 		engine->fb.takedown		= nv50_fb_takedown;
 		engine->graph.grclass		= nv50_graph_grclass;
@@ -450,12 +452,12 @@ nouveau_card_init(struct drm_device *dev)
 	ret = nouveau_gpuobj_init(dev);
 	if (ret)
 		goto out_mem;
-
+#endif
 	/* PMC */
 	ret = engine->mc.init(dev);
 	if (ret)
 		goto out_gpuobj;
-#endif
+
 	/* PTIMER */
 	ret = engine->timer.init(dev);
 	if (ret)
@@ -540,9 +542,9 @@ out_timer:
 #endif
 	engine->timer.takedown(dev);
 out_mc:
-#if 0
 	engine->mc.takedown(dev);
 out_gpuobj:
+#if 0
 	nouveau_gpuobj_takedown(dev);
 out_mem:
 	nouveau_sgdma_takedown(dev);

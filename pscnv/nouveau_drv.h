@@ -1039,6 +1039,7 @@ extern int  nv50_instmem_unbind(struct drm_device *, struct nouveau_gpuobj *);
 extern void nv50_instmem_prepare_access(struct drm_device *, bool write);
 extern void nv50_instmem_finish_access(struct drm_device *);
 
+#endif
 /* nv04_mc.c */
 extern int  nv04_mc_init(struct drm_device *);
 extern void nv04_mc_takedown(struct drm_device *);
@@ -1051,7 +1052,6 @@ extern void nv40_mc_takedown(struct drm_device *);
 extern int  nv50_mc_init(struct drm_device *);
 extern void nv50_mc_takedown(struct drm_device *);
 
-#endif
 /* nv04_timer.c */
 extern int  nv04_timer_init(struct drm_device *);
 extern uint64_t nv04_timer_read(struct drm_device *);
