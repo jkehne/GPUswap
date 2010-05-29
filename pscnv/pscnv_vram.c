@@ -226,7 +226,22 @@ int
 pscnv_vram_takedown(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	/* XXX: write me */
+	struct list_head *pos, *next;
+restart:
+	list_for_each_safe(pos, next, &dev_priv->vram_global_list) {
+		struct pscnv_vram_region *reg = list_entry(pos, struct pscnv_vram_region, local_list);
+		if (reg->type > PSCNV_VRAM_LAST_FREE) {
+			NV_ERROR(dev, "VO %d of type %08x still exists at takedown!\n",
+					reg->vo->serial, reg->vo->cookie);
+			pscnv_vram_free(reg->vo);
+			goto restart;
+		}
+	}
+	list_for_each_safe(pos, next, &dev_priv->vram_global_list) {
+		struct pscnv_vram_region *reg = list_entry(pos, struct pscnv_vram_region, local_list);
+		kfree (reg);
+	}
+	return 0;
 }
 
 struct pscnv_vo *
