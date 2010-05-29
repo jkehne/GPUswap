@@ -43,6 +43,7 @@
 #include "nouveau_reg.h"
 #endif
 #include "nouveau_bios.h"
+#include "pscnv_vram.h"
 struct nouveau_grctx;
 
 #define MAX_NUM_DCB_ENTRIES 16
@@ -508,8 +509,6 @@ struct drm_nouveau_private {
 	void __iomem *ramin;
 	uint32_t ramin_size;
 
-	struct nouveau_bo *vga_ram;
-
 	struct workqueue_struct *wq;
 	struct work_struct irq_work;
 	struct work_struct hpd_work;
@@ -566,14 +565,10 @@ struct drm_nouveau_private {
 	uint64_t fb_aper_free;
 	int fb_mtrr;
 
-	/* G8x/G9x virtual address space */
-	uint64_t vm_gart_base;
-	uint64_t vm_gart_size;
-	uint64_t vm_vram_base;
-	uint64_t vm_vram_size;
-	uint64_t vm_end;
-	struct nouveau_gpuobj *vm_vram_pt[NV50_VM_VRAM_NR];
-	int vm_vram_pt_nr;
+	struct list_head vram_global_list;
+	struct list_head vram_free_list;
+	uint32_t vram_rblock_size;
+	struct mutex vram_mutex;
 
 	struct mem_block *ramin_heap;
 

@@ -441,15 +441,12 @@ nouveau_card_init(struct drm_device *dev)
 		if (ret)
 			goto out;
 	}
+
+	ret = pscnv_vram_init(dev);
+	if (ret)
+		goto out_bios;
+
 #if 0
-	ret = nouveau_mem_detect(dev);
-	if (ret)
-		goto out_bios;
-
-	ret = nouveau_gpuobj_early_init(dev);
-	if (ret)
-		goto out_bios;
-
 	/* Initialise instance memory, must happen before mem_init so we
 	 * know exactly how much VRAM we're able to use for "normal"
 	 * purposes.
@@ -563,10 +560,9 @@ out_mem:
 	nouveau_mem_close(dev);
 out_instmem:
 	engine->instmem.takedown(dev);
-out_gpuobj_early:
-	nouveau_gpuobj_late_takedown(dev);
-out_bios:
 #endif
+	pscnv_vram_takedown(dev);
+out_bios:
 	nouveau_bios_takedown(dev);
 out:
 	vga_client_register(dev->pdev, NULL, NULL, NULL);
@@ -879,9 +875,6 @@ int nouveau_ioctl_getparam(struct drm_device *dev, void *data,
 		break;
 	case NOUVEAU_GETPARAM_AGP_SIZE:
 		getparam->value = dev_priv->gart_info.aper_size;
-		break;
-	case NOUVEAU_GETPARAM_VM_VRAM_BASE:
-		getparam->value = dev_priv->vm_vram_base;
 		break;
 	case NOUVEAU_GETPARAM_GRAPH_UNITS:
 		/* NV40 and NV50 versions are quite different, but register
