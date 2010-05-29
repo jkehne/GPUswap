@@ -6,3 +6,4 @@ pscnv/Module.symvers
 pscnv/modules.order
 pscnv/pscnv.ko
 pscnv/pscnv.mod.c
+test/get_param

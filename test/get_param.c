@@ -28,58 +28,35 @@
 #include <assert.h>
 #include <errno.h>
 #include "drm.h"
+#include <xf86drm.h>
 #include <stdio.h>
-#include "nouveau_drm.h"
-
-
-/** Open the first DRM device we can find, searching up to 16 device nodes */
-int drm_open_any(void)
-{
-	char name[20];
-	int i, fd;
-
-	for (i = 0; i < 16; i++) {
-		sprintf(name, "/dev/fbs/drm%d", i);
-		fd = open(name, O_RDWR);
-		if (fd != -1) {
-
-			return fd;
-		}
-	}
-	printf("Failed to open drm");
-	return -1;
-}
-
-
+#include "pscnv_drm.h"
 
 int DoTest(int fd)
 {
-	struct drm_nouveau_getparam get_param;
+	struct drm_pscnv_getparam get_param;
 	int ret;
 	int i, j;
-	uint64_t tmp[11];
-	char param_name[11][15] = {"chipset_id", "vender", "device", "bus type",
-					"fb addr", "AGP addr", "PCI addr", "FB size",
-					"agp size", "vm vram base", "graph units"};
+	uint64_t tmp[8];
+	char param_name[8][15] = {"chipset_id", "vendor", "device", "bus type",
+					"graph units", "ptimer time",
+					"pfb config", "vram size"};
 
-	tmp[0] = NOUVEAU_GETPARAM_CHIPSET_ID;
-	tmp[1] = NOUVEAU_GETPARAM_PCI_VENDOR;
-	tmp[2] = NOUVEAU_GETPARAM_PCI_DEVICE;
-	tmp[3] = NOUVEAU_GETPARAM_BUS_TYPE;
-	tmp[4] = NOUVEAU_GETPARAM_FB_PHYSICAL;
-	tmp[5] = NOUVEAU_GETPARAM_AGP_PHYSICAL;
-	tmp[6] = NOUVEAU_GETPARAM_PCI_PHYSICAL;
-	tmp[7] = NOUVEAU_GETPARAM_FB_SIZE;
-	tmp[8] = NOUVEAU_GETPARAM_AGP_SIZE;
-	tmp[9] = NOUVEAU_GETPARAM_VM_VRAM_BASE;
-	tmp[10] = NOUVEAU_GETPARAM_GRAPH_UNITS;
+	tmp[0] = PSCNV_GETPARAM_CHIPSET_ID;
+	tmp[1] = PSCNV_GETPARAM_PCI_VENDOR;
+	tmp[2] = PSCNV_GETPARAM_PCI_DEVICE;
+	tmp[3] = PSCNV_GETPARAM_BUS_TYPE;
+	tmp[4] = PSCNV_GETPARAM_GRAPH_UNITS;
+	tmp[5] = PSCNV_GETPARAM_PTIMER_TIME;
+	tmp[6] = PSCNV_GETPARAM_PFB_CONFIG;
+	tmp[7] = PSCNV_GETPARAM_VRAM_SIZE;
 
 	
-	for (i = 0; i < 11; i++) {
+	for (i = 0; i < 8; i++) {
 		get_param.param = tmp[i];
-		ret = ioctl(fd, DRM_IOCTL_NOUVEAU_GETPARAM, &get_param);
+		ret = drmCommandWriteRead(fd, DRM_PSCNV_GETPARAM, &get_param, sizeof(get_param));
 		if (ret==0) {
-			printf("%s : 0x%x\n", param_name[i], get_param.value);
+			printf("%s : 0x%llx\n", param_name[i], get_param.value);
 		} else {
 			printf("%s : failed ret = %d\n", param_name[i], ret);
 		}
@@ -94,7 +71,7 @@ main()
 	int fd;
 	int result;
 	
-        fd = drm_open_any();
+        fd = drmOpen("pscnv", 0);
 
 	if (fd == -1)
 		return fd;

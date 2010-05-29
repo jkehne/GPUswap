@@ -1,1 +1,2 @@
-gcc -I../nouveau -I../drm -o get_param get_param.c
+get_param: get_param.c
+	gcc -I../pscnv -I/usr/include/libdrm -o get_param get_param.c -ldrm
