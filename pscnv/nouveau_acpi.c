@@ -9,7 +9,7 @@
 #include "drm_sarea.h"
 #include "drm_crtc_helper.h"
 #include "nouveau_drv.h"
-#include "nouveau_drm.h"
+#include "pscnv_drm.h"
 
 #include <linux/vga_switcheroo.h>
 

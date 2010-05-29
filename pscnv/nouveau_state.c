@@ -33,7 +33,7 @@
 #include <linux/vga_switcheroo.h>
 
 #include "nouveau_drv.h"
-#include "nouveau_drm.h"
+#include "pscnv_drm.h"
 #include "nouveau_reg.h"
 
 static void nouveau_stub_takedown(struct drm_device *dev) {}
@@ -829,54 +829,43 @@ int nouveau_unload(struct drm_device *dev)
 	return 0;
 }
 
-int nouveau_ioctl_getparam(struct drm_device *dev, void *data,
+int pscnv_ioctl_getparam(struct drm_device *dev, void *data,
 						struct drm_file *file_priv)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct drm_nouveau_getparam *getparam = data;
+	struct drm_pscnv_getparam *getparam = data;
 
 	NOUVEAU_CHECK_INITIALISED_WITH_RETURN;
 
 	switch (getparam->param) {
-	case NOUVEAU_GETPARAM_CHIPSET_ID:
+	case PSCNV_GETPARAM_CHIPSET_ID:
 		getparam->value = dev_priv->chipset;
 		break;
-	case NOUVEAU_GETPARAM_PCI_VENDOR:
+	case PSCNV_GETPARAM_PCI_VENDOR:
 		getparam->value = dev->pci_vendor;
 		break;
-	case NOUVEAU_GETPARAM_PCI_DEVICE:
+	case PSCNV_GETPARAM_PCI_DEVICE:
 		getparam->value = dev->pci_device;
 		break;
-/*	case NOUVEAU_GETPARAM_BUS_TYPE:
+	case PSCNV_GETPARAM_BUS_TYPE:
 		if (drm_device_is_agp(dev))
 			getparam->value = NV_AGP;
 		else if (drm_device_is_pcie(dev))
 			getparam->value = NV_PCIE;
 		else
 			getparam->value = NV_PCI;
-		break;*/
-	case NOUVEAU_GETPARAM_FB_PHYSICAL:
-		getparam->value = dev_priv->fb_phys;
 		break;
-	case NOUVEAU_GETPARAM_AGP_PHYSICAL:
-		getparam->value = dev_priv->gart_info.aper_base;
+	case PSCNV_GETPARAM_PTIMER_TIME:
+		getparam->value = dev_priv->engine.timer.read(dev);
 		break;
-	case NOUVEAU_GETPARAM_PCI_PHYSICAL:
-		if (dev->sg) {
-			getparam->value = (unsigned long)dev->sg->virtual;
-		} else {
-			NV_ERROR(dev, "Requested PCIGART address, "
-					"while no PCIGART was created\n");
-			return -EINVAL;
-		}
+	case PSCNV_GETPARAM_VRAM_SIZE:
+		getparam->value = dev_priv->vram_size;
 		break;
-	case NOUVEAU_GETPARAM_FB_SIZE:
-		getparam->value = dev_priv->fb_available_size;
+	case PSCNV_GETPARAM_PFB_CONFIG:
+		/* XXX: disallow for cards which don't have it. */
+		getparam->value = nv_rd32(dev, 0x100204);
 		break;
-	case NOUVEAU_GETPARAM_AGP_SIZE:
-		getparam->value = dev_priv->gart_info.aper_size;
-		break;
-	case NOUVEAU_GETPARAM_GRAPH_UNITS:
+	case PSCNV_GETPARAM_GRAPH_UNITS:
 		/* NV40 and NV50 versions are quite different, but register
 		 * address is the same. User is supposed to know the card
 		 * family anyway... */

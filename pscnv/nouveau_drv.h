@@ -38,7 +38,7 @@
 
 #define DRM_FILE_PAGE_OFFSET (0x100000000ULL >> PAGE_SHIFT)
 
-#include "nouveau_drm.h"
+#include "pscnv_drm.h"
 #if 0
 #include "nouveau_reg.h"
 #endif
@@ -673,7 +673,7 @@ extern int  nouveau_load(struct drm_device *, unsigned long flags);
 extern int  nouveau_firstopen(struct drm_device *);
 extern void nouveau_lastclose(struct drm_device *);
 extern int  nouveau_unload(struct drm_device *);
-extern int  nouveau_ioctl_getparam(struct drm_device *, void *data,
+extern int  pscnv_ioctl_getparam(struct drm_device *, void *data,
 				   struct drm_file *);
 extern bool nouveau_wait_until(struct drm_device *, uint64_t timeout,
 			       uint32_t reg, uint32_t mask, uint32_t val);
