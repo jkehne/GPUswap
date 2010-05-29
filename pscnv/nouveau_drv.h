@@ -570,6 +570,11 @@ struct drm_nouveau_private {
 	uint32_t vram_rblock_size;
 	struct mutex vram_mutex;
 
+	/* for slow-path nv_wv32/nv_rv32 */
+
+	spinlock_t pramin_lock;
+	uint64_t pramin_start;
+
 	struct mem_block *ramin_heap;
 
 	/* context table pointed to be NV_PGRAPH_CHANNEL_CTX_TABLE (0x400780) */
@@ -1336,5 +1341,37 @@ nv_two_reg_pll(struct drm_device *dev)
 #define NV_SW_VBLSEM_RELEASE                                         0x00000408
 
 #endif
+
+/* object access */
+
+static inline uint32_t nv_rv32(struct drm_device *dev, struct pscnv_vo *vo,
+				unsigned offset)
+{
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	uint32_t res;
+	uint64_t addr = vo->start + offset;
+	spin_lock(&dev_priv->pramin_lock);
+	if (addr >> 16 != dev_priv->pramin_start) {
+		dev_priv->pramin_start = addr >> 16;
+		nv_wr32(dev, 0x1700, addr >> 16);
+	}
+	res = nv_rd32(dev, 0x700000 + (addr & 0xffff));
+	spin_unlock(&dev_priv->pramin_lock);
+	return res;
+}
+
+static inline void nv_wv32(struct drm_device *dev, struct pscnv_vo *vo,
+				unsigned offset, uint32_t val)
+{
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	uint64_t addr = vo->start + offset;
+	spin_lock(&dev_priv->pramin_lock);
+	if (addr >> 16 != dev_priv->pramin_start) {
+		dev_priv->pramin_start = addr >> 16;
+		nv_wr32(dev, 0x1700, addr >> 16);
+	}
+	nv_wr32(dev, 0x700000 + (addr & 0xffff), val);
+	spin_unlock(&dev_priv->pramin_lock);
+}
 
 #endif /* __NOUVEAU_DRV_H__ */

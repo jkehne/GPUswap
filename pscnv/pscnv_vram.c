@@ -195,6 +195,7 @@ pscnv_vram_init(struct drm_device *dev)
 	INIT_LIST_HEAD(&dev_priv->vram_global_list);
 	INIT_LIST_HEAD(&dev_priv->vram_free_list);
 	mutex_init(&dev_priv->vram_mutex);
+	spin_lock_init(&dev_priv->pramin_lock);
 
 	if (dev_priv->card_type != NV_50) {
 		NV_ERROR(dev, "Sorry, no memory allocator for NV%02x. Bailing.\n",
