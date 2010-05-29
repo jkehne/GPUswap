@@ -196,6 +196,12 @@ pscnv_vram_init(struct drm_device *dev)
 	INIT_LIST_HEAD(&dev_priv->vram_free_list);
 	mutex_init(&dev_priv->vram_mutex);
 
+	if (dev_priv->card_type != NV_50) {
+		NV_ERROR(dev, "Sorry, no memory allocator for NV%02x. Bailing.\n",
+				dev_priv->chipset);
+		return -EINVAL;
+	}
+
 	/* XXX: figure out what happens on teslas with 4GB of mem. */
 	dev_priv->vram_size = nv_rd32(dev, 0x10020c);
 	if (dev_priv->chipset == 0xaa || dev_priv->chipset == 0xac)
