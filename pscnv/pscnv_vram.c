@@ -400,7 +400,57 @@ pscnv_vram_alloc(struct drm_device *dev,
 		}
 		cur = next;
 	}
-	/* XXX: free */
+	/* no free blocks. remove what we managed to alloc and fail. */
+	mutex_unlock(&dev_priv->vram_mutex);
+	pscnv_vram_free(res);
+	return 0;
+}
+
+static int
+pscnv_vram_free_region (struct drm_device *dev, struct pscnv_vram_region *reg) {
+	int lsr;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct pscnv_vram_region *next, *prev;
+	if (reg->type == PSCNV_VRAM_USED_LSR) {
+		reg->type = PSCNV_VRAM_FREE_LSR;
+		lsr = 1;
+	} else if (reg->type == PSCNV_VRAM_USED_SANE) {
+		reg->type = PSCNV_VRAM_FREE_SANE;
+		lsr = 0;
+	} else {
+		NV_ERROR (dev, "Trying to free block %llx-%llx of type %d.\n",
+				reg->start, reg->start+reg->size, reg->type);
+		return -EINVAL;
+	}
+	mutex_lock(&dev_priv->vram_mutex);
+#ifdef PSCNV_VRAM_DEBUG
+	NV_INFO (dev, "Freeing block %llx-%llx of type %d.\n",
+			reg->start, reg->start+reg->size, reg->type);
+#endif
+	list_del(&reg->local_list);
+	next = pscnv_vram_global_next(dev, reg);
+	prev = pscnv_vram_global_prev(dev, reg);
+	/* search in both directions for the nearest free block. */
+	while (1) {
+		if (next && next->type <= PSCNV_VRAM_FREE_LSR) {
+			list_add_tail(&reg->local_list, &next->local_list);
+			break;
+		} else if (prev && prev->type <= PSCNV_VRAM_LAST_FREE) {
+			list_add(&reg->local_list, &prev->local_list);
+			break;
+		} else if (!next) {
+			list_add_tail(&reg->local_list, &dev_priv->vram_free_list);
+			break;
+		} else if (!prev) {
+			list_add(&reg->local_list, &dev_priv->vram_free_list);
+			break;
+		} else {
+			next = pscnv_vram_global_next(dev, next);
+			prev = pscnv_vram_global_prev(dev, prev);
+		}
+	}
+	reg = pscnv_vram_try_merge_adjacent (dev, reg);
+	pscnv_vram_try_untype (dev, reg);
 	mutex_unlock(&dev_priv->vram_mutex);
 	return 0;
 }
@@ -408,5 +458,15 @@ pscnv_vram_alloc(struct drm_device *dev,
 int
 pscnv_vram_free(struct pscnv_vo *vo)
 {
-	/* XXX: write me */
+	struct list_head *pos, *next;
+#ifdef PSCNV_VRAM_DEBUG
+	NV_INFO(vo->dev, "Freeing %#llx-byte %sVO of type %08x, tile_flags %x\n", vo->size,
+			(vo->flags & PSCNV_VO_CONTIG ? "contig " : ""), vo->cookie, vo->tile_flags);
+#endif
+	list_for_each_safe(pos, next, &vo->regions) {
+		struct pscnv_vram_region *reg = list_entry(pos, struct pscnv_vram_region, local_list);
+		pscnv_vram_free_region (vo->dev, reg);
+	}
+	kfree (vo);
+	return 0;
 }
