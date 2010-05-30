@@ -388,6 +388,10 @@ pscnv_vram_alloc(struct drm_device *dev,
 			return 0;
 	}
 
+	/* avoid all sorts of integer overflows possible otherwise. */
+	if (size >= (1ULL << 40))
+		return 0;
+
 	res = kmalloc (sizeof *res, GFP_KERNEL);
 	if (!res)
 		return 0;
