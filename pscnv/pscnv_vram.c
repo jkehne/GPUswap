@@ -268,7 +268,7 @@ pscnv_vram_init(struct drm_device *dev)
 	 */
 	dev_priv->vram_rblock_size = rowsize * 3;
 
-	NV_INFO(dev, "VRAM: size 0x%llx, LSR period %llx\n",
+	NV_INFO(dev, "VRAM: size 0x%llx, LSR period %x\n",
 			dev_priv->vram_size, dev_priv->vram_rblock_size);
 
 	allmem = kmalloc (sizeof *allmem, GFP_KERNEL);
