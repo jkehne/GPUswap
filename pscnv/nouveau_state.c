@@ -603,6 +603,7 @@ static void nouveau_card_takedown(struct drm_device *dev)
 
 		nouveau_gpuobj_late_takedown(dev);
 #endif
+		pscnv_vram_takedown(dev);
 		nouveau_bios_takedown(dev);
 
 		vga_client_register(dev->pdev, NULL, NULL, NULL);
