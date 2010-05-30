@@ -192,6 +192,9 @@ pscnv_vram_init(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct pscnv_vram_region *allmem;
+	uint32_t r0, r4, rc, ru;
+	int parts, i, colbits, rowbitsa, rowbitsb, banks;
+	uint64_t rowsize, predicted;
 	INIT_LIST_HEAD(&dev_priv->vram_global_list);
 	INIT_LIST_HEAD(&dev_priv->vram_free_list);
 	mutex_init(&dev_priv->vram_mutex);
@@ -203,13 +206,67 @@ pscnv_vram_init(struct drm_device *dev)
 		return -EINVAL;
 	}
 
-	/* XXX: figure out what happens on teslas with 4GB of mem. */
-	dev_priv->vram_size = nv_rd32(dev, 0x10020c);
+	r0 = nv_rd32(dev, 0x100200);
+	r4 = nv_rd32(dev, 0x100204);
+	rc = nv_rd32(dev, 0x10020c);
+	ru = nv_rd32(dev, 0x1540);
+	NV_INFO (dev, "Memory config regs: %08x %08x %08x %08x\n", r0, r4, rc, ru);
+
+	parts = 0;
+	for (i = 0; i < 8; i++)
+		if (ru & (1 << (i + 16)))
+			parts++;
+	colbits = (r4 >> 12) & 0xf;
+	rowbitsa = ((r4 >> 16) & 0xf) + 8;
+	rowbitsb = ((r4 >> 20) & 0xf) + 8;
+	banks = ((r4 & 1 << 24) ? 8 : 4);
+	rowsize = parts * banks * (1 << colbits) * 8;
+	predicted = rowsize << rowbitsa;
+	if (r0 & 4)
+		predicted += rowsize << rowbitsb;
+
+	dev_priv->vram_size = (rc & 0xfffff000) | ((uint64_t)rc & 0xff) << 32;
+	if (!dev_priv->vram_size) {
+		NV_ERROR(dev, "Memory controller claims 0 VRAM - aborting.\n");
+		return -ENODEV;
+	}
+	if (dev_priv->vram_size != predicted) {
+		NV_WARN(dev, "Memory controller reports VRAM size of 0x%llx, inconsistent with our calculation of 0x%llx!\n", dev_priv->vram_size, predicted);
+	}
 	if (dev_priv->chipset == 0xaa || dev_priv->chipset == 0xac)
 		dev_priv->vram_sys_base = (uint64_t)nv_rd32(dev, 0x100e10) << 12;
 
-	/* XXX: figure out this motherfucker. */
-	dev_priv->vram_rblock_size = 0x8000 * 12;
+	/* XXX: this is still not entirely correct.
+	 *
+	 * There seem to be two kinds of LSR, called the POT way and the NPOT way.
+	 * The problem is that we don't know which one the card uses.
+	 *
+	 * the POT way: reordering units are 1/4 the row size [ie. 1 or 2 banks].
+	 * Reordering block is 12 units long [ie. 3 rows], pattern is: 1 0 3 2 5 4 8 10 6 11 7 9
+	 *
+	 * the NPOT way: reordering unit is a single bank
+	 * Roerdering block is 4 or 8 units long, depending on bank count [ie. 1 row].
+	 * Pattern is 2 1 3 0 for 4 banks, 4 6 1 3 5 7 0 2 for 8 banks.
+	 *
+	 * The POT way has been observed so far only on cards with 1 or 2
+	 * memory partitions [ie. 64-bit or 128-bit memory bus]. The NPOT way
+	 * has been observed on cards with 6 and 7 memory partitions
+	 * [NV50, NVA0], and seems to be used on them even if all but 1, 2 or 4
+	 * memory partitions are manually disabled. So there are several
+	 * possibilities:
+	 *
+	 *  - There's a switch somewhere in PFB that chooses the LSR mode
+	 *  - POT way was added on NV84+ and is auto-enabled when partition count
+	 *    is a POT. I didn't notice that because I did my test on NV50.
+	 *  - POT/NPOT way selection depends on the chipset and nothing else.
+	 *    chipsets with max partition count of 1/2 just happen to use
+	 *    the POT way.
+	 *
+	 * So we don't really know how to determine the LSR kind used. However,
+	 * since period of the POT way is conveniently a multiple of NPOT
+	 * way's period, we just use the larger one for safety.
+	 */
+	dev_priv->vram_rblock_size = rowsize * 3;
 
 	allmem = kmalloc (sizeof *allmem, GFP_KERNEL);
 	if (!allmem)
