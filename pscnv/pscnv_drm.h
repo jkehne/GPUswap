@@ -38,8 +38,8 @@
 #define PSCNV_GETPARAM_PFB_CONFIG      15
 #define PSCNV_GETPARAM_VRAM_SIZE       16
 struct drm_pscnv_getparam {
-	uint64_t param;
-	uint64_t value;
+	uint64_t param;		/* < */
+	uint64_t value;		/* > */
 };
 
 enum pscnv_bus_type {
@@ -48,6 +48,27 @@ enum pscnv_bus_type {
 	NV_PCIE    = 2,
 };
 
-#define DRM_PSCNV_GETPARAM           0x00
+/* used for gem_new and gem_info */
+struct drm_pscnv_gem_info {	/* n i */
+	/* GEM handle used for identification */
+	uint32_t handle;	/* > < */
+	/* cookie: free-form 32-bit number displayed in debug info. */
+	uint32_t cookie;	/* < > */
+	/* misc flags, see below. */
+	uint32_t flags;		/* < > */
+	uint32_t tile_flags;	/* < > */
+	uint64_t size;		/* < > */
+	/* offset inside drm fd's vm space usable for mmapping */
+	uint64_t map_handle;	/* > > */
+	/* unused by kernel, can be used by userspace to store some info,
+	 * like buffer format and tile_mode for DRI2 */
+	uint32_t user[8];	/* < > */
+};
+#define PSCNV_GEM_CONTIG	0x00000001	/* needs to be contiguous in VRAM */
+
+#define DRM_PSCNV_GETPARAM           0x00	/* get some information from the card */
+#define DRM_PSCNV_GEM_NEW            0x20	/* create a new BO */
+#define DRM_PSCNV_GEM_INFO           0x21	/* get info about a BO */
+/* also uses generic GEM close, flink, open ioctls */
 
 #endif /* __PSCNV_DRM_H__ */
