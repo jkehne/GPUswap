@@ -39,9 +39,6 @@
 #define DRM_FILE_PAGE_OFFSET (0x100000000ULL >> PAGE_SHIFT)
 
 #include "pscnv_drm.h"
-#if 0
-#include "nouveau_reg.h"
-#endif
 #include "nouveau_bios.h"
 #include "pscnv_vram.h"
 struct nouveau_grctx;
@@ -55,74 +52,15 @@ struct nouveau_grctx;
 #define NV50_VM_BLOCK    (512*1024*1024ULL)
 #define NV50_VM_VRAM_NR  (NV50_VM_MAX_VRAM / NV50_VM_BLOCK)
 
-
+#if 0 /* for pre-NV50 */
 struct nouveau_tile_reg {
 	struct nouveau_fence *fence;
 	uint32_t addr;
 	uint32_t size;
 	bool used;
 };
-
-#if 0
-struct nouveau_bo {
-	struct ttm_buffer_object bo;
-	struct ttm_placement placement;
-	u32 placements[3];
-	u32 busy_placements[3];
-	struct ttm_bo_kmap_obj kmap;
-	struct list_head head;
-
-	/* protected by ttm_bo_reserve() */
-	struct drm_file *reserved_by;
-	struct list_head entry;
-	int pbbo_index;
-	bool validate_mapped;
-
-	struct nouveau_channel *channel;
-
-	bool mappable;
-	bool no_vm;
-
-	uint32_t tile_mode;
-	uint32_t tile_flags;
-	struct nouveau_tile_reg *tile;
-
-	struct drm_gem_object *gem;
-	struct drm_file *cpu_filp;
-	int pin_refcnt;
-};
-
-static inline struct nouveau_bo *
-nouveau_bo(struct ttm_buffer_object *bo)
-{
-	return container_of(bo, struct nouveau_bo, bo);
-}
-
-static inline struct nouveau_bo *
-nouveau_gem_object(struct drm_gem_object *gem)
-{
-	return gem ? gem->driver_private : NULL;
-}
-
-/* TODO: submit equivalent to TTM generic API upstream? */
-static inline void __iomem *
-nvbo_kmap_obj_iovirtual(struct nouveau_bo *nvbo)
-{
-	bool is_iomem;
-	void __iomem *ioptr = (void __force __iomem *)ttm_kmap_obj_virtual(
-						&nvbo->kmap, &is_iomem);
-	WARN_ON_ONCE(ioptr && !is_iomem);
-	return ioptr;
-}
-
-struct mem_block {
-	struct mem_block *next;
-	struct mem_block *prev;
-	uint64_t start;
-	uint64_t size;
-	struct drm_file *file_priv; /* NULL: free, -1: heap, other: real files */
-};
 #endif
+
 enum nouveau_flags {
 	NV_NFORCE   = 0x10000000,
 	NV_NFORCE2  = 0x20000000
@@ -520,9 +458,9 @@ struct drm_nouveau_private {
 	struct nouveau_engine engine;
 	struct nouveau_channel *channel;
 
-	/* For PFIFO and PGRAPH. */
-	spinlock_t context_switch_lock;
+	spinlock_t irq_lock;
 
+#if 0 /* relevant only for pre-NV50 */
 	/* RAMIN configuration, RAMFC, RAMHT and RAMRO offsets */
 	struct nouveau_gpuobj *ramht;
 	uint32_t ramin_rsvd_vram;
@@ -554,6 +492,7 @@ struct drm_nouveau_private {
 		struct nouveau_tile_reg reg[NOUVEAU_MAX_TILE_NR];
 		spinlock_t lock;
 	} tile;
+#endif
 
 	/* VRAM/fb configuration */
 	uint64_t vram_size;
@@ -575,13 +514,13 @@ struct drm_nouveau_private {
 	spinlock_t pramin_lock;
 	uint64_t pramin_start;
 
+#if 0 /* pre-NV50 only */
 	struct mem_block *ramin_heap;
 
 	/* context table pointed to be NV_PGRAPH_CHANNEL_CTX_TABLE (0x400780) */
 	uint32_t ctx_table_size;
 	struct nouveau_gpuobj_ref *ctx_table;
-
-	struct list_head gpuobj_list;
+#endif
 
 	struct nvbios vbios;
 
@@ -1127,27 +1066,6 @@ extern void nouveau_fence_unref(void **obj);
 extern void *nouveau_fence_ref(void *obj);
 extern void nouveau_fence_handler(struct drm_device *dev, int channel);
 
-/* nouveau_gem.c */
-extern int nouveau_gem_new(struct drm_device *, struct nouveau_channel *,
-			   int size, int align, uint32_t flags,
-			   uint32_t tile_mode, uint32_t tile_flags,
-			   bool no_vm, bool mappable, struct nouveau_bo **);
-extern int nouveau_gem_object_new(struct drm_gem_object *);
-extern void nouveau_gem_object_del(struct drm_gem_object *);
-extern int nouveau_gem_ioctl_new(struct drm_device *, void *,
-				 struct drm_file *);
-extern int nouveau_gem_ioctl_pushbuf(struct drm_device *, void *,
-				     struct drm_file *);
-extern int nouveau_gem_ioctl_cpu_prep(struct drm_device *, void *,
-				      struct drm_file *);
-extern int nouveau_gem_ioctl_cpu_fini(struct drm_device *, void *,
-				      struct drm_file *);
-extern int nouveau_gem_ioctl_info(struct drm_device *, void *,
-				  struct drm_file *);
-extern int nouveau_gem_ioctl_pin(struct drm_device *, void *,
-				 struct drm_file *);
-extern int nouveau_gem_ioctl_unpin(struct drm_device *, void *,
-				   struct drm_file *);
 #endif
 /* nv17_gpio.c */
 int nv17_gpio_get(struct drm_device *dev, enum dcb_gpio_tag tag);
@@ -1218,7 +1136,7 @@ static inline void nv_wr08(struct drm_device *dev, unsigned reg, u8 val)
 
 #define nv_wait(reg, mask, val) \
 	nouveau_wait_until(dev, 2000000000ULL, (reg), (mask), (val))
-#if 0
+#if 0 /* not removing yet - may be useful for pre-NV50 one day */
 /* PRAMIN access */
 static inline u32 nv_ri32(struct drm_device *dev, unsigned offset)
 {
@@ -1230,19 +1148,6 @@ static inline void nv_wi32(struct drm_device *dev, unsigned offset, u32 val)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	iowrite32_native(val, dev_priv->ramin + offset);
-}
-
-/* object access */
-static inline u32 nv_ro32(struct drm_device *dev, struct nouveau_gpuobj *obj,
-				unsigned index)
-{
-	return nv_ri32(dev, obj->im_pramin->start + index * 4);
-}
-
-static inline void nv_wo32(struct drm_device *dev, struct nouveau_gpuobj *obj,
-				unsigned index, u32 val)
-{
-	nv_wi32(dev, obj->im_pramin->start + index * 4, val);
 }
 #endif
 /*
@@ -1344,33 +1249,33 @@ nv_two_reg_pll(struct drm_device *dev)
 
 /* object access */
 
-static inline uint32_t nv_rv32(struct drm_device *dev, struct pscnv_vo *vo,
+static inline uint32_t nv_rv32(struct pscnv_vo *vo,
 				unsigned offset)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct drm_nouveau_private *dev_priv = vo->dev->dev_private;
 	uint32_t res;
 	uint64_t addr = vo->start + offset;
 	spin_lock(&dev_priv->pramin_lock);
 	if (addr >> 16 != dev_priv->pramin_start) {
 		dev_priv->pramin_start = addr >> 16;
-		nv_wr32(dev, 0x1700, addr >> 16);
+		nv_wr32(vo->dev, 0x1700, addr >> 16);
 	}
-	res = nv_rd32(dev, 0x700000 + (addr & 0xffff));
+	res = nv_rd32(vo->dev, 0x700000 + (addr & 0xffff));
 	spin_unlock(&dev_priv->pramin_lock);
 	return res;
 }
 
-static inline void nv_wv32(struct drm_device *dev, struct pscnv_vo *vo,
+static inline void nv_wv32(struct pscnv_vo *vo,
 				unsigned offset, uint32_t val)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct drm_nouveau_private *dev_priv = vo->dev->dev_private;
 	uint64_t addr = vo->start + offset;
 	spin_lock(&dev_priv->pramin_lock);
 	if (addr >> 16 != dev_priv->pramin_start) {
 		dev_priv->pramin_start = addr >> 16;
-		nv_wr32(dev, 0x1700, addr >> 16);
+		nv_wr32(vo->dev, 0x1700, addr >> 16);
 	}
-	nv_wr32(dev, 0x700000 + (addr & 0xffff), val);
+	nv_wr32(vo->dev, 0x700000 + (addr & 0xffff), val);
 	spin_unlock(&dev_priv->pramin_lock);
 }
 

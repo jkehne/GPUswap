@@ -1211,7 +1211,7 @@ nouveau_irq_handler(DRM_IRQ_ARGS)
 	status = nv_rd32(dev, NV03_PMC_INTR_0);
 	if (!status)
 		return IRQ_NONE;
-	spin_lock_irqsave(&dev_priv->context_switch_lock, flags);
+	spin_lock_irqsave(&dev_priv->irq_lock, flags);
 
 #if 0
 	if (dev_priv->fbdev_info) {
@@ -1252,7 +1252,7 @@ nouveau_irq_handler(DRM_IRQ_ARGS)
 	if (dev_priv->fbdev_info)
 		dev_priv->fbdev_info->flags = fbdev_flags;
 
-	spin_unlock_irqrestore(&dev_priv->context_switch_lock, flags);
+	spin_unlock_irqrestore(&dev_priv->irq_lock, flags);
 
 	return IRQ_HANDLED;
 }
