@@ -1,4 +1,4 @@
-PROGS = get_param
+PROGS = get_param gem
 
 all: $(PROGS)
 

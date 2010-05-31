@@ -401,6 +401,7 @@ pscnv_vram_alloc(struct drm_device *dev,
 	res->flags = flags;
 	res->tile_flags = tile_flags;
 	res->cookie = cookie;
+	res->gem = 0;
 	INIT_LIST_HEAD(&res->regions);
 
 	mutex_lock(&dev_priv->vram_mutex);

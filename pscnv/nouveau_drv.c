@@ -28,6 +28,7 @@
 #include "drm.h"
 #include "drm_crtc_helper.h"
 #include "nouveau_drv.h"
+#include "pscnv_gem.h"
 #if 0
 #include "nouveau_hw.h"
 #include "nouveau_fb.h"
@@ -423,10 +424,7 @@ static struct drm_driver driver = {
 		.resume = nouveau_pci_resume
 	},
 
-#if 0
-	.gem_init_object = nouveau_gem_object_new,
-	.gem_free_object = nouveau_gem_object_del,
-#endif
+	.gem_free_object = pscnv_gem_free_object,
 
 	.name = DRIVER_NAME,
 	.desc = DRIVER_DESC,
@@ -476,19 +474,15 @@ MODULE_LICENSE("GPL and additional rights");
 
 struct drm_ioctl_desc nouveau_ioctls[] = {
 	DRM_IOCTL_DEF(DRM_PSCNV_GETPARAM, pscnv_ioctl_getparam, DRM_UNLOCKED),
+	DRM_IOCTL_DEF(DRM_PSCNV_GEM_NEW, pscnv_ioctl_gem_new, DRM_UNLOCKED),
+	DRM_IOCTL_DEF(DRM_PSCNV_GEM_INFO, pscnv_ioctl_gem_info, DRM_UNLOCKED),
 #if 0
 	DRM_IOCTL_DEF(DRM_NOUVEAU_CHANNEL_ALLOC, nouveau_ioctl_fifo_alloc, DRM_AUTH),
 	DRM_IOCTL_DEF(DRM_NOUVEAU_CHANNEL_FREE, nouveau_ioctl_fifo_free, DRM_AUTH),
 	DRM_IOCTL_DEF(DRM_NOUVEAU_GROBJ_ALLOC, nouveau_ioctl_grobj_alloc, DRM_AUTH),
 	DRM_IOCTL_DEF(DRM_NOUVEAU_NOTIFIEROBJ_ALLOC, nouveau_ioctl_notifier_alloc, DRM_AUTH),
 	DRM_IOCTL_DEF(DRM_NOUVEAU_GPUOBJ_FREE, nouveau_ioctl_gpuobj_free, DRM_AUTH),
-	DRM_IOCTL_DEF(DRM_NOUVEAU_GEM_NEW, nouveau_gem_ioctl_new, DRM_AUTH),
 	DRM_IOCTL_DEF(DRM_NOUVEAU_GEM_PUSHBUF, nouveau_gem_ioctl_pushbuf, DRM_AUTH),
-	DRM_IOCTL_DEF(DRM_NOUVEAU_GEM_CPU_PREP, nouveau_gem_ioctl_cpu_prep, DRM_AUTH),
-	DRM_IOCTL_DEF(DRM_NOUVEAU_GEM_CPU_FINI, nouveau_gem_ioctl_cpu_fini, DRM_AUTH),
-	DRM_IOCTL_DEF(DRM_NOUVEAU_GEM_INFO, nouveau_gem_ioctl_info, DRM_AUTH),
-	DRM_IOCTL_DEF(DRM_NOUVEAU_GEM_PIN, nouveau_gem_ioctl_pin, DRM_AUTH),
-	DRM_IOCTL_DEF(DRM_NOUVEAU_GEM_UNPIN, nouveau_gem_ioctl_unpin, DRM_AUTH),
 #endif
 };
 
