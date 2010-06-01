@@ -740,7 +740,6 @@ int nouveau_load(struct drm_device *dev, unsigned long flags)
 	dev_priv->fb_size = pci_resource_len(dev->pdev, 1);
 
 	/* map larger RAMIN aperture on NV40 cards */
-	dev_priv->ramin  = NULL;
 	if (dev_priv->card_type >= NV_40) {
 		int ramin_bar = 2;
 		if (pci_resource_len(dev->pdev, ramin_bar) == 0)
@@ -751,19 +750,7 @@ int nouveau_load(struct drm_device *dev, unsigned long flags)
 				pci_resource_start(dev->pdev, ramin_bar),
 				dev_priv->ramin_size);
 		if (!dev_priv->ramin) {
-			NV_ERROR(dev, "Failed to init RAMIN mapping, "
-				      "limited instance memory available\n");
-		}
-	}
-
-	/* On older cards (or if the above failed), create a map covering
-	 * the BAR0 PRAMIN aperture */
-	if (!dev_priv->ramin) {
-		dev_priv->ramin_size = 1 * 1024 * 1024;
-		dev_priv->ramin = ioremap(mmio_start_offs + NV_RAMIN,
-							dev_priv->ramin_size);
-		if (!dev_priv->ramin) {
-			NV_ERROR(dev, "Failed to map BAR0 PRAMIN.\n");
+			NV_ERROR(dev, "Failed to init RAMIN mapping\n");
 			return -ENOMEM;
 		}
 	}
