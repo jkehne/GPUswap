@@ -737,6 +737,8 @@ int nouveau_load(struct drm_device *dev, unsigned long flags)
 	NV_INFO(dev, "Detected an NV%2x generation card (0x%08x)\n",
 		dev_priv->card_type, reg0);
 
+	dev_priv->fb_size = pci_resource_len(dev->pdev, 1);
+
 	/* map larger RAMIN aperture on NV40 cards */
 	dev_priv->ramin  = NULL;
 	if (dev_priv->card_type >= NV_40) {
