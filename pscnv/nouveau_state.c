@@ -35,6 +35,7 @@
 #include "nouveau_drv.h"
 #include "pscnv_drm.h"
 #include "nouveau_reg.h"
+#include "pscnv_vm.h"
 
 static void nouveau_stub_takedown(struct drm_device *dev) {}
 
@@ -436,6 +437,10 @@ nouveau_card_init(struct drm_device *dev)
 	if (ret)
 		goto out_bios;
 
+	ret = pscnv_vm_init(dev);
+	if (ret)
+		goto out_vram;
+
 #if 0
 	/* Initialise instance memory, must happen before mem_init so we
 	 * know exactly how much VRAM we're able to use for "normal"
@@ -553,6 +558,8 @@ out_mem:
 out_instmem:
 	engine->instmem.takedown(dev);
 #endif
+	pscnv_vm_takedown(dev);
+out_vram:
 	pscnv_vram_takedown(dev);
 out_bios:
 	nouveau_bios_takedown(dev);
@@ -603,6 +610,7 @@ static void nouveau_card_takedown(struct drm_device *dev)
 
 		nouveau_gpuobj_late_takedown(dev);
 #endif
+		pscnv_vm_takedown(dev);
 		pscnv_vram_takedown(dev);
 		nouveau_bios_takedown(dev);
 

@@ -505,6 +505,9 @@ struct drm_nouveau_private {
 	uint32_t vram_rblock_size;
 	struct mutex vram_mutex;
 
+	struct pscnv_vspace *barvm;
+	struct pscnv_chan *barch;
+
 	/* for slow-path nv_wv32/nv_rv32 */
 
 	spinlock_t pramin_lock;
