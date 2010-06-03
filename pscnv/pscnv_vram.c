@@ -192,7 +192,7 @@ pscnv_vram_init(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct pscnv_vram_region *allmem;
-	uint32_t r0, r4, rc, ru;
+	uint32_t r0, r4, rc, ru, rt;
 	int parts, i, colbits, rowbitsa, rowbitsb, banks;
 	uint64_t rowsize, predicted;
 	INIT_LIST_HEAD(&dev_priv->vram_global_list);
