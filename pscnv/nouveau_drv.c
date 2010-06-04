@@ -46,8 +46,9 @@ MODULE_PARM_DESC(noagp, "Disable AGP");
 int nouveau_noagp;
 module_param_named(noagp, nouveau_noagp, int, 0400);
 
+/* XXX: enable when it works again */
 MODULE_PARM_DESC(modeset, "Enable kernel modesetting");
-static int nouveau_modeset = -1; /* kms */
+static int nouveau_modeset = 0; /* kms */
 module_param_named(modeset, nouveau_modeset, int, 0400);
 
 MODULE_PARM_DESC(vbios, "Override default VBIOS location");
