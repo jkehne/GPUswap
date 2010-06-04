@@ -746,6 +746,7 @@ int nouveau_load(struct drm_device *dev, unsigned long flags)
 		dev_priv->card_type, reg0);
 
 	dev_priv->fb_size = pci_resource_len(dev->pdev, 1);
+	dev_priv->fb_phys = pci_resource_start(dev->pdev, 1);
 
 	/* map larger RAMIN aperture on NV40 cards */
 	if (dev_priv->card_type >= NV_40) {
