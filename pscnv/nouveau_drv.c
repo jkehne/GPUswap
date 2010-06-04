@@ -407,9 +407,7 @@ static struct drm_driver driver = {
 		.open = drm_open,
 		.release = drm_release,
 		.unlocked_ioctl = drm_ioctl,
-#if 0
-		.mmap = nouveau_ttm_mmap,
-#endif
+		.mmap = pscnv_mmap,
 		.poll = drm_poll,
 		.fasync = drm_fasync,
 #if defined(CONFIG_COMPAT)

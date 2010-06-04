@@ -79,5 +79,6 @@ extern int pscnv_vspace_map(struct pscnv_vspace *, struct pscnv_vo *, uint64_t s
 extern int pscnv_vspace_unmap(struct pscnv_vspace *, uint64_t start);
 extern int pscnv_vspace_map1(struct pscnv_vo *);
 extern int pscnv_vspace_map3(struct pscnv_vo *);
+extern int pscnv_mmap(struct file *filp, struct vm_area_struct *vma);
 
 #endif

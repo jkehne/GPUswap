@@ -63,15 +63,11 @@ int pscnv_ioctl_gem_new(struct drm_device *dev, void *data,
 	/* could change due to page size align */
 	info->size = vo->size;
 
-	/* XXX: implement this. */
-	vo->map_handle = 0;
-
-	info->map_handle = vo->map_handle;
-	
 	for (i = 0; i < ARRAY_SIZE(vo->user); i++)
 		vo->user[i] = info->user[i];
 
 	ret = drm_gem_handle_create(file_priv, obj, &info->handle);
+	info->map_handle = (uint64_t)info->handle << 32;
 	drm_gem_object_handle_unreference_unlocked (obj);
 	return ret;
 }
@@ -96,7 +92,7 @@ int pscnv_ioctl_gem_info(struct drm_device *dev, void *data,
 	info->flags = vo->flags;
 	info->tile_flags = vo->tile_flags;
 	info->size = obj->size;
-	info->map_handle = vo->map_handle;
+	info->map_handle = (uint64_t)info->handle << 32;
 	for (i = 0; i < ARRAY_SIZE(vo->user); i++)
 		info->user[i] = vo->user[i];
 

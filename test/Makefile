@@ -1,4 +1,4 @@
-PROGS = get_param gem
+PROGS = get_param gem map
 
 all: $(PROGS)
 

@@ -47,7 +47,6 @@ struct pscnv_vo {
 	/* a linked list of VRAM regions making up this VO. */
 	struct list_head regions;
 	/* the following used for GEM objects only */
-	uint64_t map_handle;
 	uint32_t user[8];
 	struct drm_gem_object *gem;
 	struct pscnv_vm_mapnode *map1;

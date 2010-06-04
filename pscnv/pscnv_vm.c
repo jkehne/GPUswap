@@ -403,3 +403,45 @@ int pscnv_vspace_map3(struct pscnv_vo *vo) {
 		return -ENODEV;
 	return pscnv_vspace_map(dev_priv->barvm, vo, dev_priv->fb_size, dev_priv->fb_size + dev_priv->ramin_size, 0, &vo->map3);
 }
+
+static struct vm_operations_struct pscnv_vm_ops = {
+	.open = drm_gem_vm_open,
+	.close = drm_gem_vm_close,
+};	
+
+int pscnv_mmap(struct file *filp, struct vm_area_struct *vma)
+{
+	struct drm_file *priv = filp->private_data;
+	struct drm_device *dev = priv->minor->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct drm_gem_object *obj;
+	struct pscnv_vo *vo;
+	int ret;
+
+	obj = drm_gem_object_lookup(dev, priv, (vma->vm_pgoff * PAGE_SIZE) >> 32);
+	NV_INFO(dev, "mmap: %llx %p\n", vma->vm_pgoff, obj);
+	if (!obj)
+		return -ENOENT;
+	vo = obj->driver_private;
+	
+	if (vma->vm_end - vma->vm_start > vo->size) {
+		drm_gem_object_unreference_unlocked(obj);
+		return -EINVAL;
+	}
+	if ((ret = pscnv_vspace_map1(vo))) {
+		drm_gem_object_unreference_unlocked(obj);
+		return ret;
+	}
+
+	vma->vm_flags |= VM_RESERVED | VM_IO | VM_PFNMAP | VM_DONTEXPAND;
+	vma->vm_ops = &pscnv_vm_ops;
+	vma->vm_private_data = obj;
+	vma->vm_page_prot = pgprot_writecombine(vm_get_page_prot(vma->vm_flags));
+
+	vma->vm_file = filp;
+
+	NV_INFO(dev, "mmap: %llx %llx %llx\n", vma->vm_start, vma->vm_end, dev_priv->fb_phys + vo->map1->start);
+	return remap_pfn_range(vma, vma->vm_start, 
+			(dev_priv->fb_phys + vo->map1->start) >> PAGE_SHIFT,
+			vma->vm_end - vma->vm_start, PAGE_SHARED);
+}

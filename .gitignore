@@ -8,3 +8,4 @@ pscnv/pscnv.ko
 pscnv/pscnv.mod.c
 test/get_param
 test/gem
+test/map
