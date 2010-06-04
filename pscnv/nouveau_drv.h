@@ -41,6 +41,7 @@
 #include "pscnv_drm.h"
 #include "nouveau_bios.h"
 #include "pscnv_vram.h"
+#include "pscnv_vm.h"
 struct nouveau_grctx;
 
 #define MAX_NUM_DCB_ENTRIES 16
@@ -1254,6 +1255,8 @@ static inline uint32_t nv_rv32(struct pscnv_vo *vo,
 	struct drm_nouveau_private *dev_priv = vo->dev->dev_private;
 	uint32_t res;
 	uint64_t addr = vo->start + offset;
+	if (vo->map3 && dev_priv->barvm)
+		return ioread32_native(dev_priv->ramin + vo->map3->start - dev_priv->fb_size + offset);
 	spin_lock(&dev_priv->pramin_lock);
 	if (addr >> 16 != dev_priv->pramin_start) {
 		dev_priv->pramin_start = addr >> 16;
@@ -1269,6 +1272,8 @@ static inline void nv_wv32(struct pscnv_vo *vo,
 {
 	struct drm_nouveau_private *dev_priv = vo->dev->dev_private;
 	uint64_t addr = vo->start + offset;
+	if (vo->map3 && dev_priv->barvm)
+		return iowrite32_native(val, dev_priv->ramin + vo->map3->start - dev_priv->fb_size + offset);
 	spin_lock(&dev_priv->pramin_lock);
 	if (addr >> 16 != dev_priv->pramin_start) {
 		dev_priv->pramin_start = addr >> 16;

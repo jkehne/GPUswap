@@ -369,7 +369,7 @@ pscnv_vram_alloc(struct drm_device *dev,
 	if (size >= (1ULL << 40))
 		return 0;
 
-	res = kmalloc (sizeof *res, GFP_KERNEL);
+	res = kzalloc (sizeof *res, GFP_KERNEL);
 	if (!res)
 		return 0;
 	size = ALIGN(size, PSCNV_VRAM_PAGE_SIZE);

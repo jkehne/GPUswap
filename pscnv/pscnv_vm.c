@@ -30,6 +30,31 @@
 #include "pscnv_vram.h"
 #include "pscnv_vm.h"
 
+#undef PSCNV_RB_AUGMENT
+
+static void PSCNV_RB_AUGMENT(struct pscnv_vm_mapnode *node) {
+	uint64_t maxgap = 0;
+	struct pscnv_vm_mapnode *left = PSCNV_RB_LEFT(node, entry);
+	struct pscnv_vm_mapnode *right = PSCNV_RB_RIGHT(node, entry);
+	if (!node->vo)
+		maxgap = node->size;
+	if (left && left->maxgap > maxgap)
+		maxgap = left->maxgap;
+	if (right && right->maxgap > maxgap)
+		maxgap = right->maxgap;
+	node->maxgap = maxgap;
+}
+
+static int mapcmp(struct pscnv_vm_mapnode *a, struct pscnv_vm_mapnode *b) {
+	if (a->start < b->start)
+		return -1;
+	else if (a->start > b->start)
+		return 1;
+	return 0;
+}
+
+PSCNV_RB_GENERATE_STATIC(pscnv_vm_maptree, pscnv_vm_mapnode, entry, mapcmp)
+
 static int
 pscnv_vspace_flush(struct pscnv_vspace *vs, int unit) {
 	nv_wr32(vs->dev, 0x100c80, unit << 16 | 1);
@@ -114,11 +139,23 @@ pscnv_vspace_do_map (struct pscnv_vspace *vs, struct pscnv_vo *vo, uint64_t offs
 struct pscnv_vspace *
 pscnv_vspace_new (struct drm_device *dev) {
 	struct pscnv_vspace *res = kzalloc(sizeof *res, GFP_KERNEL);
-	if (res) {
-		res->dev = dev;
-		mutex_init(&res->lock);
-		INIT_LIST_HEAD(&res->chan_list);
+	struct pscnv_vm_mapnode *fmap;
+	if (!res)
+		return 0;
+	res->dev = dev;
+	mutex_init(&res->lock);
+	INIT_LIST_HEAD(&res->chan_list);
+	PSCNV_RB_INIT(&res->maps);
+	fmap = kzalloc(sizeof *fmap, GFP_KERNEL);
+	if (!fmap) {
+		kfree(res);
+		return 0;
 	}
+	fmap->vspace = res;
+	fmap->start = 0;
+	fmap->size = 1ULL << 40;
+	fmap->maxgap = fmap->size;
+	PSCNV_RB_INSERT(pscnv_vm_maptree, &res->maps, fmap);
 	return res;
 }
 
@@ -222,6 +259,7 @@ pscnv_vm_init(struct drm_device *dev) {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct pscnv_vspace *barvm = pscnv_vspace_new (dev);
 	struct pscnv_chan *barch;
+	struct pscnv_vm_mapnode *foo;
 	int bar1dma, bar3dma;
 	if (!barvm)
 		return -ENOMEM;
@@ -234,9 +272,14 @@ pscnv_vm_init(struct drm_device *dev) {
 	bar3dma = pscnv_chan_dmaobj_new(barch, 0x7fc00000, dev_priv->fb_size, dev_priv->ramin_size);
 	nv_wr32(dev, 0x1708, 0x80000000 | bar1dma >> 4);
 	nv_wr32(dev, 0x170c, 0x80000000 | bar3dma >> 4);
-
 	dev_priv->barvm = barvm;
 	dev_priv->barch = barch;
+	pscnv_vspace_map3(barch->vo);
+	pscnv_vspace_map3(barvm->pt[0]);
+
+	pscnv_vspace_map(barvm, barch->vo, dev_priv->fb_size, dev_priv->fb_size + dev_priv->ramin_size, 0, &foo);
+	pscnv_vspace_map(barvm, barvm->pt[0], dev_priv->fb_size, dev_priv->fb_size + dev_priv->ramin_size, 0, &foo);
+
 	return 0;
 }
 
@@ -248,4 +291,115 @@ pscnv_vm_takedown(struct drm_device *dev) {
 	nv_wr32(dev, 0x1704, 0);
 	/* XXX: write me. */
 	return 0;
+}
+
+static struct pscnv_vm_mapnode *
+pscnv_vspace_map_int(struct pscnv_vspace *vs, struct pscnv_vo *vo,
+		uint64_t start, uint64_t end, int back,
+		struct pscnv_vm_mapnode *node)
+{
+	struct pscnv_vm_mapnode *left, *right, *res;
+	int lok, rok;
+	uint64_t mstart, mend;
+	left = PSCNV_RB_LEFT(node, entry);
+	right = PSCNV_RB_RIGHT(node, entry);
+	lok = left && left->maxgap >= vo->size && node->start > start;
+	rok = right && right->maxgap >= vo->size && node->start + node->size  < end;
+	NV_INFO (vs->dev, "%llx %llx %llx %llx %llx %llx %llx %llx %llx %d %d\n", node->start, node->size, node->maxgap,
+			left?left->start:0, left?left->size:0, left?left->maxgap:0,
+			right?right->start:0, right?right->size:0, right?right->maxgap:0, lok, rok);
+	if (!back && lok) {
+		res = pscnv_vspace_map_int(vs, vo, start, end, back, left);
+		if (res)
+			return res;
+	}
+	if (back && rok) {
+		res = pscnv_vspace_map_int(vs, vo, start, end, back, right);
+		if (res)
+			return res;
+	}
+	mstart = node->start;
+	if (mstart < start)
+		mstart = start;
+	mend = node->start + node->size;
+	if (mend > end)
+		mend = end;
+	if (mstart + vo->size <= mend && !node->vo) {
+		if (back)
+			mstart = mend - vo->size;
+		mend = mstart + vo->size;
+		if (node->start + node->size != mend) {
+			struct pscnv_vm_mapnode *split = kzalloc(sizeof *split, GFP_KERNEL);
+			if (!split)
+				return 0;
+			split->start = mend;
+			split->size = node->start + node->size - mend;
+			node->size = mend - node->start;
+			split->maxgap = split->size;
+			PSCNV_RB_INSERT(pscnv_vm_maptree, &vs->maps, split);
+		}
+		if (node->start != mstart) {
+			struct pscnv_vm_mapnode *split = kzalloc(sizeof *split, GFP_KERNEL);
+			if (!split)
+				return 0;
+			split->start = node->start;
+			split->size = mstart - node->start;
+			node->start = mstart;
+			node->size = mend - node->start;
+			split->maxgap = split->size;
+			PSCNV_RB_INSERT(pscnv_vm_maptree, &vs->maps, split);
+		}
+		node->vo = vo;
+		PSCNV_RB_AUGMENT(node);
+		return node;
+	}
+	if (back && lok) {
+		res = pscnv_vspace_map_int(vs, vo, start, end, back, left);
+		if (res)
+			return res;
+	}
+	if (!back && rok) {
+		res = pscnv_vspace_map_int(vs, vo, start, end, back, right);
+		if (res)
+			return res;
+	}
+	return 0;
+}
+
+int
+pscnv_vspace_map(struct pscnv_vspace *vs, struct pscnv_vo *vo,
+		uint64_t start, uint64_t end, int back,
+		struct pscnv_vm_mapnode **res)
+{
+	struct pscnv_vm_mapnode *node;
+	mutex_lock(&vs->lock);
+	node = pscnv_vspace_map_int(vs, vo, start, end, back, PSCNV_RB_ROOT(&vs->maps));
+	if (!node) {
+		mutex_unlock(&vs->lock);
+		return -ENOMEM;
+	}
+	NV_INFO(vs->dev, "Mapping VO %x/%d at %llx-%llx.\n", vo->cookie, vo->serial, node->start,
+			node->start + node->size);
+	pscnv_vspace_do_map(vs, vo, node->start);
+	*res = node;
+	mutex_unlock(&vs->lock);
+	return 0;
+}
+
+int pscnv_vspace_map1(struct pscnv_vo *vo) {
+	struct drm_nouveau_private *dev_priv = vo->dev->dev_private;
+	if (vo->map1)
+		return 0;
+	if (!dev_priv->barvm)
+		return -ENODEV;
+	return pscnv_vspace_map(dev_priv->barvm, vo, 0, dev_priv->fb_size, 0, &vo->map1);
+}
+
+int pscnv_vspace_map3(struct pscnv_vo *vo) {
+	struct drm_nouveau_private *dev_priv = vo->dev->dev_private;
+	if (vo->map3)
+		return 0;
+	if (!dev_priv->barvm)
+		return -ENODEV;
+	return pscnv_vspace_map(dev_priv->barvm, vo, dev_priv->fb_size, dev_priv->fb_size + dev_priv->ramin_size, 0, &vo->map3);
 }

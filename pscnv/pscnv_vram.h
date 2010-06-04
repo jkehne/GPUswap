@@ -50,6 +50,8 @@ struct pscnv_vo {
 	uint64_t map_handle;
 	uint32_t user[8];
 	struct drm_gem_object *gem;
+	struct pscnv_vm_mapnode *map1;
+	struct pscnv_vm_mapnode *map3;
 };
 
 /* the VO flags */
