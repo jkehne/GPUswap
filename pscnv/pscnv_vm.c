@@ -419,7 +419,6 @@ int pscnv_mmap(struct file *filp, struct vm_area_struct *vma)
 	int ret;
 
 	obj = drm_gem_object_lookup(dev, priv, (vma->vm_pgoff * PAGE_SIZE) >> 32);
-	NV_INFO(dev, "mmap: %llx %p\n", vma->vm_pgoff, obj);
 	if (!obj)
 		return -ENOENT;
 	vo = obj->driver_private;
@@ -440,7 +439,6 @@ int pscnv_mmap(struct file *filp, struct vm_area_struct *vma)
 
 	vma->vm_file = filp;
 
-	NV_INFO(dev, "mmap: %llx %llx %llx\n", vma->vm_start, vma->vm_end, dev_priv->fb_phys + vo->map1->start);
 	return remap_pfn_range(vma, vma->vm_start, 
 			(dev_priv->fb_phys + vo->map1->start) >> PAGE_SHIFT,
 			vma->vm_end - vma->vm_start, PAGE_SHARED);
