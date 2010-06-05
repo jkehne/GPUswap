@@ -93,7 +93,9 @@ pscnv_vspace_fill_pd_slot (struct pscnv_vspace *vs, uint32_t pdenum) {
 	if (!vs->pt[pdenum]) {
 		return -ENOMEM;
 	}
-	/* XXX: try map here */
+
+	if (!vs->isbar)
+		pscnv_vspace_map3(vs->pt[pdenum]);
 
 	if (dev_priv->chipset == 0x50)
 		chan_pd = NV50_CHAN_PD;
@@ -198,7 +200,8 @@ pscnv_chan_new (struct pscnv_vspace *vs) {
 	res->vo = pscnv_vram_alloc(vs->dev, size, PSCNV_VO_CONTIG,
 			0, (res->isbar ? 0xc5a2ba7 : 0xc5a2f1f0));
 
-	/* XXX: try map here */
+	if (!vs->isbar)
+		pscnv_vspace_map3(res->vo);
 
 	if (dev_priv->chipset == 0x50)
 		chan_pd = NV50_CHAN_PD;
