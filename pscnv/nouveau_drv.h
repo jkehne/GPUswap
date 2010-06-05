@@ -453,11 +453,13 @@ struct drm_nouveau_private {
 	struct work_struct hpd_work;
 
 	struct fb_info *fbdev_info;
-
+#if 0
 	struct nouveau_channel *fifos[NOUVEAU_MAX_CHANNEL_NR];
-
+#endif
 	struct nouveau_engine engine;
+#if 0
 	struct nouveau_channel *channel;
+#endif
 
 	spinlock_t irq_lock;
 
@@ -509,6 +511,10 @@ struct drm_nouveau_private {
 
 	struct pscnv_vspace *barvm;
 	struct pscnv_chan *barch;
+
+	struct pscnv_vspace *vspaces[128];
+	struct pscnv_chan *chans[128];
+	struct mutex vm_mutex;
 
 	/* for slow-path nv_wv32/nv_rv32 */
 
