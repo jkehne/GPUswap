@@ -618,3 +618,41 @@ int pscnv_ioctl_chan_free(struct drm_device *dev, void *data,
 	mutex_unlock (&dev_priv->vm_mutex);
 	return 0;
 }
+
+int pscnv_ioctl_vspace_map(struct drm_device *dev, void *data,
+						struct drm_file *file_priv)
+{
+	struct drm_pscnv_vspace_map *req = data;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct pscnv_vspace *vs;
+	struct drm_gem_object *obj;
+	struct pscnv_vo *vo;
+	struct pscnv_vm_mapnode *map;
+	int ret;
+
+	NOUVEAU_CHECK_INITIALISED_WITH_RETURN;
+
+	mutex_lock (&dev_priv->vm_mutex);
+
+	vs = pscnv_get_vspace(dev, file_priv, req->vid);
+	if (!vs) {
+		mutex_unlock (&dev_priv->vm_mutex);
+		return -ENOENT;
+	}
+
+	obj = drm_gem_object_lookup(dev, file_priv, req->handle);
+	if (!obj) {
+		mutex_unlock (&dev_priv->vm_mutex);
+		return -EBADF;
+	}
+
+	vo = obj->driver_private;
+
+	ret = pscnv_vspace_map(vs, vo, req->start, req->end, req->back, &map);
+	if (map)
+		req->offset = map->start;
+
+	mutex_unlock (&dev_priv->vm_mutex);
+	return ret;
+}
+
