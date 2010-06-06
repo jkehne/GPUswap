@@ -37,10 +37,10 @@ int DoTest(int fd)
 	struct drm_pscnv_getparam get_param;
 	int ret;
 	int i, j;
-	uint64_t tmp[8];
-	char param_name[8][15] = {"chipset_id", "vendor", "device", "bus type",
+	uint64_t tmp[7];
+	char param_name[7][15] = {"chipset_id", "vendor", "device", "bus type",
 					"graph units", "ptimer time",
-					"pfb config", "vram size"};
+					"vram size"};
 
 	tmp[0] = PSCNV_GETPARAM_CHIPSET_ID;
 	tmp[1] = PSCNV_GETPARAM_PCI_VENDOR;
@@ -48,11 +48,10 @@ int DoTest(int fd)
 	tmp[3] = PSCNV_GETPARAM_BUS_TYPE;
 	tmp[4] = PSCNV_GETPARAM_GRAPH_UNITS;
 	tmp[5] = PSCNV_GETPARAM_PTIMER_TIME;
-	tmp[6] = PSCNV_GETPARAM_PFB_CONFIG;
-	tmp[7] = PSCNV_GETPARAM_VRAM_SIZE;
+	tmp[6] = PSCNV_GETPARAM_VRAM_SIZE;
 
 	
-	for (i = 0; i < 8; i++) {
+	for (i = 0; i < 7; i++) {
 		get_param.param = tmp[i];
 		ret = drmCommandWriteRead(fd, DRM_PSCNV_GETPARAM, &get_param, sizeof(get_param));
 		if (ret==0) {

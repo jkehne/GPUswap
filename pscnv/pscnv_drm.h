@@ -35,8 +35,7 @@
 #define PSCNV_GETPARAM_CHIPSET_ID      11
 #define PSCNV_GETPARAM_GRAPH_UNITS     13
 #define PSCNV_GETPARAM_PTIMER_TIME     14
-#define PSCNV_GETPARAM_PFB_CONFIG      15
-#define PSCNV_GETPARAM_VRAM_SIZE       16
+#define PSCNV_GETPARAM_VRAM_SIZE       15
 struct drm_pscnv_getparam {
 	uint64_t param;		/* < */
 	uint64_t value;		/* > */
