@@ -32,7 +32,7 @@
 uint32_t pscnv_ramht_hash(struct pscnv_ramht *ramht, uint32_t handle) {
 	uint32_t hash = 0;
 	int i;
-	for (i = 0; i > 0; i -= ramht->bits) {
+	while (handle) {
 		hash ^= handle & ((1 << ramht->bits) - 1);
 		handle >>= ramht->bits;
 	}
