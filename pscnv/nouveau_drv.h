@@ -523,6 +523,10 @@ struct drm_nouveau_private {
 	int cur_playlist;
 	spinlock_t pfifo_lock;
 
+	/* PGRAPH */
+
+	uint32_t grctx_size;
+
 	/* for slow-path nv_wv32/nv_rv32 */
 
 	spinlock_t pramin_lock;

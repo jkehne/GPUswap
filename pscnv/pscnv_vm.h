@@ -48,6 +48,7 @@ struct pscnv_vspace {
 	struct list_head chan_list;
 	struct pscnv_vm_maptree maps;
 	struct drm_file *filp;
+	int engines;
 };
 
 struct pscnv_vm_mapnode {
@@ -71,7 +72,11 @@ struct pscnv_chan {
 	uint32_t ramfc;
 	struct pscnv_vo *cache;
 	struct drm_file *filp;
+	int engines;
+	struct pscnv_vo *grctx;
 };
+
+#define PSCNV_ENGINE_PGRAPH 0x00000001
 
 extern int pscnv_vm_init(struct drm_device *);
 extern int pscnv_vm_takedown(struct drm_device *);

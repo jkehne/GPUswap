@@ -30,6 +30,7 @@
 #include "nouveau_drv.h"
 #include "pscnv_gem.h"
 #include "pscnv_fifo.h"
+#include "pscnv_graph.h"
 #if 0
 #include "nouveau_hw.h"
 #include "nouveau_fb.h"
@@ -483,6 +484,7 @@ struct drm_ioctl_desc nouveau_ioctls[] = {
 	DRM_IOCTL_DEF(DRM_PSCNV_CHAN_FREE, pscnv_ioctl_chan_free, DRM_UNLOCKED),
 	DRM_IOCTL_DEF(DRM_PSCNV_OBJ_VDMA_NEW, pscnv_ioctl_obj_vdma_new, DRM_UNLOCKED),
 	DRM_IOCTL_DEF(DRM_PSCNV_FIFO_INIT, pscnv_ioctl_fifo_init, DRM_UNLOCKED),
+	DRM_IOCTL_DEF(DRM_PSCNV_OBJ_GR_NEW, pscnv_ioctl_obj_gr_new, DRM_UNLOCKED),
 #if 0
 	DRM_IOCTL_DEF(DRM_NOUVEAU_CHANNEL_ALLOC, nouveau_ioctl_fifo_alloc, DRM_AUTH),
 	DRM_IOCTL_DEF(DRM_NOUVEAU_CHANNEL_FREE, nouveau_ioctl_fifo_free, DRM_AUTH),

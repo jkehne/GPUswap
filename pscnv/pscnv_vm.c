@@ -68,6 +68,7 @@ pscnv_vspace_flush(struct pscnv_vspace *vs, int unit) {
 
 static int
 pscnv_vspace_do_unmap (struct pscnv_vspace *vs, uint64_t offset, uint64_t length) {
+	int ret;
 	while (length) {
 		uint32_t pgnum = offset / 0x1000;
 		uint32_t pdenum = pgnum / NV50_VM_SPTE_COUNT;
@@ -81,6 +82,14 @@ pscnv_vspace_do_unmap (struct pscnv_vspace *vs, uint64_t offset, uint64_t length
 	if (vs->isbar) {
 		return pscnv_vspace_flush(vs, 6);
 	} else {
+		ret = pscnv_vspace_flush(vs, 5);
+		if (ret)
+			return ret;
+		if (vs->engines & PSCNV_ENGINE_PGRAPH) {
+			ret = pscnv_vspace_flush(vs, 0);
+			if (ret)
+				return ret;
+		}
 	}
 	return 0;
 }

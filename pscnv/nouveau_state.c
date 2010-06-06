@@ -37,6 +37,7 @@
 #include "nouveau_reg.h"
 #include "pscnv_vm.h"
 #include "pscnv_fifo.h"
+#include "pscnv_graph.h"
 
 static void nouveau_stub_takedown(struct drm_device *dev) {}
 
@@ -442,28 +443,10 @@ nouveau_card_init(struct drm_device *dev)
 	if (ret)
 		goto out_vram;
 
-#if 0
-	/* Initialise instance memory, must happen before mem_init so we
-	 * know exactly how much VRAM we're able to use for "normal"
-	 * purposes.
-	 */
-	ret = engine->instmem.init(dev);
-	if (ret)
-		goto out_gpuobj_early;
-
-	/* Setup the memory manager */
-	ret = nouveau_mem_init(dev);
-	if (ret)
-		goto out_instmem;
-
-	ret = nouveau_gpuobj_init(dev);
-	if (ret)
-		goto out_mem;
-#endif
 	/* PMC */
 	ret = engine->mc.init(dev);
 	if (ret)
-		goto out_gpuobj;
+		goto out_vm;
 
 	/* PTIMER */
 	ret = engine->timer.init(dev);
@@ -475,30 +458,23 @@ nouveau_card_init(struct drm_device *dev)
 	if (ret)
 		goto out_timer;
 
+	/* XXX: handle noaccel */
+	/* PFIFO */
 	ret = pscnv_fifo_init(dev);
 	if (ret)
 		goto out_fb;
-#if 0
-	if (nouveau_noaccel)
-		engine->graph.accel_blocked = true;
-	else {
-		/* PGRAPH */
-		ret = engine->graph.init(dev);
-		if (ret)
-			goto out_fb;
 
-		/* PFIFO */
-		ret = engine->fifo.init(dev);
-		if (ret)
-			goto out_graph;
-	}
-#endif
+	/* PGRAPH */
+	ret = pscnv_graph_init(dev);
+	if (ret)
+		goto out_fifo;
+
 	/* this call irq_preinstall, register irq handler and
 	 * call irq_postinstall
 	 */
 	ret = drm_irq_install(dev);
 	if (ret)
-		goto out_fifo;
+		goto out_graph;
 #if 0
 	ret = drm_vblank_init(dev, 0);
 	if (ret)
@@ -540,31 +516,17 @@ out_channel:
 out_irq:
 #endif
 	drm_irq_uninstall(dev);
+out_graph:
+	pscnv_graph_takedown(dev);
 out_fifo:
 	pscnv_fifo_takedown(dev);
 out_fb:
-#if 0
-	if (!nouveau_noaccel)
-		engine->fifo.takedown(dev);
-out_graph:
-	if (!nouveau_noaccel)
-		engine->graph.takedown(dev);
-out_fb:
-#endif
 	engine->fb.takedown(dev);
 out_timer:
 	engine->timer.takedown(dev);
 out_mc:
 	engine->mc.takedown(dev);
-out_gpuobj:
-#if 0
-	nouveau_gpuobj_takedown(dev);
-out_mem:
-	nouveau_sgdma_takedown(dev);
-	nouveau_mem_close(dev);
-out_instmem:
-	engine->instmem.takedown(dev);
-#endif
+out_vm:
 	pscnv_vm_takedown(dev);
 out_vram:
 	pscnv_vram_takedown(dev);
@@ -586,38 +548,12 @@ static void nouveau_card_takedown(struct drm_device *dev)
 		NV_INFO(dev, "Stopping card...\n");
 #if 0
 		nouveau_backlight_exit(dev);
-
-		if (dev_priv->channel) {
-			nouveau_channel_free(dev_priv->channel);
-			dev_priv->channel = NULL;
-		}
-
-		if (!nouveau_noaccel) {
-			engine->fifo.takedown(dev);
-			engine->graph.takedown(dev);
-		}
 #endif
+		pscnv_graph_takedown(dev);
+		pscnv_fifo_takedown(dev);
 		engine->fb.takedown(dev);
 		engine->timer.takedown(dev);
 		engine->mc.takedown(dev);
-#if 0
-
-		mutex_lock(&dev->struct_mutex);
-		ttm_bo_clean_mm(&dev_priv->ttm.bdev, TTM_PL_VRAM);
-		ttm_bo_clean_mm(&dev_priv->ttm.bdev, TTM_PL_TT);
-		mutex_unlock(&dev->struct_mutex);
-		nouveau_sgdma_takedown(dev);
-
-		nouveau_gpuobj_takedown(dev);
-		nouveau_mem_close(dev);
-		engine->instmem.takedown(dev);
-
-		if (drm_core_check_feature(dev, DRIVER_MODESET))
-			drm_irq_uninstall(dev);
-
-		nouveau_gpuobj_late_takedown(dev);
-#endif
-		pscnv_fifo_takedown(dev);
 		pscnv_vm_takedown(dev);
 		pscnv_vram_takedown(dev);
 		nouveau_bios_takedown(dev);
