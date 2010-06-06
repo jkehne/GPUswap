@@ -36,5 +36,6 @@ struct pscnv_ramht {
 
 extern uint32_t pscnv_ramht_hash(struct pscnv_ramht *, uint32_t handle);
 extern int pscnv_ramht_insert(struct pscnv_ramht *, uint32_t handle, uint32_t context);
+extern uint32_t pscnv_ramht_find(struct pscnv_ramht *, uint32_t handle);
 
 #endif
