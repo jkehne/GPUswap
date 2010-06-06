@@ -226,6 +226,18 @@ pscnv_chan_new (struct pscnv_vspace *vs) {
 		res->ramht.offset = pscnv_chan_iobj_new(res, 8 << res->ramht.bits);
 		for (i = 0; i < (8 << res->ramht.bits); i += 8)
 			nv_wv32(res->ramht.vo, res->ramht.offset + i + 4, 0);
+
+		if (dev_priv->chipset == 0x50) {
+			res->ramfc = 0;
+		} else {
+			/* actually, addresses of these two are NOT relative to
+			 * channel struct on NV84+, and can be anywhere in VRAM,
+			 * but we stuff them inside the channel struct anyway for
+			 * simplicity. */
+			res->ramfc = pscnv_chan_iobj_new(res, 0x100);
+			res->cache = pscnv_vram_alloc(vs->dev, 0x1000, PSCNV_VO_CONTIG,
+					0, 0xf1f0cace);
+		}
 	}
 
 	mutex_unlock(&vs->lock);

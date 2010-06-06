@@ -68,6 +68,8 @@ struct pscnv_chan {
 	spinlock_t instlock;
 	int instpos;
 	struct pscnv_ramht ramht;
+	uint32_t ramfc;
+	struct pscnv_vo *cache;
 	struct drm_file *filp;
 };
 
