@@ -611,7 +611,7 @@ int pscnv_ioctl_chan_new(struct drm_device *dev, void *data,
 		return -ENOENT;
 	}
 
-	for (i = 0; i < 128; i++)
+	for (i = 1; i < 128; i++)
 		if (!dev_priv->chans[i]) {
 			cid = i;
 			break;
