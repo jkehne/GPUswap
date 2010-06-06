@@ -517,6 +517,12 @@ struct drm_nouveau_private {
 	struct pscnv_chan *chans[128];
 	struct mutex vm_mutex;
 
+	/* PFIFO */
+
+	struct pscnv_vo *playlist[2];
+	int cur_playlist;
+	spinlock_t pfifo_lock;
+
 	/* for slow-path nv_wv32/nv_rv32 */
 
 	spinlock_t pramin_lock;

@@ -36,6 +36,7 @@
 #include "pscnv_drm.h"
 #include "nouveau_reg.h"
 #include "pscnv_vm.h"
+#include "pscnv_fifo.h"
 
 static void nouveau_stub_takedown(struct drm_device *dev) {}
 
@@ -473,6 +474,10 @@ nouveau_card_init(struct drm_device *dev)
 	ret = engine->fb.init(dev);
 	if (ret)
 		goto out_timer;
+
+	ret = pscnv_fifo_init(dev);
+	if (ret)
+		goto out_fb;
 #if 0
 	if (nouveau_noaccel)
 		engine->graph.accel_blocked = true;
@@ -536,6 +541,8 @@ out_irq:
 #endif
 	drm_irq_uninstall(dev);
 out_fifo:
+	pscnv_fifo_takedown(dev);
+out_fb:
 #if 0
 	if (!nouveau_noaccel)
 		engine->fifo.takedown(dev);
@@ -610,6 +617,7 @@ static void nouveau_card_takedown(struct drm_device *dev)
 
 		nouveau_gpuobj_late_takedown(dev);
 #endif
+		pscnv_fifo_takedown(dev);
 		pscnv_vm_takedown(dev);
 		pscnv_vram_takedown(dev);
 		nouveau_bios_takedown(dev);
@@ -747,6 +755,7 @@ int nouveau_load(struct drm_device *dev, unsigned long flags)
 
 	dev_priv->fb_size = pci_resource_len(dev->pdev, 1);
 	dev_priv->fb_phys = pci_resource_start(dev->pdev, 1);
+	dev_priv->mmio_phys = pci_resource_start(dev->pdev, 0);
 
 	/* map larger RAMIN aperture on NV40 cards */
 	if (dev_priv->card_type >= NV_40) {

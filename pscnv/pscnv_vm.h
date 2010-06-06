@@ -86,6 +86,7 @@ extern int pscnv_vspace_unmap(struct pscnv_vspace *, uint64_t start);
 extern int pscnv_vspace_map1(struct pscnv_vo *);
 extern int pscnv_vspace_map3(struct pscnv_vo *);
 extern int pscnv_mmap(struct file *filp, struct vm_area_struct *vma);
+struct pscnv_chan *pscnv_get_chan(struct drm_device *dev, struct drm_file *file_priv, int cid);
 
 int pscnv_ioctl_vspace_new(struct drm_device *dev, void *data,
 						struct drm_file *file_priv);
