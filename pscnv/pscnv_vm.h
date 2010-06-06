@@ -28,6 +28,7 @@
 #define __PSCNV_VM_H__
 #include "pscnv_vram.h"
 #include "pscnv_tree.h"
+#include "pscnv_ramht.h"
 
 #define NV50_VM_SIZE		0x10000000000ULL
 #define NV50_VM_PDE_COUNT	0x800
@@ -66,6 +67,7 @@ struct pscnv_chan {
 	struct pscnv_vo *vo;
 	spinlock_t instlock;
 	int instpos;
+	struct pscnv_ramht ramht;
 	struct drm_file *filp;
 };
 
@@ -92,6 +94,8 @@ int pscnv_ioctl_vspace_map(struct drm_device *dev, void *data,
 int pscnv_ioctl_chan_new(struct drm_device *dev, void *data,
 						struct drm_file *file_priv);
 int pscnv_ioctl_chan_free(struct drm_device *dev, void *data,
+						struct drm_file *file_priv);
+int pscnv_ioctl_obj_vdma_new(struct drm_device *dev, void *data,
 						struct drm_file *file_priv);
 
 #endif

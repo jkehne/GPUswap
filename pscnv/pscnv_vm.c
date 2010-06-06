@@ -29,6 +29,7 @@
 #include "nouveau_drv.h"
 #include "pscnv_vram.h"
 #include "pscnv_vm.h"
+#include "pscnv_ramht.h"
 
 #undef PSCNV_RB_AUGMENT
 
@@ -184,6 +185,7 @@ pscnv_chan_new (struct pscnv_vspace *vs) {
 	res->isbar = vs->isbar;
 	res->vspace = vs;
 	spin_lock_init(&res->instlock);
+	spin_lock_init(&res->ramht.lock);
 	list_add(&res->vspace_list, &vs->chan_list);
 
 	/* determine size of underlying VO... for normal channels,
@@ -216,6 +218,15 @@ pscnv_chan_new (struct pscnv_vspace *vs) {
 		}
 	}
 	res->instpos = chan_pd + NV50_VM_PDE_COUNT * 8;
+
+	if (!res->isbar) {
+		int i;
+		res->ramht.vo = res->vo;
+		res->ramht.bits = 9;
+		res->ramht.offset = pscnv_chan_iobj_new(res, 8 << res->ramht.bits);
+		for (i = 0; i < (8 << res->ramht.bits); i += 8)
+			nv_wv32(res->ramht.vo, res->ramht.offset + i + 4, 0);
+	}
 
 	mutex_unlock(&vs->lock);
 	return res;
@@ -659,3 +670,37 @@ int pscnv_ioctl_vspace_map(struct drm_device *dev, void *data,
 	return ret;
 }
 
+int pscnv_ioctl_obj_vdma_new(struct drm_device *dev, void *data,
+						struct drm_file *file_priv) {
+	struct drm_pscnv_obj_vdma_new *req = data;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct pscnv_chan *ch;
+	int ret;
+	uint32_t oclass, inst;
+
+	NOUVEAU_CHECK_INITIALISED_WITH_RETURN;
+
+	oclass = req->oclass;
+
+	if (oclass != 2 && oclass != 3 && oclass != 0x3d)
+		return -EINVAL;
+
+	mutex_lock (&dev_priv->vm_mutex);
+
+	ch = pscnv_get_chan(dev, file_priv, req->cid);
+	if (!ch) {
+		mutex_unlock (&dev_priv->vm_mutex);
+		return -ENOENT;
+	}
+
+	inst = pscnv_chan_dmaobj_new(ch, 0x7fc00000 | oclass, req->start, req->start + req->size);
+	if (!inst) {
+		mutex_unlock (&dev_priv->vm_mutex);
+		return -ENOMEM;
+	}
+
+	ret = pscnv_ramht_insert (&ch->ramht, req->handle, inst >> 4);
+
+	mutex_unlock (&dev_priv->vm_mutex);
+	return ret;
+}
