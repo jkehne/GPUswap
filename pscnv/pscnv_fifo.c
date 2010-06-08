@@ -55,7 +55,7 @@ int pscnv_fifo_init(struct drm_device *dev) {
 	nv_wr32(dev, 0x2140, -1);
 
 	/* XXX: wtf? */
-	nv_wr32(dev, 0x2504, 0x6f3cfc34);
+	nv_wr32(dev, 0x250c, 0x6f3cfc34);
 
 	/* put PFIFO onto unused channel 0. */
 	nv_wr32(dev, 0x3204, 0);
