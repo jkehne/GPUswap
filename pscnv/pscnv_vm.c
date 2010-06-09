@@ -599,6 +599,7 @@ int pscnv_ioctl_chan_new(struct drm_device *dev, void *data,
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	int cid = -1;
 	struct pscnv_vspace *vs;
+	struct pscnv_chan *ch;
 	int i;
 
 	NOUVEAU_CHECK_INITIALISED_WITH_RETURN;
@@ -622,7 +623,7 @@ int pscnv_ioctl_chan_new(struct drm_device *dev, void *data,
 		return -ENOSPC;
 	}
 
-	dev_priv->chans[cid] = pscnv_chan_new(vs);
+	ch = dev_priv->chans[cid] = pscnv_chan_new(vs);
 	if (!dev_priv->chans[i]) {
 		mutex_unlock (&dev_priv->vm_mutex);
 		return -ENOMEM;
@@ -632,6 +633,12 @@ int pscnv_ioctl_chan_new(struct drm_device *dev, void *data,
 	
 	req->cid = cid;
 	req->map_handle = 0xc0000000 | cid << 16;
+
+	if (dev_priv->chipset != 0x50) {
+		nv_wr32(dev, 0x2600 + cid * 4, (ch->vo->start + ch->ramfc) >> 8);
+	} else {
+		nv_wr32(dev, 0x2600 + cid * 4, ch->vo->start >> 12);
+	}
 
 	NV_INFO(dev, "Allocating FIFO %d\n", cid);
 

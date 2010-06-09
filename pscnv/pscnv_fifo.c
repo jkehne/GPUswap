@@ -89,7 +89,7 @@ void pscnv_fifo_playlist_update (struct drm_device *dev) {
 	dev_priv->cur_playlist ^= 1;
 	vo = dev_priv->playlist[dev_priv->cur_playlist];
 	for (i = 0, pos = 0; i < 128; i++) {
-		if (nv_rd32(dev, 0x2600 + i * 4)) {
+		if (nv_rd32(dev, 0x2600 + i * 4) & 0x80000000) {
 			nv_wv32(vo, pos, i);
 			pos += 4;
 		}
