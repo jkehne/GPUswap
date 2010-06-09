@@ -65,6 +65,7 @@ struct drm_pscnv_gem_info {	/* n i */
 };
 #define PSCNV_GEM_CONTIG	0x00000001	/* needs to be contiguous in VRAM */
 #define PSCNV_GEM_MAPPABLE	0x00000002	/* intended to be mmapped by host */
+#define PSCNV_GEM_GART		0x00000004	/* should be allocated in GART */
 
 /* for vspace_new and vspace_free */
 struct drm_pscnv_vspace_req {	/* n f */
