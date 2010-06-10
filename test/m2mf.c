@@ -27,11 +27,10 @@
 #include <fcntl.h>
 #include <assert.h>
 #include <errno.h>
-#include "drm.h"
 #include <xf86drm.h>
 #include <string.h>
 #include <stdio.h>
-#include "pscnv_drm.h"
+#include "libpscnv.h"
 #include <sys/mman.h>
 
 int
@@ -48,95 +47,63 @@ main()
 	if (fd == -1 || fd2 == -1)
 		return 1;
 
-	struct drm_pscnv_gem_info info;
-	memset (&info, 0, sizeof(info));
-	info.handle = 0xdeaddead;
-	info.cookie = 0xf1f0c0d;
-	info.flags = 0;
-	info.tile_flags = 0;
-	info.size = 0x2000;
-	info.map_handle = 0xdeaddeaddeaddeadull;
-	info.user[0] = 0xdeadbeef;
-	info.user[1] = 0xcafebabe;
-
-	ret = drmCommandWriteRead(fd, DRM_PSCNV_GEM_NEW, &info, sizeof(info));
+	uint32_t size = 0x2000;
+	uint32_t handle;
+	uint64_t map_handle;
+	ret = pscnv_gem_new(fd, 0xf1f0c0de, 0, 0, size, 0, &handle, &map_handle);
 	if (ret) {
 		printf("new: failed ret = %d\n", ret);
 		return 1;
 	}
-	printf("new: handle %d map %llx\n", info.handle, info.map_handle);
+	printf("new: handle %d map %llx\n", handle, map_handle);
 
-	uint32_t *pb_map = mmap(0, info.size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, info.map_handle);
+	uint32_t *pb_map = mmap(0, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, map_handle);
 	printf ("Mapped at %p\n", pb_map);
 
-	struct drm_pscnv_vspace_req req;
-	ret = drmCommandWriteRead(fd, DRM_PSCNV_VSPACE_NEW, &req, sizeof(req));
+	uint32_t vid;
+	ret = pscnv_vspace_new(fd, &vid);
 	if (ret) {
 		printf("vnew: failed ret = %d\n", ret);
 		return 1;
 	}
-	int vid = req.vid;
 	printf ("VID %d\n", vid);
 
-	struct drm_pscnv_chan_new chnew;
-	chnew.vid = vid;
-	ret = drmCommandWriteRead(fd, DRM_PSCNV_CHAN_NEW, &chnew, sizeof(chnew));
+	uint32_t cid;
+	uint64_t ch_map_handle;
+	ret = pscnv_chan_new(fd, vid, &cid, &ch_map_handle);
 	if (ret) {
 		printf("cnew: failed ret = %d\n", ret);
 		return 1;
 	}
-	int cid = chnew.cid;
-	printf ("CID %d %llx\n", cid, chnew.map_handle);
+	printf ("CID %d %llx\n", cid, ch_map_handle);
 
-	struct drm_pscnv_obj_vdma_new vdnew;
-	vdnew.cid = cid;
-	vdnew.handle = 0xbeef;
-	vdnew.oclass = 0x3d;
-	vdnew.flags = 0;
-	vdnew.start = 0;
-	vdnew.size = 1ull << 40;
-	ret = drmCommandWriteRead(fd, DRM_PSCNV_OBJ_VDMA_NEW, &vdnew, sizeof(vdnew));
+	ret = pscnv_obj_vdma_new(fd, cid, 0xbeef, 0x3d, 0, 0, 1ull << 40);
 	if (ret) {
 		printf("vdnew: failed ret = %d\n", ret);
 		return 1;
 	}
 
-	struct drm_pscnv_vspace_map vmap;
-	vmap.vid = vid;
-	vmap.handle = info.handle;
-	vmap.start = 0;
-	vmap.end = 1ull << 32;
-	vmap.back = 1;
-	vmap.flags = 0;
-	ret = drmCommandWriteRead(fd, DRM_PSCNV_VSPACE_MAP, &vmap, sizeof(vmap));
+	uint64_t offset;
+	ret = pscnv_vspace_map(fd, vid, handle, 0x1000, 1ull << 32, 1, 0, &offset);
 	if (ret) {
 		printf("vmap: failed ret = %d\n", ret);
 		return 1;
 	}
-	printf ("vmap at %llx\n", vmap.offset);
+	printf ("vmap at %llx\n", offset);
 
-	vdnew.handle = 0xdead;
-	vdnew.start = vmap.offset;
-	vdnew.size = 0x1000;
-	ret = drmCommandWriteRead(fd, DRM_PSCNV_OBJ_VDMA_NEW, &vdnew, sizeof(vdnew));
+	ret = pscnv_obj_vdma_new(fd, cid, 0xdead, 0x3d, 0, offset, 0x1000);
 	if (ret) {
 		printf("vdnew: failed ret = %d\n", ret);
 		return 1;
 	}
 
-	struct drm_pscnv_fifo_init finit;
-	finit.cid = cid;
-	finit.pb_handle = 0xbeef;
-	finit.flags = 0;
-	finit.slimask = 1;
-	finit.pb_start = vmap.offset;
-	ret = drmCommandWriteRead(fd, DRM_PSCNV_FIFO_INIT, &finit, sizeof(finit));
+	ret = pscnv_fifo_init(fd, cid, 0xbeef, 0, 1, offset);
 	if (ret) {
 		printf("fifo_init: failed ret = %d\n", ret);
 		return 1;
 	}
 
-	uint32_t *chmap = mmap(0, 0x2000, PROT_READ | PROT_WRITE, MAP_SHARED, fd, chnew.map_handle);
+	uint32_t *chmap = mmap(0, 0x2000, PROT_READ | PROT_WRITE, MAP_SHARED, fd, ch_map_handle);
 	printf ("Mapped at %p\n", chmap);
 
 	pb_map[0] = 0x40060;
@@ -149,7 +116,7 @@ main()
 	pb_map[7] = 0xcafebabe;
 	for (i = 8; i < 0x40; i++)
 		pb_map[i] = 0;
-	chmap[0x40/4] = vmap.offset+8*4;
+	chmap[0x40/4] = offset+8*4;
 
 	while (chmap[0x48/4] != 0xcafebabe);
 
@@ -158,12 +125,7 @@ main()
 	for (i = 0; i < 0x40; i++)
 		printf ("%x: %08x\n", i*4, pb_map[i]);
 
-	struct drm_pscnv_obj_gr_new grn;
-	grn.cid = cid;
-	grn.handle = 0xbeef39;
-	grn.oclass = 0x5039;
-	grn.flags = 0;
-	ret = drmCommandWriteRead(fd, DRM_PSCNV_OBJ_GR_NEW, &grn, sizeof(grn));
+	ret = pscnv_obj_gr_new (fd, cid, 0xbeef39, 0x5039, 0);
 	if (ret) {
 		printf("gr_new: failed ret = %d\n", ret);
 		return 1;
@@ -193,7 +155,7 @@ main()
 	pb_map[30] = 0x40050;
 	pb_map[31] = 0xbeefbeef;
 
-	chmap[0x40/4] = vmap.offset+32*4;
+	chmap[0x40/4] = offset+32*4;
 
 	while (chmap[0x48/4] != 0xbeefbeef);
 

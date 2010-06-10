@@ -27,11 +27,10 @@
 #include <fcntl.h>
 #include <assert.h>
 #include <errno.h>
-#include "drm.h"
 #include <xf86drm.h>
 #include <string.h>
 #include <stdio.h>
-#include "pscnv_drm.h"
+#include "libpscnv.h"
 #include <sys/mman.h>
 
 int
@@ -48,25 +47,17 @@ main()
 	if (fd == -1 || fd2 == -1)
 		return 1;
 
-	struct drm_pscnv_gem_info info;
-	memset (&info, 0, sizeof(info));
-	info.handle = 0xdeaddead;
-	info.cookie = 0xc071e;
-	info.flags = 0;
-	info.tile_flags = 0x54;
-	info.size = 0x1000;
-	info.map_handle = 0xdeaddeaddeaddeadull;
-	info.user[0] = 0xdeadbeef;
-	info.user[1] = 0xcafebabe;
-
-	ret = drmCommandWriteRead(fd, DRM_PSCNV_GEM_NEW, &info, sizeof(info));
+	uint32_t size = 0x1000;
+	uint64_t map_handle;
+	uint32_t handle;
+	ret = pscnv_gem_new(fd, 0xc071e, 0, 0x54, size, 0, &handle, &map_handle);
 	if (ret) {
 		printf("new: failed ret = %d\n", ret);
 		return 1;
 	}
-	printf("new: handle %d map %llx\n", info.handle, info.map_handle);
+	printf("new: handle %d map %llx\n", handle, map_handle);
 
-	uint32_t *map = mmap(0, info.size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, info.map_handle);
+	uint32_t *map = mmap(0, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, map_handle);
 	printf ("Mapped at %p\n", map);
 
 	for (i = 0; i < 0x400; i++)

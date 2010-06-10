@@ -27,17 +27,16 @@
 #include <fcntl.h>
 #include <assert.h>
 #include <errno.h>
-#include "drm.h"
 #include <xf86drm.h>
 #include <stdio.h>
-#include "pscnv_drm.h"
+#include "libpscnv.h"
 
 int DoTest(int fd)
 {
-	struct drm_pscnv_getparam get_param;
 	int ret;
 	int i, j;
 	uint64_t tmp[7];
+	uint64_t value;
 	char param_name[7][15] = {"chipset_id", "vendor", "device", "bus type",
 					"graph units", "ptimer time",
 					"vram size"};
@@ -52,10 +51,9 @@ int DoTest(int fd)
 
 	
 	for (i = 0; i < 7; i++) {
-		get_param.param = tmp[i];
-		ret = drmCommandWriteRead(fd, DRM_PSCNV_GETPARAM, &get_param, sizeof(get_param));
+		ret = pscnv_getparam(fd, tmp[i], &value);
 		if (ret==0) {
-			printf("%s : 0x%llx\n", param_name[i], get_param.value);
+			printf("%s : 0x%llx\n", param_name[i], value);
 		} else {
 			printf("%s : failed ret = %d\n", param_name[i], ret);
 		}
