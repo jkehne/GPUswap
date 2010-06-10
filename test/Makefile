@@ -1,4 +1,4 @@
-PROGS = get_param gem map chan m2mf
+PROGS = get_param gem map m2mf
 
 all: $(PROGS)
 
