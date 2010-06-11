@@ -262,6 +262,7 @@ pscnv_vspace_map_int(struct pscnv_vspace *vs, struct pscnv_vo *vo,
 				return 0;
 			split->start = mend;
 			split->size = node->start + node->size - mend;
+			split->vspace = vs;
 			node->size = mend - node->start;
 			split->maxgap = split->size;
 			PSCNV_RB_INSERT(pscnv_vm_maptree, &vs->maps, split);
@@ -272,6 +273,7 @@ pscnv_vspace_map_int(struct pscnv_vspace *vs, struct pscnv_vo *vo,
 				return 0;
 			split->start = node->start;
 			split->size = mstart - node->start;
+			split->vspace = vs;
 			node->start = mstart;
 			node->size = mend - node->start;
 			split->maxgap = split->size;
