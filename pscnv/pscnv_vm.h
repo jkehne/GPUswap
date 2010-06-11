@@ -78,12 +78,6 @@ int pscnv_ioctl_vspace_free(struct drm_device *dev, void *data,
 						struct drm_file *file_priv);
 int pscnv_ioctl_vspace_map(struct drm_device *dev, void *data,
 						struct drm_file *file_priv);
-int pscnv_ioctl_chan_new(struct drm_device *dev, void *data,
-						struct drm_file *file_priv);
-int pscnv_ioctl_chan_free(struct drm_device *dev, void *data,
-						struct drm_file *file_priv);
-int pscnv_ioctl_obj_vdma_new(struct drm_device *dev, void *data,
-						struct drm_file *file_priv);
 
 /* needs vm_mutex held */
 struct pscnv_vspace *pscnv_get_vspace(struct drm_device *dev, struct drm_file *file_priv, int vid);

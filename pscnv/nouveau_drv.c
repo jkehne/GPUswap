@@ -29,6 +29,7 @@
 #include "drm_crtc_helper.h"
 #include "nouveau_drv.h"
 #include "pscnv_gem.h"
+#include "pscnv_chan.h"
 #include "pscnv_fifo.h"
 #include "pscnv_graph.h"
 #if 0
