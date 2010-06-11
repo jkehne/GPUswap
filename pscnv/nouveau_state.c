@@ -506,6 +506,7 @@ nouveau_card_init(struct drm_device *dev)
 	if (drm_core_check_feature(dev, DRIVER_MODESET))
 		drm_helper_initial_config(dev);
 #endif
+	NV_INFO(dev, "Card initialized.\n");
 	return 0;
 #if 0
 out_channel:
@@ -561,6 +562,7 @@ static void nouveau_card_takedown(struct drm_device *dev)
 		vga_client_register(dev->pdev, NULL, NULL, NULL);
 
 		dev_priv->init_state = NOUVEAU_CARD_INIT_DOWN;
+		NV_INFO(dev, "Card stopped.\n");
 	}
 }
 
