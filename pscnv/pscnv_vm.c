@@ -186,7 +186,6 @@ pscnv_vm_init(struct drm_device *dev) {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct pscnv_vspace *barvm = pscnv_vspace_new (dev);
 	struct pscnv_chan *barch;
-	struct pscnv_vm_mapnode *foo;
 	int bar1dma, bar3dma;
 	if (!barvm)
 		return -ENOMEM;
@@ -204,20 +203,19 @@ pscnv_vm_init(struct drm_device *dev) {
 	mutex_init(&dev_priv->vm_mutex);
 	pscnv_vspace_map3(barch->vo);
 	pscnv_vspace_map3(barvm->pt[0]);
-
-	pscnv_vspace_map(barvm, barch->vo, dev_priv->fb_size, dev_priv->fb_size + dev_priv->ramin_size, 0, &foo);
-	pscnv_vspace_map(barvm, barvm->pt[0], dev_priv->fb_size, dev_priv->fb_size + dev_priv->ramin_size, 0, &foo);
-
 	return 0;
 }
 
 int
 pscnv_vm_takedown(struct drm_device *dev) {
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	/* XXX: write me. */
+	dev_priv->barvm = 0;
+	dev_priv->barch = 0;
 	nv_wr32(dev, 0x1708, 0);
 	nv_wr32(dev, 0x170c, 0);
 	nv_wr32(dev, 0x1710, 0);
 	nv_wr32(dev, 0x1704, 0);
-	/* XXX: write me. */
 	return 0;
 }
 
