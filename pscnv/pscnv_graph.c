@@ -110,6 +110,8 @@ int pscnv_graph_init(struct drm_device *dev) {
 }
 
 int pscnv_graph_takedown(struct drm_device *dev) {
+	nv_wr32(dev, 0x400138, 0);	/* TRAP_EN */
+	nv_wr32(dev, 0x40013c, 0);	/* INTR_EN */
 	/* XXX */
 	return 0;
 }
