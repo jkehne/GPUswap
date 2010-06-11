@@ -98,6 +98,7 @@ static int
 pscnv_vspace_fill_pd_slot (struct pscnv_vspace *vs, uint32_t pdenum) {
 	struct drm_nouveau_private *dev_priv = vs->dev->dev_private;
 	struct list_head *pos;
+	int i;
 	uint32_t chan_pd;
 	vs->pt[pdenum] = pscnv_vram_alloc(vs->dev, NV50_VM_SPTE_COUNT * 8, PSCNV_VO_CONTIG, 0, 0xa9e7ab1e);
 	if (!vs->pt[pdenum]) {
@@ -106,6 +107,9 @@ pscnv_vspace_fill_pd_slot (struct pscnv_vspace *vs, uint32_t pdenum) {
 
 	if (!vs->isbar)
 		pscnv_vspace_map3(vs->pt[pdenum]);
+
+	for (i = 0; i < NV50_VM_SPTE_COUNT; i++)
+		nv_wv32(vs->pt[pdenum], i * 8, 0);
 
 	if (dev_priv->chipset == 0x50)
 		chan_pd = NV50_CHAN_PD;
