@@ -113,6 +113,10 @@ MODULE_PARM_DESC(ramht_debug, "RAMHT debug level: 0-2.");
 int pscnv_ramht_debug = 0;
 module_param_named(ramht_debug, pscnv_ramht_debug, int, 0400);
 
+MODULE_PARM_DESC(gem_debug, "GEM debug level: 0-1.");
+int pscnv_gem_debug = 0;
+module_param_named(gem_debug, pscnv_gem_debug, int, 0400);
+
 int nouveau_fbpercrtc;
 #if 0
 module_param_named(fbpercrtc, nouveau_fbpercrtc, int, 0400);

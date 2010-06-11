@@ -67,6 +67,10 @@ int pscnv_ioctl_gem_new(struct drm_device *dev, void *data,
 		vo->user[i] = info->user[i];
 
 	ret = drm_gem_handle_create(file_priv, obj, &info->handle);
+
+	if (pscnv_gem_debug >= 1)
+		NV_INFO(dev, "GEM handle %x is VO %x/%d\n", info->handle, vo->cookie, vo->serial);
+
 	info->map_handle = (uint64_t)info->handle << 32;
 	drm_gem_object_handle_unreference_unlocked (obj);
 	return ret;
