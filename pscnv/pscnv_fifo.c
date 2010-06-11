@@ -41,6 +41,8 @@ int pscnv_fifo_init(struct drm_device *dev) {
 	if (!dev_priv->playlist[0] || !dev_priv->playlist[1]) {
 		return -ENOMEM;
 	}
+	pscnv_vspace_map3(dev_priv->playlist[0]);
+	pscnv_vspace_map3(dev_priv->playlist[1]);
 	dev_priv->cur_playlist = 0;
 
 	/* reset everything */
@@ -76,9 +78,14 @@ int pscnv_fifo_init(struct drm_device *dev) {
 
 int pscnv_fifo_takedown(struct drm_device *dev) {
 	int i;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	for (i = 0; i < 128; i++)
 		nv_wr32(dev, 0x2600 + i * 4, 0);
 	nv_wr32(dev, 0x2140, 0);
+	nv_wr32(dev, 0x32ec, 0);
+	nv_wr32(dev, 0x2500, 0x101);
+	pscnv_vram_free(dev_priv->playlist[0]);
+	pscnv_vram_free(dev_priv->playlist[1]);
 	/* XXX */
 	return 0;
 }
