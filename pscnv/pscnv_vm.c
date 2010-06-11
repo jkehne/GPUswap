@@ -355,9 +355,10 @@ pscnv_vspace_map_int(struct pscnv_vspace *vs, struct pscnv_vo *vo,
 	right = PSCNV_RB_RIGHT(node, entry);
 	lok = left && left->maxgap >= vo->size && node->start > start;
 	rok = right && right->maxgap >= vo->size && node->start + node->size  < end;
-	NV_INFO (vs->dev, "%llx %llx %llx %llx %llx %llx %llx %llx %llx %d %d\n", node->start, node->size, node->maxgap,
-			left?left->start:0, left?left->size:0, left?left->maxgap:0,
-			right?right->start:0, right?right->size:0, right?right->maxgap:0, lok, rok);
+	if (pscnv_vm_debug >= 2)
+		NV_INFO (vs->dev, "VM map: %llx %llx %llx %llx %llx %llx %llx %llx %llx %d %d\n", node->start, node->size, node->maxgap,
+				left?left->start:0, left?left->size:0, left?left->maxgap:0,
+				right?right->start:0, right?right->size:0, right?right->maxgap:0, lok, rok);
 	if (!back && lok) {
 		res = pscnv_vspace_map_int(vs, vo, start, end, back, left);
 		if (res)
@@ -428,8 +429,9 @@ pscnv_vspace_map(struct pscnv_vspace *vs, struct pscnv_vo *vo,
 		mutex_unlock(&vs->lock);
 		return -ENOMEM;
 	}
-	NV_INFO(vs->dev, "Mapping VO %x/%d at %llx-%llx.\n", vo->cookie, vo->serial, node->start,
-			node->start + node->size);
+	if (pscnv_vm_debug >= 1)
+		NV_INFO(vs->dev, "Mapping VO %x/%d at %llx-%llx.\n", vo->cookie, vo->serial, node->start,
+				node->start + node->size);
 	pscnv_vspace_do_map(vs, vo, node->start);
 	*res = node;
 	mutex_unlock(&vs->lock);

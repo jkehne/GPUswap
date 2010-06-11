@@ -101,8 +101,16 @@ int nouveau_reg_debug;
 module_param_named(reg_debug, nouveau_reg_debug, int, 0600);
 
 MODULE_PARM_DESC(vram_debug, "VRAM debug level: 0-3.");
-int pscnv_vram_debug = 0; /* kms */
+int pscnv_vram_debug = 0;
 module_param_named(vram_debug, pscnv_vram_debug, int, 0400);
+
+MODULE_PARM_DESC(vm_debug, "VM debug level: 0-2.");
+int pscnv_vm_debug = 0;
+module_param_named(vm_debug, pscnv_vm_debug, int, 0400);
+
+MODULE_PARM_DESC(ramht_debug, "RAMHT debug level: 0-2.");
+int pscnv_ramht_debug = 0;
+module_param_named(ramht_debug, pscnv_ramht_debug, int, 0400);
 
 int nouveau_fbpercrtc;
 #if 0
