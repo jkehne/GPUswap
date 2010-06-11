@@ -66,6 +66,7 @@ extern struct pscnv_vspace *pscnv_vspace_new(struct drm_device *);
 extern void pscnv_vspace_free(struct pscnv_vspace *);
 extern int pscnv_vspace_map(struct pscnv_vspace *, struct pscnv_vo *, uint64_t start, uint64_t end, int back, struct pscnv_vm_mapnode **res);
 extern int pscnv_vspace_unmap(struct pscnv_vspace *, uint64_t start);
+extern int pscnv_vspace_unmap_node(struct pscnv_vm_mapnode *node);
 extern int pscnv_vspace_map1(struct pscnv_vo *);
 extern int pscnv_vspace_map3(struct pscnv_vo *);
 
@@ -77,6 +78,8 @@ int pscnv_ioctl_vspace_new(struct drm_device *dev, void *data,
 int pscnv_ioctl_vspace_free(struct drm_device *dev, void *data,
 						struct drm_file *file_priv);
 int pscnv_ioctl_vspace_map(struct drm_device *dev, void *data,
+						struct drm_file *file_priv);
+int pscnv_ioctl_vspace_unmap(struct drm_device *dev, void *data,
 						struct drm_file *file_priv);
 
 /* needs vm_mutex held */

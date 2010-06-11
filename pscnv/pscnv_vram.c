@@ -517,6 +517,10 @@ pscnv_vram_free(struct pscnv_vo *vo)
 	if (pscnv_vram_debug >= 1)
 		NV_INFO(vo->dev, "Freeing %d, %#llx-byte %sVO of type %08x, tile_flags %x\n", vo->serial, vo->size,
 				(vo->flags & PSCNV_VO_CONTIG ? "contig " : ""), vo->cookie, vo->tile_flags);
+	if (vo->map1)
+		pscnv_vspace_unmap_node(vo->map1);
+	if (vo->map3)
+		pscnv_vspace_unmap_node(vo->map3);
 	list_for_each_safe(pos, next, &vo->regions) {
 		struct pscnv_vram_region *reg = list_entry(pos, struct pscnv_vram_region, local_list);
 		pscnv_vram_free_region (vo->dev, reg);
