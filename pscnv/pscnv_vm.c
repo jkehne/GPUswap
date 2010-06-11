@@ -77,6 +77,7 @@ pscnv_vspace_do_unmap (struct pscnv_vspace *vs, uint64_t offset, uint64_t length
 			nv_wv32(vs->pt[pdenum], ptenum * 8, 0);
 		}
 		offset += 0x1000;
+		length -= 0x1000;
 	}
 	/* XXX: determine which flushes we need here. */
 	if (vs->isbar) {
@@ -319,6 +320,9 @@ pscnv_vspace_map(struct pscnv_vspace *vs, struct pscnv_vo *vo,
 
 static int
 pscnv_vspace_unmap_node_unlocked(struct pscnv_vm_mapnode *node) {
+	if (pscnv_vm_debug >= 1) {
+		NV_INFO(node->vspace->dev, "Unmapping range %llx-%llx.\n", node->start, node->start + node->size);
+	}
 	pscnv_vspace_do_unmap(node->vspace, node->start, node->size);
 	if (!node->vspace->isbar) {
 		drm_gem_object_unreference(node->vo->gem);
