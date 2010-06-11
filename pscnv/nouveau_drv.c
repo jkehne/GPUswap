@@ -100,6 +100,10 @@ MODULE_PARM_DESC(reg_debug, "Register access debug bitmask:\n"
 int nouveau_reg_debug;
 module_param_named(reg_debug, nouveau_reg_debug, int, 0600);
 
+MODULE_PARM_DESC(vram_debug, "VRAM debug level: 0-3.");
+int pscnv_vram_debug = 0; /* kms */
+module_param_named(vram_debug, pscnv_vram_debug, int, 0400);
+
 int nouveau_fbpercrtc;
 #if 0
 module_param_named(fbpercrtc, nouveau_fbpercrtc, int, 0400);

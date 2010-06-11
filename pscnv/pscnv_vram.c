@@ -32,8 +32,6 @@
 #include <linux/kernel.h>
 #include <linux/mutex.h>
 
-#define PSCNV_VRAM_DEBUG
-
 static inline uint64_t
 pscnv_roundup (uint64_t x, uint32_t y)
 {
@@ -90,10 +88,9 @@ pscnv_vram_split_left (struct drm_device *dev, struct pscnv_vram_region *reg, ui
 	list_add_tail(&left->global_list, &reg->global_list);
 	reg->size -= left->size;
 	reg->start += left->size;
-#ifdef PSCNV_VRAM_DEBUG
-	NV_INFO(dev, "Split left type %d: %llx:%llx:%llx\n", reg->type,
-			left->start, reg->start, reg->start + reg->size);
-#endif
+	if (pscnv_vram_debug >= 3)
+		NV_INFO(dev, "Split left type %d: %llx:%llx:%llx\n", reg->type,
+				left->start, reg->start, reg->start + reg->size);
 	return left;
 }
 
@@ -110,10 +107,9 @@ pscnv_vram_split_right (struct drm_device *dev, struct pscnv_vram_region *reg, u
 	list_add(&right->local_list, &reg->local_list);
 	list_add(&right->global_list, &reg->global_list);
 	reg->size -= right->size;
-#ifdef PSCNV_VRAM_DEBUG
-	NV_INFO(dev, "Split right type %d: %llx:%llx:%llx\n", reg->type,
-			reg->start, right->start, right->start + right->size);
-#endif
+	if (pscnv_vram_debug >= 3)
+		NV_INFO(dev, "Split right type %d: %llx:%llx:%llx\n", reg->type,
+				reg->start, right->start, right->start + right->size);
 	return right;
 }
 
@@ -132,10 +128,9 @@ pscnv_vram_try_merge (struct drm_device *dev, struct pscnv_vram_region *a, struc
 	}
 	if (a->type != b->type)
 		return a;
-#ifdef PSCNV_VRAM_DEBUG
-	NV_INFO(dev, "Merging type %d: %llx:%llx:%llx\n", a->type,
-			c->start, d->start, d->start + d->size);
-#endif
+	if (pscnv_vram_debug >= 3)
+		NV_INFO(dev, "Merging type %d: %llx:%llx:%llx\n", a->type,
+				c->start, d->start, d->start + d->size);
 	c->size += d->size;
 	list_del(&d->global_list);
 	list_del(&d->local_list);
@@ -383,10 +378,9 @@ pscnv_vram_alloc(struct drm_device *dev,
 
 	mutex_lock(&dev_priv->vram_mutex);
 	res->serial = serial++;
-#ifdef PSCNV_VRAM_DEBUG
-	NV_INFO(dev, "Allocating %d, %#llx-byte %sVO of type %08x, tile_flags %x\n", res->serial, size,
-			(flags & PSCNV_VO_CONTIG ? "contig " : ""), cookie, tile_flags);
-#endif
+	if (pscnv_vram_debug >= 1)
+		NV_INFO(dev, "Allocating %d, %#llx-byte %sVO of type %08x, tile_flags %x\n", res->serial, size,
+				(flags & PSCNV_VO_CONTIG ? "contig " : ""), cookie, tile_flags);
 	if (list_empty(&dev_priv->vram_free_list)) {
 		mutex_unlock(&dev_priv->vram_mutex);
 		return 0;
@@ -447,10 +441,9 @@ pscnv_vram_alloc(struct drm_device *dev,
 					list_add(&cur->local_list, &res->regions);
 				else
 					list_add_tail(&cur->local_list, &res->regions);
-#ifdef PSCNV_VRAM_DEBUG
-				NV_INFO (dev, "Using block at %llx-%llx\n",
-						cur->start, cur->start + cur->size);
-#endif
+				if (pscnv_vram_debug >= 2)
+					NV_INFO (dev, "Using block at %llx-%llx\n",
+							cur->start, cur->start + cur->size);
 				if (flags & PSCNV_VO_CONTIG)
 					res->start = cur->start;
 				cur->vo = res;
@@ -486,10 +479,9 @@ pscnv_vram_free_region (struct drm_device *dev, struct pscnv_vram_region *reg) {
 		return -EINVAL;
 	}
 	mutex_lock(&dev_priv->vram_mutex);
-#ifdef PSCNV_VRAM_DEBUG
-	NV_INFO (dev, "Freeing block %llx-%llx of type %d.\n",
-			reg->start, reg->start+reg->size, reg->type);
-#endif
+	if (pscnv_vram_debug >= 3)
+		NV_INFO (dev, "Freeing block %llx-%llx of type %d.\n",
+				reg->start, reg->start+reg->size, reg->type);
 	list_del(&reg->local_list);
 	next = pscnv_vram_global_next(dev, reg);
 	prev = pscnv_vram_global_prev(dev, reg);
@@ -522,10 +514,9 @@ int
 pscnv_vram_free(struct pscnv_vo *vo)
 {
 	struct list_head *pos, *next;
-#ifdef PSCNV_VRAM_DEBUG
-	NV_INFO(vo->dev, "Freeing %d, %#llx-byte %sVO of type %08x, tile_flags %x\n", vo->serial, vo->size,
-			(vo->flags & PSCNV_VO_CONTIG ? "contig " : ""), vo->cookie, vo->tile_flags);
-#endif
+	if (pscnv_vram_debug >= 1)
+		NV_INFO(vo->dev, "Freeing %d, %#llx-byte %sVO of type %08x, tile_flags %x\n", vo->serial, vo->size,
+				(vo->flags & PSCNV_VO_CONTIG ? "contig " : ""), vo->cookie, vo->tile_flags);
 	list_for_each_safe(pos, next, &vo->regions) {
 		struct pscnv_vram_region *reg = list_entry(pos, struct pscnv_vram_region, local_list);
 		pscnv_vram_free_region (vo->dev, reg);
