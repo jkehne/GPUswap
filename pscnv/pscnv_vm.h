@@ -26,17 +26,14 @@
 
 #ifndef __PSCNV_VM_H__
 #define __PSCNV_VM_H__
+
 #include "pscnv_vram.h"
 #include "pscnv_tree.h"
-#include "pscnv_ramht.h"
 
 #define NV50_VM_SIZE		0x10000000000ULL
 #define NV50_VM_PDE_COUNT	0x800
 #define NV50_VM_SPTE_COUNT	0x20000
 #define NV50_VM_LPTE_COUNT	0x2000
-
-#define NV50_CHAN_PD	0x1400
-#define NV84_CHAN_PD	0x0200
 
 PSCNV_RB_HEAD(pscnv_vm_maptree, pscnv_vm_mapnode);
 
@@ -61,35 +58,17 @@ struct pscnv_vm_mapnode {
 	uint64_t maxgap;
 };
 
-struct pscnv_chan {
-	struct pscnv_vspace *vspace;
-	int isbar;
-	struct list_head vspace_list;
-	struct pscnv_vo *vo;
-	spinlock_t instlock;
-	int instpos;
-	struct pscnv_ramht ramht;
-	uint32_t ramfc;
-	struct pscnv_vo *cache;
-	struct drm_file *filp;
-	int engines;
-	struct pscnv_vo *grctx;
-};
-
 #define PSCNV_ENGINE_PGRAPH 0x00000001
 
 extern int pscnv_vm_init(struct drm_device *);
 extern int pscnv_vm_takedown(struct drm_device *);
 extern struct pscnv_vspace *pscnv_vspace_new(struct drm_device *);
 extern void pscnv_vspace_free(struct pscnv_vspace *);
-extern struct pscnv_chan *pscnv_chan_new(struct pscnv_vspace *);
-extern void pscnv_chan_free(struct pscnv_chan *);
-extern int pscnv_chan_iobj_new(struct pscnv_chan *, uint32_t size);
-extern int pscnv_chan_dmaobj_new(struct pscnv_chan *, uint32_t type, uint64_t start, uint64_t size);
 extern int pscnv_vspace_map(struct pscnv_vspace *, struct pscnv_vo *, uint64_t start, uint64_t end, int back, struct pscnv_vm_mapnode **res);
 extern int pscnv_vspace_unmap(struct pscnv_vspace *, uint64_t start);
 extern int pscnv_vspace_map1(struct pscnv_vo *);
 extern int pscnv_vspace_map3(struct pscnv_vo *);
+
 extern int pscnv_mmap(struct file *filp, struct vm_area_struct *vma);
 struct pscnv_chan *pscnv_get_chan(struct drm_device *dev, struct drm_file *file_priv, int cid);
 
@@ -105,5 +84,8 @@ int pscnv_ioctl_chan_free(struct drm_device *dev, void *data,
 						struct drm_file *file_priv);
 int pscnv_ioctl_obj_vdma_new(struct drm_device *dev, void *data,
 						struct drm_file *file_priv);
+
+/* needs vm_mutex held */
+struct pscnv_vspace *pscnv_get_vspace(struct drm_device *dev, struct drm_file *file_priv, int vid);
 
 #endif

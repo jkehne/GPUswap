@@ -28,6 +28,7 @@
 #include "drmP.h"
 #include "nouveau_drv.h"
 #include "pscnv_fifo.h"
+#include "pscnv_chan.h"
 
 int pscnv_fifo_init(struct drm_device *dev) {
 	int i;

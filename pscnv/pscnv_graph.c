@@ -29,6 +29,7 @@
 #include "nouveau_drv.h"
 #include "nouveau_grctx.h"
 #include "pscnv_graph.h"
+#include "pscnv_chan.h"
 
 int pscnv_graph_init(struct drm_device *dev) {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
