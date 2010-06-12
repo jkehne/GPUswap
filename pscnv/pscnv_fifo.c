@@ -154,7 +154,7 @@ int pscnv_ioctl_fifo_init(struct drm_device *dev, void *data,
 	nv_wv32(ch->vo, ch->ramfc + 0x40, 0);
 	nv_wv32(ch->vo, ch->ramfc + 0x44, 0x2101ffff);
 	nv_wv32(ch->vo, ch->ramfc + 0x48, pb_inst);
-	nv_wv32(ch->vo, ch->ramfc + 0x4c, 0);
+	nv_wv32(ch->vo, ch->ramfc + 0x4c, 0xffffffff);
 	nv_wv32(ch->vo, ch->ramfc + 0x50, 0);
 	nv_wv32(ch->vo, ch->ramfc + 0x54, 0);
 	nv_wv32(ch->vo, ch->ramfc + 0x58, 0);
