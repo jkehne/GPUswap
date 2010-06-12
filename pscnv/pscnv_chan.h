@@ -56,6 +56,7 @@ extern void pscnv_chan_free(struct pscnv_chan *);
 extern int pscnv_chan_iobj_new(struct pscnv_chan *, uint32_t size);
 extern int pscnv_chan_dmaobj_new(struct pscnv_chan *, uint32_t type, uint64_t start, uint64_t size);
 
+extern void pscnv_chan_cleanup(struct drm_device *dev, struct drm_file *file_priv);
 extern int pscnv_chan_mmap(struct file *filp, struct vm_area_struct *vma);
 
 int pscnv_ioctl_chan_new(struct drm_device *dev, void *data,

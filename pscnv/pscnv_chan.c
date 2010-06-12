@@ -343,3 +343,19 @@ int pscnv_chan_mmap(struct file *filp, struct vm_area_struct *vma)
 	}
 	return -EINVAL;
 }
+
+void pscnv_chan_cleanup(struct drm_device *dev, struct drm_file *file_priv) {
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	int cid;
+	struct pscnv_chan *ch;
+
+	mutex_lock (&dev_priv->vm_mutex);
+	for (cid = 0; cid < 128; cid++) {
+		ch = pscnv_get_chan(dev, file_priv, cid);
+		if (!ch)
+			continue;
+		ch->filp = 0;
+		kref_put(&ch->ref, pscnv_chan_ref_free);
+	}
+	mutex_unlock (&dev_priv->vm_mutex);
+}

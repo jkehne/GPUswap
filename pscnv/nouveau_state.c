@@ -36,6 +36,7 @@
 #include "pscnv_drm.h"
 #include "nouveau_reg.h"
 #include "pscnv_vm.h"
+#include "pscnv_chan.h"
 #include "pscnv_fifo.h"
 #include "pscnv_graph.h"
 
@@ -570,7 +571,7 @@ static void nouveau_card_takedown(struct drm_device *dev)
  * file_priv */
 void nouveau_preclose(struct drm_device *dev, struct drm_file *file_priv)
 {
-//	nouveau_channel_cleanup(dev, file_priv);
+	pscnv_chan_cleanup(dev, file_priv);
 }
 
 /* first module load, setup the mmio/fb mapping */
