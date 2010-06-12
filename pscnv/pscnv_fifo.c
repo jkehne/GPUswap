@@ -108,6 +108,41 @@ void pscnv_fifo_playlist_update (struct drm_device *dev) {
 	nv_wr32(dev, 0x2500, 0x101);
 }
 
+void pscnv_fifo_chan_free(struct pscnv_chan *ch) {
+	struct drm_device *dev = ch->vspace->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	spin_lock(&dev_priv->pfifo_lock);
+	nv_wr32(dev, 0x2600 + ch->cid * 4, nv_rd32(dev, 0x2600 + ch->cid * 4) & 0x3fffffff);
+	pscnv_fifo_playlist_update(dev);
+	nv_wr32(dev, 0x2504, 1);
+	if (!nouveau_wait_until(dev, 2000000000ULL, 0x2504, 0x10, 0x10)) {
+		NV_ERROR(dev, "PFIFO freeze fail!\n");
+	}
+	if ((nv_rd32(dev, 0x3204) & 0x7f) == ch->cid) {
+		NV_INFO(dev, "Kicking channel %d off PFIFO.\n", ch->cid);
+		nv_wr32(dev, 0x3204, 0);
+
+		/* put PFIFO onto unused channel 0. */
+		nv_wr32(dev, 0x3204, 0);
+
+		/* clear GET, PUT */
+		nv_wr32(dev, 0x3210, 0);
+		nv_wr32(dev, 0x3270, 0);
+
+		/* enable everything. */
+		nv_wr32(dev, 0x3250, 1);
+		nv_wr32(dev, 0x3220, 1);
+		nv_wr32(dev, 0x3200, 1);
+		nv_wr32(dev, 0x2500, 1);
+
+		/* XXX: what if there were some errors on the channel?
+		 * is the above enough to clean up any potential mess? */
+	}
+	nv_wr32(dev, 0x2600 + ch->cid * 4, 0);
+	nv_wr32(dev, 0x2504, 0);
+	spin_unlock(&dev_priv->pfifo_lock);
+}
+
 int pscnv_ioctl_fifo_init(struct drm_device *dev, void *data,
 						struct drm_file *file_priv) {
 	struct drm_pscnv_fifo_init *req = data;

@@ -116,6 +116,10 @@ int pscnv_graph_takedown(struct drm_device *dev) {
 	return 0;
 }
 
+void pscnv_graph_chan_free(struct pscnv_chan *ch) {
+	/* XXX */
+}
+
 int pscnv_ioctl_obj_gr_new(struct drm_device *dev, void *data,
 						struct drm_file *file_priv) {
 	struct drm_pscnv_obj_gr_new *req = data;

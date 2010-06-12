@@ -29,6 +29,7 @@
 
 extern int pscnv_graph_init(struct drm_device *);
 extern int pscnv_graph_takedown(struct drm_device *);
+void pscnv_graph_chan_free(struct pscnv_chan *ch);
 int pscnv_ioctl_obj_gr_new(struct drm_device *dev, void *data,
 						struct drm_file *file_priv);
 

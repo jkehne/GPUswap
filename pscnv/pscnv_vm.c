@@ -209,6 +209,8 @@ pscnv_vm_init(struct drm_device *dev) {
 int
 pscnv_vm_takedown(struct drm_device *dev) {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct pscnv_vspace *vs = dev_priv->barvm;
+	struct pscnv_chan *ch = dev_priv->barch;
 	/* XXX: write me. */
 	dev_priv->barvm = 0;
 	dev_priv->barch = 0;
@@ -216,6 +218,8 @@ pscnv_vm_takedown(struct drm_device *dev) {
 	nv_wr32(dev, 0x170c, 0);
 	nv_wr32(dev, 0x1710, 0);
 	nv_wr32(dev, 0x1704, 0);
+	pscnv_chan_free(ch);
+	pscnv_vspace_free(vs);
 	return 0;
 }
 
