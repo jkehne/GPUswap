@@ -46,6 +46,7 @@ pscnv_chan_new (struct pscnv_vspace *vs) {
 	res->vspace = vs;
 	spin_lock_init(&res->instlock);
 	spin_lock_init(&res->ramht.lock);
+	kref_init(&res->ref);
 	list_add(&res->vspace_list, &vs->chan_list);
 
 	/* determine size of underlying VO... for normal channels,
@@ -221,6 +222,19 @@ int pscnv_ioctl_chan_new(struct drm_device *dev, void *data,
 	return 0;
 }
 
+static void pscnv_chan_ref_free(struct kref *ref) {
+	struct pscnv_chan *ch = container_of(ref, struct pscnv_chan, ref);
+	int cid = ch->cid;
+	struct drm_nouveau_private *dev_priv = ch->vspace->dev->dev_private;
+
+	/* XXX */
+	NV_INFO(ch->vspace->dev, "Freeing FIFO %d\n", cid);
+
+	pscnv_chan_free(ch);
+
+	dev_priv->chans[cid] = 0;
+}
+
 int pscnv_ioctl_chan_free(struct drm_device *dev, void *data,
 						struct drm_file *file_priv)
 {
@@ -238,11 +252,8 @@ int pscnv_ioctl_chan_free(struct drm_device *dev, void *data,
 		return -ENOENT;
 	}
 
-	NV_INFO(dev, "Freeing FIFO %d\n", cid);
-
-	pscnv_chan_free(ch);
-
-	dev_priv->chans[cid] = 0;
+	ch->filp = 0;
+	kref_put(&ch->ref, pscnv_chan_ref_free);
 
 	mutex_unlock (&dev_priv->vm_mutex);
 	return 0;
@@ -283,20 +294,48 @@ int pscnv_ioctl_obj_vdma_new(struct drm_device *dev, void *data,
 	return ret;
 }
 
+static void pscnv_chan_vm_open(struct vm_area_struct *vma) {
+	struct pscnv_chan *ch = vma->vm_private_data;
+	kref_get(&ch->ref);
+}
+
+static void pscnv_chan_vm_close(struct vm_area_struct *vma) {
+	struct pscnv_chan *ch = vma->vm_private_data;
+	struct drm_nouveau_private *dev_priv = ch->vspace->dev->dev_private;
+	mutex_lock (&dev_priv->vm_mutex);
+	kref_put(&ch->ref, pscnv_chan_ref_free);
+	mutex_unlock (&dev_priv->vm_mutex);
+}
+
+static struct vm_operations_struct pscnv_chan_vm_ops = {
+	.open = pscnv_chan_vm_open,
+	.close = pscnv_chan_vm_close,
+};	
+
 int pscnv_chan_mmap(struct file *filp, struct vm_area_struct *vma)
 {
 	struct drm_file *priv = filp->private_data;
 	struct drm_device *dev = priv->minor->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	int ret;
+	int cid;
+	struct pscnv_chan *ch;
 
 	if ((vma->vm_pgoff * PAGE_SIZE & ~0x7f0000ull) == 0xc0000000) {
-		int cid = (vma->vm_pgoff * PAGE_SIZE >> 16) & 0x7f;
 		if (vma->vm_end - vma->vm_start > 0x2000)
 			return -EINVAL;
-		/* XXX: check for valid process */
+		mutex_lock (&dev_priv->vm_mutex);
+		cid = (vma->vm_pgoff * PAGE_SIZE >> 16) & 0x7f;
+		ch = pscnv_get_chan(dev, filp->private_data, cid);
+		if (!ch) {
+			mutex_unlock (&dev_priv->vm_mutex);
+			return -ENOENT;
+		}
+		kref_get(&ch->ref);
+		mutex_unlock (&dev_priv->vm_mutex);
 
 		vma->vm_flags |= VM_RESERVED | VM_IO | VM_PFNMAP | VM_DONTEXPAND;
+		vma->vm_ops = &pscnv_chan_vm_ops;
+		vma->vm_private_data = ch;
 		return remap_pfn_range(vma, vma->vm_start, 
 			(dev_priv->mmio_phys + 0xc00000 + cid * 0x2000) >> PAGE_SHIFT,
 			vma->vm_end - vma->vm_start, PAGE_SHARED);

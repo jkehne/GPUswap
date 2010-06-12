@@ -29,11 +29,13 @@
 
 #include "pscnv_vm.h"
 #include "pscnv_ramht.h"
+#include <linux/kref.h>
 
 #define NV50_CHAN_PD	0x1400
 #define NV84_CHAN_PD	0x0200
 
 struct pscnv_chan {
+	int cid;
 	struct pscnv_vspace *vspace;
 	int isbar;
 	struct list_head vspace_list;
@@ -46,6 +48,7 @@ struct pscnv_chan {
 	struct drm_file *filp;
 	int engines;
 	struct pscnv_vo *grctx;
+	struct kref ref;
 };
 
 extern struct pscnv_chan *pscnv_chan_new(struct pscnv_vspace *);
