@@ -282,3 +282,24 @@ int pscnv_ioctl_obj_vdma_new(struct drm_device *dev, void *data,
 	mutex_unlock (&dev_priv->vm_mutex);
 	return ret;
 }
+
+int pscnv_chan_mmap(struct file *filp, struct vm_area_struct *vma)
+{
+	struct drm_file *priv = filp->private_data;
+	struct drm_device *dev = priv->minor->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	int ret;
+
+	if ((vma->vm_pgoff * PAGE_SIZE & ~0x7f0000ull) == 0xc0000000) {
+		int cid = (vma->vm_pgoff * PAGE_SIZE >> 16) & 0x7f;
+		if (vma->vm_end - vma->vm_start > 0x2000)
+			return -EINVAL;
+		/* XXX: check for valid process */
+
+		vma->vm_flags |= VM_RESERVED | VM_IO | VM_PFNMAP | VM_DONTEXPAND;
+		return remap_pfn_range(vma, vma->vm_start, 
+			(dev_priv->mmio_phys + 0xc00000 + cid * 0x2000) >> PAGE_SHIFT,
+			vma->vm_end - vma->vm_start, PAGE_SHARED);
+	}
+	return -EINVAL;
+}

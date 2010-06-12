@@ -395,17 +395,8 @@ int pscnv_mmap(struct file *filp, struct vm_area_struct *vma)
 	struct pscnv_vo *vo;
 	int ret;
 
-	if ((vma->vm_pgoff * PAGE_SIZE & ~0x7f0000ull) == 0xc0000000) {
-		int cid = (vma->vm_pgoff * PAGE_SIZE >> 16) & 0x7f;
-		if (vma->vm_end - vma->vm_start > 0x2000)
-			return -EINVAL;
-		/* XXX: check for valid process */
-
-		vma->vm_flags |= VM_RESERVED | VM_IO | VM_PFNMAP | VM_DONTEXPAND;
-		return remap_pfn_range(vma, vma->vm_start, 
-			(dev_priv->mmio_phys + 0xc00000 + cid * 0x2000) >> PAGE_SHIFT,
-			vma->vm_end - vma->vm_start, PAGE_SHARED);
-	}
+	if (vma->vm_pgoff * PAGE_SIZE < (1ull << 32))
+		return pscnv_chan_mmap(filp, vma);
 
 	obj = drm_gem_object_lookup(dev, priv, (vma->vm_pgoff * PAGE_SIZE) >> 32);
 	if (!obj)
