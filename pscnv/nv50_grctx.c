@@ -43,6 +43,9 @@
 #define CP_FLAG_UNK1D                 ((0 * 32) + 0x1d)
 #define CP_FLAG_UNK1D_CLEAR           0
 #define CP_FLAG_UNK1D_SET             1
+#define CP_FLAG_SYNC_ACK              ((0 * 32) + 0x1f)
+#define CP_FLAG_SYNC_ACK_FALSE        0
+#define CP_FLAG_SYNC_ACK_TRUE         1
 #define CP_FLAG_UNK20                 ((1 * 32) + 0)
 #define CP_FLAG_UNK20_CLEAR           0
 #define CP_FLAG_UNK20_SET             1
@@ -67,6 +70,9 @@
 #define CP_FLAG_INTR                  ((2 * 32) + 15)
 #define CP_FLAG_INTR_NOT_PENDING      0
 #define CP_FLAG_INTR_PENDING          1
+#define CP_FLAG_SYNC_REQ              ((3 * 32) + 0)
+#define CP_FLAG_SYNC_REQ_FALSE        0
+#define CP_FLAG_SYNC_REQ_TRUE         1
 
 #define CP_CTX                   0x00100000
 #define CP_CTX_COUNT             0x000f0000
@@ -155,6 +161,7 @@ enum cp_label {
 	cp_swap_state,
 	cp_prepare_exit,
 	cp_exit,
+	cp_sync,
 };
 
 static void nv50_graph_construct_mmio(struct nouveau_grctx *ctx);
@@ -214,11 +221,17 @@ nv50_grctx_init(struct nouveau_grctx *ctx)
 	cp_bra (ctx, UNK0B, SET, cp_prepare_exit);
 	cp_bra (ctx, ALWAYS, TRUE, cp_swap_state);
 
+	cp_name(ctx, cp_sync);
+	cp_set (ctx, SYNC_ACK, TRUE);
+	cp_bra (ctx, SYNC_REQ, TRUE, cp_sync);
+	cp_set (ctx, SYNC_ACK, FALSE);
+	cp_bra (ctx, SYNC_REQ, TRUE, cp_sync);
+
 	/* setup for context save */
 	cp_name(ctx, cp_setup_save);
 	cp_set (ctx, UNK1D, SET);
-	cp_wait(ctx, STATUS, BUSY);
-	cp_wait(ctx, INTR, PENDING);
+	cp_bra (ctx, SYNC_REQ, TRUE, cp_sync);
+	cp_bra (ctx, INTR, PENDING, cp_setup_save);
 	cp_bra (ctx, STATUS, BUSY, cp_setup_save);
 	cp_set (ctx, UNK01, SET);
 	cp_set (ctx, SWAP_DIRECTION, SAVE);
