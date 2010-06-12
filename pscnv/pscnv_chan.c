@@ -200,12 +200,13 @@ int pscnv_ioctl_chan_new(struct drm_device *dev, void *data,
 	}
 
 	ch = dev_priv->chans[cid] = pscnv_chan_new(vs);
-	if (!dev_priv->chans[i]) {
+	if (!dev_priv->chans[cid]) {
 		mutex_unlock (&dev_priv->vm_mutex);
 		return -ENOMEM;
 	}
+	ch->cid = cid;
 
-	dev_priv->chans[cid]->filp = file_priv;
+	ch->filp = file_priv;
 	
 	req->cid = cid;
 	req->map_handle = 0xc0000000 | cid << 16;
