@@ -38,6 +38,8 @@ int pscnv_graph_init(struct drm_device *dev) {
 	int ret, i;
 	uint32_t *cp;
 
+	spin_lock_init(&dev_priv->pgraph_lock);
+
 	/* reset everything */
 	nv_wr32(dev, 0x200, 0xffffefff);
 	nv_wr32(dev, 0x200, 0xffffffff);
@@ -117,7 +119,46 @@ int pscnv_graph_takedown(struct drm_device *dev) {
 }
 
 void pscnv_graph_chan_free(struct pscnv_chan *ch) {
-	/* XXX */
+	struct drm_device *dev = ch->vspace->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_timer_engine *ptimer = &dev_priv->engine.timer;
+	uint64_t start;
+	spin_lock(&dev_priv->pgraph_lock);
+	start = ptimer->read(dev);
+	/* disable PFIFO access */
+	nv_wr32(dev, 0x400500, 0);
+	/* tell ctxprog to hang in sync point, if it's executing */
+	nv_wr32(dev, 0x400830, 1);
+	/* make sure that ctxprog either isn't executing, or is waiting at the
+	 * sync point. */
+	while ((nv_rd32(dev, 0x400300) & 1) && !(nv_rd32(dev, 0x400824) & 0x80000000)) {
+		if (ptimer->read(dev) - start >= 2000000000) {
+			NV_ERROR(dev, "ctxprog wait fail!\n");
+			break;
+		}
+	}
+	/* check if the channel we're freeing is active on PGRAPH. */
+	if (nv_rd32(dev, 0x40032c) == (0x80000000 | ch->vo->start >> 12)) {
+		NV_INFO(dev, "Kicking channel %d off PGRAPH.\n", ch->cid);
+		/* DIE */
+		nv_wr32(dev, 0x400040, -1);
+		nv_wr32(dev, 0x400040, 0);
+		/* no active channel now. */
+		nv_wr32(dev, 0x40032c, 0);
+		/* if ctxprog was running, rewind it to the beginning. if it
+		 * wasn't, this has no effect. */
+		nv_wr32(dev, 0x400310, 0);
+	}
+	/* or maybe it was just going to be loaded in? */
+	if (nv_rd32(dev, 0x400330) == (0x80000000 | ch->vo->start >> 12)) {
+		nv_wr32(dev, 0x400330, 0);
+		nv_wr32(dev, 0x400310, 0);
+	}
+	/* back to normal state. */
+	nv_wr32(dev, 0x400830, 0);
+	nv_wr32(dev, 0x400500, 1);
+	spin_unlock(&dev_priv->pgraph_lock);
+	pscnv_vram_free(ch->grctx);
 }
 
 int pscnv_ioctl_obj_gr_new(struct drm_device *dev, void *data,

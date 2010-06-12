@@ -522,6 +522,7 @@ struct drm_nouveau_private {
 	struct pscnv_vo *playlist[2];
 	int cur_playlist;
 	spinlock_t pfifo_lock;
+	spinlock_t pgraph_lock;
 
 	/* PGRAPH */
 
