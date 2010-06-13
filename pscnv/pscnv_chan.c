@@ -46,6 +46,7 @@ pscnv_chan_new (struct pscnv_vspace *vs) {
 	mutex_lock(&vs->lock);
 	res->isbar = vs->isbar;
 	res->vspace = vs;
+	kref_get(&vs->ref);
 	spin_lock_init(&res->instlock);
 	spin_lock_init(&res->ramht.lock);
 	kref_init(&res->ref);
@@ -120,6 +121,7 @@ pscnv_chan_free(struct pscnv_chan *ch) {
 	if (ch->cache)
 		pscnv_vram_free(ch->cache);
 	pscnv_vram_free(ch->vo);
+	kref_put(&ch->vspace->ref, pscnv_vspace_ref_free);
 	kfree(ch);
 }
 
@@ -241,7 +243,6 @@ static void pscnv_chan_ref_free(struct kref *ref) {
 	int cid = ch->cid;
 	struct drm_nouveau_private *dev_priv = ch->vspace->dev->dev_private;
 
-	/* XXX */
 	NV_INFO(ch->vspace->dev, "Freeing FIFO %d\n", cid);
 
 	pscnv_chan_free(ch);

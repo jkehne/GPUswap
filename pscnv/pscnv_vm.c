@@ -160,6 +160,7 @@ pscnv_vspace_new (struct drm_device *dev) {
 	if (!res)
 		return 0;
 	res->dev = dev;
+	kref_init(&res->ref);
 	mutex_init(&res->lock);
 	INIT_LIST_HEAD(&res->chan_list);
 	PSCNV_RB_INIT(&res->maps);
@@ -179,6 +180,18 @@ pscnv_vspace_new (struct drm_device *dev) {
 void
 pscnv_vspace_free(struct pscnv_vspace *vs) {
 	/* XXX: write me */
+}
+
+void pscnv_vspace_ref_free(struct kref *ref) {
+	struct pscnv_vspace *vs = container_of(ref, struct pscnv_vspace, ref);
+	int vid = vs->vid;
+	struct drm_nouveau_private *dev_priv = vs->dev->dev_private;
+
+	NV_INFO(vs->dev, "Freeing VSPACE %d\n", vid);
+
+	pscnv_vspace_free(vs);
+
+	dev_priv->vspaces[vid] = 0;
 }
 
 int
@@ -470,6 +483,7 @@ int pscnv_ioctl_vspace_new(struct drm_device *dev, void *data,
 	}
 
 	dev_priv->vspaces[vid]->filp = file_priv;
+	dev_priv->vspaces[vid]->vid = vid;
 	
 	req->vid = vid;
 
@@ -498,9 +512,8 @@ int pscnv_ioctl_vspace_free(struct drm_device *dev, void *data,
 
 	NV_INFO(dev, "Freeing VSPACE %d\n", vid);
 
-	pscnv_vspace_free(vs);
-
-	dev_priv->vspaces[vid] = 0;
+	vs->filp = 0;
+	kref_put(&vs->ref, pscnv_vspace_ref_free);
 
 	mutex_unlock (&dev_priv->vm_mutex);
 	return 0;
@@ -565,4 +578,20 @@ int pscnv_ioctl_vspace_unmap(struct drm_device *dev, void *data,
 
 	mutex_unlock (&dev_priv->vm_mutex);
 	return ret;
+}
+
+void pscnv_vspace_cleanup(struct drm_device *dev, struct drm_file *file_priv) {
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	int vid;
+	struct pscnv_vspace *vs;
+
+	mutex_lock (&dev_priv->vm_mutex);
+	for (vid = 0; vid < 128; vid++) {
+		vs = pscnv_get_vspace(dev, file_priv, vid);
+		if (!vs)
+			continue;
+		vs->filp = 0;
+		kref_put(&vs->ref, pscnv_vspace_ref_free);
+	}
+	mutex_unlock (&dev_priv->vm_mutex);
 }

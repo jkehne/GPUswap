@@ -38,6 +38,7 @@
 PSCNV_RB_HEAD(pscnv_vm_maptree, pscnv_vm_mapnode);
 
 struct pscnv_vspace {
+	int vid;
 	struct drm_device *dev;
 	struct mutex lock;
 	int isbar;
@@ -46,6 +47,7 @@ struct pscnv_vspace {
 	struct pscnv_vm_maptree maps;
 	struct drm_file *filp;
 	int engines;
+	struct kref ref;
 };
 
 struct pscnv_vm_mapnode {
@@ -69,9 +71,10 @@ extern int pscnv_vspace_unmap(struct pscnv_vspace *, uint64_t start);
 extern int pscnv_vspace_unmap_node(struct pscnv_vm_mapnode *node);
 extern int pscnv_vspace_map1(struct pscnv_vo *);
 extern int pscnv_vspace_map3(struct pscnv_vo *);
+extern void pscnv_vspace_ref_free(struct kref *ref);
 
+extern void pscnv_vspace_cleanup(struct drm_device *dev, struct drm_file *file_priv);
 extern int pscnv_mmap(struct file *filp, struct vm_area_struct *vma);
-struct pscnv_chan *pscnv_get_chan(struct drm_device *dev, struct drm_file *file_priv, int cid);
 
 int pscnv_ioctl_vspace_new(struct drm_device *dev, void *data,
 						struct drm_file *file_priv);
