@@ -179,7 +179,21 @@ pscnv_vspace_new (struct drm_device *dev) {
 
 void
 pscnv_vspace_free(struct pscnv_vspace *vs) {
-	/* XXX: write me */
+	int i;
+	struct pscnv_vm_mapnode *node;
+	while ((node = PSCNV_RB_ROOT(&vs->maps))) {
+		if (node->vo && !vs->isbar) {
+			drm_gem_object_unreference(node->vo->gem);
+		}
+		PSCNV_RB_REMOVE(pscnv_vm_maptree, &vs->maps, node);
+		kfree(node);
+	}
+	for (i = 0; i < NV50_VM_PDE_COUNT; i++) {
+		if (vs->pt[i]) {
+			pscnv_vram_free(vs->pt[i]);
+		}
+	}
+	kfree(vs);
 }
 
 void pscnv_vspace_ref_free(struct kref *ref) {
