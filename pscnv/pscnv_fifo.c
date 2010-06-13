@@ -211,9 +211,6 @@ int pscnv_ioctl_fifo_init(struct drm_device *dev, void *data,
 		nv_wv32(ch->vo, ch->ramfc + 0x90, 0);
 		nv_wv32(ch->vo, ch->ramfc + 0x94, 0);
 		nv_wv32(ch->vo, ch->ramfc + 0x98, ch->vo->start >> 12);
-		/* XXX: what are these two for? */
-		nv_wv32(ch->vo, 0, req->cid);
-		nv_wv32(ch->vo, 4, (ch->vo->start + ch->ramfc) >> 8);
 
 		nv_wr32(dev, 0x2600 + req->cid * 4, 0x80000000 | (ch->vo->start + ch->ramfc) >> 8);
 	} else {

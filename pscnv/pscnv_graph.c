@@ -251,7 +251,6 @@ int pscnv_ioctl_obj_gr_new(struct drm_device *dev, void *data,
 		ctx.data = ch->grctx;
 		nv50_grctx_init(&ctx);
 		limit = ch->grctx->start + dev_priv->grctx_size - 1;
-		nv_wv32(ch->grctx, 0, ch->vo->start >> 12);
 		nv_wv32(ch->vo, hdr + 0x00, 0x00190000);
 		nv_wv32(ch->vo, hdr + 0x04, limit);
 		nv_wv32(ch->vo, hdr + 0x08, ch->grctx->start);
