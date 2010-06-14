@@ -30,6 +30,9 @@
 #include "drmP.h"
 
 void pscnv_gem_free_object (struct drm_gem_object *);
+struct drm_gem_object *pscnv_gem_new(struct drm_device *dev, uint64_t size,
+		uint32_t flags,	uint32_t tile_flags, uint32_t cookie,
+		uint32_t *user);
 int pscnv_ioctl_gem_new(struct drm_device *dev, void *data,
 		struct drm_file *file_priv);
 int pscnv_ioctl_gem_info(struct drm_device *dev, void *data,

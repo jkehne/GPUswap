@@ -252,6 +252,22 @@ pscnv_vram_init(struct drm_device *dev)
 	list_add(&allmem->global_list, &dev_priv->vram_global_list);
 	list_add(&allmem->local_list, &dev_priv->vram_free_list);
 	pscnv_vram_try_untype(dev, allmem);
+
+	/* XXX BIG HACK ALERT
+	 *
+	 * EVO is the only thing we use right now that needs >4kiB alignment.
+	 * We could do this correctly, but that'd require rewriting a lot of
+	 * the allocator code. So, since there's only a single EVO channel
+	 * per card, we just statically allocate EVO at address 0x40000.
+	 *
+	 * This is first alloc ever, so it's guaranteed to land at the correct
+	 * place.
+	 */
+
+	if (drm_core_check_feature(dev, DRIVER_MODESET)) {
+		dev_priv->evo_obj = pscnv_vram_alloc(dev, 0x2000, PSCNV_VO_CONTIG, 0, 0xd1501a7);
+	}
+
 	return 0;
 }
 
@@ -260,6 +276,9 @@ pscnv_vram_takedown(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct list_head *pos, *next;
+	if (drm_core_check_feature(dev, DRIVER_MODESET)) {
+		pscnv_vram_free(dev_priv->evo_obj);
+	}
 restart:
 	list_for_each_safe(pos, next, &dev_priv->vram_global_list) {
 		struct pscnv_vram_region *reg = list_entry(pos, struct pscnv_vram_region, global_list);

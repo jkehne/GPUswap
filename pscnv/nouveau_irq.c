@@ -38,7 +38,8 @@
 #include <linux/ratelimit.h>
 
 /* needed for hotplug irq */
-//#include "nouveau_connector.h"
+#include "nouveau_connector.h"
+#include "nv50_display.h"
 
 void
 nouveau_irq_preinstall(struct drm_device *dev)
@@ -49,8 +50,8 @@ nouveau_irq_preinstall(struct drm_device *dev)
 	nv_wr32(dev, NV03_PMC_INTR_EN_0, 0);
 
 	if (dev_priv->card_type == NV_50) {
-//		INIT_WORK(&dev_priv->irq_work, nv50_display_irq_handler_bh);
-//		INIT_WORK(&dev_priv->hpd_work, nv50_display_irq_hotplug_bh);
+		INIT_WORK(&dev_priv->irq_work, nv50_display_irq_handler_bh);
+		INIT_WORK(&dev_priv->hpd_work, nv50_display_irq_hotplug_bh);
 //		INIT_LIST_HEAD(&dev_priv->vbl_waiting);
 	}
 }
@@ -1189,6 +1190,7 @@ nv50_pgraph_irq_handler(struct drm_device *dev)
 	if (nv_rd32(dev, 0x400824) & (1 << 31))
 		nv_wr32(dev, 0x400824, nv_rd32(dev, 0x400824) & ~(1 << 31));
 }
+#endif
 
 static void
 nouveau_crtc_irq_handler(struct drm_device *dev, int crtc)
@@ -1199,7 +1201,7 @@ nouveau_crtc_irq_handler(struct drm_device *dev, int crtc)
 	if (crtc & 2)
 		nv_wr32(dev, NV_CRTC1_INTSTAT, NV_CRTC_INTR_VBLANK);
 }
-#endif
+
 irqreturn_t
 nouveau_irq_handler(DRM_IRQ_ARGS)
 {
@@ -1232,6 +1234,7 @@ nouveau_irq_handler(DRM_IRQ_ARGS)
 
 		status &= ~NV_PMC_INTR_0_PGRAPH_PENDING;
 	}
+#endif
 
 	if (status & NV_PMC_INTR_0_CRTCn_PENDING) {
 		nouveau_crtc_irq_handler(dev, (status>>24)&3);
@@ -1244,13 +1247,14 @@ nouveau_irq_handler(DRM_IRQ_ARGS)
 		status &= ~(NV_PMC_INTR_0_NV50_DISPLAY_PENDING |
 			    NV_PMC_INTR_0_NV50_I2C_PENDING);
 	}
-#endif
 
 	if (status)
 		NV_ERROR(dev, "Unhandled PMC INTR status bits 0x%08x\n", status);
 
+#if 0
 	if (dev_priv->fbdev_info)
 		dev_priv->fbdev_info->flags = fbdev_flags;
+#endif
 
 	spin_unlock_irqrestore(&dev_priv->irq_lock, flags);
 

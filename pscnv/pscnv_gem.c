@@ -36,35 +36,53 @@ void pscnv_gem_free_object (struct drm_gem_object *obj) {
 	pscnv_vram_free(vo);
 }
 
+struct drm_gem_object *pscnv_gem_new(struct drm_device *dev, uint64_t size, uint32_t flags,
+		uint32_t tile_flags, uint32_t cookie, uint32_t *user)
+{
+	int i;
+	struct drm_gem_object *obj;
+	struct pscnv_vo *vo;
+
+	vo = pscnv_vram_alloc(dev, size, flags, tile_flags, cookie);
+	if (!vo)
+		return 0;
+
+	obj = drm_gem_object_alloc(dev, vo->size);
+	if (!obj) {
+		pscnv_vram_free(vo);
+		return 0;
+	}
+	obj->driver_private = vo;
+	vo->gem = obj;
+
+	if (user)
+		for (i = 0; i < ARRAY_SIZE(vo->user); i++)
+			vo->user[i] = user[i];
+	else
+		for (i = 0; i < ARRAY_SIZE(vo->user); i++)
+			vo->user[i] = 0;
+
+	return obj;
+}
+
 int pscnv_ioctl_gem_new(struct drm_device *dev, void *data,
 						struct drm_file *file_priv)
 {
 	struct drm_pscnv_gem_info *info = data;
 	struct drm_gem_object *obj;
 	struct pscnv_vo *vo;
-	int i;
 	int ret;
 
 	NOUVEAU_CHECK_INITIALISED_WITH_RETURN;
 
-	vo = pscnv_vram_alloc(dev, info->size, info->flags,
-			info->tile_flags, info->cookie);
-	if (!vo)
-		return -ENOMEM;
-
-	obj = drm_gem_object_alloc(dev, vo->size);
+	obj = pscnv_gem_new(dev, info->size, info->flags, info->tile_flags, info->cookie, info->user);
 	if (!obj) {
-		pscnv_vram_free(vo);
 		return -ENOMEM;
 	}
-	obj->driver_private = vo;
-	vo->gem = obj;
+	vo = obj->driver_private;
 
 	/* could change due to page size align */
 	info->size = vo->size;
-
-	for (i = 0; i < ARRAY_SIZE(vo->user); i++)
-		vo->user[i] = info->user[i];
 
 	ret = drm_gem_handle_create(file_priv, obj, &info->handle);
 

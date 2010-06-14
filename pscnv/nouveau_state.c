@@ -35,6 +35,7 @@
 #include "nouveau_drv.h"
 #include "pscnv_drm.h"
 #include "nouveau_reg.h"
+#include "nv50_display.h"
 #include "pscnv_vm.h"
 #include "pscnv_chan.h"
 #include "pscnv_fifo.h"
@@ -476,24 +477,24 @@ nouveau_card_init(struct drm_device *dev)
 	ret = drm_irq_install(dev);
 	if (ret)
 		goto out_graph;
-#if 0
+
 	ret = drm_vblank_init(dev, 0);
 	if (ret)
 		goto out_irq;
 
 	/* what about PVIDEO/PCRTC/PRAMDAC etc? */
-
+#if 0
 	if (!engine->graph.accel_blocked) {
 		ret = nouveau_card_init_channel(dev);
 		if (ret)
 			goto out_irq;
 	}
-
+#endif
 	if (drm_core_check_feature(dev, DRIVER_MODESET)) {
 		if (dev_priv->card_type >= NV_50)
 			ret = nv50_display_create(dev);
 		else
-			ret = nv04_display_create(dev);
+			ret = /* nv04_display_create(dev)*/ -ENOSYS;
 		if (ret)
 			goto out_channel;
 	}
@@ -501,22 +502,23 @@ nouveau_card_init(struct drm_device *dev)
 	ret = nouveau_backlight_init(dev);
 	if (ret)
 		NV_ERROR(dev, "Error %d registering backlight\n", ret);
-#endif
+
 	dev_priv->init_state = NOUVEAU_CARD_INIT_DONE;
-#if 0
+
 	if (drm_core_check_feature(dev, DRIVER_MODESET))
 		drm_helper_initial_config(dev);
-#endif
+
 	NV_INFO(dev, "Card initialized.\n");
 	return 0;
-#if 0
+
 out_channel:
+#if 0
 	if (dev_priv->channel) {
 		nouveau_channel_free(dev_priv->channel);
 		dev_priv->channel = NULL;
 	}
-out_irq:
 #endif
+out_irq:
 	drm_irq_uninstall(dev);
 out_graph:
 	pscnv_graph_takedown(dev);
@@ -548,9 +550,8 @@ static void nouveau_card_takedown(struct drm_device *dev)
 
 	if (dev_priv->init_state != NOUVEAU_CARD_INIT_DOWN) {
 		NV_INFO(dev, "Stopping card...\n");
-#if 0
 		nouveau_backlight_exit(dev);
-#endif
+		drm_irq_uninstall(dev);
 		pscnv_graph_takedown(dev);
 		pscnv_fifo_takedown(dev);
 		engine->fb.takedown(dev);
@@ -754,13 +755,11 @@ int nouveau_unload(struct drm_device *dev)
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 
 	if (drm_core_check_feature(dev, DRIVER_MODESET)) {
-#if 0
 		if (dev_priv->card_type >= NV_50)
 			nv50_display_destroy(dev);
 		else
-			nv04_display_destroy(dev);
+			/*nv04_display_destroy(dev)*/;
 		nouveau_close(dev);
-#endif
 	}
 
 	iounmap(dev_priv->mmio);

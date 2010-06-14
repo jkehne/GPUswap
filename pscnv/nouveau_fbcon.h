@@ -24,24 +24,31 @@
  *
  */
 
-#ifndef __NOUVEAU_FB_H__
-#define __NOUVEAU_FB_H__
+#ifndef __NOUVEAU_FBCON_H__
+#define __NOUVEAU_FBCON_H__
 
-struct nouveau_framebuffer {
-	struct drm_framebuffer base;
-	struct pscnv_vo *vo;
+#include "drm_fb_helper.h"
+
+struct nouveau_fbcon_par {
+	struct drm_fb_helper helper;
+	struct drm_device *dev;
+	struct nouveau_framebuffer *nouveau_fb;
 };
 
-static inline struct nouveau_framebuffer *
-nouveau_framebuffer(struct drm_framebuffer *fb)
-{
-	return container_of(fb, struct nouveau_framebuffer, base);
-}
+int nouveau_fbcon_probe(struct drm_device *dev);
+int nouveau_fbcon_remove(struct drm_device *dev, struct drm_framebuffer *fb);
+void nouveau_fbcon_restore(void);
+void nouveau_fbcon_zfill(struct drm_device *dev);
 
-extern const struct drm_mode_config_funcs nouveau_mode_config_funcs;
+void nv04_fbcon_copyarea(struct fb_info *info, const struct fb_copyarea *region);
+void nv04_fbcon_fillrect(struct fb_info *info, const struct fb_fillrect *rect);
+void nv04_fbcon_imageblit(struct fb_info *info, const struct fb_image *image);
+int nv04_fbcon_accel_init(struct fb_info *info);
+void nv50_fbcon_fillrect(struct fb_info *info, const struct fb_fillrect *rect);
+void nv50_fbcon_copyarea(struct fb_info *info, const struct fb_copyarea *region);
+void nv50_fbcon_imageblit(struct fb_info *info, const struct fb_image *image);
+int nv50_fbcon_accel_init(struct fb_info *info);
 
-struct drm_framebuffer *
-nouveau_framebuffer_create(struct drm_device *, struct pscnv_vo *,
-			   struct drm_mode_fb_cmd *);
+void nouveau_fbcon_gpu_lockup(struct fb_info *info);
+#endif /* __NV50_FBCON_H__ */
 
-#endif /* __NOUVEAU_FB_H__ */
