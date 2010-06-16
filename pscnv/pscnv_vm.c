@@ -332,6 +332,13 @@ pscnv_vspace_map(struct pscnv_vspace *vs, struct pscnv_vo *vo,
 		struct pscnv_vm_mapnode **res)
 {
 	struct pscnv_vm_mapnode *node;
+	start += 0xfff;
+	start &= ~0xfffull;
+	end &= ~0xfffull;
+	if (end > (1ull << 40))
+		end = 1ull << 40;
+	if (start >= end)
+		return -EINVAL;
 	mutex_lock(&vs->lock);
 	node = pscnv_vspace_map_int(vs, vo, start, end, back, PSCNV_RB_ROOT(&vs->maps));
 	if (!node) {
