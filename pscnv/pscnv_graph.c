@@ -280,12 +280,12 @@ int pscnv_ioctl_obj_gr_new(struct drm_device *dev, void *data,
 void pscnv_graph_irq_handler(struct drm_device *dev) {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	uint32_t status;
-	spin_lock(&dev_priv->pfifo_lock);
+	spin_lock(&dev_priv->pgraph_lock);
 	status = nv_rd32(dev, 0x400100);
 	if (status) {
 		NV_ERROR(dev, "Unknown PGRAPH interrupt %08x\n", status);
 		nv_wr32(dev, 0x400100, status);
 	}
 	pscnv_vm_trap(dev);
-	spin_unlock(&dev_priv->pfifo_lock);
+	spin_unlock(&dev_priv->pgraph_lock);
 }
