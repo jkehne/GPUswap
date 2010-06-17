@@ -1202,6 +1202,29 @@ nouveau_crtc_irq_handler(struct drm_device *dev, int crtc)
 		nv_wr32(dev, NV_CRTC1_INTSTAT, NV_CRTC_INTR_VBLANK);
 }
 
+static void
+nouveau_pbus_irq_handler(struct drm_device *dev) {
+	uint32_t status = nv_rd32(dev, 0x1100);
+	if (status & 8) {
+		uint32_t addr = nv_rd32(dev, 0x9084);
+		uint32_t data = nv_rd32(dev, 0x9088);
+		if (!(addr&1)) {
+			NV_ERROR(dev, "PBUS: Unknown MMIO problem %06x %08x\n", addr, data);
+		} else if (addr & 0x2) {
+			NV_ERROR(dev, "PBUS: MMIO write fault, addr %06x data %08x\n", addr & ~3, data);
+		} else {
+			NV_ERROR(dev, "PBUS: MMIO read fault, addr %06x\n", addr & ~3);
+		}
+		nv_wr32(dev, 0x1100, 8);
+		status &= ~8;
+	}
+
+	if (status) {
+		NV_ERROR(dev, "PBUS: unknown interrupt %08x\n", status);
+		nv_wr32(dev, 0x1100, status);
+	}
+}
+
 irqreturn_t
 nouveau_irq_handler(DRM_IRQ_ARGS)
 {
@@ -1214,6 +1237,17 @@ nouveau_irq_handler(DRM_IRQ_ARGS)
 	if (!status)
 		return IRQ_NONE;
 	spin_lock_irqsave(&dev_priv->irq_lock, flags);
+
+	if (status & 0x80000000) {
+		NV_ERROR(dev, "Got a SOFTWARE interrupt for no good reason.\n");
+		nv_wr32(dev, NV03_PMC_INTR_0, 0);
+		status &= ~0x80000000;
+	}
+
+	if (status & 0x10000000) {
+		nouveau_pbus_irq_handler(dev);
+		status &= ~0x10000000;
+	}
 
 #if 0
 	if (dev_priv->fbdev_info) {
