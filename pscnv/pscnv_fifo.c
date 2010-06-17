@@ -227,8 +227,52 @@ int pscnv_ioctl_fifo_init(struct drm_device *dev, void *data,
 void pscnv_fifo_irq_handler(struct drm_device *dev) {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	uint32_t status;
+	int ch;
 	spin_lock(&dev_priv->pfifo_lock);
 	status = nv_rd32(dev, 0x2100);
+	ch = nv_rd32(dev, 0x3204) & 0x7f;
+	if (status & 0x00000001) {
+		uint32_t get = nv_rd32(dev, 0x3270);
+		uint32_t addr = nv_rd32(dev, 0x90000 + get * 2);
+		uint32_t data = nv_rd32(dev, 0x90000 + get * 2 + 4);
+		uint32_t pull = nv_rd32(dev, 0x3250);
+		const char *reason = 0;
+		if (pull & 0x10)
+			reason = "NO_HASH";
+		if (pull & 0x100)
+			reason = "EMPTY_SUBCHAN";
+		if (reason)
+			NV_ERROR(dev, "PFIFO_CACHE_ERROR [%s]: ch %d subch %d addr %04x data %08x\n", reason, ch, (addr >> 13) & 7, addr & 0x1ffc, data);
+		else
+			NV_ERROR(dev, "PFIFO_CACHE_ERROR [%08x]: ch %d subch %d addr %04x data %08x\n", pull, ch, (addr >> 13) & 7, addr & 0x1ffc, data);
+		get += 4;
+		nv_wr32(dev, 0x3270, get);
+		nv_wr32(dev, 0x2100, 0x00000001);
+		nv_wr32(dev, 0x3250, 1);
+		status &= ~0x00000001;
+	}
+	if (status & 0x00000010) {
+		NV_ERROR(dev, "PFIFO BAR fault!\n");
+		nv_wr32(dev, 0x2100, 0x00000010);
+		status &= ~0x00000010;
+	}
+	if (status & 0x00000040) {
+		NV_ERROR(dev, "PFIFO PEEPHOLE fault!\n");
+		nv_wr32(dev, 0x2100, 0x00000040);
+		status &= ~0x00000040;
+	}
+	if (status & 0x00100000) {
+		uint32_t get = nv_rd32(dev, 0x3270);
+		uint32_t addr = nv_rd32(dev, 0x90000 + get * 2);
+		uint32_t data = nv_rd32(dev, 0x90000 + get * 2 + 4);
+		uint32_t pull = nv_rd32(dev, 0x3250);
+		NV_ERROR(dev, "PFIFO_SEMAPHORE: ch %d subch %d addr %04x data %08x status %08x\n", ch, (addr >> 13) & 7, addr & 0x1ffc, data, pull);
+		get += 4;
+		nv_wr32(dev, 0x3270, get);
+		nv_wr32(dev, 0x3250, 1);
+		nv_wr32(dev, 0x2100, 0x00100000);
+		status &= ~0x00100000;
+	}
 	if (status) {
 		NV_ERROR(dev, "Unknown PFIFO interrupt %08x\n", status);
 		nv_wr32(dev, 0x2100, status);
