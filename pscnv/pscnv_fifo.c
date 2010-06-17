@@ -223,3 +223,16 @@ int pscnv_ioctl_fifo_init(struct drm_device *dev, void *data,
 	mutex_unlock (&dev_priv->vm_mutex);
 	return 0;
 }
+
+void pscnv_fifo_irq_handler(struct drm_device *dev) {
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	uint32_t status;
+	spin_lock(&dev_priv->pfifo_lock);
+	status = nv_rd32(dev, 0x2100);
+	if (status) {
+		NV_ERROR(dev, "Unknown PFIFO interrupt %08x\n", status);
+		nv_wr32(dev, 0x2100, status);
+	}
+	pscnv_vm_trap(dev);
+	spin_unlock(&dev_priv->pfifo_lock);
+}

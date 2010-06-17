@@ -40,6 +40,8 @@
 /* needed for hotplug irq */
 #include "nouveau_connector.h"
 #include "nv50_display.h"
+#include "pscnv_fifo.h"
+#include "pscnv_graph.h"
 
 void
 nouveau_irq_preinstall(struct drm_device *dev)
@@ -1254,21 +1256,18 @@ nouveau_irq_handler(DRM_IRQ_ARGS)
 		fbdev_flags = dev_priv->fbdev_info->flags;
 		dev_priv->fbdev_info->flags |= FBINFO_HWACCEL_DISABLED;
 	}
+#endif
 
 	if (status & NV_PMC_INTR_0_PFIFO_PENDING) {
-		nouveau_fifo_irq_handler(dev);
+		pscnv_fifo_irq_handler(dev);
 		status &= ~NV_PMC_INTR_0_PFIFO_PENDING;
 	}
 
 	if (status & NV_PMC_INTR_0_PGRAPH_PENDING) {
-		if (dev_priv->card_type >= NV_50)
-			nv50_pgraph_irq_handler(dev);
-		else
-			nouveau_pgraph_irq_handler(dev);
+		pscnv_graph_irq_handler(dev);
 
 		status &= ~NV_PMC_INTR_0_PGRAPH_PENDING;
 	}
-#endif
 
 	if (status & NV_PMC_INTR_0_CRTCn_PENDING) {
 		nouveau_crtc_irq_handler(dev, (status>>24)&3);

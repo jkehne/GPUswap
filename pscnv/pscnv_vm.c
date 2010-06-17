@@ -616,3 +616,60 @@ void pscnv_vspace_cleanup(struct drm_device *dev, struct drm_file *file_priv) {
 	}
 	mutex_unlock (&dev_priv->vm_mutex);
 }
+
+/* VM trap handling on NV50 is some kind of a fucking joke.
+ *
+ * So, there's this little bugger called MMU, which is in PFB area near
+ * 0x100c80 and contains registers to flush the TLB caches, and to report
+ * VM traps.
+ *
+ * And you have several units making use of that MMU. The known ones atm
+ * include PGRAPH, PFIFO, the BARs, and the PEEPHOLE. Each of these has its
+ * own TLBs. And most of them have several subunits, each having a separate
+ * MMU access path.
+ *
+ * Now, if you use an address that is bad in some way, the MMU responds "NO
+ * PAGE!!!11!1". And stores the relevant address + unit + channel into
+ * 0x100c90 area, where you can read it. However, it does NOT report an
+ * interrupt - this is done by the faulting unit.
+ *
+ * Now, if you get several page faults at once, which is not that uncommon
+ * if you fuck up something in your code, all but the first trap is lost.
+ * The unit reporting the trap may or may not also store the address on its
+ * own.
+ *
+ * So we report the trap in two pieces. First we go through all the possible
+ * faulters and report their status, which may range anywhere from full access
+ * info [like TPDMA] to just "oh! a trap!" [like VFETCH]. Then we ask the MMU
+ * for whatever trap it remembers. Then the user can look at dmesg and maybe
+ * match them using the MMU status field. Which we should decode someday, but
+ * meh for now.
+ *
+ * As for the Holy Grail of Demand Paging - hah. Who the hell knows. Given the
+ * fucked up reporting, the only hope lies in getting all individual units to
+ * cooperate. BAR accesses quite obviously cannot be demand paged [not a big
+ * problem - that's what host page tables are for]. PFIFO accesses all seem
+ * restartable just fine. As for PGRAPH... some, like TPDMA, are already dead
+ * when they happen, but maybe there's a DEBUG bit somewhere that changes it.
+ * Some others, like M2MF, hang on fault, and are therefore promising. But
+ * this requires shitloads of RE repeated for every unit. Have fun.
+ *
+ */
+void pscnv_vm_trap(struct drm_device *dev) {
+	/* XXX: go through existing channels and match the address */
+	uint32_t trap[6];
+	int i;
+	uint32_t idx = nv_rd32(dev, 0x100c90);
+	if (idx & 0x80000000) {
+		idx &= 0xffffff;
+		for (i = 0; i < 6; i++) {
+			nv_wr32(dev, 0x100c90, idx | i << 24);
+			trap[i] = nv_rd32(dev, 0x100c94);
+		}
+		NV_INFO(dev, "VM: Trapped %s at %02x%04x%04x status %08x channel %04x%04x\n",
+				(trap[5]&0x100?"read":"write"),
+				trap[5]&0xff, trap[4]&0xffff,
+				trap[3]&0xffff, trap[0], trap[2], trap[1]);
+		nv_wr32(dev, 0x100c90, idx | 0x80000000);
+	}
+}

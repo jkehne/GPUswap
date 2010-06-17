@@ -88,4 +88,6 @@ int pscnv_ioctl_vspace_unmap(struct drm_device *dev, void *data,
 /* needs vm_mutex held */
 struct pscnv_vspace *pscnv_get_vspace(struct drm_device *dev, struct drm_file *file_priv, int vid);
 
+void pscnv_vm_trap(struct drm_device *dev);
+
 #endif
