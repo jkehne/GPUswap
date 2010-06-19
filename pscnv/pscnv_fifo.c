@@ -261,6 +261,24 @@ void pscnv_fifo_irq_handler(struct drm_device *dev) {
 		nv_wr32(dev, 0x2100, 0x00000040);
 		status &= ~0x00000040;
 	}
+	if (status & 0x00001000) {
+		uint32_t get = nv_rd32(dev, 0x3244);
+		uint32_t put = nv_rd32(dev, 0x3240);
+		uint32_t dma_state = nv_rd32(dev, 0x3228);
+		uint32_t dma_push = nv_rd32(dev, 0x3220);
+		uint32_t st1 = nv_rd32(dev, 0x32a0);
+		uint32_t st2 = nv_rd32(dev, 0x32a4);
+		uint32_t st3 = nv_rd32(dev, 0x32a8);
+		uint32_t st4 = nv_rd32(dev, 0x32ac);
+		uint32_t len = nv_rd32(dev, 0x3364);
+		NV_ERROR(dev, "PFIFO_DMA_PUSHER: ch %d addr %08x [PUT %08x] status %08x len %08x push %08x shadow %08x %08x %08x %08x\n", ch, get, put, dma_state, len, dma_push, st1, st2, st3, st4);
+		nv_wr32(dev, 0x3244, put);
+		nv_wr32(dev, 0x3228, 0);
+		nv_wr32(dev, 0x3364, 0);
+		nv_wr32(dev, 0x3220, 1);
+		nv_wr32(dev, 0x2100, 0x00001000);
+		status &= ~0x00001000;
+	}
 	if (status & 0x00100000) {
 		uint32_t get = nv_rd32(dev, 0x3270);
 		uint32_t addr = nv_rd32(dev, 0x90000 + get * 2);
