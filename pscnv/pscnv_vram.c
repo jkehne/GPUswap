@@ -253,6 +253,10 @@ pscnv_vram_init(struct drm_device *dev)
 	list_add(&allmem->local_list, &dev_priv->vram_free_list);
 	pscnv_vram_try_untype(dev, allmem);
 
+	dev_priv->fb_mtrr = drm_mtrr_add(drm_get_resource_start(dev, 1),
+					 drm_get_resource_len(dev, 1),
+					 DRM_MTRR_WC);
+
 	/* XXX BIG HACK ALERT
 	 *
 	 * EVO is the only thing we use right now that needs >4kiB alignment.
@@ -293,6 +297,13 @@ restart:
 		struct pscnv_vram_region *reg = list_entry(pos, struct pscnv_vram_region, global_list);
 		kfree (reg);
 	}
+
+	if (dev_priv->fb_mtrr) {
+		drm_mtrr_del(dev_priv->fb_mtrr, drm_get_resource_start(dev, 1),
+			     drm_get_resource_len(dev, 1), DRM_MTRR_WC);
+		dev_priv->fb_mtrr = 0;
+	}
+
 	return 0;
 }
 

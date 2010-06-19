@@ -346,6 +346,8 @@ struct drm_nouveau_private {
 
 	uint64_t fb_size;
 	uint64_t fb_phys;
+	int fb_mtrr;
+
 	uint64_t mmio_phys;
 
 	struct list_head vram_global_list;
