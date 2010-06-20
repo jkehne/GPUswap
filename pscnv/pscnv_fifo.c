@@ -289,6 +289,17 @@ void pscnv_fifo_irq_handler(struct drm_device *dev) {
 		uint32_t addr = nv_rd32(dev, 0x90000 + (get & 0x7fc) * 2);
 		uint32_t data = nv_rd32(dev, 0x90000 + (get & 0x7fc) * 2 + 4);
 		uint32_t pull = nv_rd32(dev, 0x3250);
+		if (dev_priv->chipset > 0x50) {
+			/* the SEMAPHORE fuckup special #2 */
+			uint32_t sem_lo = nv_rd32(dev, 0x3404);
+			if (sem_lo & 3) {
+				nv_wr32(dev, 0x3404, 0);
+				get -= 4;
+				get &= 0xffc;
+				addr = 0x14;
+				data = sem_lo;
+			}
+		}
 		NV_ERROR(dev, "PFIFO_SEMAPHORE: ch %d subch %d addr %04x data %08x status %08x\n", ch, (addr >> 13) & 7, addr & 0x1ffc, data, pull);
 		get += 4;
 		nv_wr32(dev, 0x3270, get);
