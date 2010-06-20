@@ -28,6 +28,7 @@ int pscnv_chan_new(int fd, uint32_t vid, uint32_t *cid, uint64_t *map_handle);
 int pscnv_chan_free(int fd, uint32_t cid);
 int pscnv_obj_vdma_new(int fd, uint32_t cid, uint32_t handle, uint32_t oclass, uint32_t flags, uint64_t start, uint64_t size);
 int pscnv_fifo_init(int fd, uint32_t cid, uint32_t pb_handle, uint32_t flags, uint32_t slimask, uint64_t pb_start);
+int pscnv_fifo_init_ib(int fd, uint32_t cid, uint32_t pb_handle, uint32_t flags, uint32_t slimask, uint64_t ib_start, uint32_t ib_order);
 int pscnv_obj_gr_new(int fd, uint32_t cid, uint32_t handle, uint32_t oclass, uint32_t flags);
 
 #endif

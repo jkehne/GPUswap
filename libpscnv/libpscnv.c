@@ -172,6 +172,17 @@ int pscnv_fifo_init(int fd, uint32_t cid, uint32_t pb_handle, uint32_t flags, ui
 	return drmCommandWriteRead(fd, DRM_PSCNV_FIFO_INIT, &req, sizeof(req));
 }
 
+int pscnv_fifo_init_ib(int fd, uint32_t cid, uint32_t pb_handle, uint32_t flags, uint32_t slimask, uint64_t ib_start, uint32_t ib_order) {
+	struct drm_pscnv_fifo_init_ib req;
+	req.cid = cid;
+	req.pb_handle = pb_handle;
+	req.flags = flags;
+	req.slimask = slimask;
+	req.ib_start = ib_start;
+	req.ib_order = ib_order;
+	return drmCommandWriteRead(fd, DRM_PSCNV_FIFO_INIT_IB, &req, sizeof(req));
+}
+
 int pscnv_obj_gr_new(int fd, uint32_t cid, uint32_t handle, uint32_t oclass, uint32_t flags) {
 	struct drm_pscnv_obj_gr_new req;
 	req.cid = cid;
