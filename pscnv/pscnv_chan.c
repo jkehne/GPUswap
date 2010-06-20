@@ -297,7 +297,7 @@ int pscnv_ioctl_obj_vdma_new(struct drm_device *dev, void *data,
 		return -ENOENT;
 	}
 
-	inst = pscnv_chan_dmaobj_new(ch, 0x7fc00000 | oclass, req->start, req->start + req->size);
+	inst = pscnv_chan_dmaobj_new(ch, 0x7fc00000 | oclass, req->start, req->size);
 	if (!inst) {
 		mutex_unlock (&dev_priv->vm_mutex);
 		return -ENOMEM;
