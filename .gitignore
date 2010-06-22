@@ -10,4 +10,5 @@ test/get_param
 test/gem
 test/map
 test/m2mf
+test/loop
 *.a
