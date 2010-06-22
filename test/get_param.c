@@ -47,7 +47,7 @@ int DoTest(int fd)
 	tmp[3] = PSCNV_GETPARAM_BUS_TYPE;
 	tmp[4] = PSCNV_GETPARAM_GRAPH_UNITS;
 	tmp[5] = PSCNV_GETPARAM_PTIMER_TIME;
-	tmp[6] = PSCNV_GETPARAM_VRAM_SIZE;
+	tmp[6] = PSCNV_GETPARAM_FB_SIZE;
 
 	
 	for (i = 0; i < 7; i++) {

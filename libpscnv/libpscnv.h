@@ -5,10 +5,10 @@
 #define PSCNV_GETPARAM_PCI_VENDOR      3
 #define PSCNV_GETPARAM_PCI_DEVICE      4
 #define PSCNV_GETPARAM_BUS_TYPE        5
+#define PSCNV_GETPARAM_FB_SIZE         8
 #define PSCNV_GETPARAM_CHIPSET_ID      11
 #define PSCNV_GETPARAM_GRAPH_UNITS     13
 #define PSCNV_GETPARAM_PTIMER_TIME     14
-#define PSCNV_GETPARAM_VRAM_SIZE       15
 
 #define PSCNV_GEM_CONTIG	0x00000001	/* needs to be contiguous in VRAM */
 #define PSCNV_GEM_MAPPABLE	0x00000002	/* intended to be mmapped by host */

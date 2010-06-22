@@ -799,7 +799,7 @@ int pscnv_ioctl_getparam(struct drm_device *dev, void *data,
 	case PSCNV_GETPARAM_PTIMER_TIME:
 		getparam->value = dev_priv->engine.timer.read(dev);
 		break;
-	case PSCNV_GETPARAM_VRAM_SIZE:
+	case PSCNV_GETPARAM_FB_SIZE:
 		getparam->value = dev_priv->vram_size;
 		break;
 	case PSCNV_GETPARAM_GRAPH_UNITS:
