@@ -433,6 +433,9 @@ int pscnv_mmap(struct file *filp, struct vm_area_struct *vma)
 	struct pscnv_vo *vo;
 	int ret;
 
+	if (vma->vm_pgoff * PAGE_SIZE < (1ull << 31))
+		return drm_mmap(filp, vma);
+
 	if (vma->vm_pgoff * PAGE_SIZE < (1ull << 32))
 		return pscnv_chan_mmap(filp, vma);
 
