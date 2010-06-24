@@ -393,6 +393,8 @@ pscnv_vram_alloc(struct drm_device *dev,
 	/* avoid all sorts of integer overflows possible otherwise. */
 	if (size >= (1ULL << 40))
 		return 0;
+	if (!size)
+		return 0;
 
 	res = kzalloc (sizeof *res, GFP_KERNEL);
 	if (!res)
@@ -411,10 +413,6 @@ pscnv_vram_alloc(struct drm_device *dev,
 	if (pscnv_vram_debug >= 1)
 		NV_INFO(dev, "Allocating %d, %#llx-byte %sVO of type %08x, tile_flags %x\n", res->serial, size,
 				(flags & PSCNV_VO_CONTIG ? "contig " : ""), cookie, tile_flags);
-	if (!size) {
-		mutex_unlock(&dev_priv->vram_mutex);
-		return res;
-	}
 	if (list_empty(&dev_priv->vram_free_list)) {
 		mutex_unlock(&dev_priv->vram_mutex);
 		return 0;
