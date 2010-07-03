@@ -2313,7 +2313,7 @@ init_io(struct nvbios *bios, uint16_t offset, struct init_exec *iexec)
 	 * I have no idea what this does, but NVIDIA do this magic sequence
 	 * in the places where this INIT_IO happens..
 	 */
-	if (dev_priv->card_type >= NV_50 && crtcport == 0x3c3 && data == 1) {
+	if (dev_priv->card_type == NV_50 && crtcport == 0x3c3 && data == 1) {
 		int i;
 
 		bios_wr32(bios, 0x614100, (bios_rd32(
