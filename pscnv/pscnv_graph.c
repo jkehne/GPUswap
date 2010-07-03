@@ -173,6 +173,7 @@ int pscnv_ioctl_obj_gr_new(struct drm_device *dev, void *data,
 
 	switch (req->oclass) {
 	/* XXX: what about null object? */
+	case 0x0030:
 	/* always available */
 	case 0x5039:	/* m2mf */
 	case 0x502d:	/* eng2d */
