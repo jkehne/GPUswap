@@ -279,6 +279,58 @@ int pscnv_ioctl_obj_gr_new(struct drm_device *dev, void *data,
 	return ret;
 }
 
+struct pscnv_enumval {
+	int value;
+	char *name;
+	void *data;
+};
+
+static struct pscnv_enumval dispatch_errors[] = {
+	{ 3, "INVALID_QUERY_OR_TEXTURE", 0 },
+	{ 4, "INVALID_VALUE", 0 },
+	{ 5, "INVALID_ENUM", 0 },
+
+	{ 8, "INVALID_OBJECT", 0 },
+
+	{ 0xb, "INVALID_ADDRESS_ALIGNMENT", 0 },
+	{ 0xc, "INVALID_BITFIELD", 0 },
+
+	{ 0x10, "RT_DOUBLE_BIND", 0 },
+	{ 0x11, "RT_TYPES_MISMATCH", 0 },
+	{ 0x12, "RT_LINEAR_WITH_ZETA", 0 },
+
+	{ 0x1b, "SAMPLER_OVER_LIMIT", 0 },
+	{ 0x1c, "TEXTURE_OVER_LIMIT", 0 },
+
+	{ 0x21, "Z_OUT_OF_BOUNDS", 0 },
+
+	{ 0x23, "M2MF_OUT_OF_BOUNDS", 0 },
+
+	{ 0x27, "CP_MORE_PARAMS_THAN_SHARED", 0 },
+	{ 0x28, "CP_NO_REG_SPACE_STRIPED", 0 },
+	{ 0x29, "CP_NO_REG_SPACE_PACKED", 0 },
+	{ 0x2a, "CP_NOT_ENOUGH_WARPS", 0 },
+	{ 0x2b, "CP_BLOCK_SIZE_MISMATCH", 0 },
+	{ 0x2c, "CP_NOT_ENOUGH_LOCAL_WARPS", 0 },
+	{ 0x2d, "CP_NOT_ENOUGH_STACK_WARPS", 0 },
+	{ 0x2e, "CP_NO_BLOCKDIM_LATCH", 0 },
+
+	{ 0x31, "ENG2D_FORMAT_MISMATCH", 0 },
+
+	{ 0x47, "VP_CLIP_OVER_LIMIT", 0 },
+
+	{ 0, 0, 0 },
+};
+
+static struct pscnv_enumval *pscnv_enum_find (struct pscnv_enumval *list, int val) {
+	while (list->value != val && list->name)
+		list++;
+	if (list->name)
+		return list;
+	else
+		return 0;
+}
+
 void pscnv_graph_irq_handler(struct drm_device *dev) {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	uint32_t status;
@@ -327,7 +379,12 @@ void pscnv_graph_irq_handler(struct drm_device *dev) {
 		status &= ~0x00010000;
 	}
 	if (status & 0x00100000) {
-		NV_ERROR(dev, "PGRAPH_DISPATCH_ERROR [%x]: ch %x sub %d [%04x] mthd %04x data %08x\n", ecode, chan, subc, class, mthd, data);
+		struct pscnv_enumval *ev;
+		ev = pscnv_enum_find(dispatch_errors, ecode);
+		if (ev)
+			NV_ERROR(dev, "PGRAPH_DISPATCH_ERROR [%s]: ch %x sub %d [%04x] mthd %04x data %08x\n", ev->name, chan, subc, class, mthd, data);
+		else
+			NV_ERROR(dev, "PGRAPH_DISPATCH_ERROR [%x]: ch %x sub %d [%04x] mthd %04x data %08x\n", ecode, chan, subc, class, mthd, data);
 		nv_wr32(dev, 0x400100, 0x00100000);
 		status &= ~0x00100000;
 	}
