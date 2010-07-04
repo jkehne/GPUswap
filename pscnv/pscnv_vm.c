@@ -762,12 +762,17 @@ static struct pscnv_enumval vm_bar_subunits[] = {
 
 static struct pscnv_enumval vm_units[] = {
 	{ 0, "PGRAPH", vm_pgraph_subunits },
-	/* 1: UNK00F000 */
+	{ 1, "PVP", 0 },
+	/* 2, 3 never seen */
 	{ 4, "PEEPHOLE", vm_peephole_subunits },
 	{ 5, "PFIFO", vm_pfifo_subunits },
 	{ 6, "BAR", vm_bar_subunits },
-	/* 0xa: UNK102000 */
-	/* 0xd: UNK104000 */
+	/* 7 never seen */
+	{ 8, "PPPP", 0 },
+	{ 9, "PBSP", 0 },
+	{ 0xa, "PCRYPT", 0 },
+	/* 0xb, 0xc never seen */
+	{ 0xd, "PVUNK104", 0 },
 	/* 0xe: UNK10a000??? */
 	{ 0, 0, 0 },
 };
