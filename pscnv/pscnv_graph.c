@@ -283,12 +283,61 @@ void pscnv_graph_irq_handler(struct drm_device *dev) {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	uint32_t status;
 	unsigned long flags;
+	uint32_t st, chan, addr, data, datah, ecode, class, subc, mthd;
 	spin_lock_irqsave(&dev_priv->pgraph_lock, flags);
 	status = nv_rd32(dev, 0x400100);
+	ecode = nv_rd32(dev, 0x400110);
+	st = nv_rd32(dev, 0x400700);
+	addr = nv_rd32(dev, 0x400704);
+	mthd = addr & 0x1ffc;
+	subc = (addr >> 16) & 7;
+	data = nv_rd32(dev, 0x400708);
+	datah = nv_rd32(dev, 0x40070c);
+	chan = nv_rd32(dev, 0x400784);
+	class = nv_rd32(dev, 0x400814) & 0xffff;
+
+	if (status & 0x00000001) {
+		NV_ERROR(dev, "PGRAPH_NOTIFY: ch %x sub %d [%04x] mthd %04x data %08x\n", chan, subc, class, mthd, data);
+		nv_wr32(dev, 0x400100, 0x00000001);
+		status &= ~0x00000001;
+	}
+	if (status & 0x00000002) {
+		NV_ERROR(dev, "PGRAPH_QUERY: ch %x sub %d [%04x] mthd %04x data %08x\n", chan, subc, class, mthd, data);
+		nv_wr32(dev, 0x400100, 0x00000002);
+		status &= ~0x00000002;
+	}
+	if (status & 0x00000010) {
+		NV_ERROR(dev, "PGRAPH_ILLEGAL_MTHD: ch %x sub %d [%04x] mthd %04x data %08x\n", chan, subc, class, mthd, data);
+		nv_wr32(dev, 0x400100, 0x00000010);
+		status &= ~0x00000010;
+	}
+	if (status & 0x00000020) {
+		NV_ERROR(dev, "PGRAPH_ILLEGAL_CLASS: ch %x sub %d [%04x] mthd %04x data %08x\n", chan, subc, class, mthd, data);
+		nv_wr32(dev, 0x400100, 0x00000020);
+		status &= ~0x00000020;
+	}
+	if (status & 0x00000040) {
+		NV_ERROR(dev, "PGRAPH_DOUBLE_NOTIFY: ch %x sub %d [%04x] mthd %04x data %08x\n", chan, subc, class, mthd, data);
+		nv_wr32(dev, 0x400100, 0x00000040);
+		status &= ~0x00000040;
+	}
+	if (status & 0x00010000) {
+		NV_ERROR(dev, "PGRAPH_BUFFER_NOTIFY: ch %x\n", chan);
+		nv_wr32(dev, 0x400100, 0x00010000);
+		status &= ~0x00010000;
+	}
+	if (status & 0x00100000) {
+		NV_ERROR(dev, "PGRAPH_DISPATCH_ERROR [%x]: ch %x sub %d [%04x] mthd %04x data %08x\n", ecode, chan, subc, class, mthd, data);
+		nv_wr32(dev, 0x400100, 0x00100000);
+		status &= ~0x00100000;
+	}
+
 	if (status) {
 		NV_ERROR(dev, "Unknown PGRAPH interrupt %08x\n", status);
+		NV_ERROR(dev, "PGRAPH: ch %x sub %d [%04x] mthd %04x data %08x\n", chan, subc, class, mthd, data);
 		nv_wr32(dev, 0x400100, status);
 	}
+	nv_wr32(dev, 0x400500, 1);
 	pscnv_vm_trap(dev);
 	spin_unlock_irqrestore(&dev_priv->pgraph_lock, flags);
 }
