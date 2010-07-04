@@ -348,6 +348,8 @@ void pscnv_fifo_irq_handler(struct drm_device *dev) {
 		/* XXX: yup. a race. */
 		uint32_t put = nv_rd32(dev, 0x3240);
 		uint32_t puthi = nv_rd32(dev, 0x3320);
+		uint32_t ib_get = nv_rd32(dev, 0x3334);
+		uint32_t ib_put = nv_rd32(dev, 0x3330);
 		uint32_t dma_state = nv_rd32(dev, 0x3228);
 		uint32_t dma_push = nv_rd32(dev, 0x3220);
 		uint32_t st1 = nv_rd32(dev, 0x32a0);
@@ -355,10 +357,17 @@ void pscnv_fifo_irq_handler(struct drm_device *dev) {
 		uint32_t st3 = nv_rd32(dev, 0x32a8);
 		uint32_t st4 = nv_rd32(dev, 0x32ac);
 		uint32_t len = nv_rd32(dev, 0x3364);
-		NV_ERROR(dev, "PFIFO_DMA_PUSHER: ch %d addr %02x%08x [PUT %02x%08x] status %08x len %08x push %08x shadow %08x %08x %08x %08x\n",
-				ch, gethi, get, puthi, put, dma_state, len, dma_push, st1, st2, st3, st4);
-		nv_wr32(dev, 0x3244, put);
-		nv_wr32(dev, 0x3328, puthi);
+		NV_ERROR(dev, "PFIFO_DMA_PUSHER: ch %d addr %02x%08x [PUT %02x%08x], IB %08x [PUT %08x] status %08x len %08x push %08x shadow %08x %08x %08x %08x\n",
+				ch, gethi, get, puthi, put, ib_get, ib_put, dma_state, len, dma_push, st1, st2, st3, st4);
+		if (get != put || gethi != puthi) {
+			nv_wr32(dev, 0x3244, put);
+			nv_wr32(dev, 0x3328, puthi);
+		} else if (ib_get != ib_put) {
+			nv_wr32(dev, 0x3334, ib_put);
+		} else {
+			nv_wr32(dev, 0x3330, 0);
+			nv_wr32(dev, 0x3334, 0);
+		}
 		nv_wr32(dev, 0x3228, 0);
 		nv_wr32(dev, 0x3364, 0);
 		nv_wr32(dev, 0x3220, 1);
