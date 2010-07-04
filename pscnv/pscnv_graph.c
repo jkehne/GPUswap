@@ -123,7 +123,8 @@ void pscnv_graph_chan_free(struct pscnv_chan *ch) {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct nouveau_timer_engine *ptimer = &dev_priv->engine.timer;
 	uint64_t start;
-	spin_lock(&dev_priv->pgraph_lock);
+	unsigned long flags;
+	spin_lock_irqsave(&dev_priv->pgraph_lock, flags);
 	start = ptimer->read(dev);
 	/* disable PFIFO access */
 	nv_wr32(dev, 0x400500, 0);
@@ -157,7 +158,7 @@ void pscnv_graph_chan_free(struct pscnv_chan *ch) {
 	/* back to normal state. */
 	nv_wr32(dev, 0x400830, 0);
 	nv_wr32(dev, 0x400500, 1);
-	spin_unlock(&dev_priv->pgraph_lock);
+	spin_unlock_irqrestore(&dev_priv->pgraph_lock, flags);
 	pscnv_vram_free(ch->grctx);
 }
 
@@ -281,12 +282,13 @@ int pscnv_ioctl_obj_gr_new(struct drm_device *dev, void *data,
 void pscnv_graph_irq_handler(struct drm_device *dev) {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	uint32_t status;
-	spin_lock(&dev_priv->pgraph_lock);
+	unsigned long flags;
+	spin_lock_irqsave(&dev_priv->pgraph_lock, flags);
 	status = nv_rd32(dev, 0x400100);
 	if (status) {
 		NV_ERROR(dev, "Unknown PGRAPH interrupt %08x\n", status);
 		nv_wr32(dev, 0x400100, status);
 	}
 	pscnv_vm_trap(dev);
-	spin_unlock(&dev_priv->pgraph_lock);
+	spin_unlock_irqrestore(&dev_priv->pgraph_lock, flags);
 }
