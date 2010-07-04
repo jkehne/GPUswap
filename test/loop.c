@@ -97,7 +97,7 @@ main()
 		return 1;
 	}
 
-	uint32_t *chmap = mmap(0, 0x2000, PROT_READ | PROT_WRITE, MAP_SHARED, fd, ch_map_handle);
+	volatile uint32_t *chmap = mmap(0, 0x2000, PROT_READ | PROT_WRITE, MAP_SHARED, fd, ch_map_handle);
 	printf ("Mapped at %p\n", chmap);
 
 	pb_map[0] = 0x40080;
