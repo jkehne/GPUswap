@@ -4193,8 +4193,13 @@ nouveau_bios_run_display_table(struct drm_device *dev, struct dcb_entry *dcbent,
 					  bios->display.script_table_ptr,
 					  table[2], table[3]);
 	if (!otable) {
-		NV_ERROR(dev, "Couldn't find matching output script table\n");
-		return 1;
+		if (dev_priv->card_type >= NV_C0) {
+			NV_DEBUG_KMS(dev, "None found.\n");
+			return 0;
+		} else {
+			NV_ERROR(dev, "Couldn't find matching output script table\n");
+			return 1;
+		}
 	}
 
 	if (pxclk < -2 || pxclk > 0) {
