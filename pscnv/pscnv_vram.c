@@ -298,7 +298,7 @@ restart:
 		kfree (reg);
 	}
 
-	if (dev_priv->fb_mtrr) {
+	if (dev_priv->fb_mtrr >= 0) {
 		drm_mtrr_del(dev_priv->fb_mtrr, drm_get_resource_start(dev, 1),
 			     drm_get_resource_len(dev, 1), DRM_MTRR_WC);
 		dev_priv->fb_mtrr = 0;
