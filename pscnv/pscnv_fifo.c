@@ -308,6 +308,41 @@ int pscnv_ioctl_fifo_init_ib(struct drm_device *dev, void *data,
 	return 0;
 }
 
+struct pscnv_enumval {
+	int value;
+	char *name;
+	void *data;
+};
+
+static struct pscnv_enumval dma_pusher_errors[] = {
+	{ 1, "CALL", 0 },
+	{ 2, "NON_CACHE", 0 },
+	{ 3, "RET", 0 },
+	{ 4, "INVALID_VALUE", 0 },
+	{ 5, "IB", 0 },
+	{ 6, "PROTECTION", 0 },
+
+	{ 0, 0, 0 },
+};
+
+static struct pscnv_enumval semaphore_errors[] = {
+	{ 1, "OFFSET_UNALIGNED", 0 },
+	{ 2, "INVALID_STATE", 0 },
+	{ 3, "OFFSET_TOO_LARGE", 0 },
+	{ 4, "PROTECTION", 0 },
+
+	{ 0, 0, 0 },
+};
+
+static struct pscnv_enumval *pscnv_enum_find (struct pscnv_enumval *list, int val) {
+	while (list->value != val && list->name)
+		list++;
+	if (list->name)
+		return list;
+	else
+		return 0;
+}
+
 void pscnv_fifo_irq_handler(struct drm_device *dev) {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	uint32_t status;
@@ -361,8 +396,10 @@ void pscnv_fifo_irq_handler(struct drm_device *dev) {
 		uint32_t st3 = nv_rd32(dev, 0x32a8);
 		uint32_t st4 = nv_rd32(dev, 0x32ac);
 		uint32_t len = nv_rd32(dev, 0x3364);
-		NV_ERROR(dev, "PFIFO_DMA_PUSHER: ch %d addr %02x%08x [PUT %02x%08x], IB %08x [PUT %08x] status %08x len %08x push %08x shadow %08x %08x %08x %08x\n",
-				ch, gethi, get, puthi, put, ib_get, ib_put, dma_state, len, dma_push, st1, st2, st3, st4);
+		struct pscnv_enumval *ev;
+		ev = pscnv_enum_find(dma_pusher_errors, dma_state >> 29);
+		NV_ERROR(dev, "PFIFO_DMA_PUSHER [%s]: ch %d addr %02x%08x [PUT %02x%08x], IB %08x [PUT %08x] status %08x len %08x push %08x shadow %08x %08x %08x %08x\n",
+				ev?ev->name:"?", ch, gethi, get, puthi, put, ib_get, ib_put, dma_state, len, dma_push, st1, st2, st3, st4);
 		if (get != put || gethi != puthi) {
 			nv_wr32(dev, 0x3244, put);
 			nv_wr32(dev, 0x3328, puthi);
@@ -383,6 +420,8 @@ void pscnv_fifo_irq_handler(struct drm_device *dev) {
 		uint32_t addr = nv_rd32(dev, 0x90000 + (get & 0x7fc) * 2);
 		uint32_t data = nv_rd32(dev, 0x90000 + (get & 0x7fc) * 2 + 4);
 		uint32_t pull = nv_rd32(dev, 0x3250);
+		struct pscnv_enumval *ev;
+		ev = pscnv_enum_find(semaphore_errors, (pull >> 20) & 0xf);
 		if (dev_priv->chipset > 0x50) {
 			/* the SEMAPHORE fuckup special #2 */
 			uint32_t sem_lo = nv_rd32(dev, 0x3404);
@@ -394,7 +433,7 @@ void pscnv_fifo_irq_handler(struct drm_device *dev) {
 				data = sem_lo;
 			}
 		}
-		NV_ERROR(dev, "PFIFO_SEMAPHORE: ch %d subch %d addr %04x data %08x status %08x\n", ch, (addr >> 13) & 7, addr & 0x1ffc, data, pull);
+		NV_ERROR(dev, "PFIFO_SEMAPHORE [%s]: ch %d subch %d addr %04x data %08x status %08x\n", ev?ev->name:"?", ch, (addr >> 13) & 7, addr & 0x1ffc, data, pull);
 		get += 4;
 		nv_wr32(dev, 0x3270, get);
 		nv_wr32(dev, 0x3250, 1);
