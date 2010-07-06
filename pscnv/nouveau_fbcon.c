@@ -301,7 +301,7 @@ nouveau_fbcon_create(struct drm_device *dev, uint32_t fb_width,
 	info->fix.smem_start = dev->mode_config.fb_base + vo->map1->start;
 	info->fix.smem_len = size;
 
-	info->screen_base = ioremap(dev_priv->fb_phys + vo->map1->start, size);
+	info->screen_base = ioremap_wc(dev_priv->fb_phys + vo->map1->start, size);
 	info->screen_size = size;
 
 	drm_fb_helper_fill_fix(info, fb->pitch, fb->depth);
@@ -396,6 +396,7 @@ nouveau_fbcon_remove(struct drm_device *dev, struct drm_framebuffer *fb)
 		struct nouveau_fbcon_par *par = info->par;
 
 		unregister_framebuffer(info);
+		iounmap(info->screen_base);
 		drm_gem_object_unreference_unlocked(nouveau_fb->vo->gem);
 		nouveau_fb->vo = NULL;
 		if (par)
