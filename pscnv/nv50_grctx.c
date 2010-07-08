@@ -685,8 +685,10 @@ nv50_graph_construct_mmio(struct nouveau_grctx *ctx)
 			cp_ctx(ctx, 0x407000 + (i<<8), 3);
 			if (dev_priv->chipset == 0x50)
 				gr_def(ctx, 0x407000 + (i<<8), 0x1b74f820);
-			else
+			else if (dev_priv->chipset != 0xa5)
 				gr_def(ctx, 0x407000 + (i<<8), 0x3b74f821);
+			else
+				gr_def(ctx, 0x407000 + (i<<8), 0x7b74f821);
 			gr_def(ctx, 0x407004 + (i<<8), 0x89058001);
 
 			if (dev_priv->chipset == 0x50) {
@@ -698,11 +700,17 @@ nv50_graph_construct_mmio(struct nouveau_grctx *ctx)
 			} else {
 				cp_ctx(ctx, 0x407010 + (i<<8), 3);
 				gr_def(ctx, 0x407010 + (i<<8), 0x00001000);
-				gr_def(ctx, 0x407014 + (i<<8), 0x000000ff);
+				if (dev_priv->chipset != 0xa5)
+					gr_def(ctx, 0x407014 + (i<<8), 0x000000ff);
+				else
+					gr_def(ctx, 0x407014 + (i<<8), 0x000001ff);
 			}
 
 			cp_ctx(ctx, 0x407080 + (i<<8), 4);
-			gr_def(ctx, 0x407080 + (i<<8), 0x027c10fa);
+			if (dev_priv->chipset != 0xa5)
+				gr_def(ctx, 0x407080 + (i<<8), 0x027c10fa);
+			else
+				gr_def(ctx, 0x407080 + (i<<8), 0x827c10fa);
 			if (dev_priv->chipset == 0x50)
 				gr_def(ctx, 0x407084 + (i<<8), 0x000000c0);
 			else
@@ -797,10 +805,10 @@ nv50_graph_construct_mmio(struct nouveau_grctx *ctx)
 					gr_def(ctx, offset + 0x1c, 0x10880000);
 					break;
 				case 0xa0:
+				case 0xa5:
 					gr_def(ctx, offset + 0x1c, 0x310c0000);
 					break;
 				case 0xa3:
-				case 0xa5:
 				case 0xa8:
 				case 0xaa:
 				case 0xac:
@@ -868,7 +876,7 @@ nv50_graph_construct_mmio(struct nouveau_grctx *ctx)
 			else
 				gr_def(ctx, offset + 0x8, 0x05010202);
 			gr_def(ctx, offset + 0xc, 0x00030201);
-			if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa)
+			if (dev_priv->chipset == 0xa3)
 				cp_ctx(ctx, base + 0x36c, 1);
 
 			cp_ctx(ctx, base + 0x400, 2);
@@ -918,6 +926,12 @@ nv50_graph_construct_mmio(struct nouveau_grctx *ctx)
 			cp_ctx(ctx, offset, 2);
 			if (dev_priv->chipset < 0xa0)
 				gr_def(ctx, offset, 0x0077f005);
+			else if (dev_priv->chipset == 0xa5)
+				gr_def(ctx, offset, 0x6cf7f007);
+			else if (dev_priv->chipset == 0xa8)
+				gr_def(ctx, offset, 0x6cfff007);
+			else if (dev_priv->chipset == 0xac)
+				gr_def(ctx, offset, 0x0cfff007);
 			else
 				gr_def(ctx, offset, 0x0cf7f007);
 			if (dev_priv->chipset == 0x50)
