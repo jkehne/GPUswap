@@ -1147,6 +1147,7 @@ xf_emit(struct nouveau_grctx *ctx, int num, uint32_t val) {
 
 /* Gene declarations... */
 
+static void nv50_graph_construct_gene_dispatch(struct nouveau_grctx *ctx);
 static void nv50_graph_construct_gene_m2mf(struct nouveau_grctx *ctx);
 static void nv50_graph_construct_gene_unk1(struct nouveau_grctx *ctx);
 static void nv50_graph_construct_gene_unk2(struct nouveau_grctx *ctx);
@@ -1176,22 +1177,8 @@ nv50_graph_construct_xfer1(struct nouveau_grctx *ctx)
 	if (dev_priv->chipset < 0xa0) {
 		/* Strand 0 */
 		ctx->ctxvals_pos = offset;
-		switch (dev_priv->chipset) {
-		case 0x50:
-			xf_emit(ctx, 0x99, 0);
-			break;
-		case 0x84:
-		case 0x86:
-			xf_emit(ctx, 0x384, 0);
-			break;
-		case 0x92:
-		case 0x94:
-		case 0x96:
-		case 0x98:
-			xf_emit(ctx, 0x380, 0);
-			break;
-		}
-		nv50_graph_construct_gene_m2mf (ctx);
+		nv50_graph_construct_gene_dispatch(ctx);
+		nv50_graph_construct_gene_m2mf(ctx);
 		switch (dev_priv->chipset) {
 		case 0x50:
 		case 0x84:
@@ -1296,10 +1283,7 @@ nv50_graph_construct_xfer1(struct nouveau_grctx *ctx)
 	} else {
 		/* Strand 0 */
 		ctx->ctxvals_pos = offset;
-		if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa)
-			xf_emit(ctx, 0x385, 0);
-		else
-			xf_emit(ctx, 0x384, 0);
+		nv50_graph_construct_gene_dispatch(ctx);
 		nv50_graph_construct_gene_m2mf(ctx);
 		xf_emit(ctx, 0x950, 0);
 		nv50_graph_construct_gene_unk10(ctx);
@@ -1434,6 +1418,62 @@ nv50_graph_construct_xfer1(struct nouveau_grctx *ctx)
 /*
  * non-trivial demagiced parts of ctx init go here
  */
+
+static void
+nv50_graph_construct_gene_dispatch(struct nouveau_grctx *ctx)
+{
+	/* start of strand 0 */
+	struct drm_nouveau_private *dev_priv = ctx->dev->dev_private;
+	/* SEEK */
+	if (dev_priv->chipset == 0x50)
+		xf_emit(ctx, 5, 0);
+	else if (dev_priv->chipset <= 0xa0 || dev_priv->chipset >= 0xaa)
+		xf_emit(ctx, 6, 0);
+	else
+		xf_emit(ctx, 4, 0);
+	/* SEEK */
+	/* the PGRAPH's internal FIFO */
+	if (dev_priv->chipset == 0x50)
+		xf_emit(ctx, 8*3, 0);
+	else
+		xf_emit(ctx, 0x100*3, 0);
+	/* and another bonus slot?!? */
+	xf_emit(ctx, 3, 0);
+	/* and YET ANOTHER bonus slot? */
+	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa)
+		xf_emit(ctx, 3, 0);
+	/* SEEK */
+	/* CTX_SWITCH: caches of gr objects bound to subchannels. 8 values, last used index */
+	xf_emit(ctx, 9, 0);
+	/* SEEK */
+	xf_emit(ctx, 9, 0);
+	/* SEEK */
+	xf_emit(ctx, 9, 0);
+	/* SEEK */
+	xf_emit(ctx, 9, 0);
+	/* SEEK */
+	if (dev_priv->chipset < 0x90)
+		xf_emit(ctx, 4, 0);
+	/* SEEK */
+	xf_emit(ctx, 2, 0);
+	/* SEEK */
+	xf_emit(ctx, 6*2, 0);
+	xf_emit(ctx, 2, 0);
+	/* SEEK */
+	xf_emit(ctx, 2, 0);
+	/* SEEK */
+	xf_emit(ctx, 6*2, 0);
+	xf_emit(ctx, 2, 0);
+	/* SEEK */
+	if (dev_priv->chipset == 0x50)
+		xf_emit(ctx, 0x1c, 0);
+	else if (dev_priv->chipset < 0xa0)
+		xf_emit(ctx, 0x1e, 0);
+	else
+		xf_emit(ctx, 0x22, 0);
+	/* SEEK */
+	xf_emit(ctx, 0x15, 0);
+}
 
 static void
 nv50_graph_construct_gene_m2mf(struct nouveau_grctx *ctx)
