@@ -1151,7 +1151,7 @@ static void nv50_graph_construct_gene_dispatch(struct nouveau_grctx *ctx);
 static void nv50_graph_construct_gene_m2mf(struct nouveau_grctx *ctx);
 static void nv50_graph_construct_gene_unk1(struct nouveau_grctx *ctx);
 static void nv50_graph_construct_gene_unk2(struct nouveau_grctx *ctx);
-static void nv50_graph_construct_gene_unk3(struct nouveau_grctx *ctx);
+static void nv50_graph_construct_gene_zcull(struct nouveau_grctx *ctx);
 static void nv50_graph_construct_gene_clipid(struct nouveau_grctx *ctx);
 static void nv50_graph_construct_gene_unk24xx(struct nouveau_grctx *ctx);
 static void nv50_graph_construct_gene_unk6(struct nouveau_grctx *ctx);
@@ -1181,7 +1181,7 @@ nv50_graph_construct_xfer1(struct nouveau_grctx *ctx)
 		nv50_graph_construct_gene_m2mf(ctx);
 		nv50_graph_construct_gene_unk24xx(ctx);
 		nv50_graph_construct_gene_clipid(ctx);
-		nv50_graph_construct_gene_unk3(ctx);
+		nv50_graph_construct_gene_zcull(ctx);
 		if ((ctx->ctxvals_pos-offset)/8 > size)
 			size = (ctx->ctxvals_pos-offset)/8;
 
@@ -1350,7 +1350,7 @@ nv50_graph_construct_xfer1(struct nouveau_grctx *ctx)
 
 		/* Strand 6 */
 		ctx->ctxvals_pos = offset + 6;
-		nv50_graph_construct_gene_unk3(ctx);
+		nv50_graph_construct_gene_zcull(ctx);
 		nv50_graph_construct_gene_clipid(ctx);
 		nv50_graph_construct_gene_unk7(ctx);
 		if (units & (1 << 0))
@@ -1648,34 +1648,64 @@ nv50_graph_construct_gene_unk2(struct nouveau_grctx *ctx)
 }
 
 static void
-nv50_graph_construct_gene_unk3(struct nouveau_grctx *ctx)
+nv50_graph_construct_gene_zcull(struct nouveau_grctx *ctx)
 {
 	struct drm_nouveau_private *dev_priv = ctx->dev->dev_private;
-	/* end of area 0 on pre-NVA0, beginning of area 6 on NVAx */
-	xf_emit(ctx, 1, 0x3f);
-	xf_emit(ctx, 0xa, 0);
-	xf_emit(ctx, 1, 2);
-	xf_emit(ctx, 2, 0x04000000);
-	xf_emit(ctx, 8, 0);
-	xf_emit(ctx, 1, 4);
-	xf_emit(ctx, 3, 0);
-	xf_emit(ctx, 1, 4);
-	if (dev_priv->chipset == 0x50)
-		xf_emit(ctx, 0x10, 0);
-	else
-		xf_emit(ctx, 0x11, 0);
-	xf_emit(ctx, 1, 1);
-	xf_emit(ctx, 1, 0x1001);
-	xf_emit(ctx, 4, 0xffff);
-	xf_emit(ctx, 0x20, 0);
-	xf_emit(ctx, 0x10, 0x3f800000);
-	xf_emit(ctx, 1, 0x10);
-	if (dev_priv->chipset == 0x50)
-		xf_emit(ctx, 1, 0);
-	else
-		xf_emit(ctx, 2, 0);
-	xf_emit(ctx, 1, 3);
-	xf_emit(ctx, 2, 0);
+	/* end of strand 0 on pre-NVA0, beginning of strand 6 on NVAx */
+	/* SEEK */
+	xf_emit(ctx, 1, 0x3f);		/* 0000003f UNK1590 */
+	xf_emit(ctx, 1, 0);		/* 00000001 ALPHA_TEST_ENABLE */
+	xf_emit(ctx, 1, 0);		/* 00000007 MULTISAMPLE_SAMPLES_LOG2 */
+	xf_emit(ctx, 1, 0);		/* 00000001 tesla UNK1534 */
+	xf_emit(ctx, 1, 0);		/* 00000007 STENCIL_BACK_FUNC_FUNC */
+	xf_emit(ctx, 1, 0);		/* 000000ff STENCIL_BACK_FUNC_MASK */
+	xf_emit(ctx, 1, 0);		/* 000000ff STENCIL_BACK_FUNC_REF */
+	xf_emit(ctx, 1, 0);		/* 000000ff STENCIL_BACK_MASK */
+	xf_emit(ctx, 3, 0);		/* 00000007 STENCIL_BACK_OP_FAIL, ZFAIL, ZPASS */
+	xf_emit(ctx, 1, 2);		/* 00000003 tesla UNK143C */
+	xf_emit(ctx, 2, 0x04000000);	/* 07ffffff tesla UNK0D6C */
+	xf_emit(ctx, 1, 0);		/* ffff0ff3 */
+	xf_emit(ctx, 1, 0);		/* 00000001 CLIPID_ENABLE */
+	xf_emit(ctx, 2, 0);		/* ffffffff DEPTH_BOUNDS */
+	xf_emit(ctx, 1, 0);		/* 00000001 */
+	xf_emit(ctx, 1, 0);		/* 00000007 DEPTH_TEST_FUNC */
+	xf_emit(ctx, 1, 0);		/* 00000001 DEPTH_TEST_ENABLE */
+	xf_emit(ctx, 1, 0);		/* 00000001 DEPTH_WRITE_ENABLE */
+	xf_emit(ctx, 1, 4);		/* 0000000f CULL_MODE */
+	xf_emit(ctx, 1, 0);		/* 0000ffff */
+	xf_emit(ctx, 1, 0);		/* 00000001 UNK0FB0 */
+	xf_emit(ctx, 1, 0);		/* 00000001 POLYGON_STIPPLE_ENABLE */
+	xf_emit(ctx, 1, 4);		/* 00000007 FP_CONTROL */
+	xf_emit(ctx, 1, 0);		/* ffffffff */
+	xf_emit(ctx, 1, 0);		/* 0001ffff GP_BUILTIN_RESULT_EN */
+	xf_emit(ctx, 1, 0);		/* 000000ff CLEAR_STENCIL */
+	xf_emit(ctx, 1, 0);		/* 00000007 STENCIL_FRONT_FUNC_FUNC */
+	xf_emit(ctx, 1, 0);		/* 000000ff STENCIL_FRONT_FUNC_MASK */
+	xf_emit(ctx, 1, 0);		/* 000000ff STENCIL_FRONT_FUNC_REF */
+	xf_emit(ctx, 1, 0);		/* 000000ff STENCIL_FRONT_MASK */
+	xf_emit(ctx, 3, 0);		/* 00000007 STENCIL_FRONT_OP_FAIL, ZFAIL, ZPASS */
+	xf_emit(ctx, 1, 0);		/* 00000001 STENCIL_FRONT_ENABLE */
+	xf_emit(ctx, 1, 0);		/* 00000001 STENCIL_BACK_ENABLE */
+	xf_emit(ctx, 1, 0);		/* ffffffff CLEAR_DEPTH */
+	xf_emit(ctx, 1, 0);		/* 00000007 */
+	if (dev_priv->chipset != 0x50)
+		xf_emit(ctx, 1, 0);	/* 00000003 tesla UNK1108 */
+	xf_emit(ctx, 1, 0);		/* 00000001 SAMPLECNT_ENABLE */
+	xf_emit(ctx, 1, 0);		/* 0000000f ZETA_FORMAT */
+	xf_emit(ctx, 1, 1);		/* 00000001 ZETA_ENABLE */
+	xf_emit(ctx, 1, 0x1001);	/* 00001fff ZETA_ARRAY_MODE */
+	/* SEEK */
+	xf_emit(ctx, 4, 0xffff);	/* 0000ffff MSAA_MASK */
+	xf_emit(ctx, 0x10, 0);		/* 00000001 SCISSOR_ENABLE */
+	xf_emit(ctx, 0x10, 0);		/* ffffffff DEPTH_RANGE_NEAR */
+	xf_emit(ctx, 0x10, 0x3f800000);	/* ffffffff DEPTH_RANGE_FAR */
+	xf_emit(ctx, 1, 0x10);		/* 7f/ff/3ff VIEW_VOLUME_CLIP_CTRL */
+	xf_emit(ctx, 1, 0);		/* 00000001 VIEWPORT_CLIP_RECTS_EN */
+	xf_emit(ctx, 1, 3);		/* 00000003 FP_CTRL_UNK196C */
+	xf_emit(ctx, 1, 0);		/* 00000003 tesla UNK1968 */
+	if (dev_priv->chipset != 0x50)
+		xf_emit(ctx, 1, 0);	/* 0fffffff tesla UNK1104 */
+	xf_emit(ctx, 1, 0);		/* 00000001 tesla UNK151C */
 }
 
 static void
