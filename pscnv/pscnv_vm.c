@@ -534,8 +534,6 @@ int pscnv_ioctl_vspace_free(struct drm_device *dev, void *data,
 		return -ENOENT;
 	}
 
-	NV_INFO(dev, "Freeing VSPACE %d\n", vid);
-
 	vs->filp = 0;
 	kref_put(&vs->ref, pscnv_vspace_ref_free);
 
