@@ -1179,19 +1179,7 @@ nv50_graph_construct_xfer1(struct nouveau_grctx *ctx)
 		ctx->ctxvals_pos = offset;
 		nv50_graph_construct_gene_dispatch(ctx);
 		nv50_graph_construct_gene_m2mf(ctx);
-		switch (dev_priv->chipset) {
-		case 0x50:
-		case 0x84:
-		case 0x86:
-		case 0x98:
-			xf_emit(ctx, 0x4c4, 0);
-			break;
-		case 0x92:
-		case 0x94:
-		case 0x96:
-			xf_emit(ctx, 0x984, 0);
-			break;
-		}
+		xf_emit(ctx, 0x36, 0);
 		nv50_graph_construct_gene_unk5(ctx);
 		if (dev_priv->chipset == 0x50)
 			xf_emit(ctx, 0xa, 0);
@@ -1285,7 +1273,7 @@ nv50_graph_construct_xfer1(struct nouveau_grctx *ctx)
 		ctx->ctxvals_pos = offset;
 		nv50_graph_construct_gene_dispatch(ctx);
 		nv50_graph_construct_gene_m2mf(ctx);
-		xf_emit(ctx, 0x950, 0);
+		xf_emit(ctx, 2, 0);
 		nv50_graph_construct_gene_unk10(ctx);
 		xf_emit(ctx, 1, 0x0fac6881);
 		if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa) {
@@ -1478,7 +1466,12 @@ nv50_graph_construct_gene_dispatch(struct nouveau_grctx *ctx)
 static void
 nv50_graph_construct_gene_m2mf(struct nouveau_grctx *ctx)
 {
-	/* m2mf state */
+	/* Strand 0, right after dispatch */
+	struct drm_nouveau_private *dev_priv = ctx->dev->dev_private;
+	int smallm2mf = 0;
+	if (dev_priv->chipset < 0x92 || dev_priv->chipset == 0x98)
+		smallm2mf = 1;
+	/* SEEK */
 	xf_emit (ctx, 1, 0);		/* DMA_NOTIFY instance >> 4 */
 	xf_emit (ctx, 1, 0);		/* DMA_BUFFER_IN instance >> 4 */
 	xf_emit (ctx, 1, 0);		/* DMA_BUFFER_OUT instance >> 4 */
@@ -1505,6 +1498,21 @@ nv50_graph_construct_gene_m2mf(struct nouveau_grctx *ctx)
 	xf_emit (ctx, 1, 0);		/* TILING_POSITION_OUT */
 	xf_emit (ctx, 1, 0);		/* OFFSET_IN_HIGH */
 	xf_emit (ctx, 1, 0);		/* OFFSET_OUT_HIGH */
+	/* SEEK */
+	if (smallm2mf)
+		xf_emit(ctx, 0x40, 0);	/* 20 * ffffffff, 3ffff */
+	else
+		xf_emit(ctx, 0x100, 0);	/* 80 * ffffffff, 3ffff */
+	xf_emit(ctx, 4, 0);		/* 1f/7f, 0, 1f/7f, 0 [1f for smallm2mf, 7f otherwise] */
+	/* SEEK */
+	if (smallm2mf)
+		xf_emit(ctx, 0x400, 0);	/* ffffffff */
+	else
+		xf_emit(ctx, 0x800, 0);	/* ffffffff */
+	xf_emit(ctx, 4, 0);		/* bits ff/1ff, 0, 0, 0 [ff for smallm2mf, 1ff otherwise] */
+	/* SEEK */
+	xf_emit(ctx, 0x40, 0);		// 20 * bits ffffffff, 3ffff
+	xf_emit(ctx, 0x6, 0);		// bits 1f, 0, 1f, 0, 1f, 0
 }
 
 static void
