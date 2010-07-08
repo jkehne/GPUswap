@@ -183,7 +183,7 @@ pscnv_vspace_free(struct pscnv_vspace *vs) {
 	struct pscnv_vm_mapnode *node;
 	while ((node = PSCNV_RB_ROOT(&vs->maps))) {
 		if (node->vo && !vs->isbar) {
-			drm_gem_object_unreference(node->vo->gem);
+			drm_gem_object_unreference_unlocked(node->vo->gem);
 		}
 		PSCNV_RB_REMOVE(pscnv_vm_maptree, &vs->maps, node);
 		kfree(node);
