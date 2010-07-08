@@ -1152,7 +1152,7 @@ static void nv50_graph_construct_gene_m2mf(struct nouveau_grctx *ctx);
 static void nv50_graph_construct_gene_unk1(struct nouveau_grctx *ctx);
 static void nv50_graph_construct_gene_unk2(struct nouveau_grctx *ctx);
 static void nv50_graph_construct_gene_unk3(struct nouveau_grctx *ctx);
-static void nv50_graph_construct_gene_unk4(struct nouveau_grctx *ctx);
+static void nv50_graph_construct_gene_clipid(struct nouveau_grctx *ctx);
 static void nv50_graph_construct_gene_unk24xx(struct nouveau_grctx *ctx);
 static void nv50_graph_construct_gene_unk6(struct nouveau_grctx *ctx);
 static void nv50_graph_construct_gene_unk7(struct nouveau_grctx *ctx);
@@ -1180,8 +1180,7 @@ nv50_graph_construct_xfer1(struct nouveau_grctx *ctx)
 		nv50_graph_construct_gene_dispatch(ctx);
 		nv50_graph_construct_gene_m2mf(ctx);
 		nv50_graph_construct_gene_unk24xx(ctx);
-		xf_emit(ctx, 0xb, 0);
-		nv50_graph_construct_gene_unk4(ctx);
+		nv50_graph_construct_gene_clipid(ctx);
 		nv50_graph_construct_gene_unk3(ctx);
 		if ((ctx->ctxvals_pos-offset)/8 > size)
 			size = (ctx->ctxvals_pos-offset)/8;
@@ -1352,8 +1351,7 @@ nv50_graph_construct_xfer1(struct nouveau_grctx *ctx)
 		/* Strand 6 */
 		ctx->ctxvals_pos = offset + 6;
 		nv50_graph_construct_gene_unk3(ctx);
-		xf_emit(ctx, 0xb, 0);
-		nv50_graph_construct_gene_unk4(ctx);
+		nv50_graph_construct_gene_clipid(ctx);
 		nv50_graph_construct_gene_unk7(ctx);
 		if (units & (1 << 0))
 			nv50_graph_construct_xfer_tp(ctx);
@@ -1681,15 +1679,23 @@ nv50_graph_construct_gene_unk3(struct nouveau_grctx *ctx)
 }
 
 static void
-nv50_graph_construct_gene_unk4(struct nouveau_grctx *ctx)
+nv50_graph_construct_gene_clipid(struct nouveau_grctx *ctx)
 {
-	/* middle of area 0 on pre-NVA0, middle of area 6 on NVAx */
-	xf_emit(ctx, 2, 0x04000000);
-	xf_emit(ctx, 1, 0);
-	xf_emit(ctx, 1, 0x80);
-	xf_emit(ctx, 3, 0);
-	xf_emit(ctx, 1, 0x80);
-	xf_emit(ctx, 1, 0);
+	/* middle of strand 0 on pre-NVA0 [after 24xx], middle of area 6 on NVAx */
+	/* SEEK */
+	xf_emit(ctx, 1, 0);		/* 00000007 UNK0FB4 */
+	/* SEEK */
+	xf_emit(ctx, 4, 0);		/* 07ffffff CLIPID_REGION_HORIZ */
+	xf_emit(ctx, 4, 0);		/* 07ffffff CLIPID_REGION_VERT */
+	xf_emit(ctx, 2, 0);		/* 07ffffff SCREEN_SCISSOR */
+	xf_emit(ctx, 2, 0x04000000);	/* 07ffffff UNK1508 */
+	xf_emit(ctx, 1, 0);		/* 00000001 CLIPID_ENABLE */
+	xf_emit(ctx, 1, 0x80);		/* 00003fff CLIPID_WIDTH */
+	xf_emit(ctx, 1, 0);		/* 000000ff CLIPID_ID */
+	xf_emit(ctx, 1, 0);		/* 000000ff CLIPID_ADDRESS_HIGH */
+	xf_emit(ctx, 1, 0);		/* ffffffff CLIPID_ADDRESS_LOW */
+	xf_emit(ctx, 1, 0x80);		/* 00003fff CLIPID_HEIGHT */
+	xf_emit(ctx, 1, 0);		/* 0000ffff DMA_CLIPID */
 }
 
 static void
