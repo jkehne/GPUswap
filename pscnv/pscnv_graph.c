@@ -331,6 +331,152 @@ static struct pscnv_enumval *pscnv_enum_find (struct pscnv_enumval *list, int va
 		return 0;
 }
 
+void nv50_graph_trap_handler(struct drm_device *dev) {
+	uint32_t status = nv_rd32(dev, 0x400108);
+	uint32_t ustatus;
+	uint32_t chan = nv_rd32(dev, 0x400784);
+
+	if (status & 0x001) {
+		ustatus = nv_rd32(dev, 0x400804) & 0x7fffffff;
+		if (ustatus & 0x00000001) {
+			nv_wr32(dev, 0x400500, 0);
+			if (nv_rd32(dev, 0x400808) & 0x80000000) {
+				uint32_t class = nv_rd32(dev, 0x400814);
+				uint32_t mthd = nv_rd32(dev, 0x400808) & 0x1ffc;
+				uint32_t subc = (nv_rd32(dev, 0x400808) >> 16) & 0x7;
+				uint32_t data = nv_rd32(dev, 0x40080c);
+				NV_ERROR(dev, "PGRAPH_TRAP_DISPATCH: ch %x sub %d [%04x] mthd %04x data %08x\n", chan, subc, class, mthd, data);
+				NV_INFO(dev, "PGRAPH_TRAP_DISPATCH: 400808: %08x\n", nv_rd32(dev, 0x400808));
+				NV_INFO(dev, "PGRAPH_TRAP_DISPATCH: 400848: %08x\n", nv_rd32(dev, 0x400848));
+				nv_wr32(dev, 0x400808, 0);
+			} else {
+				NV_ERROR(dev, "PGRAPH_TRAP_DISPATCH: No stuck command?\n");
+			}
+			nv_wr32(dev, 0x4008e8, nv_rd32(dev, 0x4008e8) & 3);
+			nv_wr32(dev, 0x400848, 0);
+		}
+		if (ustatus & 0x00000002) {
+			/* XXX: this one involves much more pain. */
+			NV_ERROR(dev, "PGRAPH_TRAP_QUERY: ch %x.\n", chan);
+		}
+		if (ustatus & 0x00000004) {
+			NV_ERROR(dev, "PGRAPH_TRAP_GRCTX_MMIO: ch %x. This is a kernel bug.\n", chan);
+		}
+		if (ustatus & 0x00000008) {
+			NV_ERROR(dev, "PGRAPH_TRAP_GRCTX_XFER1: ch %x. This is a kernel bug.\n", chan);
+		}
+		if (ustatus & 0x00000010) {
+			NV_ERROR(dev, "PGRAPH_TRAP_GRCTX_XFER2: ch %x. This is a kernel bug.\n", chan);
+		}
+		ustatus &= ~0x0000001f;
+		if (ustatus)
+			NV_ERROR(dev, "PGRAPH_TRAP_DISPATCH: Unknown ustatus 0x%08x on ch %x\n", ustatus, chan);
+		nv_wr32(dev, 0x400804, 0xc0000000);
+		nv_wr32(dev, 0x400108, 0x001);
+		status &= ~0x001;
+	}
+
+	if (status & 0x002) {
+		ustatus = nv_rd32(dev, 0x406800) & 0x7fffffff;
+		if (ustatus & 1)
+			NV_ERROR (dev, "PGRAPH_TRAP_M2MF_NOTIFY: ch %x %08x %08x %08x %08x\n",
+				chan,
+				nv_rd32(dev, 0x406804),
+				nv_rd32(dev, 0x406808),
+				nv_rd32(dev, 0x40680c),
+				nv_rd32(dev, 0x406810));
+		if (ustatus & 2)
+			NV_ERROR (dev, "PGRAPH_TRAP_M2MF_IN: ch %x %08x %08x %08x %08x\n",
+				chan,
+				nv_rd32(dev, 0x406804),
+				nv_rd32(dev, 0x406808),
+				nv_rd32(dev, 0x40680c),
+				nv_rd32(dev, 0x406810));
+		if (ustatus & 4)
+			NV_ERROR (dev, "PGRAPH_TRAP_M2MF_OUT: ch %x %08x %08x %08x %08x\n",
+				chan,
+				nv_rd32(dev, 0x406804),
+				nv_rd32(dev, 0x406808),
+				nv_rd32(dev, 0x40680c),
+				nv_rd32(dev, 0x406810));
+		ustatus &= ~0x00000007;
+		if (ustatus)
+			NV_ERROR(dev, "PGRAPH_TRAP_M2MF: Unknown ustatus 0x%08x on ch %x\n", ustatus, chan);
+		/* No sane way found yet -- just reset the bugger. */
+		nv_wr32(dev, 0x400040, 2);
+		nv_wr32(dev, 0x400040, 0);
+		nv_wr32(dev, 0x406800, 0xc0000000);
+		nv_wr32(dev, 0x400108, 0x002);
+		status &= ~0x002;
+	}
+
+	if (status & 0x004) {
+		ustatus = nv_rd32(dev, 0x400c04) & 0x7fffffff;
+		if (ustatus & 0x00000001) {
+			NV_ERROR (dev, "PGRAPH_TRAP_VFETCH: ch %x\n", chan);
+		}
+		ustatus &= ~0x00000001;
+		if (ustatus)
+			NV_ERROR(dev, "PGRAPH_TRAP_VFETCH: Unknown ustatus 0x%08x on ch %x\n", ustatus, chan);
+		nv_wr32(dev, 0x400c04, 0xc0000000);
+		nv_wr32(dev, 0x400108, 0x004);
+		status &= ~0x004;
+	}
+
+	if (status & 0x008) {
+		ustatus = nv_rd32(dev, 0x401800) & 0x7fffffff;
+		if (ustatus & 0x00000001) {
+			NV_ERROR (dev, "PGRAPH_TRAP_STRMOUT: ch %x %08x %08x %08x %08x\n", chan,
+				nv_rd32(dev, 0x401804),
+				nv_rd32(dev, 0x401808),
+				nv_rd32(dev, 0x40180c),
+				nv_rd32(dev, 0x401810));
+		}
+		ustatus &= ~0x00000001;
+		if (ustatus)
+			NV_ERROR(dev, "PGRAPH_TRAP_STRMOUT: Unknown ustatus 0x%08x on ch %x\n", ustatus, chan);
+		/* No sane way found yet -- just reset the bugger. */
+		nv_wr32(dev, 0x400040, 0x80);
+		nv_wr32(dev, 0x400040, 0);
+		nv_wr32(dev, 0x401800, 0xc0000000);
+		nv_wr32(dev, 0x400108, 0x008);
+		status &= ~0x008;
+	}
+
+	if (status & 0x010) {
+		ustatus = nv_rd32(dev, 0x405018) & 0x7fffffff;
+		if (ustatus & 0x00000001) {
+			NV_ERROR (dev, "PGRAPH_TRAP_CCACHE: ch %x\n", chan);
+		}
+		ustatus &= ~0x00000001;
+		if (ustatus)
+			NV_ERROR(dev, "PGRAPH_TRAP_CCACHE: Unknown ustatus 0x%08x on ch %x\n", ustatus, chan);
+		nv_wr32(dev, 0x405018, 0xc0000000);
+		nv_wr32(dev, 0x400108, 0x010);
+		status &= ~0x010;
+	}
+
+	if (status & 0x020) {
+		ustatus = nv_rd32(dev, 0x402000) & 0x7fffffff;
+		if (ustatus & 0x00000001) {
+			NV_ERROR (dev, "PGRAPH_TRAP_CLIPID: ch %x\n", chan);
+		}
+		ustatus &= ~0x00000001;
+		if (ustatus)
+			NV_ERROR(dev, "PGRAPH_TRAP_CLIPID: Unknown ustatus 0x%08x on ch %x\n", ustatus, chan);
+		nv_wr32(dev, 0x402000, 0xc0000000);
+		nv_wr32(dev, 0x400108, 0x020);
+		status &= ~0x020;
+	}
+
+	/* XXX: per-TP traps. */
+
+	if (status) {
+		NV_ERROR(dev, "Unknown PGRAPH trap %08x on ch %x\n", status, chan);
+		nv_wr32(dev, 0x400108, status);
+	}
+}
+
 void pscnv_graph_irq_handler(struct drm_device *dev) {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	uint32_t status;
@@ -387,6 +533,18 @@ void pscnv_graph_irq_handler(struct drm_device *dev) {
 			NV_ERROR(dev, "PGRAPH_DISPATCH_ERROR [%x]: ch %x sub %d [%04x] mthd %04x data %08x\n", ecode, chan, subc, class, mthd, data);
 		nv_wr32(dev, 0x400100, 0x00100000);
 		status &= ~0x00100000;
+	}
+
+	if (status & 0x00200000) {
+		nv50_graph_trap_handler(dev);
+		nv_wr32(dev, 0x400100, 0x00200000);
+		status &= ~0x00200000;
+	}
+
+	if (status & 0x01000000) {
+		NV_ERROR(dev, "PGRAPH_SINGLE_STEP: ch %x sub %d [%04x] mthd %04x data %08x\n", chan, subc, class, mthd, data);
+		nv_wr32(dev, 0x400100, 0x01000000);
+		status &= ~0x01000000;
 	}
 
 	if (status) {

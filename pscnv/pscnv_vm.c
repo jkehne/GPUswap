@@ -802,8 +802,7 @@ void pscnv_vm_trap(struct drm_device *dev) {
 			nv_wr32(dev, 0x100c90, idx | i << 24);
 			trap[i] = nv_rd32(dev, 0x100c94);
 		}
-		/* XXX: Check if it's NVA0+ or NVA3+. */
-		if (dev_priv->chipset < 0xa0) {
+		if (dev_priv->chipset < 0xa3 || dev_priv->chipset >= 0xaa) {
 			s0 = trap[0] & 0xf;
 			s1 = (trap[0] >> 4) & 0xf;
 			s2 = (trap[0] >> 8) & 0xf;
