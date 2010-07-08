@@ -785,15 +785,15 @@ nv50_graph_construct_mmio_ddata(struct nouveau_grctx *ctx)
 	dd_emit(ctx, 1, 0);	/* 00000001 UNK135C */
 
 	/* SRC_TIC state */
-	dd_emit(ctx, 1, 0);	// 00000007 SRC_TILE_MODE_Z
-	dd_emit(ctx, 1, 2);	// 00000007 SRC_TILE_MODE_Y
-	dd_emit(ctx, 1, 1);	// 00000001 SRC_LINEAR #1
-	dd_emit(ctx, 1, 0);	// 000000ff SRC_ADDRESS_HIGH
-	dd_emit(ctx, 1, 0);	// 00000001 SRC_SRGB
+	dd_emit(ctx, 1, 0);	/* 00000007 SRC_TILE_MODE_Z */
+	dd_emit(ctx, 1, 2);	/* 00000007 SRC_TILE_MODE_Y */
+	dd_emit(ctx, 1, 1);	/* 00000001 SRC_LINEAR #1 */
+	dd_emit(ctx, 1, 0);	/* 000000ff SRC_ADDRESS_HIGH */
+	dd_emit(ctx, 1, 0);	/* 00000001 SRC_SRGB */
 	if (dev_priv->chipset >= 0x94)
 		dd_emit(ctx, 1, 0);	/* 00000003 eng2d UNK0258 */
-	dd_emit(ctx, 1, 1);	// 00000fff SRC_DEPTH
-	dd_emit(ctx, 1, 0x100);	// 0000ffff SRC_HEIGHT
+	dd_emit(ctx, 1, 1);	/* 00000fff SRC_DEPTH */
+	dd_emit(ctx, 1, 0x100);	/* 0000ffff SRC_HEIGHT */
 
 	/* turing state */
 	dd_emit(ctx, 1, 0);		/* 0000000f TEXTURES_LOG2 */
