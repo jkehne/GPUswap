@@ -1159,6 +1159,8 @@ static void nv50_graph_construct_gene_eng2d(struct nouveau_grctx *ctx);
 static void nv50_graph_construct_gene_csched(struct nouveau_grctx *ctx);
 static void nv50_graph_construct_gene_unk9(struct nouveau_grctx *ctx);
 static void nv50_graph_construct_gene_unk10(struct nouveau_grctx *ctx);
+static void nv50_graph_construct_gene_ropm1(struct nouveau_grctx *ctx);
+static void nv50_graph_construct_gene_ropm2(struct nouveau_grctx *ctx);
 static void nv50_graph_construct_gene_ropc(struct nouveau_grctx *ctx);
 static void nv50_graph_construct_xfer_tp(struct nouveau_grctx *ctx);
 
@@ -1190,11 +1192,8 @@ nv50_graph_construct_xfer1(struct nouveau_grctx *ctx)
 		nv50_graph_construct_gene_vfetch(ctx);
 		nv50_graph_construct_gene_eng2d(ctx);
 		nv50_graph_construct_gene_csched(ctx);
-		xf_emit(ctx, 2, 0x4e3bfdf);
-		xf_emit(ctx, 4, 0);
-		xf_emit(ctx, 1, 0x0fac6881);
-		xf_emit(ctx, 0xb, 0);
-		xf_emit(ctx, 2, 0x4e3bfdf);
+		nv50_graph_construct_gene_ropm1(ctx);
+		nv50_graph_construct_gene_ropm2(ctx);
 		if ((ctx->ctxvals_pos-offset)/8 > size)
 			size = (ctx->ctxvals_pos-offset)/8;
 
@@ -1301,19 +1300,9 @@ nv50_graph_construct_xfer1(struct nouveau_grctx *ctx)
 
 		/* Strand 5 */
 		ctx->ctxvals_pos = offset + 5;
-		xf_emit(ctx, 1, 0);
-		xf_emit(ctx, 1, 0x0fac6881);
-		xf_emit(ctx, 0xb, 0);
-		xf_emit(ctx, 2, 0x4e3bfdf);
-		xf_emit(ctx, 3, 0);
-		if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa)
-			xf_emit(ctx, 1, 0x11);
-		xf_emit(ctx, 1, 0);
-		xf_emit(ctx, 2, 0x4e3bfdf);
-		xf_emit(ctx, 2, 0);
-		if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa)
-			xf_emit(ctx, 1, 0x11);
-		xf_emit(ctx, 1, 0);
+		nv50_graph_construct_gene_ropm2(ctx);
+		nv50_graph_construct_gene_ropm1(ctx);
+		/* per-ROP context */
 		for (i = 0; i < 8; i++)
 			if (units & (1<<(i+16)))
 				nv50_graph_construct_gene_ropc(ctx);
@@ -2215,6 +2204,45 @@ nv50_graph_construct_gene_unk9(struct nouveau_grctx *ctx)
 	xf_emit(ctx, 9, 0);
 	xf_emit(ctx, 4, 4);
 	xf_emit(ctx, 0x2c, 0);
+}
+
+static void
+nv50_graph_construct_gene_ropm1(struct nouveau_grctx *ctx)
+{
+	struct drm_nouveau_private *dev_priv = ctx->dev->dev_private;
+	xf_emit(ctx, 1, 0x4e3bfdf);	/* ffffffff UNK0D64 */
+	xf_emit(ctx, 1, 0x4e3bfdf);	/* ffffffff UNK0DF4 */
+	xf_emit(ctx, 1, 0);		/* 00000007 */
+	xf_emit(ctx, 1, 0);		/* 000003ff */
+	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa)
+		xf_emit(ctx, 1, 0x11);	/* 000000ff tesla UNK1968 */
+	xf_emit(ctx, 1, 0);		/* ffffffff tesla UNK1A3C */
+}
+
+static void
+nv50_graph_construct_gene_ropm2(struct nouveau_grctx *ctx)
+{
+	struct drm_nouveau_private *dev_priv = ctx->dev->dev_private;
+	/* SEEK */
+	xf_emit(ctx, 1, 0);		/* 0000ffff DMA_QUERY */
+	xf_emit(ctx, 1, 0x0fac6881);	/* 0fffffff RT_CONTROL */
+	xf_emit(ctx, 2, 0);		/* ffffffff */
+	xf_emit(ctx, 1, 0);		/* 000000ff QUERY_ADDRESS_HIGH */
+	xf_emit(ctx, 2, 0);		/* ffffffff QUERY_ADDRESS_LOW, COUNTER */
+	xf_emit(ctx, 1, 0);		/* 00000001 SAMPLECNT_ENABLE */
+	xf_emit(ctx, 1, 0);		/* 7 */
+	/* SEEK */
+	xf_emit(ctx, 1, 0);		/* 0000ffff DMA_QUERY */
+	xf_emit(ctx, 1, 0);		/* 000000ff QUERY_ADDRESS_HIGH */
+	xf_emit(ctx, 2, 0);		/* ffffffff QUERY_ADDRESS_LOW, COUNTER */
+	xf_emit(ctx, 1, 0x4e3bfdf);	/* ffffffff UNK0D64 */
+	xf_emit(ctx, 1, 0x4e3bfdf);	/* ffffffff UNK0DF4 */
+	xf_emit(ctx, 1, 0);		/* 00000001 eng2d UNK260 */
+	xf_emit(ctx, 1, 0);		/* ff/3ff */
+	xf_emit(ctx, 1, 0);		/* 00000007 */
+	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa)
+		xf_emit(ctx, 1, 0x11);	/* 000000ff tesla UNK1968 */
+	xf_emit(ctx, 1, 0);		/* ffffffff tesla UNK1A3C */
 }
 
 static void
