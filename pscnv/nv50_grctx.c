@@ -1155,7 +1155,7 @@ static void nv50_graph_construct_gene_zcull(struct nouveau_grctx *ctx);
 static void nv50_graph_construct_gene_clipid(struct nouveau_grctx *ctx);
 static void nv50_graph_construct_gene_unk24xx(struct nouveau_grctx *ctx);
 static void nv50_graph_construct_gene_vfetch(struct nouveau_grctx *ctx);
-static void nv50_graph_construct_gene_unk7(struct nouveau_grctx *ctx);
+static void nv50_graph_construct_gene_eng2d(struct nouveau_grctx *ctx);
 static void nv50_graph_construct_gene_unk8(struct nouveau_grctx *ctx);
 static void nv50_graph_construct_gene_unk9(struct nouveau_grctx *ctx);
 static void nv50_graph_construct_gene_unk10(struct nouveau_grctx *ctx);
@@ -1188,8 +1188,7 @@ nv50_graph_construct_xfer1(struct nouveau_grctx *ctx)
 		/* Strand 1 */
 		ctx->ctxvals_pos = offset + 0x1;
 		nv50_graph_construct_gene_vfetch(ctx);
-		xf_emit(ctx, 0x5, 0);
-		nv50_graph_construct_gene_unk7(ctx);
+		nv50_graph_construct_gene_eng2d(ctx);
 		nv50_graph_construct_gene_unk8(ctx);
 		switch (dev_priv->chipset) {
 		case 0x50:
@@ -1351,7 +1350,7 @@ nv50_graph_construct_xfer1(struct nouveau_grctx *ctx)
 		ctx->ctxvals_pos = offset + 6;
 		nv50_graph_construct_gene_zcull(ctx);
 		nv50_graph_construct_gene_clipid(ctx);
-		nv50_graph_construct_gene_unk7(ctx);
+		nv50_graph_construct_gene_eng2d(ctx);
 		if (units & (1 << 0))
 			nv50_graph_construct_xfer_tp(ctx);
 		if (units & (1 << 1))
@@ -1999,39 +1998,65 @@ nv50_graph_construct_gene_vfetch(struct nouveau_grctx *ctx)
 }
 
 static void
-nv50_graph_construct_gene_unk7(struct nouveau_grctx *ctx)
+nv50_graph_construct_gene_eng2d(struct nouveau_grctx *ctx)
 {
 	struct drm_nouveau_private *dev_priv = ctx->dev->dev_private;
-	/* middle of area 1 on pre-NVA0 [after m2mf], middle of area 6 on NVAx */
-	xf_emit(ctx, 2, 0);
-	if (dev_priv->chipset == 0x50)
-		xf_emit(ctx, 2, 1);
-	else
-		xf_emit(ctx, 2, 0);
-	xf_emit(ctx, 1, 0);
-	xf_emit(ctx, 1, 1);
-	xf_emit(ctx, 2, 0x100);
-	xf_emit(ctx, 1, 0x11);
-	xf_emit(ctx, 1, 0);
-	xf_emit(ctx, 1, 8);
-	xf_emit(ctx, 5, 0);
-	xf_emit(ctx, 1, 1);
-	xf_emit(ctx, 1, 0);
-	xf_emit(ctx, 3, 1);
-	xf_emit(ctx, 1, 0xcf);
-	xf_emit(ctx, 1, 2);
-	xf_emit(ctx, 6, 0);
-	xf_emit(ctx, 1, 1);
-	xf_emit(ctx, 1, 0);
-	xf_emit(ctx, 3, 1);
-	xf_emit(ctx, 4, 0);
-	xf_emit(ctx, 1, 4);
-	xf_emit(ctx, 1, 0);
-	xf_emit(ctx, 1, 1);
-	xf_emit(ctx, 1, 0x15);
-	xf_emit(ctx, 3, 0);
-	xf_emit(ctx, 1, 0x4444480);
-	xf_emit(ctx, 0x37, 0);
+	/* middle of strand 1 on pre-NVA0 [after vfetch], middle of strand 6 on NVAx */
+	/* SEEK */
+	xf_emit(ctx, 2, 0);		/* 0001ffff CLIP_X, CLIP_Y */
+	xf_emit(ctx, 2, 0);		/* 0000ffff CLIP_W, CLIP_H */
+	xf_emit(ctx, 1, 0);		/* 00000001 CLIP_ENABLE */
+	if (dev_priv->chipset < 0xa0) {
+		/* this is useless on everything but the original NV50,
+		 * guess they forgot to nuke it. Or just didn't bother. */
+		xf_emit(ctx, 2, 0);	/* 0000ffff IFC_CLIP_X, Y */
+		xf_emit(ctx, 2, 1);	/* 0000ffff IFC_CLIP_W, H */
+		xf_emit(ctx, 1, 0);	/* 00000001 IFC_CLIP_ENABLE */
+	}
+	xf_emit(ctx, 1, 1);		/* 00000001 DST_LINEAR */
+	xf_emit(ctx, 1, 0x100);		/* 0001ffff DST_WIDTH */
+	xf_emit(ctx, 1, 0x100);		/* 0001ffff DST_HEIGHT */
+	xf_emit(ctx, 1, 0x11);		/* 3f[NV50]/7f[NV84+] DST_FORMAT */
+	xf_emit(ctx, 1, 0);		/* 0001ffff DRAW_POINT_X */
+	xf_emit(ctx, 1, 8);		/* 0000000f DRAW_UNK58C */
+	xf_emit(ctx, 1, 0);		/* 000fffff SIFC_DST_X_FRACT */
+	xf_emit(ctx, 1, 0);		/* 0001ffff SIFC_DST_X_INT */
+	xf_emit(ctx, 1, 0);		/* 000fffff SIFC_DST_Y_FRACT */
+	xf_emit(ctx, 1, 0);		/* 0001ffff SIFC_DST_Y_INT */
+	xf_emit(ctx, 1, 0);		/* 000fffff SIFC_DX_DU_FRACT */
+	xf_emit(ctx, 1, 1);		/* 0001ffff SIFC_DX_DU_INT */
+	xf_emit(ctx, 1, 0);		/* 000fffff SIFC_DY_DV_FRACT */
+	xf_emit(ctx, 1, 1);		/* 0001ffff SIFC_DY_DV_INT */
+	xf_emit(ctx, 1, 1);		/* 0000ffff SIFC_WIDTH */
+	xf_emit(ctx, 1, 1);		/* 0000ffff SIFC_HEIGHT */
+	xf_emit(ctx, 1, 0xcf);		/* 000000ff SIFC_FORMAT */
+	xf_emit(ctx, 1, 2);		/* 00000003 SIFC_BITMAP_UNK808 */
+	xf_emit(ctx, 1, 0);		/* 00000003 SIFC_BITMAP_LINE_PACK_MODE */
+	xf_emit(ctx, 1, 0);		/* 00000001 SIFC_BITMAP_LSB_FIRST */
+	xf_emit(ctx, 1, 0);		/* 00000001 SIFC_BITMAP_ENABLE */
+	xf_emit(ctx, 1, 0);		/* 0000ffff BLIT_DST_X */
+	xf_emit(ctx, 1, 0);		/* 0000ffff BLIT_DST_Y */
+	xf_emit(ctx, 1, 0);		/* 000fffff BLIT_DU_DX_FRACT */
+	xf_emit(ctx, 1, 1);		/* 0001ffff BLIT_DU_DX_INT */
+	xf_emit(ctx, 1, 0);		/* 000fffff BLIT_DV_DY_FRACT */
+	xf_emit(ctx, 1, 1);		/* 0001ffff BLIT_DV_DY_INT */
+	xf_emit(ctx, 1, 1);		/* 0000ffff BLIT_DST_W */
+	xf_emit(ctx, 1, 1);		/* 0000ffff BLIT_DST_H */
+	xf_emit(ctx, 1, 0);		/* 000fffff BLIT_SRC_X_FRACT */
+	xf_emit(ctx, 1, 0);		/* 0001ffff BLIT_SRC_X_INT */
+	xf_emit(ctx, 1, 0);		/* 000fffff BLIT_SRC_Y_FRACT */
+	xf_emit(ctx, 1, 0);		/* 00000001 UNK888 */
+	xf_emit(ctx, 1, 4);		/* 0000003f UNK884 */
+	xf_emit(ctx, 1, 0);		/* 00000007 UNK880 */
+	xf_emit(ctx, 1, 1);		/* 0000001f tesla UNK0FB8 */
+	xf_emit(ctx, 1, 0x15);		/* 000000ff tesla UNK128C */
+	xf_emit(ctx, 2, 0);		/* 00000007, ffff0ff3 */
+	xf_emit(ctx, 1, 0);		/* 00000001 UNK260 */
+	xf_emit(ctx, 1, 0x4444480);	/* 1fffffff UNK870 */
+	/* SEEK */
+	xf_emit(ctx, 0x10, 0);
+	/* SEEK */
+	xf_emit(ctx, 0x27, 0);
 }
 
 static void
