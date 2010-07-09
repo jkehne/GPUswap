@@ -1160,7 +1160,7 @@ static void nv50_graph_construct_gene_eng2d(struct nouveau_grctx *ctx);
 static void nv50_graph_construct_gene_csched(struct nouveau_grctx *ctx);
 static void nv50_graph_construct_gene_unk1cxx(struct nouveau_grctx *ctx);
 static void nv50_graph_construct_gene_strmout(struct nouveau_grctx *ctx);
-static void nv50_graph_construct_gene_unk10(struct nouveau_grctx *ctx);
+static void nv50_graph_construct_gene_unk34xx(struct nouveau_grctx *ctx);
 static void nv50_graph_construct_gene_ropm1(struct nouveau_grctx *ctx);
 static void nv50_graph_construct_gene_ropm2(struct nouveau_grctx *ctx);
 static void nv50_graph_construct_gene_ropc(struct nouveau_grctx *ctx);
@@ -1206,8 +1206,7 @@ nv50_graph_construct_xfer1(struct nouveau_grctx *ctx)
 		nv50_graph_construct_gene_strmout(ctx);
 		nv50_graph_construct_gene_unk14xx(ctx);
 		nv50_graph_construct_gene_unk10xx(ctx);
-		xf_emit(ctx, 2, 0);
-		nv50_graph_construct_gene_unk10(ctx);
+		nv50_graph_construct_gene_unk34xx(ctx);
 		if ((ctx->ctxvals_pos-offset)/8 > size)
 			size = (ctx->ctxvals_pos-offset)/8;
 
@@ -1234,13 +1233,7 @@ nv50_graph_construct_xfer1(struct nouveau_grctx *ctx)
 		ctx->ctxvals_pos = offset;
 		nv50_graph_construct_gene_dispatch(ctx);
 		nv50_graph_construct_gene_m2mf(ctx);
-		xf_emit(ctx, 2, 0);
-		nv50_graph_construct_gene_unk10(ctx);
-		xf_emit(ctx, 1, 0x0fac6881);
-		if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa) {
-			xf_emit(ctx, 1, 1);
-			xf_emit(ctx, 3, 0);
-		}
+		nv50_graph_construct_gene_unk34xx(ctx);
 		nv50_graph_construct_gene_csched(ctx);
 		nv50_graph_construct_gene_unk1cxx(ctx);
 		nv50_graph_construct_gene_strmout(ctx);
@@ -1571,14 +1564,28 @@ nv50_graph_construct_gene_unk10xx(struct nouveau_grctx *ctx)
 }
 
 static void
-nv50_graph_construct_gene_unk10(struct nouveau_grctx *ctx)
+nv50_graph_construct_gene_unk34xx(struct nouveau_grctx *ctx)
 {
+	struct drm_nouveau_private *dev_priv = ctx->dev->dev_private;
 	/* end of area 2 on pre-NVA0, area 1 on NVAx */
-	xf_emit(ctx, 0x10, 0x04000000);
-	xf_emit(ctx, 0x24, 0);
-	xf_emit(ctx, 2, 0x04e3bfdf);
-	xf_emit(ctx, 2, 0);
-	xf_emit(ctx, 1, 0x1fe21);
+	xf_emit(ctx, 1, 0);		/* 00000001 VIEWPORT_CLIP_RECTS_EN */
+	xf_emit(ctx, 1, 0);		/* 00000003 VIEWPORT_CLIP_MODE */
+	xf_emit(ctx, 0x10, 0x04000000);	/* 07ffffff VIEWPORT_CLIP_HORIZ*8, VIEWPORT_CLIP_VERT*8 */
+	xf_emit(ctx, 1, 0);		/* 00000001 POLYGON_STIPPLE_ENABLE */
+	xf_emit(ctx, 0x20, 0);		/* ffffffff POLYGON_STIPPLE */
+	xf_emit(ctx, 2, 0);		/* 00007fff WINDOW_OFFSET_XY */
+	xf_emit(ctx, 1, 0);		/* ffff0ff3 */
+	xf_emit(ctx, 1, 0x04e3bfdf);	/* ffffffff UNK0D64 */
+	xf_emit(ctx, 1, 0x04e3bfdf);	/* ffffffff UNK0DF4 */
+	xf_emit(ctx, 1, 0);		/* 00000003 WINDOW_ORIGIN */
+	xf_emit(ctx, 1, 0);		/* 00000007 */
+	xf_emit(ctx, 1, 0x1fe21);	/* 0001ffff tesla UNK0FAC */
+	if (dev_priv->chipset >= 0xa0)
+		xf_emit(ctx, 1, 0x0fac6881);
+	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa) {
+		xf_emit(ctx, 1, 1);
+		xf_emit(ctx, 3, 0);
+	}
 }
 
 static void
