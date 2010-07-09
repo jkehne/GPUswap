@@ -72,9 +72,9 @@ int pscnv_graph_init(struct drm_device *dev) {
 	nv_wr32(dev, 0x400824, 0x00004000);
 
 	/* enable FIFO access */
-	/* XXX: everyone uses bit 16 here, we don't. Doesn't seem to
-	 * cause any problems. wtf? */
-	nv_wr32(dev, 0x400500, 0x00000001);
+	/* XXX: figure out what exactly is bit 16. All I know is that it's
+	 * needed for QUERYs to work. */
+	nv_wr32(dev, 0x400500, 0x00010001);
 
 	/* init ZCULL... or something */
 	nv_wr32(dev, 0x402ca8, 0x00000800);
@@ -157,7 +157,7 @@ void pscnv_graph_chan_free(struct pscnv_chan *ch) {
 	}
 	/* back to normal state. */
 	nv_wr32(dev, 0x400830, 0);
-	nv_wr32(dev, 0x400500, 1);
+	nv_wr32(dev, 0x400500, 0x10001);
 	spin_unlock_irqrestore(&dev_priv->pgraph_lock, flags);
 	pscnv_vram_free(ch->grctx);
 }
@@ -552,7 +552,7 @@ void pscnv_graph_irq_handler(struct drm_device *dev) {
 		NV_ERROR(dev, "PGRAPH: ch %x sub %d [%04x] mthd %04x data %08x\n", chan, subc, class, mthd, data);
 		nv_wr32(dev, 0x400100, status);
 	}
-	nv_wr32(dev, 0x400500, 1);
+	nv_wr32(dev, 0x400500, 0x10001);
 	pscnv_vm_trap(dev);
 	spin_unlock_irqrestore(&dev_priv->pgraph_lock, flags);
 }
