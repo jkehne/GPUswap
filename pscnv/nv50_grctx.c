@@ -1150,7 +1150,7 @@ xf_emit(struct nouveau_grctx *ctx, int num, uint32_t val) {
 static void nv50_graph_construct_gene_dispatch(struct nouveau_grctx *ctx);
 static void nv50_graph_construct_gene_m2mf(struct nouveau_grctx *ctx);
 static void nv50_graph_construct_gene_ccache(struct nouveau_grctx *ctx);
-static void nv50_graph_construct_gene_unk1(struct nouveau_grctx *ctx);
+static void nv50_graph_construct_gene_unk10xx(struct nouveau_grctx *ctx);
 static void nv50_graph_construct_gene_unk14xx(struct nouveau_grctx *ctx);
 static void nv50_graph_construct_gene_zcull(struct nouveau_grctx *ctx);
 static void nv50_graph_construct_gene_clipid(struct nouveau_grctx *ctx);
@@ -1205,7 +1205,8 @@ nv50_graph_construct_xfer1(struct nouveau_grctx *ctx)
 		nv50_graph_construct_gene_unk1cxx(ctx);
 		nv50_graph_construct_gene_strmout(ctx);
 		nv50_graph_construct_gene_unk14xx(ctx);
-		nv50_graph_construct_gene_unk1(ctx);
+		nv50_graph_construct_gene_unk10xx(ctx);
+		xf_emit(ctx, 2, 0);
 		nv50_graph_construct_gene_unk10(ctx);
 		if ((ctx->ctxvals_pos-offset)/8 > size)
 			size = (ctx->ctxvals_pos-offset)/8;
@@ -1248,7 +1249,7 @@ nv50_graph_construct_xfer1(struct nouveau_grctx *ctx)
 
 		/* Strand 1 */
 		ctx->ctxvals_pos = offset + 1;
-		nv50_graph_construct_gene_unk1(ctx);
+		nv50_graph_construct_gene_unk10xx(ctx);
 		if ((ctx->ctxvals_pos-offset)/8 > size)
 			size = (ctx->ctxvals_pos-offset)/8;
 
@@ -1511,53 +1512,62 @@ nv50_graph_construct_gene_ccache(struct nouveau_grctx *ctx)
 }
 
 static void
-nv50_graph_construct_gene_unk1(struct nouveau_grctx *ctx)
+nv50_graph_construct_gene_unk10xx(struct nouveau_grctx *ctx)
 {
 	struct drm_nouveau_private *dev_priv = ctx->dev->dev_private;
+	int i;
 	/* end of area 2 on pre-NVA0, area 1 on NVAx */
-	xf_emit(ctx, 2, 4);
-	xf_emit(ctx, 1, 0);
-	xf_emit(ctx, 1, 0x80);
-	xf_emit(ctx, 1, 4);
-	xf_emit(ctx, 1, 0x80c14);
-	xf_emit(ctx, 1, 0);
+	xf_emit(ctx, 1, 4);		/* 000000ff GP_RESULT_MAP_SIZE */
+	xf_emit(ctx, 1, 4);		/* 0000007f VP_RESULT_MAP_SIZE */
+	xf_emit(ctx, 1, 0);		/* 00000001 GP_ENABLE */
+	xf_emit(ctx, 1, 0x80);		/* 0000ffff GP_VERTEX_OUTPUT_COUNT */
+	xf_emit(ctx, 1, 4);		/* 000000ff GP_REG_ALLOC_RESULT */
+	xf_emit(ctx, 1, 0x80c14);	/* 01ffffff SEMANTIC_COLOR */
+	xf_emit(ctx, 1, 0);		/* 00000001 VERTEX_TWO_SIDE_ENABLE */
 	if (dev_priv->chipset == 0x50)
 		xf_emit(ctx, 1, 0x3ff);
 	else
-		xf_emit(ctx, 1, 0x7ff);
-	switch (dev_priv->chipset) {
-	case 0x50:
-	case 0x86:
-	case 0x98:
-	case 0xaa:
-	case 0xac:
-		xf_emit(ctx, 0x542, 0);
-		break;
-	case 0x84:
-	case 0x92:
-	case 0x94:
-	case 0x96:
-		xf_emit(ctx, 0x942, 0);
-		break;
-	case 0xa0:
-	case 0xa3:
-		xf_emit(ctx, 0x2042, 0);
-		break;
-	case 0xa5:
-	case 0xa8:
-		xf_emit(ctx, 0x842, 0);
-		break;
+		xf_emit(ctx, 1, 0x7ff);	/* 000007ff */
+	xf_emit(ctx, 1, 0);		/* 111/113 */
+	xf_emit(ctx, 1, 0);		/* ffffffff tesla UNK1A30 */
+	for (i = 0; i < 8; i++) {
+		switch (dev_priv->chipset) {
+		case 0x50:
+		case 0x86:
+		case 0x98:
+		case 0xaa:
+		case 0xac:
+			xf_emit(ctx, 0xa0, 0);	/* ffffffff */
+			break;
+		case 0x84:
+		case 0x92:
+		case 0x94:
+		case 0x96:
+			xf_emit(ctx, 0x120, 0);
+			break;
+		case 0xa5:
+		case 0xa8:
+			xf_emit(ctx, 0x100, 0);	/* ffffffff */
+			break;
+		case 0xa0:
+		case 0xa3:
+			xf_emit(ctx, 0x400, 0);	/* ffffffff */
+			break;
+		}
+		xf_emit(ctx, 4, 0);	/* 3f, 0, 0, 0 */
+		xf_emit(ctx, 4, 0);	/* ffffffff */
 	}
-	xf_emit(ctx, 2, 4);
-	xf_emit(ctx, 1, 0);
-	xf_emit(ctx, 1, 0x80);
-	xf_emit(ctx, 1, 4);
-	xf_emit(ctx, 1, 1);
-	xf_emit(ctx, 1, 0);
-	xf_emit(ctx, 1, 0x27);
-	xf_emit(ctx, 1, 0);
-	xf_emit(ctx, 1, 0x26);
-	xf_emit(ctx, 3, 0);
+	xf_emit(ctx, 1, 4);		/* 000000ff GP_RESULT_MAP_SIZE */
+	xf_emit(ctx, 1, 4);		/* 0000007f VP_RESULT_MAP_SIZE */
+	xf_emit(ctx, 1, 0);		/* 00000001 GP_ENABLE */
+	xf_emit(ctx, 1, 0x80);		/* 0000ffff GP_VERTEX_OUTPUT_COUNT */
+	xf_emit(ctx, 1, 4);		/* 000000ff GP_REG_ALLOC_TEMP */
+	xf_emit(ctx, 1, 1);		/* 00000001 RASTERIZE_ENABLE */
+	xf_emit(ctx, 1, 0);		/* 00000001 tesla UNK1900 */
+	xf_emit(ctx, 1, 0x27);		/* 000000ff UNK0FD4 */
+	xf_emit(ctx, 1, 0);		/* 0001ffff GP_BUILTIN_RESULT_EN */
+	xf_emit(ctx, 1, 0x26);		/* 000000ff SEMANTIC_LAYER */
+	xf_emit(ctx, 1, 0);		/* ffffffff tesla UNK1A30 */
 }
 
 static void
