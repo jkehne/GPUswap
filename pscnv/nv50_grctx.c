@@ -2400,119 +2400,227 @@ nv50_graph_construct_gene_ropc(struct nouveau_grctx *ctx)
 	} else {
 		magic2 = 0x00087e67;
 	}
-	xf_emit(ctx, 8, 0);
-	xf_emit(ctx, 1, 2);
-	xf_emit(ctx, 1, 0);
-	xf_emit(ctx, 1, magic2);
-	xf_emit(ctx, 4, 0);
+	xf_emit(ctx, 1, 0);		/* f/7 MUTISAMPLE_SAMPLES_LOG2 */
+	xf_emit(ctx, 1, 0);		/* 00000001 tesla UNK1534 */
+	xf_emit(ctx, 1, 0);		/* 00000007 STENCIL_BACK_FUNC_FUNC */
+	xf_emit(ctx, 1, 0);		/* 000000ff STENCIL_BACK_FUNC_MASK */
+	xf_emit(ctx, 1, 0);		/* 000000ff STENCIL_BACK_MASK */
+	xf_emit(ctx, 3, 0);		/* 00000007 STENCIL_BACK_OP_FAIL, ZFAIL, ZPASS */
+	xf_emit(ctx, 1, 2);		/* 00000003 tesla UNK143C */
+	xf_emit(ctx, 1, 0);		/* ffff0ff3 */
+	xf_emit(ctx, 1, magic2);	/* 001fffff tesla UNK0F78 */
+	xf_emit(ctx, 1, 0);		/* 00000001 DEPTH_BOUNDS_EN */
+	xf_emit(ctx, 1, 0);		/* 00000007 DEPTH_TEST_FUNC */
+	xf_emit(ctx, 1, 0);		/* 00000001 DEPTH_TEST_ENABLE */
+	xf_emit(ctx, 1, 0);		/* 00000001 DEPTH_WRITE_ENABLE */
 	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa)
-		xf_emit(ctx, 1, 1);
-	xf_emit(ctx, 7, 0);
+		xf_emit(ctx, 1, 1);	/* 0000001f tesla UNK169C */
+	xf_emit(ctx, 1, 0);		/* 00000007 STENCIL_FRONT_FUNC_FUNC */
+	xf_emit(ctx, 1, 0);		/* 000000ff STENCIL_FRONT_FUNC_MASK */
+	xf_emit(ctx, 1, 0);		/* 000000ff STENCIL_FRONT_MASK */
+	xf_emit(ctx, 3, 0);		/* 00000007 STENCIL_FRONT_OP_FAIL, ZFAIL, ZPASS */
+	xf_emit(ctx, 1, 0);		/* 00000001 STENCIL_FRONT_ENABLE */
 	if (dev_priv->chipset >= 0xa0 && dev_priv->chipset < 0xaa)
-		xf_emit(ctx, 1, 0x15);
-	xf_emit(ctx, 1, 0);
-	xf_emit(ctx, 1, 1);
-	xf_emit(ctx, 1, 0x10);
-	xf_emit(ctx, 2, 0);
-	xf_emit(ctx, 1, 1);
-	xf_emit(ctx, 4, 0);
+		xf_emit(ctx, 1, 0x15);	/* 000000ff */
+	xf_emit(ctx, 1, 0);		/* 00000001 STENCIL_BACK_ENABLE */
+	xf_emit(ctx, 1, 1);		/* 00000001 tesla UNK15B4 */
+	xf_emit(ctx, 1, 0x10);		/* 3ff/ff VIEW_VOLUME_CLIP_CTRL */
+	xf_emit(ctx, 1, 0);		/* ffffffff CLEAR_DEPTH */
+	xf_emit(ctx, 1, 0);		/* 0000000f ZETA_FORMAT */
+	xf_emit(ctx, 1, 1);		/* 00000001 ZETA_ENABLE */
+	xf_emit(ctx, 1, 0);		/* ffffffff tesla UNK1A3C */
 	if (dev_priv->chipset == 0x86 || dev_priv->chipset == 0x92 || dev_priv->chipset == 0x98 || dev_priv->chipset >= 0xa0) {
-		xf_emit(ctx, 1, 4);
-		xf_emit(ctx, 1, 0x400);
-		xf_emit(ctx, 1, 0x300);
-		xf_emit(ctx, 1, 0x1001);
+		xf_emit(ctx, 3, 0);	/* ff, ffffffff, ffffffff */
+		xf_emit(ctx, 1, 4);	/* 7 */
+		xf_emit(ctx, 1, 0x400);	/* fffffff */
+		xf_emit(ctx, 1, 0x300);	/* ffff */
+		xf_emit(ctx, 1, 0x1001);	/* 1fff */
 		if (dev_priv->chipset != 0xa0) {
 			if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa)
-				xf_emit(ctx, 1, 0);
+				xf_emit(ctx, 1, 0);	/* 0000000f UNK15C8 */
 			else
-				xf_emit(ctx, 1, 0x15);
+				xf_emit(ctx, 1, 0x15);	/* ff */
 		}
-		xf_emit(ctx, 3, 0);
 	}
-	xf_emit(ctx, 2, 0);
-	xf_emit(ctx, 1, 2);
-	xf_emit(ctx, 8, 0);
-	xf_emit(ctx, 1, 1);
-	xf_emit(ctx, 1, 0x10);
-	xf_emit(ctx, 1, 0);
-	xf_emit(ctx, 1, 1);
-	xf_emit(ctx, 0x13, 0);
-	xf_emit(ctx, 1, 0x10);
-	xf_emit(ctx, 0x10, 0);
-	xf_emit(ctx, 0x10, 0x3f800000);
-	xf_emit(ctx, 0x19, 0);
-	xf_emit(ctx, 1, 0x10);
-	xf_emit(ctx, 1, 0);
-	xf_emit(ctx, 1, 0x3f);
-	xf_emit(ctx, 6, 0);
-	xf_emit(ctx, 1, 1);
-	xf_emit(ctx, 1, 0);
-	xf_emit(ctx, 1, 1);
-	xf_emit(ctx, 1, 0);
-	xf_emit(ctx, 1, 1);
+	xf_emit(ctx, 1, 0);		/* 00000007 MULTISAMPLE_SAMPLES_LOG2 */
+	xf_emit(ctx, 1, 0);		/* 00000001 tesla UNK1534 */
+	xf_emit(ctx, 1, 0);		/* 00000007 STENCIL_BACK_FUNC_FUNC */
+	xf_emit(ctx, 1, 0);		/* 000000ff STENCIL_BACK_FUNC_MASK */
+	xf_emit(ctx, 1, 0);		/* ffff0ff3 */
+	xf_emit(ctx, 1, 2);		/* 00000003 tesla UNK143C */
+	xf_emit(ctx, 1, 0);		/* 00000001 DEPTH_BOUNDS_EN */
+	xf_emit(ctx, 1, 0);		/* 00000007 DEPTH_TEST_FUNC */
+	xf_emit(ctx, 1, 0);		/* 00000001 DEPTH_TEST_ENABLE */
+	xf_emit(ctx, 1, 0);		/* 00000001 DEPTH_WRITE_ENABLE */
+	xf_emit(ctx, 1, 0);		/* 00000007 STENCIL_FRONT_FUNC_FUNC */
+	xf_emit(ctx, 1, 0);		/* 000000ff STENCIL_FRONT_FUNC_MASK */
+	xf_emit(ctx, 1, 0);		/* 00000001 STENCIL_FRONT_ENABLE */
+	xf_emit(ctx, 1, 0);		/* 00000001 STENCIL_BACK_ENABLE */
+	xf_emit(ctx, 1, 1);		/* 00000001 tesla UNK15B4 */
+	xf_emit(ctx, 1, 0x10);		/* 7f/ff VIEW_VOLUME_CLIP_CTRL */
+	xf_emit(ctx, 1, 0);		/* 0000000f ZETA_FORMAT */
+	xf_emit(ctx, 1, 1);		/* 00000001 ZETA_ENABLE */
+	xf_emit(ctx, 1, 0);		/* ffffffff tesla UNK1A3C */
+	xf_emit(ctx, 1, 0);		/* 00000001 tesla UNK1534 */
+	xf_emit(ctx, 1, 0);		/* 00000001 tesla UNK1900 */
+	xf_emit(ctx, 1, 0);		/* 00000007 STENCIL_BACK_FUNC_FUNC */
+	xf_emit(ctx, 1, 0);		/* 000000ff STENCIL_BACK_FUNC_MASK */
+	xf_emit(ctx, 1, 0);		/* 000000ff STENCIL_BACK_FUNC_REF */
+	xf_emit(ctx, 2, 0);		/* ffffffff DEPTH_BOUNDS */
+	xf_emit(ctx, 1, 0);		/* 00000001 DEPTH_BOUNDS_EN */
+	xf_emit(ctx, 1, 0);		/* 00000007 DEPTH_TEST_FUNC */
+	xf_emit(ctx, 1, 0);		/* 00000001 DEPTH_TEST_ENABLE */
+	xf_emit(ctx, 1, 0);		/* 00000001 DEPTH_WRITE_ENABLE */
+	xf_emit(ctx, 1, 0);		/* 0000000f */
+	xf_emit(ctx, 1, 0);		/* 00000001 tesla UNK0FB0 */
+	xf_emit(ctx, 1, 0);		/* 00000007 STENCIL_FRONT_FUNC_FUNC */
+	xf_emit(ctx, 1, 0);		/* 000000ff STENCIL_FRONT_FUNC_MASK */
+	xf_emit(ctx, 1, 0);		/* 000000ff STENCIL_FRONT_FUNC_REF */
+	xf_emit(ctx, 1, 0);		/* 00000001 STENCIL_FRONT_ENABLE */
+	xf_emit(ctx, 1, 0);		/* 00000001 STENCIL_BACK_ENABLE */
+	xf_emit(ctx, 1, 0x10);		/* 7f/ff VIEW_VOLUME_CLIP_CTRL */
+	xf_emit(ctx, 0x10, 0);		/* ffffffff DEPTH_RANGE_NEAR */
+	xf_emit(ctx, 0x10, 0x3f800000);	/* ffffffff DEPTH_RANGE_FAR */
+	xf_emit(ctx, 1, 0);		/* 0000000f ZETA_FORMAT */
+	xf_emit(ctx, 1, 0);		/* 00000007 MULTISAMPLE_SAMPLES_LOG2 */
+	xf_emit(ctx, 1, 0);		/* 00000007 STENCIL_BACK_FUNC_FUNC */
+	xf_emit(ctx, 1, 0);		/* 000000ff STENCIL_BACK_FUNC_MASK */
+	xf_emit(ctx, 1, 0);		/* 000000ff STENCIL_BACK_FUNC_REF */
+	xf_emit(ctx, 1, 0);		/* 000000ff STENCIL_BACK_MASK */
+	xf_emit(ctx, 3, 0);		/* 00000007 STENCIL_BACK_OP_FAIL, ZFAIL, ZPASS */
+	xf_emit(ctx, 2, 0);		/* ffffffff DEPTH_BOUNDS */
+	xf_emit(ctx, 1, 0);		/* 00000001 DEPTH_BOUNDS_EN */
+	xf_emit(ctx, 1, 0);		/* 00000007 DEPTH_TEST_FUNC */
+	xf_emit(ctx, 1, 0);		/* 00000001 DEPTH_TEST_ENABLE */
+	xf_emit(ctx, 1, 0);		/* 00000001 DEPTH_WRITE_ENABLE */
+	xf_emit(ctx, 1, 0);		/* 000000ff CLEAR_STENCIL */
+	xf_emit(ctx, 1, 0);		/* 00000007 STENCIL_FRONT_FUNC_FUNC */
+	xf_emit(ctx, 1, 0);		/* 000000ff STENCIL_FRONT_FUNC_MASK */
+	xf_emit(ctx, 1, 0);		/* 000000ff STENCIL_FRONT_FUNC_REF */
+	xf_emit(ctx, 1, 0);		/* 000000ff STENCIL_FRONT_MASK */
+	xf_emit(ctx, 3, 0);		/* 00000007 STENCIL_FRONT_OP_FAIL, ZFAIL, ZPASS */
+	xf_emit(ctx, 1, 0);		/* 00000001 STENCIL_FRONT_ENABLE */
+	xf_emit(ctx, 1, 0);		/* 00000001 STENCIL_BACK_ENABLE */
+	xf_emit(ctx, 1, 0x10);		/* 7f/ff VIEW_VOLUME_CLIP_CTRL */
+	xf_emit(ctx, 1, 0);		/* 0000000f ZETA_FORMAT */
+	xf_emit(ctx, 1, 0x3f);		/* 0000003f UNK1590 */
+	xf_emit(ctx, 1, 0);		/* 00000007 MULTISAMPLE_SAMPLES_LOG2 */
+	xf_emit(ctx, 1, 0);		/* 00000001 tesla UNK1534 */
+	xf_emit(ctx, 2, 0);		/* ffff0ff3, ffff */
+	xf_emit(ctx, 1, 0);		/* 00000001 tesla UNK0FB0 */
+	xf_emit(ctx, 1, 0);		/* 0001ffff GP_BUILTIN_RESULT_EN */
+	xf_emit(ctx, 1, 1);		/* 00000001 tesla UNK15B4 */
+	xf_emit(ctx, 1, 0);		/* 0000000f ZETA_FORMAT */
+	xf_emit(ctx, 1, 1);		/* 00000001 ZETA_ENABLE */
+	xf_emit(ctx, 1, 0);		/* ffffffff CLEAR_DEPTH */
+	xf_emit(ctx, 1, 1);		/* 00000001 tesla UNK19CC */
 	if (dev_priv->chipset >= 0xa0) {
 		xf_emit(ctx, 2, 0);
 		xf_emit(ctx, 1, 0x1001);
 		xf_emit(ctx, 0xb, 0);
 	} else {
-		xf_emit(ctx, 0xc, 0);
+		xf_emit(ctx, 1, 0);	/* 00000007 */
+		xf_emit(ctx, 1, 0);	/* 00000001 tesla UNK1534 */
+		xf_emit(ctx, 1, 0);	/* 00000007 MULTISAMPLE_SAMPLES_LOG2 */
+		xf_emit(ctx, 8, 0);	/* 00000001 BLEND_ENABLE */
+		xf_emit(ctx, 1, 0);	/* ffff0ff3 */
 	}
-	xf_emit(ctx, 1, 0x11);
-	xf_emit(ctx, 7, 0);
-	xf_emit(ctx, 1, 0xf);
-	xf_emit(ctx, 7, 0);
-	xf_emit(ctx, 1, 0x11);
-	if (dev_priv->chipset == 0x50)
-		xf_emit(ctx, 4, 0);
-	else
-		xf_emit(ctx, 6, 0);
-	xf_emit(ctx, 3, 1);
-	xf_emit(ctx, 1, 2);
-	xf_emit(ctx, 1, 1);
-	xf_emit(ctx, 1, 2);
-	xf_emit(ctx, 1, 1);
-	xf_emit(ctx, 1, 0);
-	xf_emit(ctx, 1, magic2);
-	xf_emit(ctx, 1, 0);
-	xf_emit(ctx, 1, 0x0fac6881);
+	xf_emit(ctx, 1, 0x11);		/* 3f/7f RT_FORMAT */
+	xf_emit(ctx, 7, 0);		/* 3f/7f RT_FORMAT */
+	xf_emit(ctx, 1, 0xf);		/* 0000000f COLOR_MASK */
+	xf_emit(ctx, 7, 0);		/* 0000000f COLOR_MASK */
+	xf_emit(ctx, 1, 0x11);		/* 3f/7f */
+	xf_emit(ctx, 1, 0);		/* 00000001 LOGIC_OP_ENABLE */
+	if (dev_priv->chipset != 0x50) {
+		xf_emit(ctx, 1, 0);	/* 0000000f LOGIC_OP */
+		xf_emit(ctx, 1, 0);	/* 000000ff */
+	}
+	xf_emit(ctx, 1, 0);		/* 00000007 OPERATION */
+	xf_emit(ctx, 1, 0);		/* ff/3ff */
+	xf_emit(ctx, 1, 0);		/* 00000003 UNK0F90 */
+	xf_emit(ctx, 2, 1);		/* 00000007 BLEND_EQUATION_RGB, ALPHA */
+	xf_emit(ctx, 1, 1);		/* 00000001 UNK133C */
+	xf_emit(ctx, 1, 2);		/* 0000001f BLEND_FUNC_SRC_RGB */
+	xf_emit(ctx, 1, 1);		/* 0000001f BLEND_FUNC_DST_RGB */
+	xf_emit(ctx, 1, 2);		/* 0000001f BLEND_FUNC_SRC_ALPHA */
+	xf_emit(ctx, 1, 1);		/* 0000001f BLEND_FUNC_DST_ALPHA */
+	xf_emit(ctx, 1, 0);		/* 00000001 */
+	xf_emit(ctx, 1, magic2);	/* 001fffff tesla UNK0F78 */
+	xf_emit(ctx, 1, 0);		/* ffffffff tesla UNK1A3C */
+	xf_emit(ctx, 1, 0x0fac6881);	/* 0fffffff RT_CONTROL */
 	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa) {
-		xf_emit(ctx, 1, 0);
-		xf_emit(ctx, 0x18, 1);
-		xf_emit(ctx, 8, 2);
-		xf_emit(ctx, 8, 1);
-		xf_emit(ctx, 8, 2);
-		xf_emit(ctx, 8, 1);
-		xf_emit(ctx, 3, 0);
-		xf_emit(ctx, 1, 1);
-		xf_emit(ctx, 5, 0);
-		xf_emit(ctx, 1, 1);
-		xf_emit(ctx, 0x16, 0);
+		xf_emit(ctx, 1, 0);	/* 00000001 tesla UNK12E4 */
+		xf_emit(ctx, 8, 1);	/* 00000007 IBLEND_EQUATION_RGB */
+		xf_emit(ctx, 8, 1);	/* 00000007 IBLEND_EQUATION_ALPHA */
+		xf_emit(ctx, 8, 1);	/* 00000001 IBLEND_UNK00 */
+		xf_emit(ctx, 8, 2);	/* 0000001f IBLEND_FUNC_SRC_RGB */
+		xf_emit(ctx, 8, 1);	/* 0000001f IBLEND_FUNC_DST_RGB */
+		xf_emit(ctx, 8, 2);	/* 0000001f IBLEND_FUNC_SRC_ALPHA */
+		xf_emit(ctx, 8, 1);	/* 0000001f IBLEND_FUNC_DST_ALPHA */
+		xf_emit(ctx, 1, 0);	/* 00000001 tesla UNK1140 */
+		xf_emit(ctx, 2, 0);	/* 00000001 */
+		xf_emit(ctx, 1, 1);	/* 0000001f tesla UNK169C */
+		xf_emit(ctx, 1, 0);	/* 0000000f */
+		xf_emit(ctx, 1, 0);	/* 00000003 */
+		xf_emit(ctx, 1, 0);	/* ffffffff */
+		xf_emit(ctx, 2, 0);	/* 00000001 */
+		xf_emit(ctx, 1, 1);	/* 0000001f tesla UNK169C */
+		xf_emit(ctx, 1, 0);	/* 00000001 */
+		xf_emit(ctx, 1, 0);	/* 000003ff */
+	} else if (dev_priv->chipset >= 0xa0) {
+		xf_emit(ctx, 2, 0);	/* 00000001 */
+		xf_emit(ctx, 1, 0);	/* 00000007 */
+		xf_emit(ctx, 1, 0);	/* 00000003 */
+		xf_emit(ctx, 1, 0);	/* ffffffff */
+		xf_emit(ctx, 2, 0);	/* 00000001 */
 	} else {
-		if (dev_priv->chipset >= 0xa0)
-			xf_emit(ctx, 0x1b, 0);
-		else
-			xf_emit(ctx, 0x15, 0);
+		xf_emit(ctx, 1, 0);	/* 00000007 MULTISAMPLE_SAMPLES_LOG2 */
+		xf_emit(ctx, 1, 0);	/* 00000003 tesla UNK1430 */
+		xf_emit(ctx, 1, 0);	/* ffffffff tesla UNK1A3C */
 	}
-	xf_emit(ctx, 1, 1);
-	xf_emit(ctx, 1, 2);
-	xf_emit(ctx, 2, 1);
-	xf_emit(ctx, 1, 2);
-	xf_emit(ctx, 2, 1);
+	xf_emit(ctx, 4, 0);		/* ffffffff CLEAR_COLOR */
+	xf_emit(ctx, 4, 0);		/* ffffffff BLEND_COLOR A R G B */
+	xf_emit(ctx, 1, 0);		/* 00000fff eng2d UNK2B0 */
 	if (dev_priv->chipset >= 0xa0)
-		xf_emit(ctx, 4, 0);
-	else
-		xf_emit(ctx, 3, 0);
+		xf_emit(ctx, 2, 0);	/* 00000001 */
+	xf_emit(ctx, 1, 0);		/* 000003ff */
+	xf_emit(ctx, 8, 0);		/* 00000001 BLEND_ENABLE */
+	xf_emit(ctx, 1, 1);		/* 00000001 UNK133C */
+	xf_emit(ctx, 1, 2);		/* 0000001f BLEND_FUNC_SRC_RGB */
+	xf_emit(ctx, 1, 1);		/* 0000001f BLEND_FUNC_DST_RGB */
+	xf_emit(ctx, 1, 1);		/* 00000007 BLEND_EQUATION_RGB */
+	xf_emit(ctx, 1, 2);		/* 0000001f BLEND_FUNC_SRC_ALPHA */
+	xf_emit(ctx, 1, 1);		/* 0000001f BLEND_FUNC_DST_ALPHA */
+	xf_emit(ctx, 1, 1);		/* 00000007 BLEND_EQUATION_ALPHA */
+	xf_emit(ctx, 1, 0);		/* 00000001 UNK19C0 */
+	xf_emit(ctx, 1, 0);		/* 00000001 LOGIC_OP_ENABLE */
+	xf_emit(ctx, 1, 0);		/* 0000000f LOGIC_OP */
+	if (dev_priv->chipset >= 0xa0)
+		xf_emit(ctx, 1, 0);	/* 00000001 UNK12E4? NVA3+ only? */
 	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa) {
-		xf_emit(ctx, 0x10, 1);
-		xf_emit(ctx, 8, 2);
-		xf_emit(ctx, 0x10, 1);
-		xf_emit(ctx, 8, 2);
-		xf_emit(ctx, 8, 1);
-		xf_emit(ctx, 3, 0);
+		xf_emit(ctx, 8, 1);	/* 00000001 IBLEND_UNK00 */
+		xf_emit(ctx, 8, 1);	/* 00000007 IBLEND_EQUATION_RGB */
+		xf_emit(ctx, 8, 2);	/* 0000001f IBLEND_FUNC_SRC_RGB */
+		xf_emit(ctx, 8, 1);	/* 0000001f IBLEND_FUNC_DST_RGB */
+		xf_emit(ctx, 8, 1);	/* 00000007 IBLEND_EQUATION_ALPHA */
+		xf_emit(ctx, 8, 2);	/* 0000001f IBLEND_FUNC_SRC_ALPHA */
+		xf_emit(ctx, 8, 1);	/* 0000001f IBLEND_FUNC_DST_ALPHA */
+		xf_emit(ctx, 1, 0);	/* 00000001 tesla UNK15C4 */
+		xf_emit(ctx, 1, 0);	/* 00000001 */
+		xf_emit(ctx, 1, 0);	/* 00000001 tesla UNK1140 */
 	}
-	xf_emit(ctx, 1, 0x11);
-	xf_emit(ctx, 1, 1);
-	xf_emit(ctx, 0x5b, 0);
+	xf_emit(ctx, 1, 0x11);		/* 3f/7f DST_FORMAT */
+	xf_emit(ctx, 1, 1);		/* 00000001 DST_LINEAR */
+	xf_emit(ctx, 1, 0);		/* 00000007 PATTERN_COLOR_FORMAT */
+	xf_emit(ctx, 2, 0);		/* ffffffff PATTERN_MONO_COLOR */
+	xf_emit(ctx, 1, 0);		/* 00000001 PATTERN_MONO_FORMAT */
+	xf_emit(ctx, 2, 0);		/* ffffffff PATTERN_MONO_BITMAP */
+	xf_emit(ctx, 1, 0);		/* 00000003 PATTERN_SELECT */
+	xf_emit(ctx, 1, 0);		/* 000000ff ROP */
+	xf_emit(ctx, 1, 0);		/* ffffffff BETA1 */
+	xf_emit(ctx, 1, 0);		/* ffffffff BETA4 */
+	xf_emit(ctx, 1, 0);		/* 00000007 OPERATION */
+	xf_emit(ctx, 0x50, 0);		/* 10x ffffff, ffffff, ffffff, ffffff, 3 PATTERN */
 }
 
 static void
