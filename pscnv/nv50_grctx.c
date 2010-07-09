@@ -2624,7 +2624,7 @@ nv50_graph_construct_gene_ropc(struct nouveau_grctx *ctx)
 }
 
 static void
-nv50_graph_construct_xfer_tp_x1(struct nouveau_grctx *ctx)
+nv50_graph_construct_xfer_unk84xx(struct nouveau_grctx *ctx)
 {
 	struct drm_nouveau_private *dev_priv = ctx->dev->dev_private;
 	int magic3;
@@ -2634,52 +2634,76 @@ nv50_graph_construct_xfer_tp_x1(struct nouveau_grctx *ctx)
 		magic3 = 0x1e00;
 	else
 		magic3 = 0;
-	xf_emit(ctx, 1, 0);
-	xf_emit(ctx, 1, 4);
+	xf_emit(ctx, 1, 0);		/* 00000001 GP_ENABLE */
+	xf_emit(ctx, 1, 4);		/* 7f/ff[NVA0+] VP_REG_ALLOC_RESULT */
+	xf_emit(ctx, 1, 0);		/* 00000001 GP_ENABLE */
+	xf_emit(ctx, 1, 0);		/* ffffffff tesla UNK1A30 */
+	xf_emit(ctx, 1, 0);		/* 111/113[NVA0+] */
 	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa)
-		xf_emit(ctx, 0x24, 0);
+		xf_emit(ctx, 0x1f, 0);	/* ffffffff */
 	else if (dev_priv->chipset >= 0xa0)
-		xf_emit(ctx, 0x14, 0);
+		xf_emit(ctx, 0x0f, 0);	/* ffffffff */
 	else
-		xf_emit(ctx, 0x15, 0);
-	xf_emit(ctx, 2, 4);
+		xf_emit(ctx, 0x10, 0);	/* fffffff VP_RESULT_MAP_1 up */
+	xf_emit(ctx, 2, 0);		/* f/1f[NVA3], fffffff/ffffffff[NVA0+] */
+	xf_emit(ctx, 1, 4);		/* 7f/ff VP_REG_ALLOC_RESULT */
+	xf_emit(ctx, 1, 4);		/* 7f/ff VP_RESULT_MAP_SIZE */
 	if (dev_priv->chipset >= 0xa0)
-		xf_emit(ctx, 1, 0x03020100);
+		xf_emit(ctx, 1, 0x03020100);	/* ffffffff */
 	else
-		xf_emit(ctx, 1, 0x00608080);
-	xf_emit(ctx, 4, 0);
-	xf_emit(ctx, 1, 4);
-	xf_emit(ctx, 2, 0);
-	xf_emit(ctx, 2, 4);
-	xf_emit(ctx, 1, 0x80);
+		xf_emit(ctx, 1, 0x00608080);	/* fffffff VP_RESULT_MAP_0 */
+	xf_emit(ctx, 1, 0);		/* 00000001 GP_ENABLE */
+	xf_emit(ctx, 1, 0);		/* ffffffff tesla UNK1A30 */
+	xf_emit(ctx, 2, 0);		/* 111/113, 7f/ff */
+	xf_emit(ctx, 1, 4);		/* 7f/ff VP_RESULT_MAP_SIZE */
+	xf_emit(ctx, 1, 0);		/* ffffffff tesla UNK1A30 */
+	xf_emit(ctx, 1, 0);		/* 00000001 GP_ENABLE */
+	xf_emit(ctx, 1, 4);		/* 000000ff GP_REG_ALLOC_RESULT */
+	xf_emit(ctx, 1, 4);		/* 000000ff GP_RESULT_MAP_SIZE */
+	xf_emit(ctx, 1, 0x80);		/* 0000ffff GP_VERTEX_OUTPUT_COUNT */
 	if (magic3)
-		xf_emit(ctx, 1, magic3);
-	xf_emit(ctx, 1, 4);
-	xf_emit(ctx, 0x24, 0);
-	xf_emit(ctx, 1, 4);
-	xf_emit(ctx, 1, 0x80);
-	xf_emit(ctx, 1, 4);
-	xf_emit(ctx, 1, 0x03020100);
-	xf_emit(ctx, 1, 3);
+		xf_emit(ctx, 1, magic3);	/* 00007fff tesla UNK141C */
+	xf_emit(ctx, 1, 4);		/* 7f/ff VP_RESULT_MAP_SIZE */
+	xf_emit(ctx, 1, 0);		/* ffffffff tesla UNK1A30 */
+	xf_emit(ctx, 1, 0);		/* 111/113 */
+	xf_emit(ctx, 0x1f, 0);		/* ffffffff GP_RESULT_MAP_1 up */
+	xf_emit(ctx, 1, 0);		/* 0000001f */
+	xf_emit(ctx, 1, 0);		/* ffffffff */
+	xf_emit(ctx, 1, 0);		/* 00000001 GP_ENABLE */
+	xf_emit(ctx, 1, 4);		/* 000000ff GP_REG_ALLOC_RESULT */
+	xf_emit(ctx, 1, 0x80);		/* 0000ffff GP_VERTEX_OUTPUT_COUNT */
+	xf_emit(ctx, 1, 4);		/* 000000ff GP_RESULT_MAP_SIZE */
+	xf_emit(ctx, 1, 0x03020100);	/* ffffffff GP_RESULT_MAP_0 */
+	xf_emit(ctx, 1, 3);		/* 00000003 GP_OUTPUT_PRIMITIVE_TYPE */
 	if (magic3)
-		xf_emit(ctx, 1, magic3);
-	xf_emit(ctx, 1, 4);
-	xf_emit(ctx, 4, 0);
-	xf_emit(ctx, 1, 4);
-	xf_emit(ctx, 1, 3);
-	xf_emit(ctx, 3, 0);
-	xf_emit(ctx, 1, 4);
+		xf_emit(ctx, 1, magic3);	/* 7fff tesla UNK141C */
+	xf_emit(ctx, 1, 4);		/* 7f/ff VP_RESULT_MAP_SIZE */
+	xf_emit(ctx, 1, 0);		/* 00000001 PROVOKING_VERTEX_LAST */
+	xf_emit(ctx, 1, 0);		/* ffffffff tesla UNK1A30 */
+	xf_emit(ctx, 1, 0);		/* 111/113 */
+	xf_emit(ctx, 1, 0);		/* 00000001 GP_ENABLE */
+	xf_emit(ctx, 1, 4);		/* 000000ff GP_RESULT_MAP_SIZE */
+	xf_emit(ctx, 1, 3);		/* 00000003 GP_OUTPUT_PRIMITIVE_TYPE */
+	xf_emit(ctx, 1, 0);		/* 00000001 PROVOKING_VERTEX_LAST */
+	xf_emit(ctx, 1, 0);		/* ffffffff tesla UNK1A30 */
+	xf_emit(ctx, 1, 0);		/* 00000003 tesla UNK13A0 */
+	xf_emit(ctx, 1, 4);		/* 7f/ff VP_REG_ALLOC_RESULT */
+	xf_emit(ctx, 1, 0);		/* 00000001 GP_ENABLE */
+	xf_emit(ctx, 1, 0);		/* ffffffff tesla UNK1A30 */
+	xf_emit(ctx, 1, 0);		/* 111/113 */
 	if (dev_priv->chipset == 0x94 || dev_priv->chipset == 0x96)
-		xf_emit(ctx, 0x1024, 0);
+		xf_emit(ctx, 0x1020, 0);	/* 4 x (0x400 x 0xffffffff, ff, 0, 0, 0, 4 x ffffffff) */
 	else if (dev_priv->chipset < 0xa0)
-		xf_emit(ctx, 0xa24, 0);
+		xf_emit(ctx, 0xa20, 0);	/* 4 x (0x280 x 0xffffffff, ff, 0, 0, 0, 4 x ffffffff) */
 	else if (dev_priv->chipset == 0xa0 || dev_priv->chipset >= 0xaa)
-		xf_emit(ctx, 0x214, 0);
+		xf_emit(ctx, 0x210, 0);	/* ffffffff */
 	else
-		xf_emit(ctx, 0x414, 0);
-	xf_emit(ctx, 1, 4);
-	xf_emit(ctx, 1, 3);
-	xf_emit(ctx, 2, 0);
+		xf_emit(ctx, 0x410, 0);	/* ffffffff */
+	xf_emit(ctx, 1, 0);		/* 00000001 GP_ENABLE */
+	xf_emit(ctx, 1, 4);		/* 000000ff GP_RESULT_MAP_SIZE */
+	xf_emit(ctx, 1, 3);		/* 00000003 GP_OUTPUT_PRIMITIVE_TYPE */
+	xf_emit(ctx, 1, 0);		/* 00000001 PROVOKING_VERTEX_LAST */
+	xf_emit(ctx, 1, 0);		/* ffffffff tesla UNK1A30 */
 }
 
 static void
@@ -2947,7 +2971,7 @@ nv50_graph_construct_xfer_tp(struct nouveau_grctx *ctx)
 {
 	struct drm_nouveau_private *dev_priv = ctx->dev->dev_private;
 	if (dev_priv->chipset < 0xa0) {
-		nv50_graph_construct_xfer_tp_x1(ctx);
+		nv50_graph_construct_xfer_unk84xx(ctx);
 		nv50_graph_construct_xfer_tp_x2(ctx);
 		nv50_graph_construct_xfer_tp_x3(ctx);
 		if (dev_priv->chipset == 0x50)
@@ -2964,7 +2988,7 @@ nv50_graph_construct_xfer_tp(struct nouveau_grctx *ctx)
 		nv50_graph_construct_xfer_tp_x2(ctx);
 		nv50_graph_construct_xfer_tp_x5(ctx);
 		nv50_graph_construct_xfer_tp_x4(ctx);
-		nv50_graph_construct_xfer_tp_x1(ctx);
+		nv50_graph_construct_xfer_unk84xx(ctx);
 	}
 }
 
