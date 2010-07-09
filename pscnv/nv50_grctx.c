@@ -1149,6 +1149,7 @@ xf_emit(struct nouveau_grctx *ctx, int num, uint32_t val) {
 
 static void nv50_graph_construct_gene_dispatch(struct nouveau_grctx *ctx);
 static void nv50_graph_construct_gene_m2mf(struct nouveau_grctx *ctx);
+static void nv50_graph_construct_gene_ccache(struct nouveau_grctx *ctx);
 static void nv50_graph_construct_gene_unk1(struct nouveau_grctx *ctx);
 static void nv50_graph_construct_gene_unk2(struct nouveau_grctx *ctx);
 static void nv50_graph_construct_gene_zcull(struct nouveau_grctx *ctx);
@@ -1199,27 +1200,8 @@ nv50_graph_construct_xfer1(struct nouveau_grctx *ctx)
 
 		/* Strand 2 */
 		ctx->ctxvals_pos = offset + 0x2;
-		switch (dev_priv->chipset) {
-		case 0x50:
-		case 0x92:
-			xf_emit(ctx, 0xa80, 0);
-			break;
-		case 0x84:
-			xf_emit(ctx, 0xa7e, 0);
-			break;
-		case 0x94:
-		case 0x96:
-			xf_emit(ctx, 0xa7c, 0);
-			break;
-		case 0x86:
-		case 0x98:
-			xf_emit(ctx, 0xa7a, 0);
-			break;
-		}
-		xf_emit(ctx, 1, 0x3fffff);
-		xf_emit(ctx, 2, 0);
-		xf_emit(ctx, 1, 0x1fff);
-		xf_emit(ctx, 0xe, 0);
+		nv50_graph_construct_gene_ccache(ctx);
+		xf_emit(ctx, 0x2, 0);
 		nv50_graph_construct_gene_unk9(ctx);
 		nv50_graph_construct_gene_unk2(ctx);
 		nv50_graph_construct_gene_unk1(ctx);
@@ -1286,15 +1268,7 @@ nv50_graph_construct_xfer1(struct nouveau_grctx *ctx)
 
 		/* Strand 4 */
 		ctx->ctxvals_pos = offset + 4;
-		if (dev_priv->chipset == 0xa0)
-			xf_emit(ctx, 0xa80, 0);
-		else if (dev_priv->chipset == 0xa3)
-			xf_emit(ctx, 0xa7c, 0);
-		else
-			xf_emit(ctx, 0xa7a, 0);
-		xf_emit(ctx, 1, 0x3fffff);
-		xf_emit(ctx, 2, 0);
-		xf_emit(ctx, 1, 0x1fff);
+		nv50_graph_construct_gene_ccache(ctx);
 		if ((ctx->ctxvals_pos-offset)/8 > size)
 			size = (ctx->ctxvals_pos-offset)/8;
 
@@ -1467,6 +1441,73 @@ nv50_graph_construct_gene_m2mf(struct nouveau_grctx *ctx)
 	/* SEEK */
 	xf_emit(ctx, 0x40, 0);		/* 20 * bits ffffffff, 3ffff */
 	xf_emit(ctx, 0x6, 0);		/* 1f, 0, 1f, 0, 1f, 0 */
+}
+
+static void
+nv50_graph_construct_gene_ccache(struct nouveau_grctx *ctx)
+{
+	struct drm_nouveau_private *dev_priv = ctx->dev->dev_private;
+	xf_emit(ctx, 2, 0);		/* RO */
+	xf_emit(ctx, 0x800, 0);		/* ffffffff */
+	switch (dev_priv->chipset) {
+	case 0x50:
+	case 0x92:
+	case 0xa0:
+		xf_emit(ctx, 0x2b, 0);
+		break;
+	case 0x84:
+		xf_emit(ctx, 0x29, 0);
+		break;
+	case 0x94:
+	case 0x96:
+	case 0xa3:
+		xf_emit(ctx, 0x27, 0);
+		break;
+	case 0x86:
+	case 0x98:
+	case 0xa5:
+	case 0xa8:
+	case 0xaa:
+	case 0xac:
+		xf_emit(ctx, 0x25, 0);
+		break;
+	}
+	/* CB bindings, 0x80 of them. first word is address >> 8, second is
+	 * size >> 4 | valid << 24 */
+	xf_emit(ctx, 0x100, 0);		/* ffffffff CB_DEF */
+	xf_emit(ctx, 1, 0);		/* 0000007f CB_ADDR_BUFFER */
+	xf_emit(ctx, 1, 0);		/* 0 */
+	xf_emit(ctx, 0x30, 0);		/* ff SET_PROGRAM_CB */
+	xf_emit(ctx, 1, 0);		/* 3f last SET_PROGRAM_CB */
+	xf_emit(ctx, 4, 0);		/* RO */
+	xf_emit(ctx, 0x100, 0);		/* ffffffff */
+	xf_emit(ctx, 8, 0);		/* 1f, 0, 0, ... */
+	xf_emit(ctx, 8, 0);		/* ffffffff */
+	xf_emit(ctx, 4, 0);		/* ffffffff */
+	xf_emit(ctx, 1, 0);		/* 3 */
+	xf_emit(ctx, 1, 0);		/* ffffffff */
+	xf_emit(ctx, 1, 0);		/* 0000ffff DMA_CODE_CB */
+	xf_emit(ctx, 1, 0);		/* 0000ffff DMA_TIC */
+	xf_emit(ctx, 1, 0);		/* 0000ffff DMA_TSC */
+	xf_emit(ctx, 1, 0);		/* 00000001 LINKED_TSC */
+	xf_emit(ctx, 1, 0);		/* 000000ff TIC_ADDRESS_HIGH */
+	xf_emit(ctx, 1, 0);		/* ffffffff TIC_ADDRESS_LOW */
+	xf_emit(ctx, 1, 0x3fffff);	/* 003fffff TIC_LIMIT */
+	xf_emit(ctx, 1, 0);		/* 000000ff TSC_ADDRESS_HIGH */
+	xf_emit(ctx, 1, 0);		/* ffffffff TSC_ADDRESS_LOW */
+	xf_emit(ctx, 1, 0x1fff);	/* 000fffff TSC_LIMIT */
+	xf_emit(ctx, 1, 0);		/* 000000ff VP_ADDRESS_HIGH */
+	xf_emit(ctx, 1, 0);		/* ffffffff VP_ADDRESS_LOW */
+	xf_emit(ctx, 1, 0);		/* 00ffffff VP_START_ID */
+	xf_emit(ctx, 1, 0);		/* 000000ff CB_DEF_ADDRESS_HIGH */
+	xf_emit(ctx, 1, 0);		/* ffffffff CB_DEF_ADDRESS_LOW */
+	xf_emit(ctx, 1, 0);		/* 00000001 GP_ENABLE */
+	xf_emit(ctx, 1, 0);		/* 000000ff GP_ADDRESS_HIGH */
+	xf_emit(ctx, 1, 0);		/* ffffffff GP_ADDRESS_LOW */
+	xf_emit(ctx, 1, 0);		/* 00ffffff GP_START_ID */
+	xf_emit(ctx, 1, 0);		/* 000000ff FP_ADDRESS_HIGH */
+	xf_emit(ctx, 1, 0);		/* ffffffff FP_ADDRESS_LOW */
+	xf_emit(ctx, 1, 0);		/* 00ffffff FP_START_ID */
 }
 
 static void
