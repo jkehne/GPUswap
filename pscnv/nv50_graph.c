@@ -647,6 +647,6 @@ void nv50_graph_irq_handler(struct pscnv_engine *eng) {
 		nv_wr32(dev, 0x400100, status);
 	}
 	nv_wr32(dev, 0x400500, 0x10001);
-	pscnv_vm_trap(dev);
+	nv50_vm_trap(dev);
 	spin_unlock_irqrestore(&graph->lock, flags);
 }

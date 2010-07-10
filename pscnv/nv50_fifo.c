@@ -525,6 +525,6 @@ void nv50_fifo_irq_handler(struct pscnv_engine *eng) {
 		NV_ERROR(dev, "Unknown PFIFO interrupt %08x\n", status);
 		nv_wr32(dev, 0x2100, status);
 	}
-	pscnv_vm_trap(dev);
+	nv50_vm_trap(dev);
 	spin_unlock_irqrestore(&fifo->lock, flags);
 }
