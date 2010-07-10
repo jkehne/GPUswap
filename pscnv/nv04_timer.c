@@ -44,8 +44,3 @@ nv04_timer_read(struct drm_device *dev)
 	} while (high1 != high2);
 	return (((uint64_t)high2) << 32) | (uint64_t)low;
 }
-
-void
-nv04_timer_takedown(struct drm_device *dev)
-{
-}

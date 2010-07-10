@@ -310,13 +310,11 @@ int nv50_graph_tlb_flush(struct pscnv_engine *eng, struct pscnv_vspace *vs) {
 
 void nv50_graph_chan_kill(struct pscnv_engine *eng, struct pscnv_chan *ch) {
 	struct drm_device *dev = eng->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct nv50_graph_engine *graph = nv50_graph(eng);
-	struct nouveau_timer_engine *ptimer = &dev_priv->engine.timer;
 	uint64_t start;
 	unsigned long flags;
 	spin_lock_irqsave(&graph->lock, flags);
-	start = ptimer->read(dev);
+	start = nv04_timer_read(dev);
 	/* disable PFIFO access */
 	nv_wr32(dev, 0x400500, 0);
 	/* tell ctxprog to hang in sync point, if it's executing */
@@ -324,7 +322,7 @@ void nv50_graph_chan_kill(struct pscnv_engine *eng, struct pscnv_chan *ch) {
 	/* make sure that ctxprog either isn't executing, or is waiting at the
 	 * sync point. */
 	while ((nv_rd32(dev, 0x400300) & 1) && !(nv_rd32(dev, 0x400824) & 0x80000000)) {
-		if (ptimer->read(dev) - start >= 2000000000) {
+		if (nv04_timer_read(dev) - start >= 2000000000) {
 			NV_ERROR(dev, "ctxprog wait fail!\n");
 			break;
 		}

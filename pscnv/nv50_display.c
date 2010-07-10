@@ -149,7 +149,6 @@ int
 nv50_display_init(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_timer_engine *ptimer = &dev_priv->engine.timer;
 	struct nouveau_channel *evo = dev_priv->evo;
 	struct drm_connector *connector;
 	uint32_t val, ram_amount, hpd_en[2];
@@ -224,7 +223,7 @@ nv50_display_init(struct drm_device *dev)
 	/* taken from nv bug #12637, attempts to un-wedge the hw if it's
 	 * stuck in some unspecified state
 	 */
-	start = ptimer->read(dev);
+	start = nv04_timer_read(dev);
 	nv_wr32(dev, NV50_PDISPLAY_CHANNEL_STAT(0), 0x2b00);
 	while ((val = nv_rd32(dev, NV50_PDISPLAY_CHANNEL_STAT(0))) & 0x1e0000) {
 		if ((val & 0x9f0000) == 0x20000)
@@ -235,7 +234,7 @@ nv50_display_init(struct drm_device *dev)
 			nv_wr32(dev, NV50_PDISPLAY_CHANNEL_STAT(0),
 							val | 0x200000);
 
-		if (ptimer->read(dev) - start > 1000000000ULL) {
+		if (nv04_timer_read(dev) - start > 1000000000ULL) {
 			NV_ERROR(dev, "timeout: (0x610200 & 0x1e0000) != 0\n");
 			NV_ERROR(dev, "0x610200 = 0x%08x\n", val);
 			return -EBUSY;

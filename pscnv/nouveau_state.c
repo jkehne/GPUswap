@@ -75,11 +75,6 @@ static int nouveau_init_engine_ptrs(struct drm_device *dev)
 		engine->fb.takedown		= nv50_fb_takedown;
 	}
 
-	/* PTIMER */
-	engine->timer.init		= nv04_timer_init;
-	engine->timer.read		= nv04_timer_read;
-	engine->timer.takedown		= nv04_timer_takedown;
-
 	switch (dev_priv->chipset & 0xf0) {
 	case 0x00:
 #if 0
@@ -448,7 +443,7 @@ nouveau_card_init(struct drm_device *dev)
 		goto out_vm;
 
 	/* PTIMER */
-	ret = engine->timer.init(dev);
+	ret = nv04_timer_init(dev);
 	if (ret)
 		goto out_mc;
 
@@ -522,7 +517,6 @@ out_irq:
 out_fb:
 	engine->fb.takedown(dev);
 out_timer:
-	engine->timer.takedown(dev);
 out_mc:
 	engine->mc.takedown(dev);
 out_vm:
@@ -554,7 +548,6 @@ static void nouveau_card_takedown(struct drm_device *dev)
 				dev_priv->engines[i] = 0;
 			}
 		engine->fb.takedown(dev);
-		engine->timer.takedown(dev);
 		engine->mc.takedown(dev);
 		pscnv_vm_takedown(dev);
 		pscnv_vram_takedown(dev);
@@ -796,7 +789,7 @@ int pscnv_ioctl_getparam(struct drm_device *dev, void *data,
 			getparam->value = NV_PCI;
 		break;
 	case PSCNV_GETPARAM_PTIMER_TIME:
-		getparam->value = dev_priv->engine.timer.read(dev);
+		getparam->value = nv04_timer_read(dev);
 		break;
 	case PSCNV_GETPARAM_FB_SIZE:
 		getparam->value = dev_priv->vram_size;
@@ -822,14 +815,12 @@ int pscnv_ioctl_getparam(struct drm_device *dev, void *data,
 bool nouveau_wait_until(struct drm_device *dev, uint64_t timeout,
 			uint32_t reg, uint32_t mask, uint32_t val)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_timer_engine *ptimer = &dev_priv->engine.timer;
-	uint64_t start = ptimer->read(dev);
+	uint64_t start = nv04_timer_read(dev);
 
 	do {
 		if ((nv_rd32(dev, reg) & mask) == val)
 			return true;
-	} while (ptimer->read(dev) - start < timeout);
+	} while (nv04_timer_read(dev) - start < timeout);
 
 	return false;
 }
