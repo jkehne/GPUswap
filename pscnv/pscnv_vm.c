@@ -204,6 +204,20 @@ pscnv_vm_init(struct drm_device *dev) {
 	struct pscnv_vspace *barvm = pscnv_vspace_new (dev);
 	struct pscnv_chan *barch;
 	int bar1dma, bar3dma;
+	/* This is needed to get meaningful information from 100c90
+	 * on traps. No idea what these values mean exactly. */
+	switch (dev_priv->chipset) {
+	case 0x50:
+		nv_wr32(dev, 0x100c90, 0x0707ff);
+		break;
+	case 0xa5:
+	case 0xa8:
+		nv_wr32(dev, 0x100c90, 0x0d0fff);
+		break;
+	default:
+		nv_wr32(dev, 0x100c90, 0x1d07ff);
+		break;
+	}
 	if (!barvm)
 		return -ENOMEM;
 	barvm->isbar = 1;

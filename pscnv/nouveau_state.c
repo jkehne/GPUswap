@@ -39,272 +39,6 @@
 #include "pscnv_vm.h"
 #include "pscnv_chan.h"
 
-static int nouveau_init_engine_ptrs(struct drm_device *dev)
-{
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_engine *engine = &dev_priv->engine;
-
-	/* PMC */
-	/* XXX: This is some kind of a joke. 3 files and 6 functions for
-	 * a total of 5 reg writes... inline & nuke? */
-	if (dev_priv->card_type < NV_40) {
-		engine->mc.init			= nv04_mc_init;
-		engine->mc.takedown		= nv04_mc_takedown;
-	} else if (dev_priv->card_type == NV_40) {
-		engine->mc.init			= nv40_mc_init;
-		engine->mc.takedown		= nv40_mc_takedown;
-	} else {
-		engine->mc.init			= nv50_mc_init;
-		engine->mc.takedown		= nv50_mc_takedown;
-	}
-
-	/* PFB */
-	if (dev_priv->card_type == NV_04) {
-		engine->fb.init			= nv04_fb_init;
-		engine->fb.takedown		= nv04_fb_takedown;
-	} else if (dev_priv->card_type < NV_40) {
-		engine->fb.init			= nv10_fb_init;
-		engine->fb.takedown		= nv10_fb_takedown;
-		engine->fb.set_region_tiling	= nv10_fb_set_region_tiling;
-	} else if (dev_priv->card_type == NV_40) {
-		engine->fb.init			= nv40_fb_init;
-		engine->fb.takedown		= nv40_fb_takedown;
-		engine->fb.set_region_tiling	= nv40_fb_set_region_tiling;
-	} else {
-		engine->fb.init			= nv50_fb_init;
-		engine->fb.takedown		= nv50_fb_takedown;
-	}
-
-	switch (dev_priv->chipset & 0xf0) {
-	case 0x00:
-#if 0
-		engine->instmem.init		= nv04_instmem_init;
-		engine->instmem.takedown	= nv04_instmem_takedown;
-		engine->instmem.suspend		= nv04_instmem_suspend;
-		engine->instmem.resume		= nv04_instmem_resume;
-		engine->instmem.populate	= nv04_instmem_populate;
-		engine->instmem.clear		= nv04_instmem_clear;
-		engine->instmem.bind		= nv04_instmem_bind;
-		engine->instmem.unbind		= nv04_instmem_unbind;
-		engine->instmem.prepare_access	= nv04_instmem_prepare_access;
-		engine->instmem.finish_access	= nv04_instmem_finish_access;
-		engine->graph.grclass		= nv04_graph_grclass;
-		engine->graph.init		= nv04_graph_init;
-		engine->graph.takedown		= nv04_graph_takedown;
-		engine->graph.fifo_access	= nv04_graph_fifo_access;
-		engine->graph.channel		= nv04_graph_channel;
-		engine->graph.create_context	= nv04_graph_create_context;
-		engine->graph.destroy_context	= nv04_graph_destroy_context;
-		engine->graph.load_context	= nv04_graph_load_context;
-		engine->graph.unload_context	= nv04_graph_unload_context;
-		engine->fifo.channels		= 16;
-		engine->fifo.init		= nv04_fifo_init;
-		engine->fifo.takedown		= nouveau_stub_takedown;
-		engine->fifo.disable		= nv04_fifo_disable;
-		engine->fifo.enable		= nv04_fifo_enable;
-		engine->fifo.reassign		= nv04_fifo_reassign;
-		engine->fifo.cache_flush	= nv04_fifo_cache_flush;
-		engine->fifo.cache_pull		= nv04_fifo_cache_pull;
-		engine->fifo.channel_id		= nv04_fifo_channel_id;
-		engine->fifo.create_context	= nv04_fifo_create_context;
-		engine->fifo.destroy_context	= nv04_fifo_destroy_context;
-		engine->fifo.load_context	= nv04_fifo_load_context;
-		engine->fifo.unload_context	= nv04_fifo_unload_context;
-#endif
-		break;
-	case 0x10:
-#if 0
-		engine->instmem.init		= nv04_instmem_init;
-		engine->instmem.takedown	= nv04_instmem_takedown;
-		engine->instmem.suspend		= nv04_instmem_suspend;
-		engine->instmem.resume		= nv04_instmem_resume;
-		engine->instmem.populate	= nv04_instmem_populate;
-		engine->instmem.clear		= nv04_instmem_clear;
-		engine->instmem.bind		= nv04_instmem_bind;
-		engine->instmem.unbind		= nv04_instmem_unbind;
-		engine->instmem.prepare_access	= nv04_instmem_prepare_access;
-		engine->instmem.finish_access	= nv04_instmem_finish_access;
-		engine->graph.grclass		= nv10_graph_grclass;
-		engine->graph.init		= nv10_graph_init;
-		engine->graph.takedown		= nv10_graph_takedown;
-		engine->graph.channel		= nv10_graph_channel;
-		engine->graph.create_context	= nv10_graph_create_context;
-		engine->graph.destroy_context	= nv10_graph_destroy_context;
-		engine->graph.fifo_access	= nv04_graph_fifo_access;
-		engine->graph.load_context	= nv10_graph_load_context;
-		engine->graph.unload_context	= nv10_graph_unload_context;
-		engine->graph.set_region_tiling	= nv10_graph_set_region_tiling;
-		engine->fifo.channels		= 32;
-		engine->fifo.init		= nv10_fifo_init;
-		engine->fifo.takedown		= nouveau_stub_takedown;
-		engine->fifo.disable		= nv04_fifo_disable;
-		engine->fifo.enable		= nv04_fifo_enable;
-		engine->fifo.reassign		= nv04_fifo_reassign;
-		engine->fifo.cache_flush	= nv04_fifo_cache_flush;
-		engine->fifo.cache_pull		= nv04_fifo_cache_pull;
-		engine->fifo.channel_id		= nv10_fifo_channel_id;
-		engine->fifo.create_context	= nv10_fifo_create_context;
-		engine->fifo.destroy_context	= nv10_fifo_destroy_context;
-		engine->fifo.load_context	= nv10_fifo_load_context;
-		engine->fifo.unload_context	= nv10_fifo_unload_context;
-#endif
-		break;
-	case 0x20:
-#if 0
-		engine->instmem.init		= nv04_instmem_init;
-		engine->instmem.takedown	= nv04_instmem_takedown;
-		engine->instmem.suspend		= nv04_instmem_suspend;
-		engine->instmem.resume		= nv04_instmem_resume;
-		engine->instmem.populate	= nv04_instmem_populate;
-		engine->instmem.clear		= nv04_instmem_clear;
-		engine->instmem.bind		= nv04_instmem_bind;
-		engine->instmem.unbind		= nv04_instmem_unbind;
-		engine->instmem.prepare_access	= nv04_instmem_prepare_access;
-		engine->instmem.finish_access	= nv04_instmem_finish_access;
-		engine->graph.grclass		= nv20_graph_grclass;
-		engine->graph.init		= nv20_graph_init;
-		engine->graph.takedown		= nv20_graph_takedown;
-		engine->graph.channel		= nv10_graph_channel;
-		engine->graph.create_context	= nv20_graph_create_context;
-		engine->graph.destroy_context	= nv20_graph_destroy_context;
-		engine->graph.fifo_access	= nv04_graph_fifo_access;
-		engine->graph.load_context	= nv20_graph_load_context;
-		engine->graph.unload_context	= nv20_graph_unload_context;
-		engine->graph.set_region_tiling	= nv20_graph_set_region_tiling;
-		engine->fifo.channels		= 32;
-		engine->fifo.init		= nv10_fifo_init;
-		engine->fifo.takedown		= nouveau_stub_takedown;
-		engine->fifo.disable		= nv04_fifo_disable;
-		engine->fifo.enable		= nv04_fifo_enable;
-		engine->fifo.reassign		= nv04_fifo_reassign;
-		engine->fifo.cache_flush	= nv04_fifo_cache_flush;
-		engine->fifo.cache_pull		= nv04_fifo_cache_pull;
-		engine->fifo.channel_id		= nv10_fifo_channel_id;
-		engine->fifo.create_context	= nv10_fifo_create_context;
-		engine->fifo.destroy_context	= nv10_fifo_destroy_context;
-		engine->fifo.load_context	= nv10_fifo_load_context;
-		engine->fifo.unload_context	= nv10_fifo_unload_context;
-#endif
-		break;
-	case 0x30:
-#if 0
-		engine->instmem.init		= nv04_instmem_init;
-		engine->instmem.takedown	= nv04_instmem_takedown;
-		engine->instmem.suspend		= nv04_instmem_suspend;
-		engine->instmem.resume		= nv04_instmem_resume;
-		engine->instmem.populate	= nv04_instmem_populate;
-		engine->instmem.clear		= nv04_instmem_clear;
-		engine->instmem.bind		= nv04_instmem_bind;
-		engine->instmem.unbind		= nv04_instmem_unbind;
-		engine->instmem.prepare_access	= nv04_instmem_prepare_access;
-		engine->instmem.finish_access	= nv04_instmem_finish_access;
-		engine->graph.grclass		= nv30_graph_grclass;
-		engine->graph.init		= nv30_graph_init;
-		engine->graph.takedown		= nv20_graph_takedown;
-		engine->graph.fifo_access	= nv04_graph_fifo_access;
-		engine->graph.channel		= nv10_graph_channel;
-		engine->graph.create_context	= nv20_graph_create_context;
-		engine->graph.destroy_context	= nv20_graph_destroy_context;
-		engine->graph.load_context	= nv20_graph_load_context;
-		engine->graph.unload_context	= nv20_graph_unload_context;
-		engine->graph.set_region_tiling	= nv20_graph_set_region_tiling;
-		engine->fifo.channels		= 32;
-		engine->fifo.init		= nv10_fifo_init;
-		engine->fifo.takedown		= nouveau_stub_takedown;
-		engine->fifo.disable		= nv04_fifo_disable;
-		engine->fifo.enable		= nv04_fifo_enable;
-		engine->fifo.reassign		= nv04_fifo_reassign;
-		engine->fifo.cache_flush	= nv04_fifo_cache_flush;
-		engine->fifo.cache_pull		= nv04_fifo_cache_pull;
-		engine->fifo.channel_id		= nv10_fifo_channel_id;
-		engine->fifo.create_context	= nv10_fifo_create_context;
-		engine->fifo.destroy_context	= nv10_fifo_destroy_context;
-		engine->fifo.load_context	= nv10_fifo_load_context;
-		engine->fifo.unload_context	= nv10_fifo_unload_context;
-#endif
-		break;
-	case 0x40:
-	case 0x60:
-#if 0
-		engine->instmem.init		= nv04_instmem_init;
-		engine->instmem.takedown	= nv04_instmem_takedown;
-		engine->instmem.suspend		= nv04_instmem_suspend;
-		engine->instmem.resume		= nv04_instmem_resume;
-		engine->instmem.populate	= nv04_instmem_populate;
-		engine->instmem.clear		= nv04_instmem_clear;
-		engine->instmem.bind		= nv04_instmem_bind;
-		engine->instmem.unbind		= nv04_instmem_unbind;
-		engine->instmem.prepare_access	= nv04_instmem_prepare_access;
-		engine->instmem.finish_access	= nv04_instmem_finish_access;
-		engine->graph.grclass		= nv40_graph_grclass;
-		engine->graph.init		= nv40_graph_init;
-		engine->graph.takedown		= nv40_graph_takedown;
-		engine->graph.fifo_access	= nv04_graph_fifo_access;
-		engine->graph.channel		= nv40_graph_channel;
-		engine->graph.create_context	= nv40_graph_create_context;
-		engine->graph.destroy_context	= nv40_graph_destroy_context;
-		engine->graph.load_context	= nv40_graph_load_context;
-		engine->graph.unload_context	= nv40_graph_unload_context;
-		engine->graph.set_region_tiling	= nv40_graph_set_region_tiling;
-		engine->fifo.channels		= 32;
-		engine->fifo.init		= nv40_fifo_init;
-		engine->fifo.takedown		= nouveau_stub_takedown;
-		engine->fifo.disable		= nv04_fifo_disable;
-		engine->fifo.enable		= nv04_fifo_enable;
-		engine->fifo.reassign		= nv04_fifo_reassign;
-		engine->fifo.cache_flush	= nv04_fifo_cache_flush;
-		engine->fifo.cache_pull		= nv04_fifo_cache_pull;
-		engine->fifo.channel_id		= nv10_fifo_channel_id;
-		engine->fifo.create_context	= nv40_fifo_create_context;
-		engine->fifo.destroy_context	= nv40_fifo_destroy_context;
-		engine->fifo.load_context	= nv40_fifo_load_context;
-		engine->fifo.unload_context	= nv40_fifo_unload_context;
-#endif
-		break;
-	case 0x50:
-	case 0x80: /* gotta love NVIDIA's consistency.. */
-	case 0x90:
-	case 0xA0:
-#if 0
-		engine->instmem.init		= nv50_instmem_init;
-		engine->instmem.takedown	= nv50_instmem_takedown;
-		engine->instmem.suspend		= nv50_instmem_suspend;
-		engine->instmem.resume		= nv50_instmem_resume;
-		engine->instmem.populate	= nv50_instmem_populate;
-		engine->instmem.clear		= nv50_instmem_clear;
-		engine->instmem.bind		= nv50_instmem_bind;
-		engine->instmem.unbind		= nv50_instmem_unbind;
-		engine->instmem.prepare_access	= nv50_instmem_prepare_access;
-		engine->instmem.finish_access	= nv50_instmem_finish_access;
-		engine->graph.grclass		= nv50_graph_grclass;
-		engine->graph.init		= nv50_graph_init;
-		engine->graph.takedown		= nv50_graph_takedown;
-		engine->graph.fifo_access	= nv50_graph_fifo_access;
-		engine->graph.channel		= nv50_graph_channel;
-		engine->graph.create_context	= nv50_graph_create_context;
-		engine->graph.destroy_context	= nv50_graph_destroy_context;
-		engine->graph.load_context	= nv50_graph_load_context;
-		engine->graph.unload_context	= nv50_graph_unload_context;
-		engine->fifo.channels		= 128;
-		engine->fifo.init		= nv50_fifo_init;
-		engine->fifo.takedown		= nv50_fifo_takedown;
-		engine->fifo.disable		= nv04_fifo_disable;
-		engine->fifo.enable		= nv04_fifo_enable;
-		engine->fifo.reassign		= nv04_fifo_reassign;
-		engine->fifo.channel_id		= nv50_fifo_channel_id;
-		engine->fifo.create_context	= nv50_fifo_create_context;
-		engine->fifo.destroy_context	= nv50_fifo_destroy_context;
-		engine->fifo.load_context	= nv50_fifo_load_context;
-		engine->fifo.unload_context	= nv50_fifo_unload_context;
-#endif
-		break;
-	default:
-		NV_ERROR(dev, "NV%02x unsupported\n", dev_priv->chipset);
-		return 1;
-	}
-
-	return 0;
-}
 
 static unsigned int
 nouveau_vga_set_decode(void *priv, bool state)
@@ -323,53 +57,7 @@ nouveau_vga_set_decode(void *priv, bool state)
 	else
 		return VGA_RSRC_NORMAL_IO | VGA_RSRC_NORMAL_MEM;
 }
-#if 0
-static int
-nouveau_card_init_channel(struct drm_device *dev)
-{
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_gpuobj *gpuobj;
-	int ret;
 
-	ret = nouveau_channel_alloc(dev, &dev_priv->channel,
-				    (struct drm_file *)-2,
-				    NvDmaFB, NvDmaTT);
-	if (ret)
-		return ret;
-
-	gpuobj = NULL;
-	ret = nouveau_gpuobj_dma_new(dev_priv->channel, NV_CLASS_DMA_IN_MEMORY,
-				     0, dev_priv->vram_size,
-				     NV_DMA_ACCESS_RW, NV_DMA_TARGET_VIDMEM,
-				     &gpuobj);
-	if (ret)
-		goto out_err;
-
-	ret = nouveau_gpuobj_ref_add(dev, dev_priv->channel, NvDmaVRAM,
-				     gpuobj, NULL);
-	if (ret)
-		goto out_err;
-
-	gpuobj = NULL;
-	ret = nouveau_gpuobj_gart_dma_new(dev_priv->channel, 0,
-					  dev_priv->gart_info.aper_size,
-					  NV_DMA_ACCESS_RW, &gpuobj, NULL);
-	if (ret)
-		goto out_err;
-
-	ret = nouveau_gpuobj_ref_add(dev, dev_priv->channel, NvDmaGART,
-				     gpuobj, NULL);
-	if (ret)
-		goto out_err;
-
-	return 0;
-out_err:
-	nouveau_gpuobj_del(dev, &gpuobj);
-	nouveau_channel_free(dev_priv->channel);
-	dev_priv->channel = NULL;
-	return ret;
-}
-#endif
 static void nouveau_switcheroo_set_state(struct pci_dev *pdev,
 					 enum vga_switcheroo_state state)
 {
@@ -398,7 +86,6 @@ int
 nouveau_card_init(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_engine *engine;
 	int ret;
 	int i;
 
@@ -415,10 +102,6 @@ nouveau_card_init(struct drm_device *dev)
 
 
 	/* Initialise internal driver API hooks */
-	ret = nouveau_init_engine_ptrs(dev);
-	if (ret)
-		goto out;
-	engine = &dev_priv->engine;
 	dev_priv->init_state = NOUVEAU_CARD_INIT_FAILED;
 	spin_lock_init(&dev_priv->irq_lock);
 
@@ -438,19 +121,16 @@ nouveau_card_init(struct drm_device *dev)
 		goto out_vram;
 
 	/* PMC */
-	ret = engine->mc.init(dev);
-	if (ret)
-		goto out_vm;
+	nv_wr32(dev, NV03_PMC_ENABLE, 0xFFFFFFFF);
+
+	/* PBUS */
+	nv_wr32(dev, 0x1100, 0xFFFFFFFF);
+	nv_wr32(dev, 0x1140, 0xFFFFFFFF);
 
 	/* PTIMER */
 	ret = nv04_timer_init(dev);
 	if (ret)
-		goto out_mc;
-
-	/* PFB */
-	ret = engine->fb.init(dev);
-	if (ret)
-		goto out_timer;
+		goto out_vm;
 
 	/* XXX: handle noaccel */
 	/* PFIFO */
@@ -465,7 +145,7 @@ nouveau_card_init(struct drm_device *dev)
 	 */
 	ret = drm_irq_install(dev);
 	if (ret)
-		goto out_fb;
+		goto out_timer;
 
 	ret = drm_vblank_init(dev, 0);
 	if (ret)
@@ -514,11 +194,7 @@ out_irq:
 			dev_priv->engines[i]->takedown(dev_priv->engines[i]);
 			dev_priv->engines[i] = 0;
 		}
-out_fb:
-	engine->fb.takedown(dev);
 out_timer:
-out_mc:
-	engine->mc.takedown(dev);
 out_vm:
 	pscnv_vm_takedown(dev);
 out_vram:
@@ -533,7 +209,6 @@ out:
 static void nouveau_card_takedown(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nouveau_engine *engine = &dev_priv->engine;
 	int i;
 
 	NV_DEBUG(dev, "prev state = %d\n", dev_priv->init_state);
@@ -547,8 +222,6 @@ static void nouveau_card_takedown(struct drm_device *dev)
 				dev_priv->engines[i]->takedown(dev_priv->engines[i]);
 				dev_priv->engines[i] = 0;
 			}
-		engine->fb.takedown(dev);
-		engine->mc.takedown(dev);
 		pscnv_vm_takedown(dev);
 		pscnv_vram_takedown(dev);
 		nouveau_bios_takedown(dev);
@@ -824,17 +497,3 @@ bool nouveau_wait_until(struct drm_device *dev, uint64_t timeout,
 
 	return false;
 }
-#if 0
-/* Waits for PGRAPH to go completely idle */
-bool nouveau_wait_for_idle(struct drm_device *dev)
-{
-	if (!nv_wait(NV04_PGRAPH_STATUS, 0xffffffff, 0x00000000)) {
-		NV_ERROR(dev, "PGRAPH idle timed out with status 0x%08x\n",
-			 nv_rd32(dev, NV04_PGRAPH_STATUS));
-		return false;
-	}
-
-	return true;
-}
-
-#endif

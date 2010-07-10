@@ -115,33 +115,6 @@ struct nouveau_channel {
 	} debugfs;
 };
 
-struct nouveau_mc_engine {
-	int  (*init)(struct drm_device *dev);
-	void (*takedown)(struct drm_device *dev);
-};
-
-struct nouveau_timer_engine {
-	int      (*init)(struct drm_device *dev);
-	void     (*takedown)(struct drm_device *dev);
-	uint64_t (*read)(struct drm_device *dev);
-};
-
-struct nouveau_fb_engine {
-	int num_tiles;
-
-	int  (*init)(struct drm_device *dev);
-	void (*takedown)(struct drm_device *dev);
-
-	void (*set_region_tiling)(struct drm_device *dev, int i, uint32_t addr,
-				 uint32_t size, uint32_t pitch);
-};
-
-struct nouveau_engine {
-	struct nouveau_mc_engine      mc;
-	struct nouveau_timer_engine   timer;
-	struct nouveau_fb_engine      fb;
-};
-
 struct nouveau_pll_vals {
 	union {
 		struct {
@@ -300,7 +273,6 @@ struct drm_nouveau_private {
 #if 0
 	struct nouveau_channel *fifos[NOUVEAU_MAX_CHANNEL_NR];
 #endif
-	struct nouveau_engine engine;
 	struct pscnv_engine *engines[PSCNV_ENGINES_NUM];
 #if 0
 	struct nouveau_channel *channel;
@@ -431,17 +403,6 @@ nouveau_bo_ref(struct nouveau_bo *ref, struct nouveau_bo **pnvbo)
 		return -EINVAL;                               \
 	}                                                     \
 } while (0)
-#if 0
-#define NOUVEAU_GET_USER_CHANNEL_WITH_RETURN(id, cl, ch) do {    \
-	struct drm_nouveau_private *nv = dev->dev_private;       \
-	if (!nouveau_channel_owner(dev, (cl), (id))) {           \
-		NV_ERROR(dev, "pid %d doesn't own channel %d\n", \
-			 DRM_CURRENTPID, (id));                  \
-		return -EPERM;                                   \
-	}                                                        \
-	(ch) = nv->fifos[(id)];                                  \
-} while (0)
-#endif
 
 /* nouveau_drv.c */
 extern int nouveau_noagp;
