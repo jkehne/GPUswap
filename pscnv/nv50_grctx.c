@@ -764,7 +764,7 @@ nv50_graph_construct_mmio(struct nouveau_grctx *ctx)
 	}
 }
 
-static inline void
+static void
 dd_emit(struct nouveau_grctx *ctx, int num, uint32_t val) {
 	int i;
 	if (val && ctx->mode == NOUVEAU_GRCTX_VALS)
@@ -1136,7 +1136,7 @@ nv50_graph_construct_mmio_ddata(struct nouveau_grctx *ctx)
  * without the help of ctxprog.
  */
 
-static inline void
+static void
 xf_emit(struct nouveau_grctx *ctx, int num, uint32_t val) {
 	int i;
 	if (val && ctx->mode == NOUVEAU_GRCTX_VALS)
