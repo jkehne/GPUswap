@@ -30,6 +30,7 @@
 #include "pscnv_vram.h"
 #include "pscnv_vm.h"
 #include "pscnv_chan.h"
+#include "nv50_vm.h"
 
 #undef PSCNV_RB_AUGMENT
 
@@ -57,17 +58,8 @@ static int mapcmp(struct pscnv_vm_mapnode *a, struct pscnv_vm_mapnode *b) {
 PSCNV_RB_GENERATE_STATIC(pscnv_vm_maptree, pscnv_vm_mapnode, entry, mapcmp)
 
 static int
-pscnv_vspace_flush(struct pscnv_vspace *vs, int unit) {
-	nv_wr32(vs->dev, 0x100c80, unit << 16 | 1);
-	if (!nouveau_wait_until(vs->dev, 2000000000ULL, 0x100c80, 1, 0)) {
-		NV_ERROR(vs->dev, "TLB flush fail on unit %d!\n", unit);
-		return -EIO;
-	}
-	return 0;
-}
-
-static int
 pscnv_vspace_do_unmap (struct pscnv_vspace *vs, uint64_t offset, uint64_t length) {
+	struct drm_nouveau_private *dev_priv = vs->dev->dev_private;
 	int ret;
 	while (length) {
 		uint32_t pgnum = offset / 0x1000;
@@ -79,17 +71,15 @@ pscnv_vspace_do_unmap (struct pscnv_vspace *vs, uint64_t offset, uint64_t length
 		offset += 0x1000;
 		length -= 0x1000;
 	}
-	/* XXX: determine which flushes we need here. */
 	if (vs->isbar) {
-		return pscnv_vspace_flush(vs, 6);
+		return nv50_vm_flush(vs->dev, 6);
 	} else {
-		ret = pscnv_vspace_flush(vs, 5);
-		if (ret)
-			return ret;
-		if (vs->engines & PSCNV_ENGINE_PGRAPH) {
-			ret = pscnv_vspace_flush(vs, 0);
-			if (ret)
-				return ret;
+		int i;
+		for (i = 0; i < PSCNV_ENGINES_NUM; i++) {
+			struct pscnv_engine *eng = dev_priv->engines[i];
+			if (vs->engref[i])
+				if ((ret = eng->tlb_flush(eng, vs)))
+					return ret;
 		}
 	}
 	return 0;

@@ -27,13 +27,9 @@
 #ifndef __PSCNV_FIFO_H__
 #define __PSCNV_FIFO_H__
 
-extern int pscnv_fifo_init(struct drm_device *);
-extern int pscnv_fifo_takedown(struct drm_device *);
-extern void pscnv_fifo_chan_free(struct pscnv_chan *ch);
 int pscnv_ioctl_fifo_init(struct drm_device *dev, void *data,
 						struct drm_file *file_priv);
 int pscnv_ioctl_fifo_init_ib(struct drm_device *dev, void *data,
 						struct drm_file *file_priv);
-void pscnv_fifo_irq_handler(struct drm_device *dev);
 
 #endif

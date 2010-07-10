@@ -38,10 +38,6 @@
 #include "nv50_display.h"
 #include "pscnv_vm.h"
 #include "pscnv_chan.h"
-#include "pscnv_fifo.h"
-#include "pscnv_graph.h"
-
-static void nouveau_stub_takedown(struct drm_device *dev) {}
 
 static int nouveau_init_engine_ptrs(struct drm_device *dev)
 {
@@ -409,6 +405,7 @@ nouveau_card_init(struct drm_device *dev)
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct nouveau_engine *engine;
 	int ret;
+	int i;
 
 	NV_DEBUG(dev, "prev state = %d\n", dev_priv->init_state);
 
@@ -462,21 +459,18 @@ nouveau_card_init(struct drm_device *dev)
 
 	/* XXX: handle noaccel */
 	/* PFIFO */
-	ret = pscnv_fifo_init(dev);
-	if (ret)
-		goto out_fb;
-
-	/* PGRAPH */
-	ret = pscnv_graph_init(dev);
-	if (ret)
-		goto out_fifo;
+	dev_priv->engines[PSCNV_ENGINE_FIFO] = nv50_fifo_init(dev);
+	if (dev_priv->engines[PSCNV_ENGINE_FIFO]) {
+		/* PGRAPH */
+		dev_priv->engines[PSCNV_ENGINE_GRAPH] = nv50_graph_init(dev);
+	}
 
 	/* this call irq_preinstall, register irq handler and
 	 * call irq_postinstall
 	 */
 	ret = drm_irq_install(dev);
 	if (ret)
-		goto out_graph;
+		goto out_fb;
 
 	ret = drm_vblank_init(dev, 0);
 	if (ret)
@@ -520,10 +514,11 @@ out_channel:
 #endif
 out_irq:
 	drm_irq_uninstall(dev);
-out_graph:
-	pscnv_graph_takedown(dev);
-out_fifo:
-	pscnv_fifo_takedown(dev);
+	for (i = 0; i < PSCNV_ENGINES_NUM; i++)
+		if (dev_priv->engines[i]) {
+			dev_priv->engines[i]->takedown(dev_priv->engines[i]);
+			dev_priv->engines[i] = 0;
+		}
 out_fb:
 	engine->fb.takedown(dev);
 out_timer:
@@ -545,6 +540,7 @@ static void nouveau_card_takedown(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct nouveau_engine *engine = &dev_priv->engine;
+	int i;
 
 	NV_DEBUG(dev, "prev state = %d\n", dev_priv->init_state);
 
@@ -552,8 +548,11 @@ static void nouveau_card_takedown(struct drm_device *dev)
 		NV_INFO(dev, "Stopping card...\n");
 		nouveau_backlight_exit(dev);
 		drm_irq_uninstall(dev);
-		pscnv_graph_takedown(dev);
-		pscnv_fifo_takedown(dev);
+		for (i = 0; i < PSCNV_ENGINES_NUM; i++)
+			if (dev_priv->engines[i]) {
+				dev_priv->engines[i]->takedown(dev_priv->engines[i]);
+				dev_priv->engines[i] = 0;
+			}
 		engine->fb.takedown(dev);
 		engine->timer.takedown(dev);
 		engine->mc.takedown(dev);

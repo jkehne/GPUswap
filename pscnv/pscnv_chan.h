@@ -29,6 +29,7 @@
 
 #include "pscnv_vm.h"
 #include "pscnv_ramht.h"
+#include "pscnv_engine.h"
 #include <linux/kref.h>
 
 #define NV50_CHAN_PD	0x1400
@@ -46,9 +47,8 @@ struct pscnv_chan {
 	uint32_t ramfc;
 	struct pscnv_vo *cache;
 	struct drm_file *filp;
-	int engines;
-	struct pscnv_vo *grctx;
 	struct kref ref;
+	void *engdata[PSCNV_ENGINES_NUM];
 };
 
 extern struct pscnv_chan *pscnv_chan_new(struct pscnv_vspace *);

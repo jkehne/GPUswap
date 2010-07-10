@@ -27,8 +27,8 @@
 #ifndef __PSCNV_VM_H__
 #define __PSCNV_VM_H__
 
-#include "pscnv_vram.h"
 #include "pscnv_tree.h"
+#include "pscnv_engine.h"
 
 #define NV50_VM_SIZE		0x10000000000ULL
 #define NV50_VM_PDE_COUNT	0x800
@@ -36,6 +36,8 @@
 #define NV50_VM_LPTE_COUNT	0x2000
 
 PSCNV_RB_HEAD(pscnv_vm_maptree, pscnv_vm_mapnode);
+
+struct pscnv_vo;
 
 struct pscnv_vspace {
 	int vid;
@@ -46,7 +48,7 @@ struct pscnv_vspace {
 	struct list_head chan_list;
 	struct pscnv_vm_maptree maps;
 	struct drm_file *filp;
-	int engines;
+	int engref[PSCNV_ENGINES_NUM];
 	struct kref ref;
 };
 
@@ -59,8 +61,6 @@ struct pscnv_vm_mapnode {
 	uint64_t size;
 	uint64_t maxgap;
 };
-
-#define PSCNV_ENGINE_PGRAPH 0x00000001
 
 extern int pscnv_vm_init(struct drm_device *);
 extern int pscnv_vm_takedown(struct drm_device *);

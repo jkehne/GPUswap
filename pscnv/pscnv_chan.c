@@ -31,8 +31,6 @@
 #include "pscnv_vm.h"
 #include "pscnv_ramht.h"
 #include "pscnv_chan.h"
-#include "pscnv_fifo.h"
-#include "pscnv_graph.h"
 
 struct pscnv_chan *
 pscnv_chan_new (struct pscnv_vspace *vs) {
@@ -110,10 +108,16 @@ pscnv_chan_new (struct pscnv_vspace *vs) {
 
 void
 pscnv_chan_free(struct pscnv_chan *ch) {
+	struct drm_nouveau_private *dev_priv = ch->vspace->dev->dev_private;
 	if (ch->cid) {
-		pscnv_fifo_chan_free(ch);
-		if (ch->engines & PSCNV_ENGINE_PGRAPH)
-			pscnv_graph_chan_free(ch);
+		int i;
+		for (i = 0; i < PSCNV_ENGINES_NUM; i++)
+			if (ch->engdata[i]) {
+				struct pscnv_engine *eng = dev_priv->engines[i];
+				eng->chan_kill(eng, ch);
+				eng->chan_free(eng, ch);
+				eng->tlb_flush(eng, ch->vspace);
+			}
 	}
 	mutex_lock(&ch->vspace->lock);
 	list_del(&ch->vspace_list);

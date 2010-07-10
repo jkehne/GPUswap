@@ -127,7 +127,7 @@ struct drm_pscnv_fifo_init_ib {
 	uint32_t _pad;
 };
 
-struct drm_pscnv_obj_gr_new {
+struct drm_pscnv_obj_eng_new {
 	uint32_t cid;		/* < */
 	uint32_t handle;	/* < */
 	uint32_t oclass;	/* < */
@@ -146,7 +146,7 @@ struct drm_pscnv_obj_gr_new {
 #define DRM_PSCNV_CHAN_FREE          0x27	/* Free a channel */
 #define DRM_PSCNV_OBJ_VDMA_NEW       0x28	/* Create a new vspace DMA object on a channel */
 #define DRM_PSCNV_FIFO_INIT          0x29	/* Initialises PFIFO processing on a channel */
-#define DRM_PSCNV_OBJ_GR_NEW         0x2a	/* Create a new GR object on a channel */
+#define DRM_PSCNV_OBJ_ENG_NEW        0x2a	/* Create a new engine object on a channel */
 #define DRM_PSCNV_FIFO_INIT_IB       0x2b	/* Initialises IB PFIFO processing on a channel */
 
 #endif /* __PSCNV_DRM_H__ */

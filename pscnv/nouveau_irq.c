@@ -40,8 +40,7 @@
 /* needed for hotplug irq */
 #include "nouveau_connector.h"
 #include "nv50_display.h"
-#include "pscnv_fifo.h"
-#include "pscnv_graph.h"
+#include "pscnv_engine.h"
 
 void
 nouveau_irq_preinstall(struct drm_device *dev)
@@ -1232,8 +1231,13 @@ nouveau_irq_handler(DRM_IRQ_ARGS)
 {
 	struct drm_device *dev = (struct drm_device *)arg;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	uint32_t status, fbdev_flags = 0;
+	uint32_t status;
+#if 0
+	uint32_t fbdev_flags = 0;
+#endif
 	unsigned long flags;
+	int i;
+	struct pscnv_engine *eng;
 
 	status = nv_rd32(dev, NV03_PMC_INTR_0);
 	if (!status)
@@ -1258,15 +1262,12 @@ nouveau_irq_handler(DRM_IRQ_ARGS)
 	}
 #endif
 
-	if (status & NV_PMC_INTR_0_PFIFO_PENDING) {
-		pscnv_fifo_irq_handler(dev);
-		status &= ~NV_PMC_INTR_0_PFIFO_PENDING;
-	}
-
-	if (status & NV_PMC_INTR_0_PGRAPH_PENDING) {
-		pscnv_graph_irq_handler(dev);
-
-		status &= ~NV_PMC_INTR_0_PGRAPH_PENDING;
+	for (i = 0; i < PSCNV_ENGINES_NUM; i++) {
+		eng = dev_priv->engines[i];
+		if (eng && eng->irq != -1 && (status & 1 << eng->irq)) {
+			eng->irq_handler(eng);
+			status &= ~(1 << eng->irq);
+		}
 	}
 
 	if (status & NV_PMC_INTR_0_CRTCn_PENDING) {

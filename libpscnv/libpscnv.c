@@ -183,11 +183,11 @@ int pscnv_fifo_init_ib(int fd, uint32_t cid, uint32_t pb_handle, uint32_t flags,
 	return drmCommandWriteRead(fd, DRM_PSCNV_FIFO_INIT_IB, &req, sizeof(req));
 }
 
-int pscnv_obj_gr_new(int fd, uint32_t cid, uint32_t handle, uint32_t oclass, uint32_t flags) {
-	struct drm_pscnv_obj_gr_new req;
+int pscnv_obj_eng_new(int fd, uint32_t cid, uint32_t handle, uint32_t oclass, uint32_t flags) {
+	struct drm_pscnv_obj_eng_new req;
 	req.cid = cid;
 	req.handle = handle;
 	req.oclass = oclass;
 	req.flags = flags;
-	return drmCommandWriteRead(fd, DRM_PSCNV_OBJ_GR_NEW, &req, sizeof(req));
+	return drmCommandWriteRead(fd, DRM_PSCNV_OBJ_ENG_NEW, &req, sizeof(req));
 }

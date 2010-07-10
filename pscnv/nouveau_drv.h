@@ -43,6 +43,7 @@
 #include "pscnv_vram.h"
 #include "pscnv_vm.h"
 #include "pscnv_ramht.h"
+#include "pscnv_engine.h"
 struct nouveau_grctx;
 
 #define MAX_NUM_DCB_ENTRIES 16
@@ -300,6 +301,7 @@ struct drm_nouveau_private {
 	struct nouveau_channel *fifos[NOUVEAU_MAX_CHANNEL_NR];
 #endif
 	struct nouveau_engine engine;
+	struct pscnv_engine *engines[PSCNV_ENGINES_NUM];
 #if 0
 	struct nouveau_channel *channel;
 #endif
@@ -361,17 +363,6 @@ struct drm_nouveau_private {
 	struct pscnv_vspace *vspaces[128];
 	struct pscnv_chan *chans[128];
 	struct mutex vm_mutex;
-
-	/* PFIFO */
-
-	struct pscnv_vo *playlist[2];
-	int cur_playlist;
-	spinlock_t pfifo_lock;
-	spinlock_t pgraph_lock;
-
-	/* PGRAPH */
-
-	uint32_t grctx_size;
 
 	/* for slow-path nv_wv32/nv_rv32 */
 
