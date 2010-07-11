@@ -8,7 +8,7 @@ pscnv-objs := nouveau_drv.o nouveau_ioc32.o nouveau_acpi.o nouveau_state.o \
 	     nv50_display.o nv50_crtc.o nv50_cursor.o nv50_calc.o nv50_dac.o \
 	     nv50_sor.o \
 	     pscnv_vram.o pscnv_vm.o pscnv_gem.o pscnv_ramht.o pscnv_chan.o \
-	     pscnv_engine.o nv50_fifo.o nv50_graph.o nv50_vm.o
+	     pscnv_engine.o nv50_fifo.o nv50_graph.o nv50_vm.o nv50_chan.o
 
 obj-m := pscnv.o
 

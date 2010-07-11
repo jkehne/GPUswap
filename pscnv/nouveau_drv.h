@@ -815,7 +815,6 @@ extern void nv50_mc_takedown(struct drm_device *);
 /* nv04_timer.c */
 extern int  nv04_timer_init(struct drm_device *);
 extern uint64_t nv04_timer_read(struct drm_device *);
-extern void nv04_timer_takedown(struct drm_device *);
 
 extern long nouveau_compat_ioctl(struct file *file, unsigned int cmd,
 				 unsigned long arg);

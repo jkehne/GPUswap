@@ -31,6 +31,7 @@
 #include "pscnv_vm.h"
 #include "pscnv_chan.h"
 #include "nv50_vm.h"
+#include "nv50_chan.h"
 
 #undef PSCNV_RB_AUGMENT
 
@@ -57,88 +58,14 @@ static int mapcmp(struct pscnv_vm_mapnode *a, struct pscnv_vm_mapnode *b) {
 
 PSCNV_RB_GENERATE_STATIC(pscnv_vm_maptree, pscnv_vm_mapnode, entry, mapcmp)
 
-static int
-pscnv_vspace_do_unmap (struct pscnv_vspace *vs, uint64_t offset, uint64_t length) {
+int pscnv_vspace_tlb_flush (struct pscnv_vspace *vs) {
 	struct drm_nouveau_private *dev_priv = vs->dev->dev_private;
-	int ret;
-	while (length) {
-		uint32_t pgnum = offset / 0x1000;
-		uint32_t pdenum = pgnum / NV50_VM_SPTE_COUNT;
-		uint32_t ptenum = pgnum % NV50_VM_SPTE_COUNT;
-		if (vs->pt[pdenum]) {
-			nv_wv32(vs->pt[pdenum], ptenum * 8, 0);
-		}
-		offset += 0x1000;
-		length -= 0x1000;
-	}
-	if (vs->isbar) {
-		return nv50_vm_flush(vs->dev, 6);
-	} else {
-		int i;
-		for (i = 0; i < PSCNV_ENGINES_NUM; i++) {
-			struct pscnv_engine *eng = dev_priv->engines[i];
-			if (vs->engref[i])
-				if ((ret = eng->tlb_flush(eng, vs)))
-					return ret;
-		}
-	}
-	return 0;
-}
-
-static int
-pscnv_vspace_fill_pd_slot (struct pscnv_vspace *vs, uint32_t pdenum) {
-	struct drm_nouveau_private *dev_priv = vs->dev->dev_private;
-	struct list_head *pos;
-	int i;
-	uint32_t chan_pd;
-	vs->pt[pdenum] = pscnv_vram_alloc(vs->dev, NV50_VM_SPTE_COUNT * 8, PSCNV_VO_CONTIG, 0, 0xa9e7ab1e);
-	if (!vs->pt[pdenum]) {
-		return -ENOMEM;
-	}
-
-	if (!vs->isbar)
-		pscnv_vspace_map3(vs->pt[pdenum]);
-
-	for (i = 0; i < NV50_VM_SPTE_COUNT; i++)
-		nv_wv32(vs->pt[pdenum], i * 8, 0);
-
-	if (dev_priv->chipset == 0x50)
-		chan_pd = NV50_CHAN_PD;
-	else
-		chan_pd = NV84_CHAN_PD;
-
-	list_for_each(pos, &vs->chan_list) {
-		struct pscnv_chan *ch = list_entry(pos, struct pscnv_chan, vspace_list);
-		uint64_t pde = vs->pt[pdenum]->start | 3;
-		nv_wv32(ch->vo, chan_pd + pdenum * 8 + 4, pde >> 32);
-		nv_wv32(ch->vo, chan_pd + pdenum * 8, pde);
-	}
-	return 0;
-}
-
-static int
-pscnv_vspace_do_map (struct pscnv_vspace *vs, struct pscnv_vo *vo, uint64_t offset) {
-	struct list_head *pos;
-	int ret;
-	list_for_each(pos, &vo->regions) {
-		/* XXX: beef up to use contig blocks */
-		struct pscnv_vram_region *reg = list_entry(pos, struct pscnv_vram_region, local_list);
-		uint64_t roff;
-		for (roff = 0; roff < reg->size; roff += 0x1000, offset += 0x1000) {
-			uint32_t pgnum = offset / 0x1000;
-			uint32_t pdenum = pgnum / NV50_VM_SPTE_COUNT;
-			uint32_t ptenum = pgnum % NV50_VM_SPTE_COUNT;
-			uint64_t pte = reg->start + roff;
-			pte |= (uint64_t)vo->tile_flags << 40;
-			pte |= 1; /* present */
-			if (!vs->pt[pdenum])
-				if ((ret = pscnv_vspace_fill_pd_slot (vs, pdenum))) {
-					pscnv_vspace_do_unmap (vs, offset, vo->size);
-					return ret;
-				}
-			nv_wv32(vs->pt[pdenum], ptenum * 8 + 4, pte >> 32);
-			nv_wv32(vs->pt[pdenum], ptenum * 8, pte);
-		}
+	int i, ret;
+	for (i = 0; i < PSCNV_ENGINES_NUM; i++) {
+		struct pscnv_engine *eng = dev_priv->engines[i];
+		if (vs->engref[i])
+			if ((ret = eng->tlb_flush(eng, vs)))
+				return ret;
 	}
 	return 0;
 }
@@ -169,7 +96,6 @@ pscnv_vspace_new (struct drm_device *dev) {
 
 void
 pscnv_vspace_free(struct pscnv_vspace *vs) {
-	int i;
 	struct pscnv_vm_mapnode *node;
 	while ((node = PSCNV_RB_ROOT(&vs->maps))) {
 		if (node->vo && !vs->isbar) {
@@ -178,11 +104,7 @@ pscnv_vspace_free(struct pscnv_vspace *vs) {
 		PSCNV_RB_REMOVE(pscnv_vm_maptree, &vs->maps, node);
 		kfree(node);
 	}
-	for (i = 0; i < NV50_VM_PDE_COUNT; i++) {
-		if (vs->pt[i]) {
-			pscnv_vram_free(vs->pt[i]);
-		}
-	}
+	nv50_vspace_free(vs);
 	kfree(vs);
 }
 
@@ -225,8 +147,8 @@ pscnv_vm_init(struct drm_device *dev) {
 	if (!barch)
 		return -ENOMEM;
 	nv_wr32(dev, 0x1704, 0x40000000 | barch->vo->start >> 12);
-	bar1dma = pscnv_chan_dmaobj_new(barch, 0x7fc00000, 0, dev_priv->fb_size);
-	bar3dma = pscnv_chan_dmaobj_new(barch, 0x7fc00000, dev_priv->fb_size, dev_priv->ramin_size);
+	bar1dma = nv50_chan_dmaobj_new(barch, 0x7fc00000, 0, dev_priv->fb_size);
+	bar3dma = nv50_chan_dmaobj_new(barch, 0x7fc00000, dev_priv->fb_size, dev_priv->ramin_size);
 	nv_wr32(dev, 0x1708, 0x80000000 | bar1dma >> 4);
 	nv_wr32(dev, 0x170c, 0x80000000 | bar3dma >> 4);
 	dev_priv->barvm = barvm;
@@ -352,7 +274,7 @@ pscnv_vspace_map(struct pscnv_vspace *vs, struct pscnv_vo *vo,
 	if (pscnv_vm_debug >= 1)
 		NV_INFO(vs->dev, "Mapping VO %x/%d at %llx-%llx.\n", vo->cookie, vo->serial, node->start,
 				node->start + node->size);
-	pscnv_vspace_do_map(vs, vo, node->start);
+	nv50_vspace_do_map(vs, vo, node->start);
 	*res = node;
 	mutex_unlock(&vs->lock);
 	return 0;
@@ -363,7 +285,7 @@ pscnv_vspace_unmap_node_unlocked(struct pscnv_vm_mapnode *node) {
 	if (pscnv_vm_debug >= 1) {
 		NV_INFO(node->vspace->dev, "Unmapping range %llx-%llx.\n", node->start, node->start + node->size);
 	}
-	pscnv_vspace_do_unmap(node->vspace, node->start, node->size);
+	nv50_vspace_do_unmap(node->vspace, node->start, node->size);
 	if (!node->vspace->isbar) {
 		drm_gem_object_unreference(node->vo->gem);
 	}

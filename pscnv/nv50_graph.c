@@ -30,6 +30,7 @@
 #include "nouveau_grctx.h"
 #include "pscnv_engine.h"
 #include "pscnv_chan.h"
+#include "nv50_chan.h"
 #include "nv50_vm.h"
 
 struct nv50_graph_engine {
@@ -359,7 +360,7 @@ void nv50_graph_chan_free(struct pscnv_engine *eng, struct pscnv_chan *ch) {
 }
 
 int nv50_graph_chan_obj_new(struct pscnv_engine *eng, struct pscnv_chan *ch, uint32_t handle, uint32_t oclass, uint32_t flags) {
-	uint32_t inst = pscnv_chan_iobj_new(ch, 0x10);
+	uint32_t inst = nv50_chan_iobj_new(ch, 0x10);
 	if (!inst) {
 		return -ENOMEM;
 	}

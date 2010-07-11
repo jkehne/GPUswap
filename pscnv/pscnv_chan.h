@@ -32,9 +32,6 @@
 #include "pscnv_engine.h"
 #include <linux/kref.h>
 
-#define NV50_CHAN_PD	0x1400
-#define NV84_CHAN_PD	0x0200
-
 struct pscnv_chan {
 	int cid;
 	struct pscnv_vspace *vspace;
@@ -53,8 +50,6 @@ struct pscnv_chan {
 
 extern struct pscnv_chan *pscnv_chan_new(struct pscnv_vspace *);
 extern void pscnv_chan_free(struct pscnv_chan *);
-extern int pscnv_chan_iobj_new(struct pscnv_chan *, uint32_t size);
-extern int pscnv_chan_dmaobj_new(struct pscnv_chan *, uint32_t type, uint64_t start, uint64_t size);
 
 extern void pscnv_chan_cleanup(struct drm_device *dev, struct drm_file *file_priv);
 extern int pscnv_chan_mmap(struct file *filp, struct vm_area_struct *vma);

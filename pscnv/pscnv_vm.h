@@ -72,6 +72,7 @@ extern int pscnv_vspace_unmap_node(struct pscnv_vm_mapnode *node);
 extern int pscnv_vspace_map1(struct pscnv_vo *);
 extern int pscnv_vspace_map3(struct pscnv_vo *);
 extern void pscnv_vspace_ref_free(struct kref *ref);
+int pscnv_vspace_tlb_flush (struct pscnv_vspace *vs);
 
 extern void pscnv_vspace_cleanup(struct drm_device *dev, struct drm_file *file_priv);
 extern int pscnv_mmap(struct file *filp, struct vm_area_struct *vma);

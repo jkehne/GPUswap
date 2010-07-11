@@ -3,6 +3,8 @@
 #include "nouveau_drv.h"
 #include "nv50_vm.h"
 #include "pscnv_vm.h"
+#include "nv50_chan.h"
+#include "pscnv_chan.h"
 
 int
 nv50_vm_flush(struct drm_device *dev, int unit) {
@@ -12,6 +14,95 @@ nv50_vm_flush(struct drm_device *dev, int unit) {
 		return -EIO;
 	}
 	return 0;
+}
+
+static int
+nv50_vspace_fill_pd_slot (struct pscnv_vspace *vs, uint32_t pdenum) {
+	struct drm_nouveau_private *dev_priv = vs->dev->dev_private;
+	struct list_head *pos;
+	int i;
+	uint32_t chan_pd;
+	vs->pt[pdenum] = pscnv_vram_alloc(vs->dev, NV50_VM_SPTE_COUNT * 8, PSCNV_VO_CONTIG, 0, 0xa9e7ab1e);
+	if (!vs->pt[pdenum]) {
+		return -ENOMEM;
+	}
+
+	if (!vs->isbar)
+		pscnv_vspace_map3(vs->pt[pdenum]);
+
+	for (i = 0; i < NV50_VM_SPTE_COUNT; i++)
+		nv_wv32(vs->pt[pdenum], i * 8, 0);
+
+	if (dev_priv->chipset == 0x50)
+		chan_pd = NV50_CHAN_PD;
+	else
+		chan_pd = NV84_CHAN_PD;
+
+	list_for_each(pos, &vs->chan_list) {
+		struct pscnv_chan *ch = list_entry(pos, struct pscnv_chan, vspace_list);
+		uint64_t pde = vs->pt[pdenum]->start | 3;
+		nv_wv32(ch->vo, chan_pd + pdenum * 8 + 4, pde >> 32);
+		nv_wv32(ch->vo, chan_pd + pdenum * 8, pde);
+	}
+	return 0;
+}
+
+int
+nv50_vspace_do_map (struct pscnv_vspace *vs, struct pscnv_vo *vo, uint64_t offset) {
+	struct list_head *pos;
+	int ret;
+	list_for_each(pos, &vo->regions) {
+		/* XXX: beef up to use contig blocks */
+		struct pscnv_vram_region *reg = list_entry(pos, struct pscnv_vram_region, local_list);
+		uint64_t roff;
+		for (roff = 0; roff < reg->size; roff += 0x1000, offset += 0x1000) {
+			uint32_t pgnum = offset / 0x1000;
+			uint32_t pdenum = pgnum / NV50_VM_SPTE_COUNT;
+			uint32_t ptenum = pgnum % NV50_VM_SPTE_COUNT;
+			uint64_t pte = reg->start + roff;
+			pte |= (uint64_t)vo->tile_flags << 40;
+			pte |= 1; /* present */
+			if (!vs->pt[pdenum])
+				if ((ret = nv50_vspace_fill_pd_slot (vs, pdenum))) {
+					nv50_vspace_do_unmap (vs, offset, vo->size);
+					return ret;
+				}
+			nv_wv32(vs->pt[pdenum], ptenum * 8 + 4, pte >> 32);
+			nv_wv32(vs->pt[pdenum], ptenum * 8, pte);
+		}
+	}
+	return 0;
+}
+
+int
+nv50_vspace_do_unmap (struct pscnv_vspace *vs, uint64_t offset, uint64_t length) {
+	struct drm_nouveau_private *dev_priv = vs->dev->dev_private;
+	int ret;
+	while (length) {
+		uint32_t pgnum = offset / 0x1000;
+		uint32_t pdenum = pgnum / NV50_VM_SPTE_COUNT;
+		uint32_t ptenum = pgnum % NV50_VM_SPTE_COUNT;
+		if (vs->pt[pdenum]) {
+			nv_wv32(vs->pt[pdenum], ptenum * 8, 0);
+		}
+		offset += 0x1000;
+		length -= 0x1000;
+	}
+	if (vs->isbar) {
+		return nv50_vm_flush(vs->dev, 6);
+	} else {
+		pscnv_vspace_tlb_flush(vs);
+	}
+	return 0;
+}
+
+void nv50_vspace_free(struct pscnv_vspace *vs) {
+	int i;
+	for (i = 0; i < NV50_VM_PDE_COUNT; i++) {
+		if (vs->pt[i]) {
+			pscnv_vram_free(vs->pt[i]);
+		}
+	}
 }
 
 /* VM trap handling on NV50 is some kind of a fucking joke.

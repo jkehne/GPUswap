@@ -39,7 +39,6 @@
 #include "pscnv_vm.h"
 #include "pscnv_chan.h"
 
-
 static unsigned int
 nouveau_vga_set_decode(void *priv, bool state)
 {
