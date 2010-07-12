@@ -272,7 +272,7 @@ int pscnv_ioctl_fifo_init(struct drm_device *dev, void *data,
 	nv_wv32(ch->vo, ch->ramfc + 0x74, 0);
 	nv_wv32(ch->vo, ch->ramfc + 0x78, req->flags);
 	nv_wv32(ch->vo, ch->ramfc + 0x7c, 0x30000000 ^ req->slimask);
-	nv_wv32(ch->vo, ch->ramfc + 0x80, 0xc000000 | ch->ramht.offset >> 4); /* XXX figure out size */
+	nv_wv32(ch->vo, ch->ramfc + 0x80, 0x4000000 | ch->ramht.offset >> 4 | (ch->ramht.bits - 9) << 27);
 	nv_wv32(ch->vo, ch->ramfc + 0x84, 0);
 
 	if (dev_priv->chipset != 0x50) {
@@ -365,7 +365,7 @@ int pscnv_ioctl_fifo_init_ib(struct drm_device *dev, void *data,
 	nv_wv32(ch->vo, ch->ramfc + 0x74, 0);
 	nv_wv32(ch->vo, ch->ramfc + 0x78, req->flags);
 	nv_wv32(ch->vo, ch->ramfc + 0x7c, 0x30000000 ^ req->slimask);
-	nv_wv32(ch->vo, ch->ramfc + 0x80, 0xc000000 | ch->ramht.offset >> 4); /* XXX figure out size */
+	nv_wv32(ch->vo, ch->ramfc + 0x80, 0x4000000 | ch->ramht.offset >> 4 | (ch->ramht.bits - 9) << 27);
 	nv_wv32(ch->vo, ch->ramfc + 0x84, 0);
 
 	if (dev_priv->chipset != 0x50) {
