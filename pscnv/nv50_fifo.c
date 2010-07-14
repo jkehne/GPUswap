@@ -394,12 +394,12 @@ struct pscnv_enumval {
 };
 
 static struct pscnv_enumval dma_pusher_errors[] = {
-	{ 1, "CALL", 0 },
-	{ 2, "NON_CACHE", 0 },
-	{ 3, "RET", 0 },
-	{ 4, "INVALID_VALUE", 0 },
+	{ 1, "CALL_OVERFLOW", 0 },
+	{ 2, "INVALID_METHOD", 0 },
+	{ 3, "RET_UNDERFLOW", 0 },
+	{ 4, "INVALID_COMMAND", 0 },
 	{ 5, "IB", 0 },
-	{ 6, "PROTECTION", 0 },
+	{ 6, "MEM_FAULT", 0 },
 
 	{ 0, 0, 0 },
 };
@@ -408,7 +408,7 @@ static struct pscnv_enumval semaphore_errors[] = {
 	{ 1, "OFFSET_UNALIGNED", 0 },
 	{ 2, "INVALID_STATE", 0 },
 	{ 3, "OFFSET_TOO_LARGE", 0 },
-	{ 4, "PROTECTION", 0 },
+	{ 4, "MEM_FAULT", 0 },
 
 	{ 0, 0, 0 },
 };
