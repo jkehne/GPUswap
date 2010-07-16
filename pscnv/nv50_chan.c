@@ -114,15 +114,13 @@ nv50_chan_iobj_new(struct pscnv_chan *ch, uint32_t size) {
 int
 nv50_chan_dmaobj_new(struct pscnv_chan *ch, uint32_t type, uint64_t start, uint64_t size) {
 	uint64_t end = start + size - 1;
-	int res = nv50_chan_iobj_new (ch, 0x18);
+	int res = nv50_chan_iobj_new (ch, 0x10);
 	if (!res)
 		return 0;
 	nv_wv32(ch->vo, res + 0x00, type);
 	nv_wv32(ch->vo, res + 0x04, end);
 	nv_wv32(ch->vo, res + 0x08, start);
 	nv_wv32(ch->vo, res + 0x0c, (end >> 32) << 24 | (start >> 32));
-	nv_wv32(ch->vo, res + 0x10, 0);
-	nv_wv32(ch->vo, res + 0x14, 0);
 	return res;
 }
 
