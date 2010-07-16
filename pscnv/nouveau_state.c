@@ -133,10 +133,10 @@ nouveau_card_init(struct drm_device *dev)
 
 	/* XXX: handle noaccel */
 	/* PFIFO */
-	dev_priv->engines[PSCNV_ENGINE_FIFO] = nv50_fifo_init(dev);
-	if (dev_priv->engines[PSCNV_ENGINE_FIFO]) {
+	ret = nv50_fifo_init(dev);
+	if (!ret) {
 		/* PGRAPH */
-		dev_priv->engines[PSCNV_ENGINE_GRAPH] = nv50_graph_init(dev);
+		nv50_graph_init(dev);
 	}
 
 	/* this call irq_preinstall, register irq handler and

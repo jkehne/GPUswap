@@ -47,13 +47,14 @@ int nv50_fifo_chan_alloc(struct pscnv_engine *eng, struct pscnv_chan *ch);
 void nv50_fifo_chan_free(struct pscnv_engine *eng, struct pscnv_chan *ch);
 void nv50_fifo_chan_kill(struct pscnv_engine *eng, struct pscnv_chan *ch);
 
-struct pscnv_engine *nv50_fifo_init(struct drm_device *dev) {
+int nv50_fifo_init(struct drm_device *dev) {
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	int i;
 	struct nv50_fifo_engine *res = kzalloc(sizeof *res, GFP_KERNEL);
 
 	if (!res) {
 		NV_ERROR(dev, "PFIFO: Couldn't allocate engine!\n");
-		return 0;
+		return -ENOMEM;
 	}
 
 	res->base.dev = dev;
@@ -77,7 +78,7 @@ struct pscnv_engine *nv50_fifo_init(struct drm_device *dev) {
 		if (res->playlist[1])
 			pscnv_vram_free(res->playlist[1]);
 		kfree(res);
-		return 0;
+		return -ENOMEM;
 	}
 	pscnv_vspace_map3(res->playlist[0]);
 	pscnv_vspace_map3(res->playlist[1]);
@@ -111,7 +112,8 @@ struct pscnv_engine *nv50_fifo_init(struct drm_device *dev) {
 	nv_wr32(dev, 0x3200, 1);
 	nv_wr32(dev, 0x2500, 1);
 
-	return &res->base;
+	dev_priv->engines[PSCNV_ENGINE_FIFO] = &res->base;
+	return 0;
 }
 
 void nv50_fifo_takedown(struct pscnv_engine *eng) {

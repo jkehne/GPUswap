@@ -148,7 +148,7 @@ void nv50_graph_chan_free(struct pscnv_engine *eng, struct pscnv_chan *ch);
 void nv50_graph_chan_kill(struct pscnv_engine *eng, struct pscnv_chan *ch);
 int nv50_graph_chan_obj_new(struct pscnv_engine *eng, struct pscnv_chan *ch, uint32_t handle, uint32_t oclass, uint32_t flags);
 
-struct pscnv_engine *nv50_graph_init(struct drm_device *dev) {
+int nv50_graph_init(struct drm_device *dev) {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	uint32_t units = nv_rd32(dev, 0x1540);
 	struct nouveau_grctx ctx = {};
@@ -158,7 +158,7 @@ struct pscnv_engine *nv50_graph_init(struct drm_device *dev) {
 
 	if (!res) {
 		NV_ERROR(dev, "PGRAPH: Couldn't allocate engine!\n");
-		return 0;
+		return -ENOMEM;
 	}
 
 	res->base.dev = dev;
@@ -231,7 +231,7 @@ struct pscnv_engine *nv50_graph_init(struct drm_device *dev) {
 	if (!ctx.data) {
 		NV_ERROR (dev, "PGRAPH: Couldn't allocate ctxprog!\n");
 		kfree(res);
-		return 0;
+		return -ENOMEM;
 	}
 	ctx.ctxprog_max = 512;
 	ctx.dev = dev;
@@ -239,7 +239,7 @@ struct pscnv_engine *nv50_graph_init(struct drm_device *dev) {
 	if ((ret = nv50_grctx_init(&ctx))) {
 		kfree(ctx.data);
 		kfree(res);
-		return 0;
+		return ret;
 	}
 	res->grctx_size = ctx.ctxvals_pos * 4;
 	nv_wr32(dev, 0x400324, 0);
@@ -253,7 +253,8 @@ struct pscnv_engine *nv50_graph_init(struct drm_device *dev) {
 	nv_wr32(dev, 0x400784, 0);
 	nv_wr32(dev, 0x400320, 4);
 
-	return &res->base;
+	dev_priv->engines[PSCNV_ENGINE_GRAPH] = &res->base;
+	return 0;
 }
 
 void nv50_graph_takedown(struct pscnv_engine *eng) {
