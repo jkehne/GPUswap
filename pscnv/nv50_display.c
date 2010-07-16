@@ -105,7 +105,7 @@ nv50_evo_channel_new(struct drm_device *dev, struct nouveau_channel **pchan)
 	chan->evo_ramht.bits = 9;
 	chan->evo_ramht.offset = 0;
 	chan->evo_inst = 0x1000;
-	pscnv_vspace_map3(chan->evo_obj);
+	dev_priv->vm->map_kernel(chan->evo_obj);
 	for (i = 0; i < 0x1000; i += 4)
 		nv_wv32(chan->evo_obj, i, 0);
 
@@ -139,7 +139,7 @@ nv50_evo_channel_new(struct drm_device *dev, struct nouveau_channel **pchan)
 		nv50_evo_channel_del(pchan);
 		return -ENOMEM;
 	}
-	pscnv_vspace_map3(chan->pushbuf);
+	dev_priv->vm->map_kernel(chan->pushbuf);
 	chan->pushbuf_base = 0;
 
 	return 0;

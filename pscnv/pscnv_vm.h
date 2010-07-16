@@ -30,11 +30,6 @@
 #include "pscnv_tree.h"
 #include "pscnv_engine.h"
 
-#define NV50_VM_SIZE		0x10000000000ULL
-#define NV50_VM_PDE_COUNT	0x800
-#define NV50_VM_SPTE_COUNT	0x20000
-#define NV50_VM_LPTE_COUNT	0x2000
-
 PSCNV_RB_HEAD(pscnv_vm_maptree, pscnv_vm_mapnode);
 
 struct pscnv_vo;
@@ -43,13 +38,13 @@ struct pscnv_vspace {
 	int vid;
 	struct drm_device *dev;
 	struct mutex lock;
-	int isbar;
-	struct pscnv_vo *pt[NV50_VM_PDE_COUNT];
 	struct list_head chan_list;
 	struct pscnv_vm_maptree maps;
 	struct drm_file *filp;
 	int engref[PSCNV_ENGINES_NUM];
 	struct kref ref;
+	void *engdata;
+	int isbar;
 };
 
 struct pscnv_vm_mapnode {
@@ -62,15 +57,11 @@ struct pscnv_vm_mapnode {
 	uint64_t maxgap;
 };
 
-extern int pscnv_vm_init(struct drm_device *);
-extern int pscnv_vm_takedown(struct drm_device *);
 extern struct pscnv_vspace *pscnv_vspace_new(struct drm_device *);
 extern void pscnv_vspace_free(struct pscnv_vspace *);
 extern int pscnv_vspace_map(struct pscnv_vspace *, struct pscnv_vo *, uint64_t start, uint64_t end, int back, struct pscnv_vm_mapnode **res);
 extern int pscnv_vspace_unmap(struct pscnv_vspace *, uint64_t start);
 extern int pscnv_vspace_unmap_node(struct pscnv_vm_mapnode *node);
-extern int pscnv_vspace_map1(struct pscnv_vo *);
-extern int pscnv_vspace_map3(struct pscnv_vo *);
 extern void pscnv_vspace_ref_free(struct kref *ref);
 int pscnv_vspace_tlb_flush (struct pscnv_vspace *vs);
 

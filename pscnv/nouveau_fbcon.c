@@ -255,7 +255,7 @@ nouveau_fbcon_create(struct drm_device *dev, uint32_t fb_width,
 	}
 	vo = obj->driver_private;
 
-	ret = pscnv_vspace_map1(vo);
+	ret = dev_priv->vm->map_user(vo);
 	if (ret) {
 		NV_ERROR(dev, "failed to map fb: %d\n", ret);
 		pscnv_vram_free(vo);

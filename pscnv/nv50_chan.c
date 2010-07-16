@@ -3,6 +3,7 @@
 #include "nouveau_drv.h"
 #include "nv50_chan.h"
 #include "pscnv_chan.h"
+#include "nv50_vm.h"
 
 int nv50_chan_new (struct pscnv_chan *ch) {
 	struct pscnv_vspace *vs = ch->vspace;
@@ -27,16 +28,16 @@ int nv50_chan_new (struct pscnv_chan *ch) {
 		return -ENOMEM;
 
 	if (!vs->isbar)
-		pscnv_vspace_map3(ch->vo);
+		dev_priv->vm->map_kernel(ch->vo);
 
 	if (dev_priv->chipset == 0x50)
 		chan_pd = NV50_CHAN_PD;
 	else
 		chan_pd = NV84_CHAN_PD;
 	for (i = 0; i < NV50_VM_PDE_COUNT; i++) {
-		if (vs->pt[i]) {
-			nv_wv32(ch->vo, chan_pd + i * 8 + 4, vs->pt[i]->start >> 32);
-			nv_wv32(ch->vo, chan_pd + i * 8, vs->pt[i]->start | 0x3);
+		if (nv50_vs(vs)->pt[i]) {
+			nv_wv32(ch->vo, chan_pd + i * 8 + 4, nv50_vs(vs)->pt[i]->start >> 32);
+			nv_wv32(ch->vo, chan_pd + i * 8, nv50_vs(vs)->pt[i]->start | 0x3);
 		} else {
 			nv_wv32(ch->vo, chan_pd + i * 8, 0);
 		}

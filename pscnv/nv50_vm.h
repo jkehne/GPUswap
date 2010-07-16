@@ -3,11 +3,27 @@
 
 #include "drmP.h"
 #include "drm.h"
+#include "pscnv_engine.h"
+
+#define NV50_VM_SIZE		0x10000000000ULL
+#define NV50_VM_PDE_COUNT	0x800
+#define NV50_VM_SPTE_COUNT	0x20000
+#define NV50_VM_LPTE_COUNT	0x2000
+
+#define nv50_vm(x) container_of(x, struct nv50_vm_engine, base)
+#define nv50_vs(x) ((struct nv50_vspace *)(x)->engdata)
+
+struct nv50_vm_engine {
+	struct pscnv_vm_engine base;
+	struct pscnv_vspace *barvm;
+	struct pscnv_chan *barch;
+};
+
+struct nv50_vspace {
+	struct pscnv_vo *pt[NV50_VM_PDE_COUNT];
+};
 
 int nv50_vm_flush (struct drm_device *dev, int unit);
-int nv50_vspace_do_map (struct pscnv_vspace *vs, struct pscnv_vo *vo, uint64_t offset);
-int nv50_vspace_do_unmap (struct pscnv_vspace *vs, uint64_t offset, uint64_t length);
-void nv50_vspace_free(struct pscnv_vspace *vs);
 void nv50_vm_trap(struct drm_device *dev);
 
 #endif /* __NV50_VM_H__ */

@@ -273,6 +273,8 @@ struct drm_nouveau_private {
 #if 0
 	struct nouveau_channel *fifos[NOUVEAU_MAX_CHANNEL_NR];
 #endif
+	struct pscnv_vm_engine *vm;
+	struct pscnv_chan_engine *chan;
 	struct pscnv_engine *engines[PSCNV_ENGINES_NUM];
 #if 0
 	struct nouveau_channel *channel;
@@ -328,9 +330,6 @@ struct drm_nouveau_private {
 	struct list_head vram_free_list;
 	uint32_t vram_rblock_size;
 	struct mutex vram_mutex;
-
-	struct pscnv_vspace *barvm;
-	struct pscnv_chan *barch;
 
 	struct pscnv_vspace *vspaces[128];
 	struct pscnv_chan *chans[128];
@@ -1070,7 +1069,7 @@ static inline uint32_t nv_rv32(struct pscnv_vo *vo,
 	struct drm_nouveau_private *dev_priv = vo->dev->dev_private;
 	uint32_t res;
 	uint64_t addr = vo->start + offset;
-	if (vo->map3 && dev_priv->barvm)
+	if (vo->map3 && dev_priv->vm)
 		return ioread32_native(dev_priv->ramin + vo->map3->start - dev_priv->fb_size + offset);
 	spin_lock(&dev_priv->pramin_lock);
 	if (addr >> 16 != dev_priv->pramin_start) {
@@ -1087,7 +1086,7 @@ static inline void nv_wv32(struct pscnv_vo *vo,
 {
 	struct drm_nouveau_private *dev_priv = vo->dev->dev_private;
 	uint64_t addr = vo->start + offset;
-	if (vo->map3 && dev_priv->barvm)
+	if (vo->map3 && dev_priv->vm)
 		return iowrite32_native(val, dev_priv->ramin + vo->map3->start - dev_priv->fb_size + offset);
 	spin_lock(&dev_priv->pramin_lock);
 	if (addr >> 16 != dev_priv->pramin_start) {

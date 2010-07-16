@@ -724,6 +724,7 @@ static const struct drm_crtc_helper_funcs nv50_crtc_helper_funcs = {
 int
 nv50_crtc_create(struct drm_device *dev, int index)
 {
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct nouveau_crtc *nv_crtc = NULL;
 	int i;
 
@@ -757,7 +758,7 @@ nv50_crtc_create(struct drm_device *dev, int index)
 		return -ENOMEM;
 	}
 
-	pscnv_vspace_map3(nv_crtc->lut.vo);
+	dev_priv->vm->map_kernel(nv_crtc->lut.vo);
 
 	nv_crtc->index = index;
 

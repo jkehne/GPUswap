@@ -6,6 +6,10 @@
 #include "nv50_chan.h"
 #include "pscnv_chan.h"
 
+int nv50_vm_map_kernel(struct pscnv_vo *vo);
+void nv50_vm_takedown(struct drm_device *dev);
+int nv50_vspace_do_unmap (struct pscnv_vspace *vs, uint64_t offset, uint64_t length);
+
 int
 nv50_vm_flush(struct drm_device *dev, int unit) {
 	nv_wr32(dev, 0x100c80, unit << 16 | 1);
@@ -22,16 +26,16 @@ nv50_vspace_fill_pd_slot (struct pscnv_vspace *vs, uint32_t pdenum) {
 	struct list_head *pos;
 	int i;
 	uint32_t chan_pd;
-	vs->pt[pdenum] = pscnv_vram_alloc(vs->dev, NV50_VM_SPTE_COUNT * 8, PSCNV_VO_CONTIG, 0, 0xa9e7ab1e);
-	if (!vs->pt[pdenum]) {
+	nv50_vs(vs)->pt[pdenum] = pscnv_vram_alloc(vs->dev, NV50_VM_SPTE_COUNT * 8, PSCNV_VO_CONTIG, 0, 0xa9e7ab1e);
+	if (!nv50_vs(vs)->pt[pdenum]) {
 		return -ENOMEM;
 	}
 
 	if (!vs->isbar)
-		pscnv_vspace_map3(vs->pt[pdenum]);
+		nv50_vm_map_kernel(nv50_vs(vs)->pt[pdenum]);
 
 	for (i = 0; i < NV50_VM_SPTE_COUNT; i++)
-		nv_wv32(vs->pt[pdenum], i * 8, 0);
+		nv_wv32(nv50_vs(vs)->pt[pdenum], i * 8, 0);
 
 	if (dev_priv->chipset == 0x50)
 		chan_pd = NV50_CHAN_PD;
@@ -40,7 +44,7 @@ nv50_vspace_fill_pd_slot (struct pscnv_vspace *vs, uint32_t pdenum) {
 
 	list_for_each(pos, &vs->chan_list) {
 		struct pscnv_chan *ch = list_entry(pos, struct pscnv_chan, vspace_list);
-		uint64_t pde = vs->pt[pdenum]->start | 3;
+		uint64_t pde = nv50_vs(vs)->pt[pdenum]->start | 3;
 		nv_wv32(ch->vo, chan_pd + pdenum * 8 + 4, pde >> 32);
 		nv_wv32(ch->vo, chan_pd + pdenum * 8, pde);
 	}
@@ -62,13 +66,13 @@ nv50_vspace_do_map (struct pscnv_vspace *vs, struct pscnv_vo *vo, uint64_t offse
 			uint64_t pte = reg->start + roff;
 			pte |= (uint64_t)vo->tile_flags << 40;
 			pte |= 1; /* present */
-			if (!vs->pt[pdenum])
+			if (!nv50_vs(vs)->pt[pdenum])
 				if ((ret = nv50_vspace_fill_pd_slot (vs, pdenum))) {
 					nv50_vspace_do_unmap (vs, offset, vo->size);
 					return ret;
 				}
-			nv_wv32(vs->pt[pdenum], ptenum * 8 + 4, pte >> 32);
-			nv_wv32(vs->pt[pdenum], ptenum * 8, pte);
+			nv_wv32(nv50_vs(vs)->pt[pdenum], ptenum * 8 + 4, pte >> 32);
+			nv_wv32(nv50_vs(vs)->pt[pdenum], ptenum * 8, pte);
 		}
 	}
 	return 0;
@@ -76,14 +80,12 @@ nv50_vspace_do_map (struct pscnv_vspace *vs, struct pscnv_vo *vo, uint64_t offse
 
 int
 nv50_vspace_do_unmap (struct pscnv_vspace *vs, uint64_t offset, uint64_t length) {
-	struct drm_nouveau_private *dev_priv = vs->dev->dev_private;
-	int ret;
 	while (length) {
 		uint32_t pgnum = offset / 0x1000;
 		uint32_t pdenum = pgnum / NV50_VM_SPTE_COUNT;
 		uint32_t ptenum = pgnum % NV50_VM_SPTE_COUNT;
-		if (vs->pt[pdenum]) {
-			nv_wv32(vs->pt[pdenum], ptenum * 8, 0);
+		if (nv50_vs(vs)->pt[pdenum]) {
+			nv_wv32(nv50_vs(vs)->pt[pdenum], ptenum * 8, 0);
 		}
 		offset += 0x1000;
 		length -= 0x1000;
@@ -96,13 +98,116 @@ nv50_vspace_do_unmap (struct pscnv_vspace *vs, uint64_t offset, uint64_t length)
 	return 0;
 }
 
+int nv50_vspace_new(struct pscnv_vspace *vs) {
+	vs->engdata = kzalloc(sizeof(struct nv50_vspace), GFP_KERNEL);
+	if (!vs->engdata) {
+		NV_ERROR(vs->dev, "VM: Couldn't alloc vspace eng\n");
+		return -ENOMEM;
+	}
+	return 0;
+}
+
 void nv50_vspace_free(struct pscnv_vspace *vs) {
 	int i;
 	for (i = 0; i < NV50_VM_PDE_COUNT; i++) {
-		if (vs->pt[i]) {
-			pscnv_vram_free(vs->pt[i]);
+		if (nv50_vs(vs)->pt[i]) {
+			pscnv_vram_free(nv50_vs(vs)->pt[i]);
 		}
 	}
+}
+
+int nv50_vm_map_user(struct pscnv_vo *vo) {
+	struct drm_nouveau_private *dev_priv = vo->dev->dev_private;
+	struct nv50_vm_engine *vme = nv50_vm(dev_priv->vm);
+	if (vo->map1)
+		return 0;
+	return pscnv_vspace_map(vme->barvm, vo, 0, dev_priv->fb_size, 0, &vo->map1);
+}
+
+int nv50_vm_map_kernel(struct pscnv_vo *vo) {
+	struct drm_nouveau_private *dev_priv = vo->dev->dev_private;
+	struct nv50_vm_engine *vme = nv50_vm(dev_priv->vm);
+	if (vo->map3)
+		return 0;
+	return pscnv_vspace_map(vme->barvm, vo, dev_priv->fb_size, dev_priv->fb_size + dev_priv->ramin_size, 0, &vo->map3);
+}
+
+int
+nv50_vm_init(struct drm_device *dev) {
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	int bar1dma, bar3dma;
+	struct nv50_vm_engine *vme = kzalloc(sizeof *vme, GFP_KERNEL);
+	if (!vme) {
+		NV_ERROR(dev, "VM: Couldn't alloc engine\n");
+		return -ENOMEM;
+	}
+	vme->base.takedown = nv50_vm_takedown;
+	vme->base.do_vspace_new = nv50_vspace_new;
+	vme->base.do_vspace_free = nv50_vspace_free;
+	vme->base.do_map = nv50_vspace_do_map;
+	vme->base.do_unmap = nv50_vspace_do_unmap;
+	vme->base.map_user = nv50_vm_map_user;
+	vme->base.map_kernel = nv50_vm_map_kernel;
+	dev_priv->vm = &vme->base;
+
+	/* This is needed to get meaningful information from 100c90
+	 * on traps. No idea what these values mean exactly. */
+	switch (dev_priv->chipset) {
+	case 0x50:
+		nv_wr32(dev, 0x100c90, 0x0707ff);
+		break;
+	case 0xa3:
+	case 0xa5:
+	case 0xa8:
+	case 0xaf:
+		nv_wr32(dev, 0x100c90, 0x0d0fff);
+		break;
+	default:
+		nv_wr32(dev, 0x100c90, 0x1d07ff);
+		break;
+	}
+	vme->barvm = pscnv_vspace_new (dev);
+	if (!vme->barvm) {
+		kfree(vme);
+		dev_priv->vm = 0;
+		return -ENOMEM;
+	}
+	vme->barvm->isbar = 1;
+	vme->barch = pscnv_chan_new (vme->barvm);
+	if (!vme->barch) {
+		pscnv_vspace_free(vme->barvm);
+		kfree(vme);
+		dev_priv->vm = 0;
+		return -ENOMEM;
+	}
+	nv_wr32(dev, 0x1704, 0x40000000 | vme->barch->vo->start >> 12);
+	bar1dma = nv50_chan_dmaobj_new(vme->barch, 0x7fc00000, 0, dev_priv->fb_size);
+	bar3dma = nv50_chan_dmaobj_new(vme->barch, 0x7fc00000, dev_priv->fb_size, dev_priv->ramin_size);
+	nv_wr32(dev, 0x1708, 0x80000000 | bar1dma >> 4);
+	nv_wr32(dev, 0x170c, 0x80000000 | bar3dma >> 4);
+	mutex_init(&dev_priv->vm_mutex);
+	nv50_vm_map_kernel(vme->barch->vo);
+	nv50_vm_map_kernel(nv50_vs(vme->barvm)->pt[0]);
+	return 0;
+}
+
+void
+nv50_vm_takedown(struct drm_device *dev) {
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nv50_vm_engine *vme = nv50_vm(dev_priv->vm);
+	struct pscnv_vspace *vs = vme->barvm;
+	struct pscnv_chan *ch = vme->barch;
+	/* XXX: write me. */
+	vme->barvm = 0;
+	vme->barch = 0;
+	nv_wr32(dev, 0x1708, 0);
+	nv_wr32(dev, 0x170c, 0);
+	nv_wr32(dev, 0x1710, 0);
+	nv_wr32(dev, 0x1704, 0);
+	pscnv_chan_free(ch);
+	pscnv_vspace_free(vs);
+	dev_priv->vm = 0;
+	kfree(vme);
 }
 
 /* VM trap handling on NV50 is some kind of a fucking joke.

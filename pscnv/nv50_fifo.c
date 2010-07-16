@@ -80,8 +80,8 @@ int nv50_fifo_init(struct drm_device *dev) {
 		kfree(res);
 		return -ENOMEM;
 	}
-	pscnv_vspace_map3(res->playlist[0]);
-	pscnv_vspace_map3(res->playlist[1]);
+	dev_priv->vm->map_kernel(res->playlist[0]);
+	dev_priv->vm->map_kernel(res->playlist[1]);
 	res->cur_playlist = 0;
 
 	/* reset everything */
