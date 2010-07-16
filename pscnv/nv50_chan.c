@@ -35,8 +35,8 @@ int nv50_chan_new (struct pscnv_chan *ch) {
 		chan_pd = NV84_CHAN_PD;
 	for (i = 0; i < NV50_VM_PDE_COUNT; i++) {
 		if (vs->pt[i]) {
-			nv_wv32(ch->vo, chan_pd + i * 8, vs->pt[i]->start >> 32);
-			nv_wv32(ch->vo, chan_pd + i * 8 + 4, vs->pt[i]->start | 0x3);
+			nv_wv32(ch->vo, chan_pd + i * 8 + 4, vs->pt[i]->start >> 32);
+			nv_wv32(ch->vo, chan_pd + i * 8, vs->pt[i]->start | 0x3);
 		} else {
 			nv_wv32(ch->vo, chan_pd + i * 8, 0);
 		}
