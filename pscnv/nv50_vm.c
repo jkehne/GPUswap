@@ -132,6 +132,22 @@ int nv50_vm_map_kernel(struct pscnv_vo *vo) {
 	return pscnv_vspace_map(vme->barvm, vo, dev_priv->fb_size, dev_priv->fb_size + dev_priv->ramin_size, 0, &vo->map3);
 }
 
+void
+nv50_vm_bar_flush(struct drm_device *dev) {
+	nv_wr32(dev, 0x330c, 1);
+	if (!nouveau_wait_until(dev, 2000000000ULL, 0x330c, 1, 0)) {
+		NV_ERROR(dev, "BAR flush timeout!\n");
+	}
+}
+
+void
+nv84_vm_bar_flush(struct drm_device *dev) {
+	nv_wr32(dev, 0x70000, 1);
+	if (!nouveau_wait_until(dev, 2000000000ULL, 0x70000, 1, 0)) {
+		NV_ERROR(dev, "BAR flush timeout!\n");
+	}
+}
+
 int
 nv50_vm_init(struct drm_device *dev) {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
@@ -148,6 +164,10 @@ nv50_vm_init(struct drm_device *dev) {
 	vme->base.do_unmap = nv50_vspace_do_unmap;
 	vme->base.map_user = nv50_vm_map_user;
 	vme->base.map_kernel = nv50_vm_map_kernel;
+	if (dev_priv->chipset == 0x50)
+		vme->base.bar_flush = nv50_vm_bar_flush;
+	else
+		vme->base.bar_flush = nv84_vm_bar_flush;
 	dev_priv->vm = &vme->base;
 
 	/* This is needed to get meaningful information from 100c90

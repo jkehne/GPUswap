@@ -12,6 +12,7 @@ struct pscnv_vm_engine {
 	int (*do_unmap) (struct pscnv_vspace *vs, uint64_t offset, uint64_t length);
 	int (*map_user) (struct pscnv_vo *);
 	int (*map_kernel) (struct pscnv_vo *);
+	void (*bar_flush) (struct drm_device *dev);
 };
 
 struct pscnv_engine {
