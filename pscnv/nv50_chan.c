@@ -68,6 +68,7 @@ int nv50_chan_new (struct pscnv_chan *ch) {
 			}
 		}
 	}
+	dev_priv->vm->bar_flush(vs->dev);
 	return 0;
 }
 
@@ -114,6 +115,8 @@ nv50_chan_iobj_new(struct pscnv_chan *ch, uint32_t size) {
  * when we know more. */
 int
 nv50_chan_dmaobj_new(struct pscnv_chan *ch, uint32_t type, uint64_t start, uint64_t size) {
+	struct drm_device *dev = ch->vspace->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	uint64_t end = start + size - 1;
 	int res = nv50_chan_iobj_new (ch, 0x10);
 	if (!res)
@@ -122,6 +125,7 @@ nv50_chan_dmaobj_new(struct pscnv_chan *ch, uint32_t type, uint64_t start, uint6
 	nv_wv32(ch->vo, res + 0x04, end);
 	nv_wv32(ch->vo, res + 0x08, start);
 	nv_wv32(ch->vo, res + 0x0c, (end >> 32) << 24 | (start >> 32));
+	dev_priv->vm->bar_flush(dev);
 	return res;
 }
 

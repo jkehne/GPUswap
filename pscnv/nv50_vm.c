@@ -53,6 +53,7 @@ nv50_vspace_fill_pd_slot (struct pscnv_vspace *vs, uint32_t pdenum) {
 
 int
 nv50_vspace_do_map (struct pscnv_vspace *vs, struct pscnv_vo *vo, uint64_t offset) {
+	struct drm_nouveau_private *dev_priv = vs->dev->dev_private;
 	struct list_head *pos;
 	int ret;
 	list_for_each(pos, &vo->regions) {
@@ -75,11 +76,13 @@ nv50_vspace_do_map (struct pscnv_vspace *vs, struct pscnv_vo *vo, uint64_t offse
 			nv_wv32(nv50_vs(vs)->pt[pdenum], ptenum * 8, pte);
 		}
 	}
+	dev_priv->vm->bar_flush(vs->dev);
 	return 0;
 }
 
 int
 nv50_vspace_do_unmap (struct pscnv_vspace *vs, uint64_t offset, uint64_t length) {
+	struct drm_nouveau_private *dev_priv = vs->dev->dev_private;
 	while (length) {
 		uint32_t pgnum = offset / 0x1000;
 		uint32_t pdenum = pgnum / NV50_VM_SPTE_COUNT;
@@ -90,6 +93,7 @@ nv50_vspace_do_unmap (struct pscnv_vspace *vs, uint64_t offset, uint64_t length)
 		offset += 0x1000;
 		length -= 0x1000;
 	}
+	dev_priv->vm->bar_flush(vs->dev);
 	if (vs->isbar) {
 		return nv50_vm_flush(vs->dev, 6);
 	} else {

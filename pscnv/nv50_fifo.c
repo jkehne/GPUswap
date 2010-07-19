@@ -132,6 +132,7 @@ void nv50_fifo_takedown(struct pscnv_engine *eng) {
 
 void nv50_fifo_playlist_update (struct pscnv_engine *eng) {
 	struct drm_device *dev = eng->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct nv50_fifo_engine *fifo = nv50_fifo(eng);
 	int i, pos;
 	struct pscnv_vo *vo;
@@ -143,6 +144,7 @@ void nv50_fifo_playlist_update (struct pscnv_engine *eng) {
 			pos += 4;
 		}
 	}
+	dev_priv->vm->bar_flush(dev);
 	/* XXX: is this correct? is this non-racy? */
 	nv_wr32(dev, 0x32f4, vo->start >> 12);
 	nv_wr32(dev, 0x32ec, pos / 4);

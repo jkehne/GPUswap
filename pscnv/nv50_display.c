@@ -52,6 +52,8 @@ nv50_evo_dmaobj_new(struct nouveau_channel *evo, uint32_t class, uint32_t name,
 		    uint32_t tile_flags, uint32_t magic_flags,
 		    uint32_t offset, uint32_t limit)
 {
+	struct drm_device *dev = evo->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	int ret;
 
 	uint32_t inst = evo->evo_inst;
@@ -70,6 +72,7 @@ nv50_evo_dmaobj_new(struct nouveau_channel *evo, uint32_t class, uint32_t name,
 	nv_wv32(evo->evo_obj, inst + 0x0c, 0x00000000);
 	nv_wv32(evo->evo_obj, inst + 0x10, 0x00000000);
 	nv_wv32(evo->evo_obj, inst + 0x14, 0x00010000);
+	dev_priv->vm->bar_flush(dev);
 
 	return 0;
 }

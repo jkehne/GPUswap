@@ -299,6 +299,7 @@ int nv50_graph_chan_alloc(struct pscnv_engine *eng, struct pscnv_chan *ch) {
 	nv_wv32(ch->vo, hdr + 0x04, limit);
 	nv_wv32(ch->vo, hdr + 0x08, grch->grctx->start);
 	nv_wv32(ch->vo, hdr + 0x0c, (limit >> 32) << 24 | (grch->grctx->start >> 32));
+	dev_priv->vm->bar_flush(dev);
 	ch->vspace->engref[PSCNV_ENGINE_GRAPH]++;
 	ch->engdata[PSCNV_ENGINE_GRAPH] = grch;
 	return 0;
