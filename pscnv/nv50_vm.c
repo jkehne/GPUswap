@@ -139,7 +139,7 @@ int nv50_vm_map_kernel(struct pscnv_vo *vo) {
 void
 nv50_vm_bar_flush(struct drm_device *dev) {
 	nv_wr32(dev, 0x330c, 1);
-	if (!nouveau_wait_until(dev, 2000000000ULL, 0x330c, 1, 0)) {
+	if (!nouveau_wait_until(dev, 2000000000ULL, 0x330c, 2, 0)) {
 		NV_ERROR(dev, "BAR flush timeout!\n");
 	}
 }
@@ -147,7 +147,7 @@ nv50_vm_bar_flush(struct drm_device *dev) {
 void
 nv84_vm_bar_flush(struct drm_device *dev) {
 	nv_wr32(dev, 0x70000, 1);
-	if (!nouveau_wait_until(dev, 2000000000ULL, 0x70000, 1, 0)) {
+	if (!nouveau_wait_until(dev, 2000000000ULL, 0x70000, 2, 0)) {
 		NV_ERROR(dev, "BAR flush timeout!\n");
 	}
 }
