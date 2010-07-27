@@ -195,6 +195,7 @@ out_irq:
 		}
 out_timer:
 out_vm:
+	nv_wr32(dev, 0x1140, 0);
 	dev_priv->vm->takedown(dev);
 out_vram:
 	pscnv_vram_takedown(dev);
@@ -223,6 +224,7 @@ static void nouveau_card_takedown(struct drm_device *dev)
 			}
 		dev_priv->vm->takedown(dev);
 		pscnv_vram_takedown(dev);
+		nv_wr32(dev, 0x1140, 0);
 		nouveau_bios_takedown(dev);
 
 		vga_client_register(dev->pdev, NULL, NULL, NULL);
