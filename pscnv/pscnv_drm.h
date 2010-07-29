@@ -63,9 +63,14 @@ struct drm_pscnv_gem_info {	/* n i */
 	 * like buffer format and tile_mode for DRI2 */
 	uint32_t user[8];	/* < > */
 };
-#define PSCNV_GEM_CONTIG	0x00000001	/* needs to be contiguous in VRAM */
-#define PSCNV_GEM_MAPPABLE	0x00000002	/* intended to be mmapped by host */
-#define PSCNV_GEM_GART		0x00000004	/* should be allocated in GART */
+#define PSCNV_GEM_CONTIG		0x00000001	/* needs to be contiguous in VRAM */
+#define PSCNV_GEM_MAPPABLE		0x00000002	/* intended to be mmapped by host */
+#define PSCNV_GEM_MEMTYPE_MASK		0x0000000c
+#define PSCNV_GEM_VRAM_SMALL		0x00000000	/* VRAM with small pages */
+#define PSCNV_GEM_SYSRAM_SNOOP		0x00000004
+#define PSCNV_GEM_VRAM_LARGE		0x00000008	/* VRAM with large pages */
+#define PSCNV_GEM_SYSRAM_NOSNOOP	0x0000000c
+#define PSCNV_GEM_GART			PSCNV_GEM_SYSRAM_SNOOP	/* compat */
 
 /* for vspace_new and vspace_free */
 struct drm_pscnv_vspace_req {	/* n f */
