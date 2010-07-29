@@ -22,7 +22,7 @@ int nv50_chan_new (struct pscnv_chan *ch) {
 		size = 0x6000;
 	else
 		size = 0x5000;
-	ch->vo = pscnv_vram_alloc(vs->dev, size, PSCNV_VO_CONTIG,
+	ch->vo = pscnv_vram_alloc(vs->dev, size, PSCNV_GEM_CONTIG,
 			0, (ch->isbar ? 0xc5a2ba7 : 0xc5a2f1f0));
 	if (!ch->vo)
 		return -ENOMEM;
@@ -60,7 +60,7 @@ int nv50_chan_new (struct pscnv_chan *ch) {
 			 * but we stuff them inside the channel struct anyway for
 			 * simplicity. */
 			ch->ramfc = nv50_chan_iobj_new(ch, 0x100);
-			ch->cache = pscnv_vram_alloc(vs->dev, 0x1000, PSCNV_VO_CONTIG,
+			ch->cache = pscnv_vram_alloc(vs->dev, 0x1000, PSCNV_GEM_CONTIG,
 					0, 0xf1f0cace);
 			if (!ch->cache) {
 				pscnv_vram_free(ch->vo);

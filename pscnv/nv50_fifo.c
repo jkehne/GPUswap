@@ -69,8 +69,8 @@ int nv50_fifo_init(struct drm_device *dev) {
 	res->base.chan_obj_new = 0;
 	spin_lock_init(&res->lock);
 
-	res->playlist[0] = pscnv_vram_alloc(dev, 0x1000, PSCNV_VO_CONTIG, 0, 0x91a71157);
-	res->playlist[1] = pscnv_vram_alloc(dev, 0x1000, PSCNV_VO_CONTIG, 0, 0x91a71157);
+	res->playlist[0] = pscnv_vram_alloc(dev, 0x1000, PSCNV_GEM_CONTIG, 0, 0x91a71157);
+	res->playlist[1] = pscnv_vram_alloc(dev, 0x1000, PSCNV_GEM_CONTIG, 0, 0x91a71157);
 	if (!res->playlist[0] || !res->playlist[1]) {
 		NV_ERROR(dev, "PFIFO: Couldn't allocate playlists!\n");
 		if (res->playlist[0])

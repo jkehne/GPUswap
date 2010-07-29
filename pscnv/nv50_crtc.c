@@ -543,7 +543,7 @@ nv50_crtc_do_mode_set_base(struct drm_crtc *crtc, int x, int y,
 		 return -EINVAL;
 	}
 
-	if (!(fb->vo->flags & PSCNV_VO_CONTIG))
+	if (!(fb->vo->flags & PSCNV_GEM_CONTIG))
 		return -EINVAL;
 
 	if (fb->vo->tile_flags && fb->vo->user[0] > 5)
@@ -750,7 +750,7 @@ nv50_crtc_create(struct drm_device *dev, int index)
 	}
 	nv_crtc->lut.depth = 0;
 
-	nv_crtc->lut.vo = pscnv_vram_alloc(dev, 4096, PSCNV_VO_CONTIG, 0, 0xd1517);
+	nv_crtc->lut.vo = pscnv_vram_alloc(dev, 4096, PSCNV_GEM_CONTIG, 0, 0xd1517);
 
 	if (!nv_crtc->lut.vo) {
 		kfree(nv_crtc->mode);
@@ -770,7 +770,7 @@ nv50_crtc_create(struct drm_device *dev, int index)
 	drm_crtc_helper_add(&nv_crtc->base, &nv50_crtc_helper_funcs);
 	drm_mode_crtc_set_gamma_size(&nv_crtc->base, 256);
 
-	nv_crtc->cursor.vo = pscnv_vram_alloc(dev, 64*64*4, PSCNV_VO_CONTIG, 0, 0xd15c);
+	nv_crtc->cursor.vo = pscnv_vram_alloc(dev, 64*64*4, PSCNV_GEM_CONTIG, 0, 0xd15c);
 	if (!nv_crtc->cursor.vo) {
 		pscnv_vram_free(nv_crtc->lut.vo);
 		kfree(nv_crtc->mode);

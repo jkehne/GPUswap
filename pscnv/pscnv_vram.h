@@ -26,6 +26,7 @@
 
 #ifndef __PSCNV_VRAM_H__
 #define __PSCNV_VRAM_H__
+#include "pscnv_drm.h"
 
 #define PSCNV_VRAM_PAGE_SIZE 0x1000
 
@@ -52,9 +53,6 @@ struct pscnv_vo {
 	struct pscnv_vm_mapnode *map1;
 	struct pscnv_vm_mapnode *map3;
 };
-
-/* the VO flags */
-#define PSCNV_VO_CONTIG		0x00000001	/* VO needs to be contiguous in VRAM */
 
 /* a contiguous VRAM region. They're linked into two lists: global list of
  * all regions and local list of regions within a single VO or free list.

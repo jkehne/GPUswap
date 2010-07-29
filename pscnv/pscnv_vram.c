@@ -280,7 +280,7 @@ pscnv_vram_init(struct drm_device *dev)
 	 */
 
 	if (drm_core_check_feature(dev, DRIVER_MODESET)) {
-		dev_priv->evo_obj = pscnv_vram_alloc(dev, 0x2000, PSCNV_VO_CONTIG, 0, 0xd1501a7);
+		dev_priv->evo_obj = pscnv_vram_alloc(dev, 0x2000, PSCNV_GEM_CONTIG, 0, 0xd1501a7);
 	}
 
 	return 0;
@@ -423,7 +423,7 @@ pscnv_vram_alloc(struct drm_device *dev,
 	res->serial = serial++;
 	if (pscnv_vram_debug >= 1)
 		NV_INFO(dev, "Allocating %d, %#llx-byte %sVO of type %08x, tile_flags %x\n", res->serial, size,
-				(flags & PSCNV_VO_CONTIG ? "contig " : ""), cookie, tile_flags);
+				(flags & PSCNV_GEM_CONTIG ? "contig " : ""), cookie, tile_flags);
 	if (list_empty(&dev_priv->vram_free_list)) {
 		mutex_unlock(&dev_priv->vram_mutex);
 		return 0;
@@ -440,7 +440,7 @@ pscnv_vram_alloc(struct drm_device *dev,
 		else
 			next = pscnv_vram_free_prev(dev, cur);
 		/* if contig VO is wanted, skip too small regions */
-		if (cur->size >= size || !(flags & PSCNV_VO_CONTIG)) {
+		if (cur->size >= size || !(flags & PSCNV_GEM_CONTIG)) {
 			/* if region is untyped, we can use it but we need to
 			 * convert to typed first.
 			 */
@@ -487,7 +487,7 @@ pscnv_vram_alloc(struct drm_device *dev,
 				if (pscnv_vram_debug >= 2)
 					NV_INFO (dev, "Using block at %llx-%llx\n",
 							cur->start, cur->start + cur->size);
-				if (flags & PSCNV_VO_CONTIG)
+				if (flags & PSCNV_GEM_CONTIG)
 					res->start = cur->start;
 				cur->vo = res;
 				size -= cur->size;
@@ -560,7 +560,7 @@ pscnv_vram_free(struct pscnv_vo *vo)
 	struct drm_nouveau_private *dev_priv = vo->dev->dev_private;
 	if (pscnv_vram_debug >= 1)
 		NV_INFO(vo->dev, "Freeing %d, %#llx-byte %sVO of type %08x, tile_flags %x\n", vo->serial, vo->size,
-				(vo->flags & PSCNV_VO_CONTIG ? "contig " : ""), vo->cookie, vo->tile_flags);
+				(vo->flags & PSCNV_GEM_CONTIG ? "contig " : ""), vo->cookie, vo->tile_flags);
 	if (dev_priv->vm && vo->map1)
 		pscnv_vspace_unmap_node(vo->map1);
 	if (dev_priv->vm && vo->map3)
