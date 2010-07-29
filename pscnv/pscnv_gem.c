@@ -28,12 +28,12 @@
 #include "drm.h"
 #include "nouveau_drv.h"
 #include "pscnv_gem.h"
-#include "pscnv_vram.h"
+#include "pscnv_mem.h"
 #include "pscnv_drm.h"
 
 void pscnv_gem_free_object (struct drm_gem_object *obj) {
-	struct pscnv_vo *vo = obj->driver_private;
-	pscnv_vram_free(vo);
+	struct pscnv_bo *vo = obj->driver_private;
+	pscnv_mem_free(vo);
 }
 
 struct drm_gem_object *pscnv_gem_new(struct drm_device *dev, uint64_t size, uint32_t flags,
@@ -41,15 +41,15 @@ struct drm_gem_object *pscnv_gem_new(struct drm_device *dev, uint64_t size, uint
 {
 	int i;
 	struct drm_gem_object *obj;
-	struct pscnv_vo *vo;
+	struct pscnv_bo *vo;
 
-	vo = pscnv_vram_alloc(dev, size, flags, tile_flags, cookie);
+	vo = pscnv_mem_alloc(dev, size, flags, tile_flags, cookie);
 	if (!vo)
 		return 0;
 
 	obj = drm_gem_object_alloc(dev, vo->size);
 	if (!obj) {
-		pscnv_vram_free(vo);
+		pscnv_mem_free(vo);
 		return 0;
 	}
 	obj->driver_private = vo;
@@ -70,7 +70,7 @@ int pscnv_ioctl_gem_new(struct drm_device *dev, void *data,
 {
 	struct drm_pscnv_gem_info *info = data;
 	struct drm_gem_object *obj;
-	struct pscnv_vo *vo;
+	struct pscnv_bo *vo;
 	int ret;
 
 	NOUVEAU_CHECK_INITIALISED_WITH_RETURN;
@@ -99,7 +99,7 @@ int pscnv_ioctl_gem_info(struct drm_device *dev, void *data,
 {
 	struct drm_pscnv_gem_info *info = data;
 	struct drm_gem_object *obj;
-	struct pscnv_vo *vo;
+	struct pscnv_bo *vo;
 	int i;
 
 	NOUVEAU_CHECK_INITIALISED_WITH_RETURN;

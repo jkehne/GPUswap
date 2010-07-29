@@ -29,7 +29,7 @@
 
 struct nouveau_framebuffer {
 	struct drm_framebuffer base;
-	struct pscnv_vo *vo;
+	struct pscnv_bo *bo;
 };
 
 static inline struct nouveau_framebuffer *
@@ -41,7 +41,7 @@ nouveau_framebuffer(struct drm_framebuffer *fb)
 extern const struct drm_mode_config_funcs nouveau_mode_config_funcs;
 
 struct drm_framebuffer *
-nouveau_framebuffer_create(struct drm_device *, struct pscnv_vo *,
+nouveau_framebuffer_create(struct drm_device *, struct pscnv_bo *,
 			   struct drm_mode_fb_cmd *);
 
 #endif /* __NOUVEAU_FB_H__ */

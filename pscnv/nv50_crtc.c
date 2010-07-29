@@ -52,13 +52,13 @@ nv50_crtc_lut_load(struct drm_crtc *crtc)
 		r = nv_crtc->lut.r[i] >> 2;
 		g = nv_crtc->lut.g[i] >> 2;
 		b = nv_crtc->lut.b[i] >> 2;
-		nv_wv32(nv_crtc->lut.vo, 8*i, r | g << 16);
-		nv_wv32(nv_crtc->lut.vo, 8*i + 4, b);
+		nv_wv32(nv_crtc->lut.bo, 8*i, r | g << 16);
+		nv_wv32(nv_crtc->lut.bo, 8*i + 4, b);
 	}
 
 	if (nv_crtc->lut.depth == 30) {
-		nv_wv32(nv_crtc->lut.vo, 8*i, r | g << 16);
-		nv_wv32(nv_crtc->lut.vo, 8*i + 4, b);
+		nv_wv32(nv_crtc->lut.bo, 8*i, r | g << 16);
+		nv_wv32(nv_crtc->lut.bo, 8*i + 4, b);
 	}
 }
 
@@ -106,7 +106,7 @@ nv50_crtc_blank(struct nouveau_crtc *nv_crtc, bool blanked)
 		OUT_RING(evo, nv_crtc->lut.depth == 8 ?
 				NV50_EVO_CRTC_CLUT_MODE_OFF :
 				NV50_EVO_CRTC_CLUT_MODE_ON);
-		OUT_RING(evo, nv_crtc->lut.vo->start >> 8);
+		OUT_RING(evo, nv_crtc->lut.bo->start >> 8);
 		if (dev_priv->chipset != 0x50) {
 			BEGIN_RING(evo, 0, NV84_EVO_CRTC(index, CLUT_DMA), 1);
 			OUT_RING(evo, NvEvoVRAM);
@@ -322,8 +322,8 @@ nv50_crtc_destroy(struct drm_crtc *crtc)
 
 	nv50_cursor_fini(nv_crtc);
 
-	pscnv_vram_free(nv_crtc->lut.vo);
-	pscnv_vram_free(nv_crtc->cursor.vo);
+	pscnv_mem_free(nv_crtc->lut.bo);
+	pscnv_mem_free(nv_crtc->cursor.bo);
 
 	kfree(nv_crtc->mode);
 	kfree(nv_crtc);
@@ -335,7 +335,7 @@ nv50_crtc_cursor_set(struct drm_crtc *crtc, struct drm_file *file_priv,
 {
 	struct drm_device *dev = crtc->dev;
 	struct nouveau_crtc *nv_crtc = nouveau_crtc(crtc);
-	struct pscnv_vo *cursor = NULL;
+	struct pscnv_bo *cursor = NULL;
 	struct drm_gem_object *gem;
 	int ret = 0, i;
 
@@ -354,9 +354,9 @@ nv50_crtc_cursor_set(struct drm_crtc *crtc, struct drm_file *file_priv,
 
 	/* The simple will do for now. */
 	for (i = 0; i < 64 * 64; i++)
-		nv_wv32(nv_crtc->cursor.vo, i*4, nv_rv32(cursor, i*4));
+		nv_wv32(nv_crtc->cursor.bo, i*4, nv_rv32(cursor, i*4));
 
-	nv_crtc->cursor.set_offset(nv_crtc, nv_crtc->cursor.vo->start);
+	nv_crtc->cursor.set_offset(nv_crtc, nv_crtc->cursor.bo->start);
 	nv_crtc->cursor.show(nv_crtc, true);
 
 	drm_gem_object_unreference_unlocked(gem);
@@ -543,16 +543,16 @@ nv50_crtc_do_mode_set_base(struct drm_crtc *crtc, int x, int y,
 		 return -EINVAL;
 	}
 
-	if (!(fb->vo->flags & PSCNV_GEM_CONTIG))
+	if (!(fb->bo->flags & PSCNV_GEM_CONTIG))
 		return -EINVAL;
 
-	if (fb->vo->tile_flags && fb->vo->user[0] > 5)
+	if (fb->bo->tile_flags && fb->bo->user[0] > 5)
 		return -EINVAL;
 
 	/* XXX: verify object size */
 
-	nv_crtc->fb.offset = fb->vo->start;
-	nv_crtc->fb.tile_flags = fb->vo->tile_flags;
+	nv_crtc->fb.offset = fb->bo->start;
+	nv_crtc->fb.tile_flags = fb->bo->tile_flags;
 	nv_crtc->fb.cpp = drm_fb->bits_per_pixel / 8;
 	if (!nv_crtc->fb.blanked && dev_priv->chipset != 0x50) {
 		ret = RING_SPACE(evo, 2);
@@ -581,10 +581,10 @@ nv50_crtc_do_mode_set_base(struct drm_crtc *crtc, int x, int y,
 		OUT_RING(evo, drm_fb->pitch | (1 << 20));
 	} else {
 		OUT_RING(evo, ((drm_fb->pitch / 4) << 4) |
-				  fb->vo->user[0]);
+				  fb->bo->user[0]);
 	}
 	if (dev_priv->chipset == 0x50)
-		OUT_RING(evo, (fb->vo->tile_flags << 16) | format);
+		OUT_RING(evo, (fb->bo->tile_flags << 16) | format);
 	else
 		OUT_RING(evo, format);
 
@@ -750,15 +750,15 @@ nv50_crtc_create(struct drm_device *dev, int index)
 	}
 	nv_crtc->lut.depth = 0;
 
-	nv_crtc->lut.vo = pscnv_vram_alloc(dev, 4096, PSCNV_GEM_CONTIG, 0, 0xd1517);
+	nv_crtc->lut.bo = pscnv_mem_alloc(dev, 4096, PSCNV_GEM_CONTIG, 0, 0xd1517);
 
-	if (!nv_crtc->lut.vo) {
+	if (!nv_crtc->lut.bo) {
 		kfree(nv_crtc->mode);
 		kfree(nv_crtc);
 		return -ENOMEM;
 	}
 
-	dev_priv->vm->map_kernel(nv_crtc->lut.vo);
+	dev_priv->vm->map_kernel(nv_crtc->lut.bo);
 
 	nv_crtc->index = index;
 
@@ -770,9 +770,9 @@ nv50_crtc_create(struct drm_device *dev, int index)
 	drm_crtc_helper_add(&nv_crtc->base, &nv50_crtc_helper_funcs);
 	drm_mode_crtc_set_gamma_size(&nv_crtc->base, 256);
 
-	nv_crtc->cursor.vo = pscnv_vram_alloc(dev, 64*64*4, PSCNV_GEM_CONTIG, 0, 0xd15c);
-	if (!nv_crtc->cursor.vo) {
-		pscnv_vram_free(nv_crtc->lut.vo);
+	nv_crtc->cursor.bo = pscnv_mem_alloc(dev, 64*64*4, PSCNV_GEM_CONTIG, 0, 0xd15c);
+	if (!nv_crtc->cursor.bo) {
+		pscnv_mem_free(nv_crtc->lut.bo);
 		kfree(nv_crtc->mode);
 		kfree(nv_crtc);
 		return -ENOMEM;

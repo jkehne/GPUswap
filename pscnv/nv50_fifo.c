@@ -34,7 +34,7 @@
 struct nv50_fifo_engine {
 	struct pscnv_engine base;
 	spinlock_t lock;
-	struct pscnv_vo *playlist[2];
+	struct pscnv_bo *playlist[2];
 	int cur_playlist;
 };
 
@@ -69,14 +69,14 @@ int nv50_fifo_init(struct drm_device *dev) {
 	res->base.chan_obj_new = 0;
 	spin_lock_init(&res->lock);
 
-	res->playlist[0] = pscnv_vram_alloc(dev, 0x1000, PSCNV_GEM_CONTIG, 0, 0x91a71157);
-	res->playlist[1] = pscnv_vram_alloc(dev, 0x1000, PSCNV_GEM_CONTIG, 0, 0x91a71157);
+	res->playlist[0] = pscnv_mem_alloc(dev, 0x1000, PSCNV_GEM_CONTIG, 0, 0x91a71157);
+	res->playlist[1] = pscnv_mem_alloc(dev, 0x1000, PSCNV_GEM_CONTIG, 0, 0x91a71157);
 	if (!res->playlist[0] || !res->playlist[1]) {
 		NV_ERROR(dev, "PFIFO: Couldn't allocate playlists!\n");
 		if (res->playlist[0])
-			pscnv_vram_free(res->playlist[0]);
+			pscnv_mem_free(res->playlist[0]);
 		if (res->playlist[1])
-			pscnv_vram_free(res->playlist[1]);
+			pscnv_mem_free(res->playlist[1]);
 		kfree(res);
 		return -ENOMEM;
 	}
@@ -125,8 +125,8 @@ void nv50_fifo_takedown(struct pscnv_engine *eng) {
 	nv_wr32(eng->dev, 0x2140, 0);
 	nv_wr32(eng->dev, 0x32ec, 0);
 	nv_wr32(eng->dev, 0x2500, 0x101);
-	pscnv_vram_free(fifo->playlist[0]);
-	pscnv_vram_free(fifo->playlist[1]);
+	pscnv_mem_free(fifo->playlist[0]);
+	pscnv_mem_free(fifo->playlist[1]);
 	/* XXX */
 }
 
@@ -135,7 +135,7 @@ void nv50_fifo_playlist_update (struct pscnv_engine *eng) {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct nv50_fifo_engine *fifo = nv50_fifo(eng);
 	int i, pos;
-	struct pscnv_vo *vo;
+	struct pscnv_bo *vo;
 	fifo->cur_playlist ^= 1;
 	vo = fifo->playlist[fifo->cur_playlist];
 	for (i = 0, pos = 0; i < 128; i++) {
@@ -244,51 +244,51 @@ int pscnv_ioctl_fifo_init(struct drm_device *dev, void *data,
 	spin_lock_irqsave(&fifo->lock, flags);
 
 	/* init RAMFC. */
-	nv_wv32(ch->vo, ch->ramfc + 0x00, 0);
-	nv_wv32(ch->vo, ch->ramfc + 0x04, 0);
-	nv_wv32(ch->vo, ch->ramfc + 0x08, req->pb_start);
-	nv_wv32(ch->vo, ch->ramfc + 0x0c, req->pb_start >> 32);
-	nv_wv32(ch->vo, ch->ramfc + 0x10, req->pb_start);
-	nv_wv32(ch->vo, ch->ramfc + 0x14, req->pb_start >> 32);
-	nv_wv32(ch->vo, ch->ramfc + 0x18, 0);
-	nv_wv32(ch->vo, ch->ramfc + 0x1c, 0);
-	nv_wv32(ch->vo, ch->ramfc + 0x20, 0);
-	nv_wv32(ch->vo, ch->ramfc + 0x24, 0);
-	nv_wv32(ch->vo, ch->ramfc + 0x28, 0);
-	nv_wv32(ch->vo, ch->ramfc + 0x2c, 0);
-	nv_wv32(ch->vo, ch->ramfc + 0x30, 0);
-	nv_wv32(ch->vo, ch->ramfc + 0x34, 0);
-	nv_wv32(ch->vo, ch->ramfc + 0x38, 0);
-	nv_wv32(ch->vo, ch->ramfc + 0x3c, 0x003f6078);
-	nv_wv32(ch->vo, ch->ramfc + 0x40, 0);
-	nv_wv32(ch->vo, ch->ramfc + 0x44, 0x2101ffff);
-	nv_wv32(ch->vo, ch->ramfc + 0x48, pb_inst);
-	nv_wv32(ch->vo, ch->ramfc + 0x4c, 0xffffffff);
-	nv_wv32(ch->vo, ch->ramfc + 0x50, 0);
-	nv_wv32(ch->vo, ch->ramfc + 0x54, 0);
-	nv_wv32(ch->vo, ch->ramfc + 0x58, 0);
-	nv_wv32(ch->vo, ch->ramfc + 0x5c, 0);
-	nv_wv32(ch->vo, ch->ramfc + 0x60, req->flags); /*  XXX */
-	nv_wv32(ch->vo, ch->ramfc + 0x64, 0);
-	nv_wv32(ch->vo, ch->ramfc + 0x68, 0);
-	nv_wv32(ch->vo, ch->ramfc + 0x6c, 0);
-	nv_wv32(ch->vo, ch->ramfc + 0x70, 0);
-	nv_wv32(ch->vo, ch->ramfc + 0x74, 0);
-	nv_wv32(ch->vo, ch->ramfc + 0x78, req->flags);
-	nv_wv32(ch->vo, ch->ramfc + 0x7c, 0x30000000 ^ req->slimask);
-	nv_wv32(ch->vo, ch->ramfc + 0x80, 0x4000000 | ch->ramht.offset >> 4 | (ch->ramht.bits - 9) << 27);
-	nv_wv32(ch->vo, ch->ramfc + 0x84, 0);
+	nv_wv32(ch->bo, ch->ramfc + 0x00, 0);
+	nv_wv32(ch->bo, ch->ramfc + 0x04, 0);
+	nv_wv32(ch->bo, ch->ramfc + 0x08, req->pb_start);
+	nv_wv32(ch->bo, ch->ramfc + 0x0c, req->pb_start >> 32);
+	nv_wv32(ch->bo, ch->ramfc + 0x10, req->pb_start);
+	nv_wv32(ch->bo, ch->ramfc + 0x14, req->pb_start >> 32);
+	nv_wv32(ch->bo, ch->ramfc + 0x18, 0);
+	nv_wv32(ch->bo, ch->ramfc + 0x1c, 0);
+	nv_wv32(ch->bo, ch->ramfc + 0x20, 0);
+	nv_wv32(ch->bo, ch->ramfc + 0x24, 0);
+	nv_wv32(ch->bo, ch->ramfc + 0x28, 0);
+	nv_wv32(ch->bo, ch->ramfc + 0x2c, 0);
+	nv_wv32(ch->bo, ch->ramfc + 0x30, 0);
+	nv_wv32(ch->bo, ch->ramfc + 0x34, 0);
+	nv_wv32(ch->bo, ch->ramfc + 0x38, 0);
+	nv_wv32(ch->bo, ch->ramfc + 0x3c, 0x003f6078);
+	nv_wv32(ch->bo, ch->ramfc + 0x40, 0);
+	nv_wv32(ch->bo, ch->ramfc + 0x44, 0x2101ffff);
+	nv_wv32(ch->bo, ch->ramfc + 0x48, pb_inst);
+	nv_wv32(ch->bo, ch->ramfc + 0x4c, 0xffffffff);
+	nv_wv32(ch->bo, ch->ramfc + 0x50, 0);
+	nv_wv32(ch->bo, ch->ramfc + 0x54, 0);
+	nv_wv32(ch->bo, ch->ramfc + 0x58, 0);
+	nv_wv32(ch->bo, ch->ramfc + 0x5c, 0);
+	nv_wv32(ch->bo, ch->ramfc + 0x60, req->flags); /*  XXX */
+	nv_wv32(ch->bo, ch->ramfc + 0x64, 0);
+	nv_wv32(ch->bo, ch->ramfc + 0x68, 0);
+	nv_wv32(ch->bo, ch->ramfc + 0x6c, 0);
+	nv_wv32(ch->bo, ch->ramfc + 0x70, 0);
+	nv_wv32(ch->bo, ch->ramfc + 0x74, 0);
+	nv_wv32(ch->bo, ch->ramfc + 0x78, req->flags);
+	nv_wv32(ch->bo, ch->ramfc + 0x7c, 0x30000000 ^ req->slimask);
+	nv_wv32(ch->bo, ch->ramfc + 0x80, 0x4000000 | ch->ramht.offset >> 4 | (ch->ramht.bits - 9) << 27);
+	nv_wv32(ch->bo, ch->ramfc + 0x84, 0);
 
 	if (dev_priv->chipset != 0x50) {
-		nv_wv32(ch->vo, ch->ramfc + 0x88, ch->cache->start >> 10);
-		nv_wv32(ch->vo, ch->ramfc + 0x8c, 0);
-		nv_wv32(ch->vo, ch->ramfc + 0x90, 0);
-		nv_wv32(ch->vo, ch->ramfc + 0x94, 0);
-		nv_wv32(ch->vo, ch->ramfc + 0x98, ch->vo->start >> 12);
+		nv_wv32(ch->bo, ch->ramfc + 0x88, ch->cache->start >> 10);
+		nv_wv32(ch->bo, ch->ramfc + 0x8c, 0);
+		nv_wv32(ch->bo, ch->ramfc + 0x90, 0);
+		nv_wv32(ch->bo, ch->ramfc + 0x94, 0);
+		nv_wv32(ch->bo, ch->ramfc + 0x98, ch->bo->start >> 12);
 
-		nv_wr32(dev, 0x2600 + req->cid * 4, 0x80000000 | (ch->vo->start + ch->ramfc) >> 8);
+		nv_wr32(dev, 0x2600 + req->cid * 4, 0x80000000 | (ch->bo->start + ch->ramfc) >> 8);
 	} else {
-		nv_wr32(dev, 0x2600 + req->cid * 4, 0x80000000 | ch->vo->start >> 12);
+		nv_wr32(dev, 0x2600 + req->cid * 4, 0x80000000 | ch->bo->start >> 12);
 	}
 
 	nv50_fifo_playlist_update(eng);
@@ -337,51 +337,51 @@ int pscnv_ioctl_fifo_init_ib(struct drm_device *dev, void *data,
 	spin_lock_irqsave(&fifo->lock, flags);
 
 	/* init RAMFC. */
-	nv_wv32(ch->vo, ch->ramfc + 0x00, 0);
-	nv_wv32(ch->vo, ch->ramfc + 0x04, 0);
-	nv_wv32(ch->vo, ch->ramfc + 0x08, 0);
-	nv_wv32(ch->vo, ch->ramfc + 0x0c, 0);
-	nv_wv32(ch->vo, ch->ramfc + 0x10, 0);
-	nv_wv32(ch->vo, ch->ramfc + 0x14, 0);
-	nv_wv32(ch->vo, ch->ramfc + 0x18, 0);
-	nv_wv32(ch->vo, ch->ramfc + 0x1c, 0);
-	nv_wv32(ch->vo, ch->ramfc + 0x20, 0);
-	nv_wv32(ch->vo, ch->ramfc + 0x24, 0);
-	nv_wv32(ch->vo, ch->ramfc + 0x28, 0);
-	nv_wv32(ch->vo, ch->ramfc + 0x2c, 0);
-	nv_wv32(ch->vo, ch->ramfc + 0x30, 0);
-	nv_wv32(ch->vo, ch->ramfc + 0x34, 0);
-	nv_wv32(ch->vo, ch->ramfc + 0x38, 0);
-	nv_wv32(ch->vo, ch->ramfc + 0x3c, 0x403f6078);
-	nv_wv32(ch->vo, ch->ramfc + 0x40, 0);
-	nv_wv32(ch->vo, ch->ramfc + 0x44, 0x2101ffff);
-	nv_wv32(ch->vo, ch->ramfc + 0x48, pb_inst);
-	nv_wv32(ch->vo, ch->ramfc + 0x4c, 0);
-	nv_wv32(ch->vo, ch->ramfc + 0x50, req->ib_start);
-	nv_wv32(ch->vo, ch->ramfc + 0x54, req->ib_start >> 32 | req->ib_order << 16);
-	nv_wv32(ch->vo, ch->ramfc + 0x58, 0);
-	nv_wv32(ch->vo, ch->ramfc + 0x5c, 0);
-	nv_wv32(ch->vo, ch->ramfc + 0x60, req->flags); /*  XXX */
-	nv_wv32(ch->vo, ch->ramfc + 0x64, 0);
-	nv_wv32(ch->vo, ch->ramfc + 0x68, 0);
-	nv_wv32(ch->vo, ch->ramfc + 0x6c, 0);
-	nv_wv32(ch->vo, ch->ramfc + 0x70, 0);
-	nv_wv32(ch->vo, ch->ramfc + 0x74, 0);
-	nv_wv32(ch->vo, ch->ramfc + 0x78, req->flags);
-	nv_wv32(ch->vo, ch->ramfc + 0x7c, 0x30000000 ^ req->slimask);
-	nv_wv32(ch->vo, ch->ramfc + 0x80, 0x4000000 | ch->ramht.offset >> 4 | (ch->ramht.bits - 9) << 27);
-	nv_wv32(ch->vo, ch->ramfc + 0x84, 0);
+	nv_wv32(ch->bo, ch->ramfc + 0x00, 0);
+	nv_wv32(ch->bo, ch->ramfc + 0x04, 0);
+	nv_wv32(ch->bo, ch->ramfc + 0x08, 0);
+	nv_wv32(ch->bo, ch->ramfc + 0x0c, 0);
+	nv_wv32(ch->bo, ch->ramfc + 0x10, 0);
+	nv_wv32(ch->bo, ch->ramfc + 0x14, 0);
+	nv_wv32(ch->bo, ch->ramfc + 0x18, 0);
+	nv_wv32(ch->bo, ch->ramfc + 0x1c, 0);
+	nv_wv32(ch->bo, ch->ramfc + 0x20, 0);
+	nv_wv32(ch->bo, ch->ramfc + 0x24, 0);
+	nv_wv32(ch->bo, ch->ramfc + 0x28, 0);
+	nv_wv32(ch->bo, ch->ramfc + 0x2c, 0);
+	nv_wv32(ch->bo, ch->ramfc + 0x30, 0);
+	nv_wv32(ch->bo, ch->ramfc + 0x34, 0);
+	nv_wv32(ch->bo, ch->ramfc + 0x38, 0);
+	nv_wv32(ch->bo, ch->ramfc + 0x3c, 0x403f6078);
+	nv_wv32(ch->bo, ch->ramfc + 0x40, 0);
+	nv_wv32(ch->bo, ch->ramfc + 0x44, 0x2101ffff);
+	nv_wv32(ch->bo, ch->ramfc + 0x48, pb_inst);
+	nv_wv32(ch->bo, ch->ramfc + 0x4c, 0);
+	nv_wv32(ch->bo, ch->ramfc + 0x50, req->ib_start);
+	nv_wv32(ch->bo, ch->ramfc + 0x54, req->ib_start >> 32 | req->ib_order << 16);
+	nv_wv32(ch->bo, ch->ramfc + 0x58, 0);
+	nv_wv32(ch->bo, ch->ramfc + 0x5c, 0);
+	nv_wv32(ch->bo, ch->ramfc + 0x60, req->flags); /*  XXX */
+	nv_wv32(ch->bo, ch->ramfc + 0x64, 0);
+	nv_wv32(ch->bo, ch->ramfc + 0x68, 0);
+	nv_wv32(ch->bo, ch->ramfc + 0x6c, 0);
+	nv_wv32(ch->bo, ch->ramfc + 0x70, 0);
+	nv_wv32(ch->bo, ch->ramfc + 0x74, 0);
+	nv_wv32(ch->bo, ch->ramfc + 0x78, req->flags);
+	nv_wv32(ch->bo, ch->ramfc + 0x7c, 0x30000000 ^ req->slimask);
+	nv_wv32(ch->bo, ch->ramfc + 0x80, 0x4000000 | ch->ramht.offset >> 4 | (ch->ramht.bits - 9) << 27);
+	nv_wv32(ch->bo, ch->ramfc + 0x84, 0);
 
 	if (dev_priv->chipset != 0x50) {
-		nv_wv32(ch->vo, ch->ramfc + 0x88, ch->cache->start >> 10);
-		nv_wv32(ch->vo, ch->ramfc + 0x8c, 0);
-		nv_wv32(ch->vo, ch->ramfc + 0x90, 0);
-		nv_wv32(ch->vo, ch->ramfc + 0x94, 0);
-		nv_wv32(ch->vo, ch->ramfc + 0x98, ch->vo->start >> 12);
+		nv_wv32(ch->bo, ch->ramfc + 0x88, ch->cache->start >> 10);
+		nv_wv32(ch->bo, ch->ramfc + 0x8c, 0);
+		nv_wv32(ch->bo, ch->ramfc + 0x90, 0);
+		nv_wv32(ch->bo, ch->ramfc + 0x94, 0);
+		nv_wv32(ch->bo, ch->ramfc + 0x98, ch->bo->start >> 12);
 
-		nv_wr32(dev, 0x2600 + req->cid * 4, 0x80000000 | (ch->vo->start + ch->ramfc) >> 8);
+		nv_wr32(dev, 0x2600 + req->cid * 4, 0x80000000 | (ch->bo->start + ch->ramfc) >> 8);
 	} else {
-		nv_wr32(dev, 0x2600 + req->cid * 4, 0x80000000 | ch->vo->start >> 12);
+		nv_wr32(dev, 0x2600 + req->cid * 4, 0x80000000 | ch->bo->start >> 12);
 	}
 
 	nv50_fifo_playlist_update(eng);

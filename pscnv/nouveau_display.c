@@ -39,8 +39,8 @@ nouveau_user_framebuffer_destroy(struct drm_framebuffer *drm_fb)
 	if (drm_fb->fbdev)
 		nouveau_fbcon_remove(dev, drm_fb);
 
-	if (fb->vo && fb->vo->gem)
-		drm_gem_object_unreference_unlocked(fb->vo->gem);
+	if (fb->bo && fb->bo->gem)
+		drm_gem_object_unreference_unlocked(fb->bo->gem);
 
 	drm_framebuffer_cleanup(drm_fb);
 	kfree(fb);
@@ -54,7 +54,7 @@ nouveau_user_framebuffer_create_handle(struct drm_framebuffer *drm_fb,
 	struct nouveau_framebuffer *fb = nouveau_framebuffer(drm_fb);
 
 	/* XXX do this. */
-	return drm_gem_handle_create(file_priv, fb->vo->gem, handle);
+	return drm_gem_handle_create(file_priv, fb->bo->gem, handle);
 }
 
 static const struct drm_framebuffer_funcs nouveau_framebuffer_funcs = {
@@ -63,7 +63,7 @@ static const struct drm_framebuffer_funcs nouveau_framebuffer_funcs = {
 };
 
 struct drm_framebuffer *
-nouveau_framebuffer_create(struct drm_device *dev, struct pscnv_vo *vo,
+nouveau_framebuffer_create(struct drm_device *dev, struct pscnv_bo *bo,
 			   struct drm_mode_fb_cmd *mode_cmd)
 {
 	struct nouveau_framebuffer *fb;
@@ -81,7 +81,7 @@ nouveau_framebuffer_create(struct drm_device *dev, struct pscnv_vo *vo,
 
 	drm_helper_mode_fill_fb_struct(&fb->base, mode_cmd);
 
-	fb->vo = vo;
+	fb->bo = bo;
 	return &fb->base;
 }
 

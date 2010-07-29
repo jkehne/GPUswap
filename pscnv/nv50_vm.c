@@ -6,7 +6,7 @@
 #include "nv50_chan.h"
 #include "pscnv_chan.h"
 
-int nv50_vm_map_kernel(struct pscnv_vo *vo);
+int nv50_vm_map_kernel(struct pscnv_bo *bo);
 void nv50_vm_takedown(struct drm_device *dev);
 int nv50_vspace_do_unmap (struct pscnv_vspace *vs, uint64_t offset, uint64_t length);
 
@@ -26,7 +26,7 @@ nv50_vspace_fill_pd_slot (struct pscnv_vspace *vs, uint32_t pdenum) {
 	struct list_head *pos;
 	int i;
 	uint32_t chan_pd;
-	nv50_vs(vs)->pt[pdenum] = pscnv_vram_alloc(vs->dev, NV50_VM_SPTE_COUNT * 8, PSCNV_GEM_CONTIG, 0, 0xa9e7ab1e);
+	nv50_vs(vs)->pt[pdenum] = pscnv_mem_alloc(vs->dev, NV50_VM_SPTE_COUNT * 8, PSCNV_GEM_CONTIG, 0, 0xa9e7ab1e);
 	if (!nv50_vs(vs)->pt[pdenum]) {
 		return -ENOMEM;
 	}
@@ -45,36 +45,46 @@ nv50_vspace_fill_pd_slot (struct pscnv_vspace *vs, uint32_t pdenum) {
 	list_for_each(pos, &vs->chan_list) {
 		struct pscnv_chan *ch = list_entry(pos, struct pscnv_chan, vspace_list);
 		uint64_t pde = nv50_vs(vs)->pt[pdenum]->start | 3;
-		nv_wv32(ch->vo, chan_pd + pdenum * 8 + 4, pde >> 32);
-		nv_wv32(ch->vo, chan_pd + pdenum * 8, pde);
+		nv_wv32(ch->bo, chan_pd + pdenum * 8 + 4, pde >> 32);
+		nv_wv32(ch->bo, chan_pd + pdenum * 8, pde);
 	}
 	return 0;
 }
 
 int
-nv50_vspace_do_map (struct pscnv_vspace *vs, struct pscnv_vo *vo, uint64_t offset) {
+nv50_vspace_do_map (struct pscnv_vspace *vs, struct pscnv_bo *bo, uint64_t offset) {
 	struct drm_nouveau_private *dev_priv = vs->dev->dev_private;
 	struct list_head *pos;
 	int ret;
-	list_for_each(pos, &vo->regions) {
-		/* XXX: beef up to use contig blocks */
-		struct pscnv_vram_region *reg = list_entry(pos, struct pscnv_vram_region, local_list);
-		uint64_t roff;
-		for (roff = 0; roff < reg->size; roff += 0x1000, offset += 0x1000) {
-			uint32_t pgnum = offset / 0x1000;
-			uint32_t pdenum = pgnum / NV50_VM_SPTE_COUNT;
-			uint32_t ptenum = pgnum % NV50_VM_SPTE_COUNT;
-			uint64_t pte = reg->start + roff;
-			pte |= (uint64_t)vo->tile_flags << 40;
-			pte |= 1; /* present */
-			if (!nv50_vs(vs)->pt[pdenum])
-				if ((ret = nv50_vspace_fill_pd_slot (vs, pdenum))) {
-					nv50_vspace_do_unmap (vs, offset, vo->size);
-					return ret;
+	switch (bo->flags & PSCNV_GEM_MEMTYPE_MASK) {
+		case PSCNV_GEM_VRAM_SMALL:
+		case PSCNV_GEM_VRAM_LARGE:
+			list_for_each(pos, &bo->regions) {
+				/* XXX: beef up to use contig blocks */
+				struct pscnv_vram_region *reg = list_entry(pos, struct pscnv_vram_region, local_list);
+				uint64_t roff;
+				for (roff = 0; roff < reg->size; roff += 0x1000, offset += 0x1000) {
+					uint32_t pgnum = offset / 0x1000;
+					uint32_t pdenum = pgnum / NV50_VM_SPTE_COUNT;
+					uint32_t ptenum = pgnum % NV50_VM_SPTE_COUNT;
+					uint64_t pte = reg->start + roff;
+					pte |= (uint64_t)bo->tile_flags << 40;
+					pte |= 1; /* present */
+					if (!nv50_vs(vs)->pt[pdenum])
+						if ((ret = nv50_vspace_fill_pd_slot (vs, pdenum))) {
+							nv50_vspace_do_unmap (vs, offset, bo->size);
+							return ret;
+						}
+					nv_wv32(nv50_vs(vs)->pt[pdenum], ptenum * 8 + 4, pte >> 32);
+					nv_wv32(nv50_vs(vs)->pt[pdenum], ptenum * 8, pte);
 				}
-			nv_wv32(nv50_vs(vs)->pt[pdenum], ptenum * 8 + 4, pte >> 32);
-			nv_wv32(nv50_vs(vs)->pt[pdenum], ptenum * 8, pte);
-		}
+			}
+			break;
+		case PSCNV_GEM_SYSRAM_SNOOP:
+		case PSCNV_GEM_SYSRAM_NOSNOOP:
+			/* XXX */
+			return -ENOSYS;
+			break;
 	}
 	dev_priv->vm->bar_flush(vs->dev);
 	return 0;
@@ -115,25 +125,25 @@ void nv50_vspace_free(struct pscnv_vspace *vs) {
 	int i;
 	for (i = 0; i < NV50_VM_PDE_COUNT; i++) {
 		if (nv50_vs(vs)->pt[i]) {
-			pscnv_vram_free(nv50_vs(vs)->pt[i]);
+			pscnv_mem_free(nv50_vs(vs)->pt[i]);
 		}
 	}
 }
 
-int nv50_vm_map_user(struct pscnv_vo *vo) {
-	struct drm_nouveau_private *dev_priv = vo->dev->dev_private;
+int nv50_vm_map_user(struct pscnv_bo *bo) {
+	struct drm_nouveau_private *dev_priv = bo->dev->dev_private;
 	struct nv50_vm_engine *vme = nv50_vm(dev_priv->vm);
-	if (vo->map1)
+	if (bo->map1)
 		return 0;
-	return pscnv_vspace_map(vme->barvm, vo, 0, dev_priv->fb_size, 0, &vo->map1);
+	return pscnv_vspace_map(vme->barvm, bo, 0, dev_priv->fb_size, 0, &bo->map1);
 }
 
-int nv50_vm_map_kernel(struct pscnv_vo *vo) {
-	struct drm_nouveau_private *dev_priv = vo->dev->dev_private;
+int nv50_vm_map_kernel(struct pscnv_bo *bo) {
+	struct drm_nouveau_private *dev_priv = bo->dev->dev_private;
 	struct nv50_vm_engine *vme = nv50_vm(dev_priv->vm);
-	if (vo->map3)
+	if (bo->map3)
 		return 0;
-	return pscnv_vspace_map(vme->barvm, vo, dev_priv->fb_size, dev_priv->fb_size + dev_priv->ramin_size, 0, &vo->map3);
+	return pscnv_vspace_map(vme->barvm, bo, dev_priv->fb_size, dev_priv->fb_size + dev_priv->ramin_size, 0, &bo->map3);
 }
 
 void
@@ -204,13 +214,13 @@ nv50_vm_init(struct drm_device *dev) {
 		dev_priv->vm = 0;
 		return -ENOMEM;
 	}
-	nv_wr32(dev, 0x1704, 0x40000000 | vme->barch->vo->start >> 12);
+	nv_wr32(dev, 0x1704, 0x40000000 | vme->barch->bo->start >> 12);
 	bar1dma = nv50_chan_dmaobj_new(vme->barch, 0x7fc00000, 0, dev_priv->fb_size);
 	bar3dma = nv50_chan_dmaobj_new(vme->barch, 0x7fc00000, dev_priv->fb_size, dev_priv->ramin_size);
 	nv_wr32(dev, 0x1708, 0x80000000 | bar1dma >> 4);
 	nv_wr32(dev, 0x170c, 0x80000000 | bar3dma >> 4);
 	mutex_init(&dev_priv->vm_mutex);
-	nv50_vm_map_kernel(vme->barch->vo);
+	nv50_vm_map_kernel(vme->barch->bo);
 	nv50_vm_map_kernel(nv50_vs(vme->barvm)->pt[0]);
 	return 0;
 }

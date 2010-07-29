@@ -40,21 +40,21 @@ uint32_t pscnv_ramht_hash(struct pscnv_ramht *ramht, uint32_t handle) {
 
 int pscnv_ramht_insert(struct pscnv_ramht *ramht, uint32_t handle, uint32_t context) {
 	/* XXX: check if the object exists already... */
-	struct drm_nouveau_private *dev_priv = ramht->vo->dev->dev_private;
+	struct drm_nouveau_private *dev_priv = ramht->bo->dev->dev_private;
 	uint32_t hash = pscnv_ramht_hash(ramht, handle);
 	uint32_t start = hash * 8;
 	uint32_t pos = start;
 	if (pscnv_ramht_debug >= 2)
-		NV_INFO(ramht->vo->dev, "Handle %x hash %x\n", handle, hash);
+		NV_INFO(ramht->bo->dev, "Handle %x hash %x\n", handle, hash);
 	spin_lock (&ramht->lock);
 	do {
-		if (!nv_rv32(ramht->vo, ramht->offset + pos + 4)) {
-			nv_wv32(ramht->vo, ramht->offset + pos, handle);
-			nv_wv32(ramht->vo, ramht->offset + pos + 4, context);
-			dev_priv->vm->bar_flush(ramht->vo->dev);
+		if (!nv_rv32(ramht->bo, ramht->offset + pos + 4)) {
+			nv_wv32(ramht->bo, ramht->offset + pos, handle);
+			nv_wv32(ramht->bo, ramht->offset + pos + 4, context);
+			dev_priv->vm->bar_flush(ramht->bo->dev);
 			spin_unlock (&ramht->lock);
 			if (pscnv_ramht_debug >= 1)
-				NV_INFO(ramht->vo->dev, "Adding RAMHT entry for object %x at %x, context %x\n", handle, pos, context);
+				NV_INFO(ramht->bo->dev, "Adding RAMHT entry for object %x at %x, context %x\n", handle, pos, context);
 			return 0;
 		}
 		pos += 8;
@@ -62,7 +62,7 @@ int pscnv_ramht_insert(struct pscnv_ramht *ramht, uint32_t handle, uint32_t cont
 			pos = 0;
 	} while (pos != start);
 	spin_unlock (&ramht->lock);
-	NV_ERROR(ramht->vo->dev, "No RAMHT space for object %x\n", handle);
+	NV_ERROR(ramht->bo->dev, "No RAMHT space for object %x\n", handle);
 	return -ENOMEM;
 }
 
@@ -73,13 +73,13 @@ uint32_t pscnv_ramht_find(struct pscnv_ramht *ramht, uint32_t handle) {
 	uint32_t pos = start;
 	uint32_t res;
 	if (pscnv_ramht_debug >= 2)
-		NV_INFO(ramht->vo->dev, "Handle %x hash %x\n", handle, hash);
+		NV_INFO(ramht->bo->dev, "Handle %x hash %x\n", handle, hash);
 	spin_lock (&ramht->lock);
 	do {
-		if (!nv_rv32(ramht->vo, ramht->offset + pos + 4))
+		if (!nv_rv32(ramht->bo, ramht->offset + pos + 4))
 			break;
-		if (nv_rv32(ramht->vo, ramht->offset + pos) == handle) {
-			res = nv_rv32(ramht->vo, ramht->offset + pos + 4);
+		if (nv_rv32(ramht->bo, ramht->offset + pos) == handle) {
+			res = nv_rv32(ramht->bo, ramht->offset + pos + 4);
 			spin_unlock (&ramht->lock);
 			return res;
 		} 
@@ -88,6 +88,6 @@ uint32_t pscnv_ramht_find(struct pscnv_ramht *ramht, uint32_t handle) {
 			pos = 0;
 	} while (pos != start);
 	spin_unlock (&ramht->lock);
-	NV_ERROR(ramht->vo->dev, "RAMHT object %x not found\n", handle);
+	NV_ERROR(ramht->bo->dev, "RAMHT object %x not found\n", handle);
 	return 0;
 }

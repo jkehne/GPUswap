@@ -8,10 +8,10 @@ struct pscnv_vm_engine {
 	void (*takedown) (struct drm_device *dev);
 	int (*do_vspace_new) (struct pscnv_vspace *vs);
 	void (*do_vspace_free) (struct pscnv_vspace *vs);
-	int (*do_map) (struct pscnv_vspace *vs, struct pscnv_vo *vo, uint64_t offset);
+	int (*do_map) (struct pscnv_vspace *vs, struct pscnv_bo *bo, uint64_t offset);
 	int (*do_unmap) (struct pscnv_vspace *vs, uint64_t offset, uint64_t length);
-	int (*map_user) (struct pscnv_vo *);
-	int (*map_kernel) (struct pscnv_vo *);
+	int (*map_user) (struct pscnv_bo *);
+	int (*map_kernel) (struct pscnv_bo *);
 	void (*bar_flush) (struct drm_device *dev);
 };
 

@@ -28,10 +28,10 @@
 #define __PSCNV_VRAM_H__
 #include "pscnv_drm.h"
 
-#define PSCNV_VRAM_PAGE_SIZE 0x1000
+#define PSCNV_MEM_PAGE_SIZE 0x1000
 
 /* A VRAM object of any kind. */
-struct pscnv_vo {
+struct pscnv_bo {
 	struct drm_device *dev;
 	/* size. Always a multiple of page size. */
 	uint64_t size;
@@ -77,13 +77,21 @@ struct pscnv_vram_region {
 	} type;
 	uint64_t start;
 	uint64_t size;
-	struct pscnv_vo *vo;
+	struct pscnv_bo *bo;
 };
+
+extern int pscnv_mem_init(struct drm_device *);
+extern int pscnv_mem_takedown(struct drm_device *);
+extern struct pscnv_bo *pscnv_mem_alloc(struct drm_device *,
+		uint64_t size, int flags, int tile_flags, uint32_t cookie);
+extern int pscnv_mem_free(struct pscnv_bo *);
 
 extern int pscnv_vram_init(struct drm_device *);
 extern int pscnv_vram_takedown(struct drm_device *);
-extern struct pscnv_vo *pscnv_vram_alloc(struct drm_device *,
-		uint64_t size, int flags, int tile_flags, uint32_t cookie);
-extern int pscnv_vram_free(struct pscnv_vo *);
+extern int pscnv_vram_alloc(struct pscnv_bo *);
+extern int pscnv_vram_free(struct pscnv_bo *);
+
+extern int pscnv_sysram_alloc(struct pscnv_bo *);
+extern int pscnv_sysram_free(struct pscnv_bo *);
 
 #endif

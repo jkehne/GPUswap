@@ -22,13 +22,13 @@ int nv50_chan_new (struct pscnv_chan *ch) {
 		size = 0x6000;
 	else
 		size = 0x5000;
-	ch->vo = pscnv_vram_alloc(vs->dev, size, PSCNV_GEM_CONTIG,
+	ch->bo = pscnv_mem_alloc(vs->dev, size, PSCNV_GEM_CONTIG,
 			0, (ch->isbar ? 0xc5a2ba7 : 0xc5a2f1f0));
-	if (!ch->vo)
+	if (!ch->bo)
 		return -ENOMEM;
 
 	if (!vs->isbar)
-		dev_priv->vm->map_kernel(ch->vo);
+		dev_priv->vm->map_kernel(ch->bo);
 
 	if (dev_priv->chipset == 0x50)
 		chan_pd = NV50_CHAN_PD;
@@ -36,21 +36,21 @@ int nv50_chan_new (struct pscnv_chan *ch) {
 		chan_pd = NV84_CHAN_PD;
 	for (i = 0; i < NV50_VM_PDE_COUNT; i++) {
 		if (nv50_vs(vs)->pt[i]) {
-			nv_wv32(ch->vo, chan_pd + i * 8 + 4, nv50_vs(vs)->pt[i]->start >> 32);
-			nv_wv32(ch->vo, chan_pd + i * 8, nv50_vs(vs)->pt[i]->start | 0x3);
+			nv_wv32(ch->bo, chan_pd + i * 8 + 4, nv50_vs(vs)->pt[i]->start >> 32);
+			nv_wv32(ch->bo, chan_pd + i * 8, nv50_vs(vs)->pt[i]->start | 0x3);
 		} else {
-			nv_wv32(ch->vo, chan_pd + i * 8, 0);
+			nv_wv32(ch->bo, chan_pd + i * 8, 0);
 		}
 	}
 	ch->instpos = chan_pd + NV50_VM_PDE_COUNT * 8;
 
 	if (!ch->isbar) {
 		int i;
-		ch->ramht.vo = ch->vo;
+		ch->ramht.bo = ch->bo;
 		ch->ramht.bits = 9;
 		ch->ramht.offset = nv50_chan_iobj_new(ch, 8 << ch->ramht.bits);
 		for (i = 0; i < (8 << ch->ramht.bits); i += 8)
-			nv_wv32(ch->ramht.vo, ch->ramht.offset + i + 4, 0);
+			nv_wv32(ch->ramht.bo, ch->ramht.offset + i + 4, 0);
 
 		if (dev_priv->chipset == 0x50) {
 			ch->ramfc = 0;
@@ -60,10 +60,10 @@ int nv50_chan_new (struct pscnv_chan *ch) {
 			 * but we stuff them inside the channel struct anyway for
 			 * simplicity. */
 			ch->ramfc = nv50_chan_iobj_new(ch, 0x100);
-			ch->cache = pscnv_vram_alloc(vs->dev, 0x1000, PSCNV_GEM_CONTIG,
+			ch->cache = pscnv_mem_alloc(vs->dev, 0x1000, PSCNV_GEM_CONTIG,
 					0, 0xf1f0cace);
 			if (!ch->cache) {
-				pscnv_vram_free(ch->vo);
+				pscnv_mem_free(ch->bo);
 				return -ENOMEM;
 			}
 		}
@@ -76,9 +76,9 @@ void nv50_chan_init (struct pscnv_chan *ch) {
 	struct drm_device *dev = ch->vspace->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	if (dev_priv->chipset != 0x50) {
-		nv_wr32(dev, 0x2600 + ch->cid * 4, (ch->vo->start + ch->ramfc) >> 8);
+		nv_wr32(dev, 0x2600 + ch->cid * 4, (ch->bo->start + ch->ramfc) >> 8);
 	} else {
-		nv_wr32(dev, 0x2600 + ch->cid * 4, ch->vo->start >> 12);
+		nv_wr32(dev, 0x2600 + ch->cid * 4, ch->bo->start >> 12);
 	}
 }
 
@@ -101,7 +101,7 @@ nv50_chan_iobj_new(struct pscnv_chan *ch, uint32_t size) {
 	size += 0xf;
 	size &= ~0xf;
 	spin_lock(&ch->instlock);
-	if (ch->instpos + size > ch->vo->size) {
+	if (ch->instpos + size > ch->bo->size) {
 		spin_unlock(&ch->instlock);
 		return 0;
 	}
@@ -121,10 +121,10 @@ nv50_chan_dmaobj_new(struct pscnv_chan *ch, uint32_t type, uint64_t start, uint6
 	int res = nv50_chan_iobj_new (ch, 0x10);
 	if (!res)
 		return 0;
-	nv_wv32(ch->vo, res + 0x00, type);
-	nv_wv32(ch->vo, res + 0x04, end);
-	nv_wv32(ch->vo, res + 0x08, start);
-	nv_wv32(ch->vo, res + 0x0c, (end >> 32) << 24 | (start >> 32));
+	nv_wv32(ch->bo, res + 0x00, type);
+	nv_wv32(ch->bo, res + 0x04, end);
+	nv_wv32(ch->bo, res + 0x08, start);
+	nv_wv32(ch->bo, res + 0x0c, (end >> 32) << 24 | (start >> 32));
 	dev_priv->vm->bar_flush(dev);
 	return res;
 }

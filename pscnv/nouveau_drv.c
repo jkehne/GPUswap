@@ -101,8 +101,8 @@ int nouveau_reg_debug;
 module_param_named(reg_debug, nouveau_reg_debug, int, 0600);
 
 MODULE_PARM_DESC(vram_debug, "VRAM debug level: 0-3.");
-int pscnv_vram_debug = 0;
-module_param_named(vram_debug, pscnv_vram_debug, int, 0400);
+int pscnv_mem_debug = 0;
+module_param_named(vram_debug, pscnv_mem_debug, int, 0400);
 
 MODULE_PARM_DESC(vm_debug, "VM debug level: 0-2.");
 int pscnv_vm_debug = 0;

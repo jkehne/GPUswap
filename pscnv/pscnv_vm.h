@@ -32,7 +32,7 @@
 
 PSCNV_RB_HEAD(pscnv_vm_maptree, pscnv_vm_mapnode);
 
-struct pscnv_vo;
+struct pscnv_bo;
 
 struct pscnv_vspace {
 	int vid;
@@ -51,7 +51,7 @@ struct pscnv_vm_mapnode {
 	PSCNV_RB_ENTRY(pscnv_vm_mapnode) entry;
 	struct pscnv_vspace *vspace;
 	/* NULL means free */
-	struct pscnv_vo *vo;
+	struct pscnv_bo *bo;
 	uint64_t start;
 	uint64_t size;
 	uint64_t maxgap;
@@ -59,7 +59,7 @@ struct pscnv_vm_mapnode {
 
 extern struct pscnv_vspace *pscnv_vspace_new(struct drm_device *);
 extern void pscnv_vspace_free(struct pscnv_vspace *);
-extern int pscnv_vspace_map(struct pscnv_vspace *, struct pscnv_vo *, uint64_t start, uint64_t end, int back, struct pscnv_vm_mapnode **res);
+extern int pscnv_vspace_map(struct pscnv_vspace *, struct pscnv_bo *, uint64_t start, uint64_t end, int back, struct pscnv_vm_mapnode **res);
 extern int pscnv_vspace_unmap(struct pscnv_vspace *, uint64_t start);
 extern int pscnv_vspace_unmap_node(struct pscnv_vm_mapnode *node);
 extern void pscnv_vspace_ref_free(struct kref *ref);

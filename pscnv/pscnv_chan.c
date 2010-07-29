@@ -27,7 +27,7 @@
 #include "drmP.h"
 #include "drm.h"
 #include "nouveau_drv.h"
-#include "pscnv_vram.h"
+#include "pscnv_mem.h"
 #include "pscnv_vm.h"
 #include "pscnv_ramht.h"
 #include "pscnv_chan.h"
@@ -75,8 +75,8 @@ pscnv_chan_free(struct pscnv_chan *ch) {
 	list_del(&ch->vspace_list);
 	mutex_unlock(&ch->vspace->lock);
 	if (ch->cache)
-		pscnv_vram_free(ch->cache);
-	pscnv_vram_free(ch->vo);
+		pscnv_mem_free(ch->cache);
+	pscnv_mem_free(ch->bo);
 	kref_put(&ch->vspace->ref, pscnv_vspace_ref_free);
 	kfree(ch);
 }

@@ -230,7 +230,7 @@ nouveau_fbcon_create(struct drm_device *dev, uint32_t fb_width,
 	struct nouveau_fbcon_par *par;
 	struct drm_framebuffer *fb;
 	struct nouveau_framebuffer *nouveau_fb;
-	struct pscnv_vo *vo;
+	struct pscnv_bo *bo;
 	struct drm_gem_object *obj;
 	struct drm_mode_fb_cmd mode_cmd;
 	struct device *device = &dev->pdev->dev;
@@ -253,18 +253,18 @@ nouveau_fbcon_create(struct drm_device *dev, uint32_t fb_width,
 		NV_ERROR(dev, "failed to allocate framebuffer\n");
 		goto out;
 	}
-	vo = obj->driver_private;
+	bo = obj->driver_private;
 
-	ret = dev_priv->vm->map_user(vo);
+	ret = dev_priv->vm->map_user(bo);
 	if (ret) {
 		NV_ERROR(dev, "failed to map fb: %d\n", ret);
-		pscnv_vram_free(vo);
+		pscnv_mem_free(bo);
 		goto out;
 	}
 
 	mutex_lock(&dev->struct_mutex);
 
-	fb = nouveau_framebuffer_create(dev, vo, &mode_cmd);
+	fb = nouveau_framebuffer_create(dev, bo, &mode_cmd);
 	if (!fb) {
 		ret = -ENOMEM;
 		NV_ERROR(dev, "failed to allocate fb.\n");
@@ -298,10 +298,10 @@ nouveau_fbcon_create(struct drm_device *dev, uint32_t fb_width,
 			      FBINFO_HWACCEL_FILLRECT |
 			      FBINFO_HWACCEL_IMAGEBLIT;
 	info->fbops = &nouveau_fbcon_ops;
-	info->fix.smem_start = dev->mode_config.fb_base + vo->map1->start;
+	info->fix.smem_start = dev->mode_config.fb_base + bo->map1->start;
 	info->fix.smem_len = size;
 
-	info->screen_base = ioremap_wc(dev_priv->fb_phys + vo->map1->start, size);
+	info->screen_base = ioremap_wc(dev_priv->fb_phys + bo->map1->start, size);
 	info->screen_size = size;
 
 	drm_fb_helper_fill_fix(info, fb->pitch, fb->depth);
@@ -359,10 +359,10 @@ nouveau_fbcon_create(struct drm_device *dev, uint32_t fb_width,
 	nouveau_fbcon_zfill(dev);
 
 	/* To allow resizeing without swapping buffers */
-	NV_INFO(dev, "allocated %dx%d fb: 0x%llx 0x%llx, vo %p\n",
+	NV_INFO(dev, "allocated %dx%d fb: 0x%llx 0x%llx, bo %p\n",
 						nouveau_fb->base.width,
 						nouveau_fb->base.height,
-						vo->start, vo->map1->start, vo);
+						bo->start, bo->map1->start, bo);
 
 	mutex_unlock(&dev->struct_mutex);
 	vga_switcheroo_client_fb_set(dev->pdev, info);
@@ -397,8 +397,8 @@ nouveau_fbcon_remove(struct drm_device *dev, struct drm_framebuffer *fb)
 
 		unregister_framebuffer(info);
 		iounmap(info->screen_base);
-		drm_gem_object_unreference_unlocked(nouveau_fb->vo->gem);
-		nouveau_fb->vo = NULL;
+		drm_gem_object_unreference_unlocked(nouveau_fb->bo->gem);
+		nouveau_fb->bo = NULL;
 		if (par)
 			drm_fb_helper_free(&par->helper);
 		framebuffer_release(info);

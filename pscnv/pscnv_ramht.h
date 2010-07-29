@@ -28,7 +28,7 @@
 #define __PSCNV_RAMHT_H__
 
 struct pscnv_ramht {
-	struct pscnv_vo *vo;
+	struct pscnv_bo *bo;
 	spinlock_t lock;
 	uint32_t offset;
 	int bits;

@@ -40,7 +40,7 @@ struct nv50_graph_engine {
 };
 
 struct nv50_graph_chan {
-	struct pscnv_vo *grctx;
+	struct pscnv_bo *grctx;
 };
 
 #define nv50_graph(x) container_of(x, struct nv50_graph_engine, base)
@@ -282,7 +282,7 @@ int nv50_graph_chan_alloc(struct pscnv_engine *eng, struct pscnv_chan *ch) {
 		hdr = 0x200;
 	else
 		hdr = 0x20;
-	grch->grctx = pscnv_vram_alloc(dev, graph->grctx_size, PSCNV_GEM_CONTIG, 0, 0x97c07e47);
+	grch->grctx = pscnv_mem_alloc(dev, graph->grctx_size, PSCNV_GEM_CONTIG, 0, 0x97c07e47);
 	if (!grch->grctx) {
 		NV_ERROR(dev, "PGRAPH: No VRAM for context!\n");
 		kfree(grch);
@@ -295,10 +295,10 @@ int nv50_graph_chan_alloc(struct pscnv_engine *eng, struct pscnv_chan *ch) {
 	ctx.data = grch->grctx;
 	nv50_grctx_init(&ctx);
 	limit = grch->grctx->start + graph->grctx_size - 1;
-	nv_wv32(ch->vo, hdr + 0x00, 0x00190000);
-	nv_wv32(ch->vo, hdr + 0x04, limit);
-	nv_wv32(ch->vo, hdr + 0x08, grch->grctx->start);
-	nv_wv32(ch->vo, hdr + 0x0c, (limit >> 32) << 24 | (grch->grctx->start >> 32));
+	nv_wv32(ch->bo, hdr + 0x00, 0x00190000);
+	nv_wv32(ch->bo, hdr + 0x04, limit);
+	nv_wv32(ch->bo, hdr + 0x08, grch->grctx->start);
+	nv_wv32(ch->bo, hdr + 0x0c, (limit >> 32) << 24 | (grch->grctx->start >> 32));
 	dev_priv->vm->bar_flush(dev);
 	ch->vspace->engref[PSCNV_ENGINE_GRAPH]++;
 	ch->engdata[PSCNV_ENGINE_GRAPH] = grch;
@@ -329,7 +329,7 @@ void nv50_graph_chan_kill(struct pscnv_engine *eng, struct pscnv_chan *ch) {
 		}
 	}
 	/* check if the channel we're freeing is active on PGRAPH. */
-	if (nv_rd32(dev, 0x40032c) == (0x80000000 | ch->vo->start >> 12)) {
+	if (nv_rd32(dev, 0x40032c) == (0x80000000 | ch->bo->start >> 12)) {
 		NV_INFO(dev, "Kicking channel %d off PGRAPH.\n", ch->cid);
 		/* DIE */
 		nv_wr32(dev, 0x400040, -1);
@@ -341,7 +341,7 @@ void nv50_graph_chan_kill(struct pscnv_engine *eng, struct pscnv_chan *ch) {
 		nv_wr32(dev, 0x400310, 0);
 	}
 	/* or maybe it was just going to be loaded in? */
-	if (nv_rd32(dev, 0x400330) == (0x80000000 | ch->vo->start >> 12)) {
+	if (nv_rd32(dev, 0x400330) == (0x80000000 | ch->bo->start >> 12)) {
 		nv_wr32(dev, 0x400330, 0);
 		nv_wr32(dev, 0x400310, 0);
 	}
@@ -353,7 +353,7 @@ void nv50_graph_chan_kill(struct pscnv_engine *eng, struct pscnv_chan *ch) {
 
 void nv50_graph_chan_free(struct pscnv_engine *eng, struct pscnv_chan *ch) {
 	struct nv50_graph_chan *grch = ch->engdata[PSCNV_ENGINE_GRAPH];
-	pscnv_vram_free(grch->grctx);
+	pscnv_mem_free(grch->grctx);
 	kfree(grch);
 	ch->vspace->engref[PSCNV_ENGINE_GRAPH]--;
 	ch->engdata[PSCNV_ENGINE_GRAPH] = 0;
@@ -364,10 +364,10 @@ int nv50_graph_chan_obj_new(struct pscnv_engine *eng, struct pscnv_chan *ch, uin
 	if (!inst) {
 		return -ENOMEM;
 	}
-	nv_wv32(ch->vo, inst, oclass);
-	nv_wv32(ch->vo, inst + 4, 0);
-	nv_wv32(ch->vo, inst + 8, 0);
-	nv_wv32(ch->vo, inst + 0xc, 0);
+	nv_wv32(ch->bo, inst, oclass);
+	nv_wv32(ch->bo, inst + 4, 0);
+	nv_wv32(ch->bo, inst + 8, 0);
+	nv_wv32(ch->bo, inst + 0xc, 0);
 	return pscnv_ramht_insert (&ch->ramht, handle, 0x100000 | inst >> 4);
 }
 

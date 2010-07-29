@@ -40,7 +40,7 @@
 
 #include "pscnv_drm.h"
 #include "nouveau_bios.h"
-#include "pscnv_vram.h"
+#include "pscnv_mem.h"
 #include "pscnv_vm.h"
 #include "pscnv_ramht.h"
 #include "pscnv_engine.h"
@@ -88,11 +88,11 @@ struct nouveau_channel {
 	} fence;
 
 	/* DMA push buffer */
-	struct pscnv_vo *pushbuf;
+	struct pscnv_bo *pushbuf;
 	uint32_t pushbuf_base;
 
 	/* EVO objects */
-	struct pscnv_vo *evo_obj;
+	struct pscnv_bo *evo_obj;
 	struct pscnv_ramht evo_ramht;
 	uint32_t evo_inst;
 
@@ -363,7 +363,7 @@ struct drm_nouveau_private {
 	struct backlight_device *backlight;
 
 	struct nouveau_channel *evo;
-	struct pscnv_vo *evo_obj;
+	struct pscnv_bo *evo_obj;
 
 	struct {
 		struct dentry *channel_root;
@@ -414,7 +414,7 @@ extern int nouveau_fbpercrtc;
 extern int nouveau_tv_disable;
 extern char *nouveau_tv_norm;
 extern int nouveau_reg_debug;
-extern int pscnv_vram_debug;
+extern int pscnv_mem_debug;
 extern int pscnv_vm_debug;
 extern int pscnv_gem_debug;
 extern int pscnv_ramht_debug;
@@ -1063,37 +1063,37 @@ nv_two_reg_pll(struct drm_device *dev)
 
 /* object access */
 
-static inline uint32_t nv_rv32(struct pscnv_vo *vo,
+static inline uint32_t nv_rv32(struct pscnv_bo *bo,
 				unsigned offset)
 {
-	struct drm_nouveau_private *dev_priv = vo->dev->dev_private;
+	struct drm_nouveau_private *dev_priv = bo->dev->dev_private;
 	uint32_t res;
-	uint64_t addr = vo->start + offset;
-	if (vo->map3 && dev_priv->vm)
-		return ioread32_native(dev_priv->ramin + vo->map3->start - dev_priv->fb_size + offset);
+	uint64_t addr = bo->start + offset;
+	if (bo->map3 && dev_priv->vm)
+		return ioread32_native(dev_priv->ramin + bo->map3->start - dev_priv->fb_size + offset);
 	spin_lock(&dev_priv->pramin_lock);
 	if (addr >> 16 != dev_priv->pramin_start) {
 		dev_priv->pramin_start = addr >> 16;
-		nv_wr32(vo->dev, 0x1700, addr >> 16);
+		nv_wr32(bo->dev, 0x1700, addr >> 16);
 	}
-	res = nv_rd32(vo->dev, 0x700000 + (addr & 0xffff));
+	res = nv_rd32(bo->dev, 0x700000 + (addr & 0xffff));
 	spin_unlock(&dev_priv->pramin_lock);
 	return res;
 }
 
-static inline void nv_wv32(struct pscnv_vo *vo,
+static inline void nv_wv32(struct pscnv_bo *bo,
 				unsigned offset, uint32_t val)
 {
-	struct drm_nouveau_private *dev_priv = vo->dev->dev_private;
-	uint64_t addr = vo->start + offset;
-	if (vo->map3 && dev_priv->vm)
-		return iowrite32_native(val, dev_priv->ramin + vo->map3->start - dev_priv->fb_size + offset);
+	struct drm_nouveau_private *dev_priv = bo->dev->dev_private;
+	uint64_t addr = bo->start + offset;
+	if (bo->map3 && dev_priv->vm)
+		return iowrite32_native(val, dev_priv->ramin + bo->map3->start - dev_priv->fb_size + offset);
 	spin_lock(&dev_priv->pramin_lock);
 	if (addr >> 16 != dev_priv->pramin_start) {
 		dev_priv->pramin_start = addr >> 16;
-		nv_wr32(vo->dev, 0x1700, addr >> 16);
+		nv_wr32(bo->dev, 0x1700, addr >> 16);
 	}
-	nv_wr32(vo->dev, 0x700000 + (addr & 0xffff), val);
+	nv_wr32(bo->dev, 0x700000 + (addr & 0xffff), val);
 	spin_unlock(&dev_priv->pramin_lock);
 }
 

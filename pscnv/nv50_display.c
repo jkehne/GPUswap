@@ -42,7 +42,7 @@ nv50_evo_channel_del(struct nouveau_channel **pchan)
 	*pchan = NULL;
 
 	if (chan->pushbuf)
-		pscnv_vram_free(chan->pushbuf);
+		pscnv_mem_free(chan->pushbuf);
 
 	kfree(chan);
 }
@@ -104,7 +104,7 @@ nv50_evo_channel_new(struct drm_device *dev, struct nouveau_channel **pchan)
 		return -ENOMEM;
 	}
 	spin_lock_init(&chan->evo_ramht.lock);
-	chan->evo_ramht.vo = chan->evo_obj;
+	chan->evo_ramht.bo = chan->evo_obj;
 	chan->evo_ramht.bits = 9;
 	chan->evo_ramht.offset = 0;
 	chan->evo_inst = 0x1000;
@@ -136,7 +136,7 @@ nv50_evo_channel_new(struct drm_device *dev, struct nouveau_channel **pchan)
 		return ret;
 	}
 
-	chan->pushbuf = pscnv_vram_alloc(dev, 0x1000, PSCNV_GEM_CONTIG, 0, 0xd15f1f0);
+	chan->pushbuf = pscnv_mem_alloc(dev, 0x1000, PSCNV_GEM_CONTIG, 0, 0xd15f1f0);
 	if (!chan->pushbuf) {
 		NV_ERROR(dev, "Error creating EVO DMA push buffer: %d\n", ret);
 		nv50_evo_channel_del(pchan);

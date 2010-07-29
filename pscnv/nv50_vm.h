@@ -20,7 +20,7 @@ struct nv50_vm_engine {
 };
 
 struct nv50_vspace {
-	struct pscnv_vo *pt[NV50_VM_PDE_COUNT];
+	struct pscnv_bo *pt[NV50_VM_PDE_COUNT];
 };
 
 int nv50_vm_flush (struct drm_device *dev, int unit);

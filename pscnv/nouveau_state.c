@@ -111,7 +111,7 @@ nouveau_card_init(struct drm_device *dev)
 			goto out;
 	}
 
-	ret = pscnv_vram_init(dev);
+	ret = pscnv_mem_init(dev);
 	if (ret)
 		goto out_bios;
 
@@ -198,7 +198,7 @@ out_vm:
 	nv_wr32(dev, 0x1140, 0);
 	dev_priv->vm->takedown(dev);
 out_vram:
-	pscnv_vram_takedown(dev);
+	pscnv_mem_takedown(dev);
 out_bios:
 	nouveau_bios_takedown(dev);
 out:
@@ -223,7 +223,7 @@ static void nouveau_card_takedown(struct drm_device *dev)
 				dev_priv->engines[i] = 0;
 			}
 		dev_priv->vm->takedown(dev);
-		pscnv_vram_takedown(dev);
+		pscnv_mem_takedown(dev);
 		nv_wr32(dev, 0x1140, 0);
 		nouveau_bios_takedown(dev);
 

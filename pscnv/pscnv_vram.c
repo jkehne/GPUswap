@@ -27,7 +27,7 @@
 #include "drmP.h"
 #include "drm.h"
 #include "nouveau_drv.h"
-#include "pscnv_vram.h"
+#include "pscnv_mem.h"
 #include <linux/list.h>
 #include <linux/kernel.h>
 #include <linux/mutex.h>
@@ -88,7 +88,7 @@ pscnv_vram_split_left (struct drm_device *dev, struct pscnv_vram_region *reg, ui
 	list_add_tail(&left->global_list, &reg->global_list);
 	reg->size -= left->size;
 	reg->start += left->size;
-	if (pscnv_vram_debug >= 3)
+	if (pscnv_mem_debug >= 3)
 		NV_INFO(dev, "Split left type %d: %llx:%llx:%llx\n", reg->type,
 				left->start, reg->start, reg->start + reg->size);
 	return left;
@@ -107,7 +107,7 @@ pscnv_vram_split_right (struct drm_device *dev, struct pscnv_vram_region *reg, u
 	list_add(&right->local_list, &reg->local_list);
 	list_add(&right->global_list, &reg->global_list);
 	reg->size -= right->size;
-	if (pscnv_vram_debug >= 3)
+	if (pscnv_mem_debug >= 3)
 		NV_INFO(dev, "Split right type %d: %llx:%llx:%llx\n", reg->type,
 				reg->start, right->start, right->start + right->size);
 	return right;
@@ -128,7 +128,7 @@ pscnv_vram_try_merge (struct drm_device *dev, struct pscnv_vram_region *a, struc
 	}
 	if (a->type != b->type)
 		return a;
-	if (pscnv_vram_debug >= 3)
+	if (pscnv_mem_debug >= 3)
 		NV_INFO(dev, "Merging type %d: %llx:%llx:%llx\n", a->type,
 				c->start, d->start, d->start + d->size);
 	c->size += d->size;
@@ -190,24 +190,12 @@ pscnv_vram_init(struct drm_device *dev)
 	uint32_t r0, r4, rc, ru, rt;
 	int parts, i, colbits, rowbitsa, rowbitsb, banks;
 	uint64_t rowsize, predicted;
-	int ret, dma_bits = 32;
 	INIT_LIST_HEAD(&dev_priv->vram_global_list);
 	INIT_LIST_HEAD(&dev_priv->vram_free_list);
 	mutex_init(&dev_priv->vram_mutex);
-	spin_lock_init(&dev_priv->pramin_lock);
-
-	if (dev_priv->card_type >= NV_50 &&
-	    pci_dma_supported(dev->pdev, DMA_BIT_MASK(40)))
-		dma_bits = 40;
-
-	ret = pci_set_dma_mask(dev->pdev, DMA_BIT_MASK(dma_bits));
-	if (ret) {
-		NV_ERROR(dev, "Error setting DMA mask: %d\n", ret);
-		return ret;
-	}
 
 	if (dev_priv->card_type != NV_50) {
-		NV_ERROR(dev, "Sorry, no memory allocator for NV%02x. Bailing.\n",
+		NV_ERROR(dev, "Sorry, no VRAM allocator for NV%02x. Bailing.\n",
 				dev_priv->chipset);
 		return -EINVAL;
 	}
@@ -268,21 +256,6 @@ pscnv_vram_init(struct drm_device *dev)
 					 drm_get_resource_len(dev, 1),
 					 DRM_MTRR_WC);
 
-	/* XXX BIG HACK ALERT
-	 *
-	 * EVO is the only thing we use right now that needs >4kiB alignment.
-	 * We could do this correctly, but that'd require rewriting a lot of
-	 * the allocator code. So, since there's only a single EVO channel
-	 * per card, we just statically allocate EVO at address 0x40000.
-	 *
-	 * This is first alloc ever, so it's guaranteed to land at the correct
-	 * place.
-	 */
-
-	if (drm_core_check_feature(dev, DRIVER_MODESET)) {
-		dev_priv->evo_obj = pscnv_vram_alloc(dev, 0x2000, PSCNV_GEM_CONTIG, 0, 0xd1501a7);
-	}
-
 	return 0;
 }
 
@@ -291,16 +264,13 @@ pscnv_vram_takedown(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct list_head *pos, *next;
-	if (drm_core_check_feature(dev, DRIVER_MODESET)) {
-		pscnv_vram_free(dev_priv->evo_obj);
-	}
 restart:
 	list_for_each_safe(pos, next, &dev_priv->vram_global_list) {
 		struct pscnv_vram_region *reg = list_entry(pos, struct pscnv_vram_region, global_list);
 		if (reg->type > PSCNV_VRAM_LAST_FREE) {
-			NV_ERROR(dev, "VO %d of type %08x still exists at takedown!\n",
-					reg->vo->serial, reg->vo->cookie);
-			pscnv_vram_free(reg->vo);
+			NV_ERROR(dev, "BO %d of type %08x still exists at takedown!\n",
+					reg->bo->serial, reg->bo->cookie);
+			pscnv_vram_free(reg->bo);
 			goto restart;
 		}
 	}
@@ -318,16 +288,15 @@ restart:
 	return 0;
 }
 
-struct pscnv_vo *
-pscnv_vram_alloc(struct drm_device *dev,
-		uint64_t size, int flags, int tile_flags, uint32_t cookie)
+int
+pscnv_vram_alloc(struct pscnv_bo *bo)
 {
-	static int serial = 0;
+	struct drm_device *dev = bo->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	int lsr;
-	struct pscnv_vo *res;
 	struct pscnv_vram_region *cur, *next;
-	switch (tile_flags) {
+	uint32_t size = bo->size;
+	int lsr;
+	switch (bo->tile_flags) {
 		case 0:
 		case 0x10:
 		case 0x11:
@@ -398,35 +367,13 @@ pscnv_vram_alloc(struct drm_device *dev,
 			lsr = 1;
 			break;
 		default:
-			return 0;
+			return -EINVAL;
 	}
-
-	/* avoid all sorts of integer overflows possible otherwise. */
-	if (size >= (1ULL << 40))
-		return 0;
-	if (!size)
-		return 0;
-
-	res = kzalloc (sizeof *res, GFP_KERNEL);
-	if (!res)
-		return 0;
-	size = ALIGN(size, PSCNV_VRAM_PAGE_SIZE);
-	res->dev = dev;
-	res->size = size;
-	res->flags = flags;
-	res->tile_flags = tile_flags;
-	res->cookie = cookie;
-	res->gem = 0;
-	INIT_LIST_HEAD(&res->regions);
-
+	INIT_LIST_HEAD(&bo->regions);
 	mutex_lock(&dev_priv->vram_mutex);
-	res->serial = serial++;
-	if (pscnv_vram_debug >= 1)
-		NV_INFO(dev, "Allocating %d, %#llx-byte %sVO of type %08x, tile_flags %x\n", res->serial, size,
-				(flags & PSCNV_GEM_CONTIG ? "contig " : ""), cookie, tile_flags);
 	if (list_empty(&dev_priv->vram_free_list)) {
 		mutex_unlock(&dev_priv->vram_mutex);
-		return 0;
+		return -ENOMEM;
 	}
 	if (!lsr)
 		cur = list_entry(dev_priv->vram_free_list.next, struct pscnv_vram_region, local_list);
@@ -440,7 +387,7 @@ pscnv_vram_alloc(struct drm_device *dev,
 		else
 			next = pscnv_vram_free_prev(dev, cur);
 		/* if contig VO is wanted, skip too small regions */
-		if (cur->size >= size || !(flags & PSCNV_GEM_CONTIG)) {
+		if (cur->size >= size || !(bo->flags & PSCNV_GEM_CONTIG)) {
 			/* if region is untyped, we can use it but we need to
 			 * convert to typed first.
 			 */
@@ -481,28 +428,28 @@ pscnv_vram_alloc(struct drm_device *dev,
 				cur->type = (lsr?PSCNV_VRAM_USED_LSR:PSCNV_VRAM_USED_SANE);
 				list_del(&cur->local_list);
 				if (lsr)
-					list_add(&cur->local_list, &res->regions);
+					list_add(&cur->local_list, &bo->regions);
 				else
-					list_add_tail(&cur->local_list, &res->regions);
-				if (pscnv_vram_debug >= 2)
+					list_add_tail(&cur->local_list, &bo->regions);
+				if (pscnv_mem_debug >= 2)
 					NV_INFO (dev, "Using block at %llx-%llx\n",
 							cur->start, cur->start + cur->size);
-				if (flags & PSCNV_GEM_CONTIG)
-					res->start = cur->start;
-				cur->vo = res;
+				if (bo->flags & PSCNV_GEM_CONTIG)
+					bo->start = cur->start;
+				cur->bo = bo;
 				size -= cur->size;
 			}
 			if (!size) {
 				mutex_unlock(&dev_priv->vram_mutex);
-				return res;
+				return 0;
 			}
 		}
 		cur = next;
 	}
 	/* no free blocks. remove what we managed to alloc and fail. */
 	mutex_unlock(&dev_priv->vram_mutex);
-	pscnv_vram_free(res);
-	return 0;
+	pscnv_vram_free(bo);
+	return -ENOMEM;
 }
 
 static int
@@ -522,7 +469,7 @@ pscnv_vram_free_region (struct drm_device *dev, struct pscnv_vram_region *reg) {
 		return -EINVAL;
 	}
 	mutex_lock(&dev_priv->vram_mutex);
-	if (pscnv_vram_debug >= 3)
+	if (pscnv_mem_debug >= 3)
 		NV_INFO (dev, "Freeing block %llx-%llx of type %d.\n",
 				reg->start, reg->start+reg->size, reg->type);
 	list_del(&reg->local_list);
@@ -554,21 +501,12 @@ pscnv_vram_free_region (struct drm_device *dev, struct pscnv_vram_region *reg) {
 }
 
 int
-pscnv_vram_free(struct pscnv_vo *vo)
+pscnv_vram_free(struct pscnv_bo *bo)
 {
 	struct list_head *pos, *next;
-	struct drm_nouveau_private *dev_priv = vo->dev->dev_private;
-	if (pscnv_vram_debug >= 1)
-		NV_INFO(vo->dev, "Freeing %d, %#llx-byte %sVO of type %08x, tile_flags %x\n", vo->serial, vo->size,
-				(vo->flags & PSCNV_GEM_CONTIG ? "contig " : ""), vo->cookie, vo->tile_flags);
-	if (dev_priv->vm && vo->map1)
-		pscnv_vspace_unmap_node(vo->map1);
-	if (dev_priv->vm && vo->map3)
-		pscnv_vspace_unmap_node(vo->map3);
-	list_for_each_safe(pos, next, &vo->regions) {
+	list_for_each_safe(pos, next, &bo->regions) {
 		struct pscnv_vram_region *reg = list_entry(pos, struct pscnv_vram_region, local_list);
-		pscnv_vram_free_region (vo->dev, reg);
+		pscnv_vram_free_region (bo->dev, reg);
 	}
-	kfree (vo);
 	return 0;
 }

@@ -37,12 +37,12 @@ struct pscnv_chan {
 	struct pscnv_vspace *vspace;
 	int isbar;
 	struct list_head vspace_list;
-	struct pscnv_vo *vo;
+	struct pscnv_bo *bo;
 	spinlock_t instlock;
 	int instpos;
 	struct pscnv_ramht ramht;
 	uint32_t ramfc;
-	struct pscnv_vo *cache;
+	struct pscnv_bo *cache;
 	struct drm_file *filp;
 	struct kref ref;
 	void *engdata[PSCNV_ENGINES_NUM];

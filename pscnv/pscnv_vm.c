@@ -27,7 +27,7 @@
 #include "drmP.h"
 #include "drm.h"
 #include "nouveau_drv.h"
-#include "pscnv_vram.h"
+#include "pscnv_mem.h"
 #include "pscnv_vm.h"
 #include "pscnv_chan.h"
 
@@ -37,7 +37,7 @@ static void PSCNV_RB_AUGMENT(struct pscnv_vm_mapnode *node) {
 	uint64_t maxgap = 0;
 	struct pscnv_vm_mapnode *left = PSCNV_RB_LEFT(node, entry);
 	struct pscnv_vm_mapnode *right = PSCNV_RB_RIGHT(node, entry);
-	if (!node->vo)
+	if (!node->bo)
 		maxgap = node->size;
 	if (left && left->maxgap > maxgap)
 		maxgap = left->maxgap;
@@ -106,8 +106,8 @@ pscnv_vspace_free(struct pscnv_vspace *vs) {
 	struct drm_nouveau_private *dev_priv = vs->dev->dev_private;
 	struct pscnv_vm_mapnode *node;
 	while ((node = PSCNV_RB_ROOT(&vs->maps))) {
-		if (node->vo && !vs->isbar) {
-			drm_gem_object_unreference_unlocked(node->vo->gem);
+		if (node->bo && !vs->isbar) {
+			drm_gem_object_unreference_unlocked(node->bo->gem);
 		}
 		PSCNV_RB_REMOVE(pscnv_vm_maptree, &vs->maps, node);
 		kfree(node);
@@ -129,7 +129,7 @@ void pscnv_vspace_ref_free(struct kref *ref) {
 }
 
 static struct pscnv_vm_mapnode *
-pscnv_vspace_map_int(struct pscnv_vspace *vs, struct pscnv_vo *vo,
+pscnv_vspace_map_int(struct pscnv_vspace *vs, struct pscnv_bo *vo,
 		uint64_t start, uint64_t end, int back,
 		struct pscnv_vm_mapnode *node)
 {
@@ -160,7 +160,7 @@ pscnv_vspace_map_int(struct pscnv_vspace *vs, struct pscnv_vo *vo,
 	mend = node->start + node->size;
 	if (mend > end)
 		mend = end;
-	if (mstart + vo->size <= mend && !node->vo) {
+	if (mstart + vo->size <= mend && !node->bo) {
 		if (back)
 			mstart = mend - vo->size;
 		mend = mstart + vo->size;
@@ -187,7 +187,7 @@ pscnv_vspace_map_int(struct pscnv_vspace *vs, struct pscnv_vo *vo,
 			split->maxgap = split->size;
 			PSCNV_RB_INSERT(pscnv_vm_maptree, &vs->maps, split);
 		}
-		node->vo = vo;
+		node->bo = vo;
 		PSCNV_RB_AUGMENT(node);
 		return node;
 	}
@@ -205,7 +205,7 @@ pscnv_vspace_map_int(struct pscnv_vspace *vs, struct pscnv_vo *vo,
 }
 
 int
-pscnv_vspace_map(struct pscnv_vspace *vs, struct pscnv_vo *vo,
+pscnv_vspace_map(struct pscnv_vspace *vs, struct pscnv_bo *vo,
 		uint64_t start, uint64_t end, int back,
 		struct pscnv_vm_mapnode **res)
 {
@@ -241,9 +241,9 @@ pscnv_vspace_unmap_node_unlocked(struct pscnv_vm_mapnode *node) {
 	}
 	dev_priv->vm->do_unmap(node->vspace, node->start, node->size);
 	if (!node->vspace->isbar) {
-		drm_gem_object_unreference(node->vo->gem);
+		drm_gem_object_unreference(node->bo->gem);
 	}
-	node->vo = 0;
+	node->bo = 0;
 	node->maxgap = node->size;
 	PSCNV_RB_AUGMENT(node);
 	/* XXX: try merge */
@@ -267,7 +267,7 @@ pscnv_vspace_unmap(struct pscnv_vspace *vs, uint64_t start) {
 	mutex_lock(&vs->lock);
 	node = PSCNV_RB_ROOT(&vs->maps);
 	while (node) {
-		if (node->start == start && node->vo) {
+		if (node->start == start && node->bo) {
 			ret = pscnv_vspace_unmap_node_unlocked(node);
 			mutex_unlock(&vs->lock);
 			return ret;
@@ -292,7 +292,7 @@ int pscnv_mmap(struct file *filp, struct vm_area_struct *vma)
 	struct drm_device *dev = priv->minor->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct drm_gem_object *obj;
-	struct pscnv_vo *vo;
+	struct pscnv_bo *bo;
 	int ret;
 
 	if (vma->vm_pgoff * PAGE_SIZE < (1ull << 31))
@@ -304,27 +304,39 @@ int pscnv_mmap(struct file *filp, struct vm_area_struct *vma)
 	obj = drm_gem_object_lookup(dev, priv, (vma->vm_pgoff * PAGE_SIZE) >> 32);
 	if (!obj)
 		return -ENOENT;
-	vo = obj->driver_private;
+	bo = obj->driver_private;
 	
-	if (vma->vm_end - vma->vm_start > vo->size) {
+	if (vma->vm_end - vma->vm_start > bo->size) {
 		drm_gem_object_unreference_unlocked(obj);
 		return -EINVAL;
 	}
-	if ((ret = dev_priv->vm->map_user(vo))) {
+	switch (bo->flags & PSCNV_GEM_MEMTYPE_MASK) {
+	case PSCNV_GEM_VRAM_SMALL:
+	case PSCNV_GEM_VRAM_LARGE:
+		if ((ret = dev_priv->vm->map_user(bo))) {
+			drm_gem_object_unreference_unlocked(obj);
+			return ret;
+		}
+
+		vma->vm_flags |= VM_RESERVED | VM_IO | VM_PFNMAP | VM_DONTEXPAND;
+		vma->vm_ops = &pscnv_vm_ops;
+		vma->vm_private_data = obj;
+		vma->vm_page_prot = pgprot_writecombine(vm_get_page_prot(vma->vm_flags));
+
+		vma->vm_file = filp;
+
+		return remap_pfn_range(vma, vma->vm_start, 
+				(dev_priv->fb_phys + bo->map1->start) >> PAGE_SHIFT,
+				vma->vm_end - vma->vm_start, PAGE_SHARED);
+	case PSCNV_GEM_SYSRAM_SNOOP:
+	case PSCNV_GEM_SYSRAM_NOSNOOP:
+		/* XXX */
 		drm_gem_object_unreference_unlocked(obj);
-		return ret;
+		return -ENOSYS;
+	default:
+		drm_gem_object_unreference_unlocked(obj);
+		return -ENOSYS;
 	}
-
-	vma->vm_flags |= VM_RESERVED | VM_IO | VM_PFNMAP | VM_DONTEXPAND;
-	vma->vm_ops = &pscnv_vm_ops;
-	vma->vm_private_data = obj;
-	vma->vm_page_prot = pgprot_writecombine(vm_get_page_prot(vma->vm_flags));
-
-	vma->vm_file = filp;
-
-	return remap_pfn_range(vma, vma->vm_start, 
-			(dev_priv->fb_phys + vo->map1->start) >> PAGE_SHIFT,
-			vma->vm_end - vma->vm_start, PAGE_SHARED);
 }
 
 /* needs vm_mutex held */
@@ -410,7 +422,7 @@ int pscnv_ioctl_vspace_map(struct drm_device *dev, void *data,
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct pscnv_vspace *vs;
 	struct drm_gem_object *obj;
-	struct pscnv_vo *vo;
+	struct pscnv_bo *vo;
 	struct pscnv_vm_mapnode *map;
 	int ret;
 
