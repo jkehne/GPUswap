@@ -190,10 +190,21 @@ pscnv_vram_init(struct drm_device *dev)
 	uint32_t r0, r4, rc, ru, rt;
 	int parts, i, colbits, rowbitsa, rowbitsb, banks;
 	uint64_t rowsize, predicted;
+	int ret, dma_bits = 32;
 	INIT_LIST_HEAD(&dev_priv->vram_global_list);
 	INIT_LIST_HEAD(&dev_priv->vram_free_list);
 	mutex_init(&dev_priv->vram_mutex);
 	spin_lock_init(&dev_priv->pramin_lock);
+
+	if (dev_priv->card_type >= NV_50 &&
+	    pci_dma_supported(dev->pdev, DMA_BIT_MASK(40)))
+		dma_bits = 40;
+
+	ret = pci_set_dma_mask(dev->pdev, DMA_BIT_MASK(dma_bits));
+	if (ret) {
+		NV_ERROR(dev, "Error setting DMA mask: %d\n", ret);
+		return ret;
+	}
 
 	if (dev_priv->card_type != NV_50) {
 		NV_ERROR(dev, "Sorry, no memory allocator for NV%02x. Bailing.\n",
