@@ -99,6 +99,7 @@ pscnv_mem_alloc(struct drm_device *dev,
 	if (!res)
 		return 0;
 	size = ALIGN(size, PSCNV_MEM_PAGE_SIZE);
+	size = ALIGN(size, PAGE_SIZE);
 	res->dev = dev;
 	res->size = size;
 	res->flags = flags;

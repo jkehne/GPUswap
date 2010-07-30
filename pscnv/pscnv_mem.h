@@ -45,13 +45,15 @@ struct pscnv_bo {
 	/* only for contig blocks. same info as start of first [and only]
 	 * region, but more convenient to access */
 	uint64_t start;
-	/* a linked list of VRAM regions making up this VO. */
-	struct list_head regions;
 	/* the following used for GEM objects only */
 	uint32_t user[8];
 	struct drm_gem_object *gem;
 	struct pscnv_vm_mapnode *map1;
 	struct pscnv_vm_mapnode *map3;
+	/* VRAM only: a linked list of VRAM regions making up this BO. */
+	struct list_head regions;
+	/* SYSRaM only: list of pages */
+	struct page **pages;
 };
 
 /* a contiguous VRAM region. They're linked into two lists: global list of
