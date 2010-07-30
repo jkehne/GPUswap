@@ -55,7 +55,7 @@ int
 nv50_vspace_do_map (struct pscnv_vspace *vs, struct pscnv_bo *bo, uint64_t offset) {
 	struct drm_nouveau_private *dev_priv = vs->dev->dev_private;
 	struct list_head *pos;
-	int ret;
+	int ret, i, j;
 	switch (bo->flags & PSCNV_GEM_MEMTYPE_MASK) {
 		case PSCNV_GEM_VRAM_SMALL:
 		case PSCNV_GEM_VRAM_LARGE:
@@ -82,9 +82,29 @@ nv50_vspace_do_map (struct pscnv_vspace *vs, struct pscnv_bo *bo, uint64_t offse
 			break;
 		case PSCNV_GEM_SYSRAM_SNOOP:
 		case PSCNV_GEM_SYSRAM_NOSNOOP:
-			/* XXX */
-			return -ENOSYS;
+			for (i = 0; i < (bo->size >> PAGE_SHIFT); i++) {
+				for (j = 0; j < PAGE_SIZE / 0x1000; j++, offset += 0x1000) {
+					uint32_t pgnum = offset / 0x1000;
+					uint32_t pdenum = pgnum / NV50_VM_SPTE_COUNT;
+					uint32_t ptenum = pgnum % NV50_VM_SPTE_COUNT;
+					uint64_t pte = bo->dmapages[i] + j * 0x1000;
+					pte |= 1;
+					if ((bo->flags & PSCNV_GEM_MEMTYPE_MASK) == PSCNV_GEM_SYSRAM_SNOOP)
+						pte |= 0x20;
+					else
+						pte |= 0x30;
+					if (!nv50_vs(vs)->pt[pdenum])
+						if ((ret = nv50_vspace_fill_pd_slot (vs, pdenum))) {
+							nv50_vspace_do_unmap (vs, offset, bo->size);
+							return ret;
+						}
+					nv_wv32(nv50_vs(vs)->pt[pdenum], ptenum * 8 + 4, pte >> 32);
+					nv_wv32(nv50_vs(vs)->pt[pdenum], ptenum * 8, pte);
+				}
+			}
 			break;
+		default:
+			return -ENOSYS;
 	}
 	dev_priv->vm->bar_flush(vs->dev);
 	return 0;
