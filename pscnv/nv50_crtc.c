@@ -358,6 +358,11 @@ nv50_crtc_cursor_set(struct drm_crtc *crtc, struct drm_file *file_priv,
 		return -EINVAL;
 	}
 
+	if (!(cursor->flags & PSCNV_GEM_CONTIG)) {
+		drm_gem_object_unreference_unlocked(gem);
+		return -EINVAL;
+	}
+
 	/* The simple will do for now. */
 	for (i = 0; i < 64 * 64; i++)
 		nv_wv32(nv_crtc->cursor.bo, i*4, nv_rv32(cursor, i*4));
