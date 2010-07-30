@@ -204,12 +204,30 @@ pscnv_vspace_map_int(struct pscnv_vspace *vs, struct pscnv_bo *vo,
 	return 0;
 }
 
+static int
+pscnv_vspace_unmap_node_unlocked(struct pscnv_vm_mapnode *node) {
+	struct drm_nouveau_private *dev_priv = node->vspace->dev->dev_private;
+	if (pscnv_vm_debug >= 1) {
+		NV_INFO(node->vspace->dev, "Unmapping range %llx-%llx.\n", node->start, node->start + node->size);
+	}
+	dev_priv->vm->do_unmap(node->vspace, node->start, node->size);
+	if (!node->vspace->isbar) {
+		drm_gem_object_unreference(node->bo->gem);
+	}
+	node->bo = 0;
+	node->maxgap = node->size;
+	PSCNV_RB_AUGMENT(node);
+	/* XXX: try merge */
+	return 0;
+}
+
 int
 pscnv_vspace_map(struct pscnv_vspace *vs, struct pscnv_bo *vo,
 		uint64_t start, uint64_t end, int back,
 		struct pscnv_vm_mapnode **res)
 {
 	struct pscnv_vm_mapnode *node;
+	int ret;
 	struct drm_nouveau_private *dev_priv = vs->dev->dev_private;
 	start += 0xfff;
 	start &= ~0xfffull;
@@ -227,27 +245,13 @@ pscnv_vspace_map(struct pscnv_vspace *vs, struct pscnv_bo *vo,
 	if (pscnv_vm_debug >= 1)
 		NV_INFO(vs->dev, "Mapping VO %x/%d at %llx-%llx.\n", vo->cookie, vo->serial, node->start,
 				node->start + node->size);
-	dev_priv->vm->do_map(vs, vo, node->start);
+	ret = dev_priv->vm->do_map(vs, vo, node->start);
+	if (ret) {
+		pscnv_vspace_unmap_node_unlocked(node);
+	}
 	*res = node;
 	mutex_unlock(&vs->lock);
-	return 0;
-}
-
-static int
-pscnv_vspace_unmap_node_unlocked(struct pscnv_vm_mapnode *node) {
-	struct drm_nouveau_private *dev_priv = node->vspace->dev->dev_private;
-	if (pscnv_vm_debug >= 1) {
-		NV_INFO(node->vspace->dev, "Unmapping range %llx-%llx.\n", node->start, node->start + node->size);
-	}
-	dev_priv->vm->do_unmap(node->vspace, node->start, node->size);
-	if (!node->vspace->isbar) {
-		drm_gem_object_unreference(node->bo->gem);
-	}
-	node->bo = 0;
-	node->maxgap = node->size;
-	PSCNV_RB_AUGMENT(node);
-	/* XXX: try merge */
-	return 0;
+	return ret;
 }
 
 int
