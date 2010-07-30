@@ -10,9 +10,14 @@
 #define PSCNV_GETPARAM_GRAPH_UNITS     13
 #define PSCNV_GETPARAM_PTIMER_TIME     14
 
-#define PSCNV_GEM_CONTIG	0x00000001	/* needs to be contiguous in VRAM */
-#define PSCNV_GEM_MAPPABLE	0x00000002	/* intended to be mmapped by host */
-#define PSCNV_GEM_GART		0x00000004	/* should be allocated in GART */
+#define PSCNV_GEM_CONTIG		0x00000001	/* needs to be contiguous in VRAM */
+#define PSCNV_GEM_MAPPABLE		0x00000002	/* intended to be mmapped by host */
+#define PSCNV_GEM_MEMTYPE_MASK		0x0000000c
+#define PSCNV_GEM_VRAM_SMALL		0x00000000	/* VRAM with small pages */
+#define PSCNV_GEM_SYSRAM_SNOOP		0x00000004
+#define PSCNV_GEM_VRAM_LARGE		0x00000008	/* VRAM with large pages */
+#define PSCNV_GEM_SYSRAM_NOSNOOP	0x0000000c
+#define PSCNV_GEM_GART			PSCNV_GEM_SYSRAM_SNOOP	/* compat */
 
 int pscnv_getparam(int fd, uint64_t param, uint64_t *value);
 int pscnv_gem_new(int fd, uint32_t cookie, uint32_t flags, uint32_t tile_flags, uint64_t size, uint32_t *user, uint32_t *handle, uint64_t *map_handle);
