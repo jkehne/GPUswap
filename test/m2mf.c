@@ -50,7 +50,7 @@ main()
 	uint32_t size = 0x2000;
 	uint32_t handle;
 	uint64_t map_handle;
-	ret = pscnv_gem_new(fd, 0xf1f0c0de, 0, 0, size, 0, &handle, &map_handle);
+	ret = pscnv_gem_new(fd, 0xf1f0c0de, PSCNV_GEM_SYSRAM_SNOOP, 0, size, 0, &handle, &map_handle);
 	if (ret) {
 		printf("new: failed ret = %d\n", ret);
 		return 1;
