@@ -54,6 +54,7 @@ struct pscnv_bo {
 	struct list_head regions;
 	/* SYSRaM only: list of pages */
 	struct page **pages;
+	dma_addr_t *dmapages;
 };
 
 /* a contiguous VRAM region. They're linked into two lists: global list of
