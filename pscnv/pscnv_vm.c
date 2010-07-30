@@ -281,9 +281,15 @@ pscnv_vspace_unmap(struct pscnv_vspace *vs, uint64_t start) {
 	return -ENOENT;
 }
 
-static struct vm_operations_struct pscnv_vm_ops = {
+static struct vm_operations_struct pscnv_vram_ops = {
 	.open = drm_gem_vm_open,
 	.close = drm_gem_vm_close,
+};	
+
+static struct vm_operations_struct pscnv_sysram_ops = {
+	.open = drm_gem_vm_open,
+	.close = drm_gem_vm_close,
+	.fault = pscnv_sysram_vm_fault,
 };	
 
 int pscnv_mmap(struct file *filp, struct vm_area_struct *vma)
@@ -319,7 +325,7 @@ int pscnv_mmap(struct file *filp, struct vm_area_struct *vma)
 		}
 
 		vma->vm_flags |= VM_RESERVED | VM_IO | VM_PFNMAP | VM_DONTEXPAND;
-		vma->vm_ops = &pscnv_vm_ops;
+		vma->vm_ops = &pscnv_vram_ops;
 		vma->vm_private_data = obj;
 		vma->vm_page_prot = pgprot_writecombine(vm_get_page_prot(vma->vm_flags));
 
@@ -331,8 +337,13 @@ int pscnv_mmap(struct file *filp, struct vm_area_struct *vma)
 	case PSCNV_GEM_SYSRAM_SNOOP:
 	case PSCNV_GEM_SYSRAM_NOSNOOP:
 		/* XXX */
-		drm_gem_object_unreference_unlocked(obj);
-		return -ENOSYS;
+		vma->vm_flags |= VM_RESERVED;
+		vma->vm_ops = &pscnv_sysram_ops;
+		vma->vm_private_data = obj;
+
+		vma->vm_file = filp;
+
+		return 0;
 	default:
 		drm_gem_object_unreference_unlocked(obj);
 		return -ENOSYS;

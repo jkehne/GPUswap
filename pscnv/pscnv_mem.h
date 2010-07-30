@@ -95,5 +95,6 @@ extern int pscnv_vram_free(struct pscnv_bo *);
 
 extern int pscnv_sysram_alloc(struct pscnv_bo *);
 extern int pscnv_sysram_free(struct pscnv_bo *);
+extern int pscnv_sysram_vm_fault(struct vm_area_struct *vma, struct vm_fault *vmf);
 
 #endif

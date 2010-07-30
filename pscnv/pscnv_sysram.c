@@ -12,7 +12,7 @@ pscnv_sysram_alloc(struct pscnv_bo *bo)
 {
 	int numpages, i, j;
 	gfp_t gfp_flags;
-	numpages = bo->size / PAGE_SIZE;
+	numpages = bo->size >> PAGE_SHIFT;
 	if (numpages > 1 && bo->flags & PSCNV_GEM_CONTIG)
 		return -EINVAL;
 	bo->pages = kmalloc(numpages * sizeof *bo->pages, GFP_KERNEL);
@@ -38,9 +38,23 @@ int
 pscnv_sysram_free(struct pscnv_bo *bo)
 {
 	int numpages, i;
-	numpages = bo->size / PAGE_SIZE;
+	numpages = bo->size >> PAGE_SHIFT;
 	for (i = 0; i < numpages; i++)
 		put_page(bo->pages[i]);
 	kfree(bo->pages);
+	return 0;
+}
+
+extern int pscnv_sysram_vm_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
+{
+	struct drm_gem_object *obj = vma->vm_private_data;
+	struct pscnv_bo *bo = obj->driver_private;
+	uint64_t offset = vmf->virtual_address - vma->vm_start;
+	struct page *res;
+	if (offset > bo->size)
+		return VM_FAULT_SIGBUS;
+	res = bo->pages[offset >> PAGE_SHIFT];
+	get_page(res);
+	vmf->page = res;
 	return 0;
 }
