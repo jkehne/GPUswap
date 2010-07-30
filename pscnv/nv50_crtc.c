@@ -337,7 +337,7 @@ nv50_crtc_cursor_set(struct drm_crtc *crtc, struct drm_file *file_priv,
 	struct nouveau_crtc *nv_crtc = nouveau_crtc(crtc);
 	struct pscnv_bo *cursor = NULL;
 	struct drm_gem_object *gem;
-	int ret = 0, i;
+	int ret = 0, i, mt;
 
 	if (width != 64 || height != 64)
 		return -EINVAL;
@@ -351,6 +351,12 @@ nv50_crtc_cursor_set(struct drm_crtc *crtc, struct drm_file *file_priv,
 	if (!gem)
 		return -EINVAL;
 	cursor = gem->driver_private;
+
+	mt = cursor->flags & PSCNV_GEM_MEMTYPE_MASK;
+	if (mt != PSCNV_GEM_VRAM_SMALL && mt != PSCNV_GEM_VRAM_LARGE) {
+		drm_gem_object_unreference_unlocked(gem);
+		return -EINVAL;
+	}
 
 	/* The simple will do for now. */
 	for (i = 0; i < 64 * 64; i++)
@@ -517,7 +523,7 @@ nv50_crtc_do_mode_set_base(struct drm_crtc *crtc, int x, int y,
 	struct nouveau_channel *evo = dev_priv->evo;
 	struct drm_framebuffer *drm_fb = nv_crtc->base.fb;
 	struct nouveau_framebuffer *fb = nouveau_framebuffer(drm_fb);
-	int ret, format;
+	int ret, format, mt;
 
 	NV_DEBUG_KMS(dev, "index %d\n", nv_crtc->index);
 
@@ -550,6 +556,10 @@ nv50_crtc_do_mode_set_base(struct drm_crtc *crtc, int x, int y,
 		return -EINVAL;
 
 	/* XXX: verify object size */
+
+	mt = fb->bo->flags & PSCNV_GEM_MEMTYPE_MASK;
+	if (mt != PSCNV_GEM_VRAM_SMALL && mt != PSCNV_GEM_VRAM_LARGE)
+		return -EINVAL;
 
 	nv_crtc->fb.offset = fb->bo->start;
 	nv_crtc->fb.tile_flags = fb->bo->tile_flags;
