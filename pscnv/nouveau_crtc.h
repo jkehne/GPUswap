@@ -50,7 +50,7 @@ struct nouveau_crtc {
 	} fb;
 
 	struct {
-		struct pscnv_bo *bo;
+		struct pscnv_bo *nvbo;
 		bool visible;
 		uint32_t offset;
 		void (*set_offset)(struct nouveau_crtc *, uint32_t offset);
@@ -60,7 +60,7 @@ struct nouveau_crtc {
 	} cursor;
 
 	struct {
-		struct pscnv_bo *bo;
+		struct pscnv_bo *nvbo;
 		uint16_t r[256];
 		uint16_t g[256];
 		uint16_t b[256];

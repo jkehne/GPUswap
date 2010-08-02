@@ -3,7 +3,7 @@ pscnv-y := nouveau_drv.o nouveau_state.o \
 	     nouveau_i2c.o nouveau_calc.o nouveau_dp.o nouveau_connector.o \
 	     nouveau_display.o nouveau_fbcon.o nouveau_dma.o \
 	     nv04_tv.o nv04_dfp.o nv04_dac.o nv04_timer.o \
-	     nv17_gpio.o \
+	     nv10_gpio.o \
 	     nv50_gpio.o nv50_grctx.o \
 	     nv50_display.o nv50_crtc.o nv50_cursor.o nv50_calc.o nv50_dac.o \
 	     nv50_sor.o \

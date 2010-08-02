@@ -115,6 +115,29 @@ struct nouveau_channel {
 	} debugfs;
 };
 
+struct nouveau_display_engine {
+	int (*early_init)(struct drm_device *);
+	void (*late_takedown)(struct drm_device *);
+	int (*create)(struct drm_device *);
+	int (*init)(struct drm_device *);
+	void (*destroy)(struct drm_device *);
+};
+
+struct nouveau_gpio_engine {
+	int  (*init)(struct drm_device *);
+	void (*takedown)(struct drm_device *);
+
+	int  (*get)(struct drm_device *, enum dcb_gpio_tag);
+	int  (*set)(struct drm_device *, enum dcb_gpio_tag, int state);
+
+	void (*irq_enable)(struct drm_device *, enum dcb_gpio_tag, bool on);
+};
+
+struct nouveau_engine {
+	struct nouveau_display_engine display;
+	struct nouveau_gpio_engine    gpio;
+};
+
 struct nouveau_pll_vals {
 	union {
 		struct {
@@ -268,11 +291,10 @@ struct drm_nouveau_private {
 	struct workqueue_struct *wq;
 	struct work_struct irq_work;
 	struct work_struct hpd_work;
-
-	struct fb_info *fbdev_info;
 #if 0
 	struct nouveau_channel *fifos[NOUVEAU_MAX_CHANNEL_NR];
 #endif
+	struct nouveau_engine engine;
 	struct pscnv_vm_engine *vm;
 	struct pscnv_chan_engine *chan;
 	struct pscnv_engine *engines[PSCNV_ENGINES_NUM];
@@ -363,11 +385,19 @@ struct drm_nouveau_private {
 	struct backlight_device *backlight;
 
 	struct nouveau_channel *evo;
+	struct {
+		struct dcb_entry *dcb;
+		u16 script;
+		u32 pclk;
+	} evo_irq;
 	struct pscnv_bo *evo_obj;
 
 	struct {
 		struct dentry *channel_root;
 	} debugfs;
+
+	struct nouveau_fbdev *nfbdev;
+	struct apertures_struct *apertures;
 };
 #if 0
 static inline struct drm_nouveau_private *
@@ -589,12 +619,19 @@ nouveau_debugfs_channel_fini(struct nouveau_channel *chan)
 #endif
 
 /* nouveau_acpi.c */
+#define ROM_BIOS_PAGE 4096
 #if defined(CONFIG_ACPI)
 void nouveau_register_dsm_handler(void);
 void nouveau_unregister_dsm_handler(void);
+int nouveau_acpi_get_bios_chunk(uint8_t *bios, int offset, int len);
+bool nouveau_acpi_rom_supported(struct pci_dev *pdev);
+int nouveau_acpi_edid(struct drm_device *, struct drm_connector *);
 #else
 static inline void nouveau_register_dsm_handler(void) {}
 static inline void nouveau_unregister_dsm_handler(void) {}
+static inline bool nouveau_acpi_rom_supported(struct pci_dev *pdev) { return false; }
+static inline int nouveau_acpi_get_bios_chunk(uint8_t *bios, int offset, int len) { return -EINVAL; }
+static inline int nouveau_acpi_edid(struct drm_device *dev, struct drm_connector *connector) { return -EINVAL; }
 #endif
 
 /* nouveau_backlight.c */
@@ -819,13 +856,14 @@ extern long nouveau_compat_ioctl(struct file *file, unsigned int cmd,
 				 unsigned long arg);
 
 /* nv04_dac.c */
-extern int nv04_dac_create(struct drm_device *dev, struct dcb_entry *entry);
+extern int nv04_dac_create(struct drm_connector *, struct dcb_entry *);
 extern uint32_t nv17_dac_sample_load(struct drm_encoder *encoder);
 extern int nv04_dac_output_offset(struct drm_encoder *encoder);
 extern void nv04_dac_update_dacclk(struct drm_encoder *encoder, bool enable);
+extern bool nv04_dac_in_use(struct drm_encoder *encoder);
 
 /* nv04_dfp.c */
-extern int nv04_dfp_create(struct drm_device *dev, struct dcb_entry *entry);
+extern int nv04_dfp_create(struct drm_connector *, struct dcb_entry *);
 extern int nv04_dfp_get_bound_head(struct drm_device *dev, struct dcb_entry *dcbent);
 extern void nv04_dfp_bind_head(struct drm_device *dev, struct dcb_entry *dcbent,
 			       int head, bool dl);
@@ -834,19 +872,22 @@ extern void nv04_dfp_update_fp_control(struct drm_encoder *encoder, int mode);
 
 /* nv04_tv.c */
 extern int nv04_tv_identify(struct drm_device *dev, int i2c_index);
-extern int nv04_tv_create(struct drm_device *dev, struct dcb_entry *entry);
-#if 0
+extern int nv04_tv_create(struct drm_connector *, struct dcb_entry *);
+
 /* nv17_tv.c */
-extern int nv17_tv_create(struct drm_device *dev, struct dcb_entry *entry);
+extern int nv17_tv_create(struct drm_connector *, struct dcb_entry *);
 
 /* nv04_display.c */
+extern int nv04_display_early_init(struct drm_device *);
+extern void nv04_display_late_takedown(struct drm_device *);
 extern int nv04_display_create(struct drm_device *);
+extern int nv04_display_init(struct drm_device *);
 extern void nv04_display_destroy(struct drm_device *);
-extern void nv04_display_restore(struct drm_device *);
 
 /* nv04_crtc.c */
 extern int nv04_crtc_create(struct drm_device *, int index);
 
+#if 0
 /* nouveau_bo.c */
 extern struct ttm_bo_driver nouveau_bo_driver;
 extern int nouveau_bo_new(struct drm_device *, struct nouveau_channel *,
@@ -881,13 +922,15 @@ extern void *nouveau_fence_ref(void *obj);
 extern void nouveau_fence_handler(struct drm_device *dev, int channel);
 
 #endif
-/* nv17_gpio.c */
-int nv17_gpio_get(struct drm_device *dev, enum dcb_gpio_tag tag);
-int nv17_gpio_set(struct drm_device *dev, enum dcb_gpio_tag tag, int state);
+/* nv10_gpio.c */
+int nv10_gpio_get(struct drm_device *dev, enum dcb_gpio_tag tag);
+int nv10_gpio_set(struct drm_device *dev, enum dcb_gpio_tag tag, int state);
 
 /* nv50_gpio.c */
+int nv50_gpio_init(struct drm_device *dev);
 int nv50_gpio_get(struct drm_device *dev, enum dcb_gpio_tag tag);
 int nv50_gpio_set(struct drm_device *dev, enum dcb_gpio_tag tag, int state);
+void nv50_gpio_irq_enable(struct drm_device *, enum dcb_gpio_tag, bool on);
 
 /* nv50_calc. */
 int nv50_calc_pll(struct drm_device *, struct pll_lims *, int clk,
@@ -934,6 +977,14 @@ static inline void nv_wr32(struct drm_device *dev, unsigned reg, u32 val)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	iowrite32_native(val, dev_priv->mmio + reg);
+}
+
+static inline void nv_mask(struct drm_device *dev, u32 reg, u32 mask, u32 val)
+{
+	u32 tmp = nv_rd32(dev, reg);
+	tmp &= ~mask;
+	tmp |= val;
+	nv_wr32(dev, reg, tmp);
 }
 
 static inline u8 nv_rd08(struct drm_device *dev, unsigned reg)

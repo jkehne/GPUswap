@@ -85,4 +85,3 @@ nv50_calc_pll2(struct drm_device *dev, struct pll_lims *pll, int clk,
 
 	return clk;
 }
-
