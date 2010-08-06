@@ -571,6 +571,7 @@ void nv50_graph_trap_handler(struct drm_device *dev) {
 
 void nv50_graph_irq_handler(struct pscnv_engine *eng) {
 	struct drm_device *dev = eng->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct nv50_graph_engine *graph = nv50_graph(eng);
 	uint32_t status;
 	unsigned long flags;
@@ -622,8 +623,13 @@ void nv50_graph_irq_handler(struct pscnv_engine *eng) {
 		ev = pscnv_enum_find(dispatch_errors, ecode);
 		if (ev)
 			NV_ERROR(dev, "PGRAPH_DISPATCH_ERROR [%s]: ch %x sub %d [%04x] mthd %04x data %08x\n", ev->name, chan, subc, class, mthd, data);
-		else
+		else {
+			uint32_t base = (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa ? 0x404800 : 0x405400);
+			int i;
 			NV_ERROR(dev, "PGRAPH_DISPATCH_ERROR [%x]: ch %x sub %d [%04x] mthd %04x data %08x\n", ecode, chan, subc, class, mthd, data);
+			for (i = 0; i < 0x400; i += 4)
+				NV_ERROR(dev, "DD %06x: %08x\n", base + i, nv_rd32(dev, base + i));
+		}
 		nv_wr32(dev, 0x400100, 0x00100000);
 		status &= ~0x00100000;
 	}
