@@ -416,8 +416,8 @@ static struct pscnv_enumval vm_units[] = {
 	{ 9, "PBSP", 0 },
 	{ 0xa, "PCRYPT", 0 },
 	/* 0xb, 0xc never seen */
-	{ 0xd, "PVUNK104", 0 },
-	/* 0xe: UNK10a000??? */
+	{ 0xd, "PCOPY", 0 },
+	{ 0xe, "PDAEMON", 0 },
 	{ 0, 0, 0 },
 };
 
