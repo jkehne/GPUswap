@@ -295,11 +295,15 @@ int nv50_graph_chan_alloc(struct pscnv_engine *eng, struct pscnv_chan *ch) {
 	ctx.data = grch->grctx;
 	nv50_grctx_init(&ctx);
 	limit = grch->grctx->start + graph->grctx_size - 1;
+
 	nv_wv32(ch->bo, hdr + 0x00, 0x00190000);
 	nv_wv32(ch->bo, hdr + 0x04, limit);
 	nv_wv32(ch->bo, hdr + 0x08, grch->grctx->start);
 	nv_wv32(ch->bo, hdr + 0x0c, (limit >> 32) << 24 | (grch->grctx->start >> 32));
+	nv_wv32(ch->bo, hdr + 0x10, 0);
+	nv_wv32(ch->bo, hdr + 0x14, 0);
 	dev_priv->vm->bar_flush(dev);
+
 	ch->vspace->engref[PSCNV_ENGINE_GRAPH]++;
 	ch->engdata[PSCNV_ENGINE_GRAPH] = grch;
 	return 0;

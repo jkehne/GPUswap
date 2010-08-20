@@ -118,14 +118,18 @@ nv50_chan_dmaobj_new(struct pscnv_chan *ch, uint32_t type, uint64_t start, uint6
 	struct drm_device *dev = ch->vspace->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	uint64_t end = start + size - 1;
-	int res = nv50_chan_iobj_new (ch, 0x10);
+	int res = nv50_chan_iobj_new (ch, 0x18);
 	if (!res)
 		return 0;
+
 	nv_wv32(ch->bo, res + 0x00, type);
 	nv_wv32(ch->bo, res + 0x04, end);
 	nv_wv32(ch->bo, res + 0x08, start);
 	nv_wv32(ch->bo, res + 0x0c, (end >> 32) << 24 | (start >> 32));
+	nv_wv32(ch->bo, res + 0x10, 0);
+	nv_wv32(ch->bo, res + 0x14, 0);
 	dev_priv->vm->bar_flush(dev);
+
 	return res;
 }
 
