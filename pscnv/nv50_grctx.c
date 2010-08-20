@@ -3109,7 +3109,7 @@ nv50_graph_construct_xfer_tp(struct nouveau_grctx *ctx)
 }
 
 static void
-nv50_graph_construct_xfer_tp2(struct nouveau_grctx *ctx)
+nv50_graph_construct_xfer_mpc(struct nouveau_grctx *ctx)
 {
 	struct drm_nouveau_private *dev_priv = ctx->dev->dev_private;
 	int i, mpcnt;
@@ -3120,75 +3120,96 @@ nv50_graph_construct_xfer_tp2(struct nouveau_grctx *ctx)
 	else
 		mpcnt = 3;
 	for (i = 0; i < mpcnt; i++) {
-		xf_emit(ctx, 1, 0);
-		xf_emit(ctx, 1, 0x80);
-		xf_emit(ctx, 1, 0x80007004);
-		xf_emit(ctx, 1, 0x04000400);
+		xf_emit(ctx, 1, 0);		/* ff */
+		xf_emit(ctx, 1, 0x80);		/* ffffffff tesla UNK1404 */
+		xf_emit(ctx, 1, 0x80007004);	/* ffffffff tesla UNK12B0 */
+		xf_emit(ctx, 1, 0x04000400);	/* ffffffff */
 		if (dev_priv->chipset >= 0xa0)
-			xf_emit(ctx, 1, 0xc0);
-		xf_emit(ctx, 1, 0x1000);
-		xf_emit(ctx, 2, 0);
+			xf_emit(ctx, 1, 0xc0);	/* 00007fff tesla UNK152C */
+		xf_emit(ctx, 1, 0x1000);	/* 0000ffff tesla UNK0D60 */
+		xf_emit(ctx, 1, 0);		/* ff/3ff */
+		xf_emit(ctx, 1, 0);		/* ffffffff tesla UNK1A30 */
 		if (dev_priv->chipset == 0x86 || dev_priv->chipset == 0x98 || dev_priv->chipset >= 0xa8) {
-			xf_emit(ctx, 1, 0xe00);
-			xf_emit(ctx, 1, 0x1e00);
+			xf_emit(ctx, 1, 0xe00);		/* 7fff */
+			xf_emit(ctx, 1, 0x1e00);	/* 7fff */
 		}
-		xf_emit(ctx, 1, 1);
-		xf_emit(ctx, 2, 0);
+		xf_emit(ctx, 1, 1);		/* 000000ff VP_REG_ALLOC_TEMP */
+		xf_emit(ctx, 1, 0);		/* 00000001 LINKED_TSC */
+		xf_emit(ctx, 1, 0);		/* 00000001 GP_ENABLE */
 		if (dev_priv->chipset == 0x50)
-			xf_emit(ctx, 2, 0x1000);
-		xf_emit(ctx, 1, 1);
-		xf_emit(ctx, 1, 0);
-		xf_emit(ctx, 1, 4);
-		xf_emit(ctx, 1, 2);
+			xf_emit(ctx, 2, 0x1000);	/* 7fff tesla UNK141C */
+		xf_emit(ctx, 1, 1);		/* 000000ff GP_REG_ALLOC_TEMP */
+		xf_emit(ctx, 1, 0);		/* 00000001 GP_ENABLE */
+		xf_emit(ctx, 1, 4);		/* 000000ff FP_REG_ALLOC_TEMP */
+		xf_emit(ctx, 1, 2);		/* 00000003 REG_MODE */
 		if (dev_priv->chipset >= 0xaa)
-			xf_emit(ctx, 0xb, 0);
+			xf_emit(ctx, 0xb, 0);	/* RO */
 		else if (dev_priv->chipset >= 0xa0)
-			xf_emit(ctx, 0xc, 0);
+			xf_emit(ctx, 0xc, 0);	/* RO */
 		else
-			xf_emit(ctx, 0xa, 0);
+			xf_emit(ctx, 0xa, 0);	/* RO */
 	}
-	xf_emit(ctx, 1, 0x08100c12);
-	xf_emit(ctx, 1, 0);
+	xf_emit(ctx, 1, 0x08100c12);		/* 1fffffff FP_INTERPOLANT_CTRL */
+	xf_emit(ctx, 1, 0);			/* ff/3ff */
 	if (dev_priv->chipset >= 0xa0) {
-		xf_emit(ctx, 1, 0x1fe21);
+		xf_emit(ctx, 1, 0x1fe21);	/* 0003ffff tesla UNK0FAC */
 	}
-	xf_emit(ctx, 5, 0);
-	xf_emit(ctx, 4, 0xffff);
-	xf_emit(ctx, 1, 1);
-	xf_emit(ctx, 2, 0x10001);
-	xf_emit(ctx, 1, 1);
-	xf_emit(ctx, 1, 0);
-	xf_emit(ctx, 1, 0x1fe21);
-	xf_emit(ctx, 1, 0);
+	xf_emit(ctx, 3, 0);			/* 7fff, 0, 0 */
+	xf_emit(ctx, 1, 0);			/* 00000001 tesla UNK1534 */
+	xf_emit(ctx, 1, 0);			/* 7/f MULTISAMPLE_SAMPLES_LOG2 */
+	xf_emit(ctx, 4, 0xffff);		/* 0000ffff MSAA_MASK */
+	xf_emit(ctx, 1, 1);			/* 00000001 LANES32 */
+	xf_emit(ctx, 1, 0x10001);		/* 00ffffff BLOCK_ALLOC */
+	xf_emit(ctx, 1, 0x10001);		/* ffffffff BLOCKDIM_XY */
+	xf_emit(ctx, 1, 1);			/* 0000ffff BLOCKDIM_Z */
+	xf_emit(ctx, 1, 0);			/* ffffffff SHARED_SIZE */
+	xf_emit(ctx, 1, 0x1fe21);		/* 1ffff/3ffff[NVA0+] tesla UNk0FAC */
+	xf_emit(ctx, 1, 0);			/* ffffffff tesla UNK1A34 */
 	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa)
-		xf_emit(ctx, 1, 1);
-	xf_emit(ctx, 4, 0);
-	xf_emit(ctx, 1, 0x08100c12);
-	xf_emit(ctx, 1, 4);
-	xf_emit(ctx, 1, 0);
-	xf_emit(ctx, 1, 2);
-	xf_emit(ctx, 1, 0x11);
-	xf_emit(ctx, 8, 0);
-	xf_emit(ctx, 1, 0xfac6881);
-	xf_emit(ctx, 1, 0);
+		xf_emit(ctx, 1, 1);		/* 0000001f tesla UNK169C */
+	xf_emit(ctx, 1, 0);			/* ff/3ff */
+	xf_emit(ctx, 1, 0);			/* 1 LINKED_TSC */
+	xf_emit(ctx, 1, 0);			/* ff FP_ADDRESS_HIGH */
+	xf_emit(ctx, 1, 0);			/* ffffffff FP_ADDRESS_LOW */
+	xf_emit(ctx, 1, 0x08100c12);		/* 1fffffff FP_INTERPOLANT_CTRL */
+	xf_emit(ctx, 1, 4);			/* 00000007 FP_CONTROL */
+	xf_emit(ctx, 1, 0);			/* 000000ff FRAG_COLOR_CLAMP_EN */
+	xf_emit(ctx, 1, 2);			/* 00000003 REG_MODE */
+	xf_emit(ctx, 1, 0x11);			/* 0000007f RT_FORMAT */
+	xf_emit(ctx, 7, 0);			/* 0000007f RT_FORMAT */
+	xf_emit(ctx, 1, 0);			/* 00000007 */
+	xf_emit(ctx, 1, 0xfac6881);		/* 0fffffff RT_CONTROL */
+	xf_emit(ctx, 1, 0);			/* 00000003 MULTISAMPLE_CTRL */
 	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa)
-		xf_emit(ctx, 1, 3);
-	xf_emit(ctx, 3, 0);
-	xf_emit(ctx, 1, 4);
-	xf_emit(ctx, 9, 0);
-	xf_emit(ctx, 1, 2);
-	xf_emit(ctx, 2, 1);
-	xf_emit(ctx, 1, 2);
-	xf_emit(ctx, 3, 1);
-	xf_emit(ctx, 1, 0);
+		xf_emit(ctx, 1, 3);		/* 00000003 tesla UNK16B4 */
+	xf_emit(ctx, 1, 0);			/* 00000001 ALPHA_TEST_ENABLE */
+	xf_emit(ctx, 1, 0);			/* 00000007 ALPHA_TEST_FUNC */
+	xf_emit(ctx, 1, 0);			/* 00000001 FRAMEBUFFER_SRGB */
+	xf_emit(ctx, 1, 4);			/* ffffffff tesla UNK1400 */
+	xf_emit(ctx, 8, 0);			/* 00000001 BLEND_ENABLE */
+	xf_emit(ctx, 1, 0);			/* 00000001 LOGIC_OP_ENABLE */
+	xf_emit(ctx, 1, 2);			/* 0000001f BLEND_FUNC_SRC_RGB */
+	xf_emit(ctx, 1, 1);			/* 0000001f BLEND_FUNC_DST_RGB */
+	xf_emit(ctx, 1, 1);			/* 00000007 BLEND_EQUATION_RGB */
+	xf_emit(ctx, 1, 2);			/* 0000001f BLEND_FUNC_SRC_ALPHA */
+	xf_emit(ctx, 1, 1);			/* 0000001f BLEND_FUNC_DST_ALPHA */
+	xf_emit(ctx, 1, 1);			/* 00000007 BLEND_EQUATION_ALPHA */
+	xf_emit(ctx, 1, 1);			/* 00000001 UNK133C */
 	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa) {
-		xf_emit(ctx, 8, 2);
-		xf_emit(ctx, 0x10, 1);
-		xf_emit(ctx, 8, 2);
-		xf_emit(ctx, 0x18, 1);
-		xf_emit(ctx, 3, 0);
+		xf_emit(ctx, 1, 0);		/* 00000001 UNK12E4 */
+		xf_emit(ctx, 8, 2);		/* 0000001f IBLEND_FUNC_SRC_RGB */
+		xf_emit(ctx, 8, 1);		/* 0000001f IBLEND_FUNC_DST_RGB */
+		xf_emit(ctx, 8, 1);		/* 00000007 IBLEND_EQUATION_RGB */
+		xf_emit(ctx, 8, 2);		/* 0000001f IBLEND_FUNC_SRC_ALPHA */
+		xf_emit(ctx, 8, 1);		/* 0000001f IBLEND_FUNC_DST_ALPHA */
+		xf_emit(ctx, 8, 1);		/* 00000007 IBLEND_EQUATION_ALPHA */
+		xf_emit(ctx, 8, 1);		/* 00000001 IBLEND_UNK00 */
+		xf_emit(ctx, 1, 0);		/* 00000003 tesla UNK1928 */
+		xf_emit(ctx, 1, 0);		/* 00000001 UNK1140 */
 	}
-	xf_emit(ctx, 1, 4);
+	xf_emit(ctx, 1, 0);			/* 00000003 tesla UNK0F90 */
+	xf_emit(ctx, 1, 4);			/* 000000ff FP_RESULT_COUNT */
+	/* XXX: demagic this part some day */
 	if (dev_priv->chipset == 0x50)
 		xf_emit(ctx, 0x3a0, 0);
 	else if (dev_priv->chipset < 0x94)
@@ -3197,9 +3218,9 @@ nv50_graph_construct_xfer_tp2(struct nouveau_grctx *ctx)
 		xf_emit(ctx, 0x39f, 0);
 	else
 		xf_emit(ctx, 0x3a3, 0);
-	xf_emit(ctx, 1, 0x11);
-	xf_emit(ctx, 1, 0);
-	xf_emit(ctx, 1, 1);
+	xf_emit(ctx, 1, 0x11);			/* 3f/7f DST_FORMAT */
+	xf_emit(ctx, 1, 0);			/* 7 OPERATION */
+	xf_emit(ctx, 1, 1);			/* 1 DST_LINEAR */
 	xf_emit(ctx, 0x2d, 0);
 }
 
@@ -3217,52 +3238,56 @@ nv50_graph_construct_xfer2(struct nouveau_grctx *ctx)
 	if (dev_priv->chipset < 0xa0) {
 		for (i = 0; i < 8; i++) {
 			ctx->ctxvals_pos = offset + i;
+			/* that little bugger belongs to csched. No idea
+			 * what it's doing here. */
 			if (i == 0)
-				xf_emit(ctx, 1, 0x08100c12);
+				xf_emit(ctx, 1, 0x08100c12); /* FP_INTERPOLANT_CTRL */
 			if (units & (1 << i))
-				nv50_graph_construct_xfer_tp2(ctx);
+				nv50_graph_construct_xfer_mpc(ctx);
 			if ((ctx->ctxvals_pos-offset)/8 > size)
 				size = (ctx->ctxvals_pos-offset)/8;
 		}
 	} else {
 		/* Strand 0: TPs 0, 1 */
 		ctx->ctxvals_pos = offset;
-		xf_emit(ctx, 1, 0x08100c12);
+		/* that little bugger belongs to csched. No idea
+		 * what it's doing here. */
+		xf_emit(ctx, 1, 0x08100c12); /* FP_INTERPOLANT_CTRL */
 		if (units & (1 << 0))
-			nv50_graph_construct_xfer_tp2(ctx);
+			nv50_graph_construct_xfer_mpc(ctx);
 		if (units & (1 << 1))
-			nv50_graph_construct_xfer_tp2(ctx);
+			nv50_graph_construct_xfer_mpc(ctx);
 		if ((ctx->ctxvals_pos-offset)/8 > size)
 			size = (ctx->ctxvals_pos-offset)/8;
 
-		/* Strand 0: TPs 2, 3 */
+		/* Strand 1: TPs 2, 3 */
 		ctx->ctxvals_pos = offset + 1;
 		if (units & (1 << 2))
-			nv50_graph_construct_xfer_tp2(ctx);
+			nv50_graph_construct_xfer_mpc(ctx);
 		if (units & (1 << 3))
-			nv50_graph_construct_xfer_tp2(ctx);
+			nv50_graph_construct_xfer_mpc(ctx);
 		if ((ctx->ctxvals_pos-offset)/8 > size)
 			size = (ctx->ctxvals_pos-offset)/8;
 
-		/* Strand 0: TPs 4, 5, 6 */
+		/* Strand 2: TPs 4, 5, 6 */
 		ctx->ctxvals_pos = offset + 2;
 		if (units & (1 << 4))
-			nv50_graph_construct_xfer_tp2(ctx);
+			nv50_graph_construct_xfer_mpc(ctx);
 		if (units & (1 << 5))
-			nv50_graph_construct_xfer_tp2(ctx);
+			nv50_graph_construct_xfer_mpc(ctx);
 		if (units & (1 << 6))
-			nv50_graph_construct_xfer_tp2(ctx);
+			nv50_graph_construct_xfer_mpc(ctx);
 		if ((ctx->ctxvals_pos-offset)/8 > size)
 			size = (ctx->ctxvals_pos-offset)/8;
 
-		/* Strand 0: TPs 7, 8, 9 */
+		/* Strand 3: TPs 7, 8, 9 */
 		ctx->ctxvals_pos = offset + 3;
 		if (units & (1 << 7))
-			nv50_graph_construct_xfer_tp2(ctx);
+			nv50_graph_construct_xfer_mpc(ctx);
 		if (units & (1 << 8))
-			nv50_graph_construct_xfer_tp2(ctx);
+			nv50_graph_construct_xfer_mpc(ctx);
 		if (units & (1 << 9))
-			nv50_graph_construct_xfer_tp2(ctx);
+			nv50_graph_construct_xfer_mpc(ctx);
 		if ((ctx->ctxvals_pos-offset)/8 > size)
 			size = (ctx->ctxvals_pos-offset)/8;
 	}
