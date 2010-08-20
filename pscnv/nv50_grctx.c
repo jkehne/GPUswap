@@ -109,6 +109,9 @@
 #include "nouveau_drv.h"
 #include "nouveau_grctx.h"
 
+#define IS_NVA3F(x) (((x) > 0xa0 && (x) < 0xaa) || (x) == 0xaf)
+#define IS_NVAAF(x) ((x) >= 0xaa && (x) <= 0xac)
+
 /*
  * This code deals with PGRAPH contexts on NV50 family cards. Like NV40, it's
  * the GPU itself that does context-switching, but it needs a special
@@ -189,6 +192,7 @@ nv50_grctx_init(struct nouveau_grctx *ctx)
 	case 0xa8:
 	case 0xaa:
 	case 0xac:
+	case 0xaf:
 		break;
 	default:
 		NV_ERROR(ctx->dev, "I don't know how to make a ctxprog for "
@@ -302,7 +306,7 @@ nv50_graph_construct_mmio(struct nouveau_grctx *ctx)
 		gr_def(ctx, 0x400840, 0xffe806a8);
 	}
 	gr_def(ctx, 0x400844, 0x00000002);
-	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa)
+	if (IS_NVA3F(dev_priv->chipset))
 		gr_def(ctx, 0x400894, 0x00001000);
 	gr_def(ctx, 0x4008e8, 0x00000003);
 	gr_def(ctx, 0x4008ec, 0x00001000);
@@ -315,7 +319,7 @@ nv50_graph_construct_mmio(struct nouveau_grctx *ctx)
 
 	if (dev_priv->chipset >= 0xa0)
 		cp_ctx(ctx, 0x400b00, 0x1);
-	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa) {
+	if (IS_NVA3F(dev_priv->chipset)) {
 		cp_ctx(ctx, 0x400b10, 0x1);
 		gr_def(ctx, 0x400b10, 0x0001629d);
 		cp_ctx(ctx, 0x400b20, 0x1);
@@ -332,7 +336,7 @@ nv50_graph_construct_mmio(struct nouveau_grctx *ctx)
 	if (dev_priv->chipset < 0xa0) {
 		cp_ctx(ctx, 0x401008, 0x4);
 		gr_def(ctx, 0x401014, 0x00001000);
-	} else if (dev_priv->chipset == 0xa0 || dev_priv->chipset >= 0xaa) {
+	} else if (!IS_NVA3F(dev_priv->chipset)) {
 		cp_ctx(ctx, 0x401008, 0x5);
 		gr_def(ctx, 0x401018, 0x00001000);
 	} else {
@@ -386,6 +390,7 @@ nv50_graph_construct_mmio(struct nouveau_grctx *ctx)
 	case 0xa3:
 	case 0xa5:
 	case 0xa8:
+	case 0xaf:
 		gr_def(ctx, 0x401c00, 0x142500df);
 		break;
 	}
@@ -416,7 +421,7 @@ nv50_graph_construct_mmio(struct nouveau_grctx *ctx)
 		cp_ctx(ctx, 0x402ca0, 0x2);
 	if (dev_priv->chipset < 0xa0)
 		gr_def(ctx, 0x402ca0, 0x00000400);
-	else if (dev_priv->chipset == 0xa0 || dev_priv->chipset >= 0xaa)
+	else if (!IS_NVA3F(dev_priv->chipset))
 		gr_def(ctx, 0x402ca0, 0x00000800);
 	else
 		gr_def(ctx, 0x402ca0, 0x00000400);
@@ -445,6 +450,7 @@ nv50_graph_construct_mmio(struct nouveau_grctx *ctx)
 	case 0xa8:
 	case 0xaa:
 	case 0xac:
+	case 0xaf:
 		gr_def(ctx, 0x405000, 0x000e0080);
 		break;
 	case 0x86:
@@ -477,7 +483,7 @@ nv50_graph_construct_mmio(struct nouveau_grctx *ctx)
 			gr_def(ctx, 0x406818, 0x00000f80);
 		else
 			gr_def(ctx, 0x406818, 0x00001f80);
-		if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa)
+		if (IS_NVA3F(dev_priv->chipset))
 			gr_def(ctx, 0x40681c, 0x00000030);
 		cp_ctx(ctx, 0x406830, 0x3);
 	}
@@ -522,7 +528,7 @@ nv50_graph_construct_mmio(struct nouveau_grctx *ctx)
 
 			if (dev_priv->chipset < 0xa0)
 				cp_ctx(ctx, 0x407094 + (i<<8), 1);
-			else if (dev_priv->chipset <= 0xa0 || dev_priv->chipset >= 0xaa)
+			else if (!IS_NVA3F(dev_priv->chipset))
 				cp_ctx(ctx, 0x407094 + (i<<8), 3);
 			else {
 				cp_ctx(ctx, 0x407094 + (i<<8), 4);
@@ -615,6 +621,7 @@ nv50_graph_construct_mmio(struct nouveau_grctx *ctx)
 				case 0xa8:
 				case 0xaa:
 				case 0xac:
+				case 0xaf:
 					gr_def(ctx, offset + 0x1c, 0x300c0000);
 					break;
 				}
@@ -641,7 +648,7 @@ nv50_graph_construct_mmio(struct nouveau_grctx *ctx)
 				gr_def(ctx, base + 0x304, 0x00007070);
 			else if (dev_priv->chipset < 0xa0)
 				gr_def(ctx, base + 0x304, 0x00027070);
-			else if (dev_priv->chipset <= 0xa0 || dev_priv->chipset >= 0xaa)
+			else if (!IS_NVA3F(dev_priv->chipset))
 				gr_def(ctx, base + 0x304, 0x01127070);
 			else
 				gr_def(ctx, base + 0x304, 0x05127070);
@@ -665,7 +672,7 @@ nv50_graph_construct_mmio(struct nouveau_grctx *ctx)
 			if (dev_priv->chipset < 0xa0) {
 				cp_ctx(ctx, base + 0x340, 9);
 				offset = base + 0x340;
-			} else if (dev_priv->chipset <= 0xa0 || dev_priv->chipset >= 0xaa) {
+			} else if (!IS_NVA3F(dev_priv->chipset)) {
 				cp_ctx(ctx, base + 0x33c, 0xb);
 				offset = base + 0x344;
 			} else {
@@ -696,7 +703,7 @@ nv50_graph_construct_mmio(struct nouveau_grctx *ctx)
 			gr_def(ctx, offset + 0x0, 0x000001f0);
 			gr_def(ctx, offset + 0x4, 0x00000001);
 			gr_def(ctx, offset + 0x8, 0x00000003);
-			if (dev_priv->chipset == 0x50 || dev_priv->chipset >= 0xaa)
+			if (dev_priv->chipset == 0x50 || IS_NVAAF(dev_priv->chipset))
 				gr_def(ctx, offset + 0xc, 0x00008000);
 			gr_def(ctx, offset + 0x14, 0x00039e00);
 			cp_ctx(ctx, offset + 0x1c, 2);
@@ -708,7 +715,7 @@ nv50_graph_construct_mmio(struct nouveau_grctx *ctx)
 
 			if (dev_priv->chipset >= 0xa0) {
 				cp_ctx(ctx, base + 0x54c, 2);
-				if (dev_priv->chipset <= 0xa0 || dev_priv->chipset >= 0xaa)
+				if (!IS_NVA3F(dev_priv->chipset))
 					gr_def(ctx, base + 0x54c, 0x003fe006);
 				else
 					gr_def(ctx, base + 0x54c, 0x003fe007);
@@ -819,7 +826,7 @@ nv50_graph_construct_mmio_ddata(struct nouveau_grctx *ctx)
 	dd_emit(ctx, 1, 1);		/* 0000007f BLOCKDIM_Z */
 	dd_emit(ctx, 1, 4);		/* 000000ff CP_REG_ALLOC_TEMP */
 	dd_emit(ctx, 1, 1);		/* 00000001 BLOCKDIM_DIRTY */
-	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa)
+	if (IS_NVA3F(dev_priv->chipset))
 		dd_emit(ctx, 1, 0);	/* 00000003 UNK03E8 */
 	dd_emit(ctx, 1, 1);		/* 0000007f BLOCK_ALLOC_HALFWARPS */
 	dd_emit(ctx, 1, 1);		/* 00000007 LOCAL_WARPS_NO_CLAMP */
@@ -925,7 +932,7 @@ nv50_graph_construct_mmio_ddata(struct nouveau_grctx *ctx)
 	dd_emit(ctx, 1, 0);		/* 000000ff UNK12B0_2 */
 	dd_emit(ctx, 1, 0);		/* 0000000f FP_TEXTURES_LOG2 */
 	dd_emit(ctx, 1, 0);		/* 0000000f FP_SAMPLERS_LOG2 */
-	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa) {
+	if (IS_NVA3F(dev_priv->chipset)) {
 		dd_emit(ctx, 1, 0);	/* ffffffff */
 		dd_emit(ctx, 1, 0);	/* 0000007f MULTISAMPLE_SAMPLES_LOG2 */
 	} else {
@@ -970,7 +977,7 @@ nv50_graph_construct_mmio_ddata(struct nouveau_grctx *ctx)
 	dd_emit(ctx, 1, 0x80);		/* 0000ffff GP_VERTEX_OUTPUT_COUNT*/
 	dd_emit(ctx, 1, 4);		/* 000000ff GP_REG_ALLOC_RESULT */
 	dd_emit(ctx, 1, 4);		/* 000000ff GP_RESULT_MAP_SIZE */
-	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa) {
+	if (IS_NVA3F(dev_priv->chipset)) {
 		dd_emit(ctx, 1, 3);	/* 00000003 */
 		dd_emit(ctx, 1, 0);	/* 00000001 UNK1418. Alone. */
 	}
@@ -1010,7 +1017,7 @@ nv50_graph_construct_mmio_ddata(struct nouveau_grctx *ctx)
 	dd_emit(ctx, 1, 1);		/* 00000001 ZETA_ENABLE */
 	dd_emit(ctx, 1, 0);		/* 0000000f VP_TEXTURES_LOG2 */
 	dd_emit(ctx, 1, 0);		/* 0000000f VP_SAMPLERS_LOG2 */
-	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa)
+	if (IS_NVA3F(dev_priv->chipset))
 		dd_emit(ctx, 1, 0);	/* 00000001 */
 	dd_emit(ctx, 1, 2);		/* 00000003 POLYGON_MODE_BACK */
 	if (dev_priv->chipset >= 0xa0)
@@ -1038,7 +1045,7 @@ nv50_graph_construct_mmio_ddata(struct nouveau_grctx *ctx)
 	dd_emit(ctx, 1, 0);		/* 00000001 VTX_ATTR_MASK_UNK0 nonempty */
 	dd_emit(ctx, 1, 0);		/* 00000001 VTX_ATTR_MASK_UNK1 nonempty */
 	dd_emit(ctx, 1, 0x200);		/* 0003ffff GP_VERTEX_OUTPUT_COUNT*GP_REG_ALLOC_RESULT */
-	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa)
+	if (IS_NVA3F(dev_priv->chipset))
 		dd_emit(ctx, 1, 0x200);
 	dd_emit(ctx, 1, 0);		/* 00000001 */
 	if (dev_priv->chipset < 0xa0) {
@@ -1088,7 +1095,7 @@ nv50_graph_construct_mmio_ddata(struct nouveau_grctx *ctx)
 
 	num = ctx->ctxvals_pos - base;
 	ctx->ctxvals_pos = base;
-	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa)
+	if (IS_NVA3F(dev_priv->chipset))
 		cp_ctx(ctx, 0x404800, num);
 	else
 		cp_ctx(ctx, 0x405400, num);
@@ -1337,7 +1344,7 @@ nv50_graph_construct_gene_dispatch(struct nouveau_grctx *ctx)
 	/* SEEK */
 	if (dev_priv->chipset == 0x50)
 		xf_emit(ctx, 5, 0);
-	else if (dev_priv->chipset <= 0xa0 || dev_priv->chipset >= 0xaa)
+	else if (!IS_NVA3F(dev_priv->chipset))
 		xf_emit(ctx, 6, 0);
 	else
 		xf_emit(ctx, 4, 0);
@@ -1350,7 +1357,7 @@ nv50_graph_construct_gene_dispatch(struct nouveau_grctx *ctx)
 	/* and another bonus slot?!? */
 	xf_emit(ctx, 3, 0);
 	/* and YET ANOTHER bonus slot? */
-	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa)
+	if (IS_NVA3F(dev_priv->chipset))
 		xf_emit(ctx, 3, 0);
 	/* SEEK */
 	/* CTX_SWITCH: caches of gr objects bound to subchannels. 8 values, last used index */
@@ -1463,6 +1470,7 @@ nv50_graph_construct_gene_ccache(struct nouveau_grctx *ctx)
 	case 0xa8:
 	case 0xaa:
 	case 0xac:
+	case 0xaf:
 		xf_emit(ctx, 0x25, 0);
 		break;
 	}
@@ -1544,6 +1552,7 @@ nv50_graph_construct_gene_unk10xx(struct nouveau_grctx *ctx)
 			break;
 		case 0xa0:
 		case 0xa3:
+		case 0xaf:
 			xf_emit(ctx, 0x400, 0);	/* ffffffff */
 			break;
 		}
@@ -1582,7 +1591,7 @@ nv50_graph_construct_gene_unk34xx(struct nouveau_grctx *ctx)
 	xf_emit(ctx, 1, 0x1fe21);	/* 0001ffff tesla UNK0FAC */
 	if (dev_priv->chipset >= 0xa0)
 		xf_emit(ctx, 1, 0x0fac6881);
-	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa) {
+	if (IS_NVA3F(dev_priv->chipset)) {
 		xf_emit(ctx, 1, 1);
 		xf_emit(ctx, 3, 0);
 	}
@@ -1670,7 +1679,7 @@ nv50_graph_construct_gene_unk14xx(struct nouveau_grctx *ctx)
 	xf_emit(ctx, 1, 0);			/* 00000001 LINE_STIPPLE_ENABLE */
 	xf_emit(ctx, 1, 0);			/* 00000001 LINE_SMOOTH_ENABLE */
 	xf_emit(ctx, 1, 0);			/* 00000007 MULTISAMPLE_SAMPLES_LOG2 */
-	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa)
+	if (IS_NVA3F(dev_priv->chipset))
 		xf_emit(ctx, 1, 0);		/* 00000001 */
 	xf_emit(ctx, 1, 0x1a);			/* 0000001f POLYGON_MODE */
 	xf_emit(ctx, 1, 0x10);			/* 000000ff VIEW_VOLUME_CLIP_CTRL */
@@ -1795,7 +1804,7 @@ nv50_graph_construct_gene_unk24xx(struct nouveau_grctx *ctx)
 	xf_emit(ctx, 1, 4);		/* 0000007f VP_RESULT_MAP_SIZE */
 	xf_emit(ctx, 1, 4);		/* 000000ff GP_RESULT_MAP_SIZE */
 	/* SEEK */
-	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa) {
+	if (IS_NVA3F(dev_priv->chipset)) {
 		xf_emit(ctx, 4, 0);	/* RO */
 		xf_emit(ctx, 0xe10, 0); /* 190 * 9: 8*ffffffff, 7ff */
 		xf_emit(ctx, 1, 0);	/* 1ff */
@@ -1871,7 +1880,7 @@ nv50_graph_construct_gene_vfetch(struct nouveau_grctx *ctx)
 	struct drm_nouveau_private *dev_priv = ctx->dev->dev_private;
 	int acnt = 0x10, rep, i;
 	/* beginning of strand 1 on pre-NVA0, strand 3 on NVAx */
-	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa)
+	if (IS_NVA3F(dev_priv->chipset))
 		acnt = 0x20;
 	/* SEEK */
 	if (dev_priv->chipset >= 0xa0) {
@@ -1891,7 +1900,7 @@ nv50_graph_construct_gene_vfetch(struct nouveau_grctx *ctx)
 	xf_emit(ctx, 1, 0);		/* 0000ffff turing USER_PARAM_COUNT */
 	xf_emit(ctx, 1, 0);		/* ffffffff tesla UNK1A30 */
 	/* SEEK */
-	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa)
+	if (IS_NVA3F(dev_priv->chipset))
 		xf_emit(ctx, 0xb, 0);	/* RO */
 	else if (dev_priv->chipset >= 0xa0)
 		xf_emit(ctx, 0x9, 0);	/* RO */
@@ -1930,7 +1939,7 @@ nv50_graph_construct_gene_vfetch(struct nouveau_grctx *ctx)
 		xf_emit(ctx, 1, 0);	/* ffffffff */
 	xf_emit(ctx, 1, 0);		/* 00000003 tesla UNK0FD8 */
 	/* SEEK */
-	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa) {
+	if (IS_NVA3F(dev_priv->chipset)) {
 		xf_emit(ctx, 0x10, 0);	/* 0? */
 		xf_emit(ctx, 2, 0);	/* weird... */
 		xf_emit(ctx, 2, 0);	/* RO */
@@ -1981,12 +1990,12 @@ nv50_graph_construct_gene_vfetch(struct nouveau_grctx *ctx)
 	xf_emit(ctx, acnt, 0);		/* 000000ff VERTEX_LIMIT_HIGH */
 	xf_emit(ctx, 3, 0);		/* f/1f */
 	/* SEEK */
-	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa) {
+	if (IS_NVA3F(dev_priv->chipset)) {
 		xf_emit(ctx, acnt, 0);		/* f */
 		xf_emit(ctx, 3, 0);		/* f/1f */
 	}
 	/* SEEK */
-	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa)
+	if (IS_NVA3F(dev_priv->chipset))
 		xf_emit(ctx, 2, 0);	/* RO */
 	else
 		xf_emit(ctx, 5, 0);	/* RO */
@@ -1997,7 +2006,7 @@ nv50_graph_construct_gene_vfetch(struct nouveau_grctx *ctx)
 		xf_emit(ctx, 0x41, 0);	/* RO */
 		/* SEEK */
 		xf_emit(ctx, 0x11, 0);	/* RO */
-	} else if (dev_priv->chipset == 0xa0 || dev_priv->chipset >= 0xaa)
+	} else if (!IS_NVA3F(dev_priv->chipset))
 		xf_emit(ctx, 0x50, 0);	/* RO */
 	else
 		xf_emit(ctx, 0x58, 0);	/* RO */
@@ -2009,7 +2018,7 @@ nv50_graph_construct_gene_vfetch(struct nouveau_grctx *ctx)
 	xf_emit(ctx, acnt*4, 0);	/* ffffffff VTX_ATTR */
 	xf_emit(ctx, 4, 0);		/* f/1f, 0, 0, 0 */
 	/* SEEK */
-	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa)
+	if (IS_NVA3F(dev_priv->chipset))
 		xf_emit(ctx, 0x1d, 0);	/* RO */
 	else
 		xf_emit(ctx, 0x16, 0);	/* RO */
@@ -2019,7 +2028,7 @@ nv50_graph_construct_gene_vfetch(struct nouveau_grctx *ctx)
 	/* SEEK */
 	if (dev_priv->chipset < 0xa0)
 		xf_emit(ctx, 8, 0);	/* RO */
-	else if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa)
+	else if (IS_NVA3F(dev_priv->chipset))
 		xf_emit(ctx, 0xc, 0);	/* RO */
 	else
 		xf_emit(ctx, 7, 0);	/* RO */
@@ -2031,7 +2040,7 @@ nv50_graph_construct_gene_vfetch(struct nouveau_grctx *ctx)
 		rep = 4;
 	for (i = 0; i < rep; i++) {
 		/* SEEK */
-		if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa)
+		if (IS_NVA3F(dev_priv->chipset))
 			xf_emit(ctx, 0x20, 0);	/* ffffffff */
 		xf_emit(ctx, 0x200, 0);	/* ffffffff */
 		xf_emit(ctx, 4, 0);	/* 7f/ff, 0, 0, 0 */
@@ -2045,7 +2054,7 @@ nv50_graph_construct_gene_vfetch(struct nouveau_grctx *ctx)
 	xf_emit(ctx, 1, 0);		/* 0000000f VP_GP_BUILTIN_ATTR_EN */
 	xf_emit(ctx, 1, 0);		/* ffffffff tesla UNK1A30 */
 	/* SEEK */
-	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa)
+	if (IS_NVA3F(dev_priv->chipset))
 		xf_emit(ctx, 7, 0);	/* weird... */
 	else
 		xf_emit(ctx, 5, 0);	/* weird... */
@@ -2182,6 +2191,7 @@ nv50_graph_construct_gene_csched(struct nouveau_grctx *ctx)
 		xf_emit(ctx, 0xc*2, 0);	/* ffffffff, 1f */
 		break;
 	case 0xa5:
+	case 0xaf:
 		xf_emit(ctx, 8, 0);	/* 7, 0, 0, 0, ... */
 		xf_emit(ctx, 0x30, 0);	/* fff */
 		xf_emit(ctx, 2, 0);	/* ff, fff */
@@ -2244,7 +2254,7 @@ nv50_graph_construct_gene_unk1cxx(struct nouveau_grctx *ctx)
 	xf_emit(ctx, 1, 4);		/* 00000007 FP_CONTROL */
 	xf_emit(ctx, 1, 0);		/* 00000001 ALPHA_TEST_ENABLE */
 	xf_emit(ctx, 1, 0);		/* 00000007 ALPHA_TEST_FUNC */
-	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa)
+	if (IS_NVA3F(dev_priv->chipset))
 		xf_emit(ctx, 1, 3);	/* 00000003 UNK16B4 */
 	else if (dev_priv->chipset >= 0xa0)
 		xf_emit(ctx, 1, 1);	/* 00000001 UNK16B4 */
@@ -2264,7 +2274,7 @@ nv50_graph_construct_gene_unk1cxx(struct nouveau_grctx *ctx)
 		xf_emit(ctx, 1, 0);	/* 3ff */
 		xf_emit(ctx, 1, 1);	/* 00000001 tesla UNK1110 */
 	}
-	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa)
+	if (IS_NVA3F(dev_priv->chipset))
 		xf_emit(ctx, 1, 0);	/* 00000003 tesla UNK1928 */
 	xf_emit(ctx, 0x10, 0);		/* ffffffff DEPTH_RANGE_NEAR */
 	xf_emit(ctx, 0x10, 0x3f800000);	/* ffffffff DEPTH_RANGE_FAR */
@@ -2287,7 +2297,7 @@ nv50_graph_construct_gene_unk1cxx(struct nouveau_grctx *ctx)
 		xf_emit(ctx, 1, 3);	/* 00000003 tesla UNK1100 */
 	if (dev_priv->chipset < 0xa0)
 		xf_emit(ctx, 0x1c, 0);	/* RO */
-	else if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa)
+	else if (IS_NVA3F(dev_priv->chipset))
 		xf_emit(ctx, 0x9, 0);
 	xf_emit(ctx, 1, 0);		/* 00000001 UNK1534 */
 	xf_emit(ctx, 1, 0);		/* 00000001 LINE_SMOOTH_ENABLE */
@@ -2357,7 +2367,7 @@ nv50_graph_construct_gene_ropm1(struct nouveau_grctx *ctx)
 	xf_emit(ctx, 1, 0x4e3bfdf);	/* ffffffff UNK0DF4 */
 	xf_emit(ctx, 1, 0);		/* 00000007 */
 	xf_emit(ctx, 1, 0);		/* 000003ff */
-	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa)
+	if (IS_NVA3F(dev_priv->chipset))
 		xf_emit(ctx, 1, 0x11);	/* 000000ff tesla UNK1968 */
 	xf_emit(ctx, 1, 0);		/* ffffffff tesla UNK1A3C */
 }
@@ -2383,7 +2393,7 @@ nv50_graph_construct_gene_ropm2(struct nouveau_grctx *ctx)
 	xf_emit(ctx, 1, 0);		/* 00000001 eng2d UNK260 */
 	xf_emit(ctx, 1, 0);		/* ff/3ff */
 	xf_emit(ctx, 1, 0);		/* 00000007 */
-	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa)
+	if (IS_NVA3F(dev_priv->chipset))
 		xf_emit(ctx, 1, 0x11);	/* 000000ff tesla UNK1968 */
 	xf_emit(ctx, 1, 0);		/* ffffffff tesla UNK1A3C */
 }
@@ -2395,7 +2405,7 @@ nv50_graph_construct_gene_ropc(struct nouveau_grctx *ctx)
 	int magic2;
 	if (dev_priv->chipset == 0x50) {
 		magic2 = 0x00003e60;
-	} else if (dev_priv->chipset <= 0xa0 || dev_priv->chipset >= 0xaa) {
+	} else if (!IS_NVA3F(dev_priv->chipset)) {
 		magic2 = 0x001ffe67;
 	} else {
 		magic2 = 0x00087e67;
@@ -2413,14 +2423,14 @@ nv50_graph_construct_gene_ropc(struct nouveau_grctx *ctx)
 	xf_emit(ctx, 1, 0);		/* 00000007 DEPTH_TEST_FUNC */
 	xf_emit(ctx, 1, 0);		/* 00000001 DEPTH_TEST_ENABLE */
 	xf_emit(ctx, 1, 0);		/* 00000001 DEPTH_WRITE_ENABLE */
-	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa)
+	if (IS_NVA3F(dev_priv->chipset))
 		xf_emit(ctx, 1, 1);	/* 0000001f tesla UNK169C */
 	xf_emit(ctx, 1, 0);		/* 00000007 STENCIL_FRONT_FUNC_FUNC */
 	xf_emit(ctx, 1, 0);		/* 000000ff STENCIL_FRONT_FUNC_MASK */
 	xf_emit(ctx, 1, 0);		/* 000000ff STENCIL_FRONT_MASK */
 	xf_emit(ctx, 3, 0);		/* 00000007 STENCIL_FRONT_OP_FAIL, ZFAIL, ZPASS */
 	xf_emit(ctx, 1, 0);		/* 00000001 STENCIL_FRONT_ENABLE */
-	if (dev_priv->chipset >= 0xa0 && dev_priv->chipset < 0xaa)
+	if (dev_priv->chipset >= 0xa0 && !IS_NVAAF(dev_priv->chipset))
 		xf_emit(ctx, 1, 0x15);	/* 000000ff */
 	xf_emit(ctx, 1, 0);		/* 00000001 STENCIL_BACK_ENABLE */
 	xf_emit(ctx, 1, 1);		/* 00000001 tesla UNK15B4 */
@@ -2436,7 +2446,7 @@ nv50_graph_construct_gene_ropc(struct nouveau_grctx *ctx)
 		xf_emit(ctx, 1, 0x300);	/* ffff */
 		xf_emit(ctx, 1, 0x1001);	/* 1fff */
 		if (dev_priv->chipset != 0xa0) {
-			if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa)
+			if (IS_NVA3F(dev_priv->chipset))
 				xf_emit(ctx, 1, 0);	/* 0000000f UNK15C8 */
 			else
 				xf_emit(ctx, 1, 0x15);	/* ff */
@@ -2548,7 +2558,7 @@ nv50_graph_construct_gene_ropc(struct nouveau_grctx *ctx)
 	xf_emit(ctx, 1, magic2);	/* 001fffff tesla UNK0F78 */
 	xf_emit(ctx, 1, 0);		/* ffffffff tesla UNK1A3C */
 	xf_emit(ctx, 1, 0x0fac6881);	/* 0fffffff RT_CONTROL */
-	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa) {
+	if (IS_NVA3F(dev_priv->chipset)) {
 		xf_emit(ctx, 1, 0);	/* 00000001 tesla UNK12E4 */
 		xf_emit(ctx, 8, 1);	/* 00000007 IBLEND_EQUATION_RGB */
 		xf_emit(ctx, 8, 1);	/* 00000007 IBLEND_EQUATION_ALPHA */
@@ -2597,7 +2607,7 @@ nv50_graph_construct_gene_ropc(struct nouveau_grctx *ctx)
 	xf_emit(ctx, 1, 0);		/* 0000000f LOGIC_OP */
 	if (dev_priv->chipset >= 0xa0)
 		xf_emit(ctx, 1, 0);	/* 00000001 UNK12E4? NVA3+ only? */
-	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa) {
+	if (IS_NVA3F(dev_priv->chipset)) {
 		xf_emit(ctx, 8, 1);	/* 00000001 IBLEND_UNK00 */
 		xf_emit(ctx, 8, 1);	/* 00000007 IBLEND_EQUATION_RGB */
 		xf_emit(ctx, 8, 2);	/* 0000001f IBLEND_FUNC_SRC_RGB */
@@ -2628,18 +2638,27 @@ nv50_graph_construct_xfer_unk84xx(struct nouveau_grctx *ctx)
 {
 	struct drm_nouveau_private *dev_priv = ctx->dev->dev_private;
 	int magic3;
-	if (dev_priv->chipset == 0x50)
+	switch (dev_priv->chipset) {
+	case 0x50:
 		magic3 = 0x1000;
-	else if (dev_priv->chipset == 0x86 || dev_priv->chipset == 0x98 || dev_priv->chipset >= 0xa8)
+		break;
+	case 0x86:
+	case 0x98:
+	case 0xa8:
+	case 0xaa:
+	case 0xac:
+	case 0xaf:
 		magic3 = 0x1e00;
-	else
+		break;
+	default:
 		magic3 = 0;
+	}
 	xf_emit(ctx, 1, 0);		/* 00000001 GP_ENABLE */
 	xf_emit(ctx, 1, 4);		/* 7f/ff[NVA0+] VP_REG_ALLOC_RESULT */
 	xf_emit(ctx, 1, 0);		/* 00000001 GP_ENABLE */
 	xf_emit(ctx, 1, 0);		/* ffffffff tesla UNK1A30 */
 	xf_emit(ctx, 1, 0);		/* 111/113[NVA0+] */
-	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa)
+	if (IS_NVA3F(dev_priv->chipset))
 		xf_emit(ctx, 0x1f, 0);	/* ffffffff */
 	else if (dev_priv->chipset >= 0xa0)
 		xf_emit(ctx, 0x0f, 0);	/* ffffffff */
@@ -2695,7 +2714,7 @@ nv50_graph_construct_xfer_unk84xx(struct nouveau_grctx *ctx)
 		xf_emit(ctx, 0x1020, 0);	/* 4 x (0x400 x 0xffffffff, ff, 0, 0, 0, 4 x ffffffff) */
 	else if (dev_priv->chipset < 0xa0)
 		xf_emit(ctx, 0xa20, 0);	/* 4 x (0x280 x 0xffffffff, ff, 0, 0, 0, 4 x ffffffff) */
-	else if (dev_priv->chipset == 0xa0 || dev_priv->chipset >= 0xaa)
+	else if (!IS_NVA3F(dev_priv->chipset))
 		xf_emit(ctx, 0x210, 0);	/* ffffffff */
 	else
 		xf_emit(ctx, 0x410, 0);	/* ffffffff */
@@ -2714,7 +2733,7 @@ nv50_graph_construct_xfer_tprop(struct nouveau_grctx *ctx)
 	if (dev_priv->chipset == 0x50) {
 		magic1 = 0x3ff;
 		magic2 = 0x00003e60;
-	} else if (dev_priv->chipset <= 0xa0 || dev_priv->chipset >= 0xaa) {
+	} else if (!IS_NVA3F(dev_priv->chipset)) {
 		magic1 = 0x7ff;
 		magic2 = 0x001ffe67;
 	} else {
@@ -2724,7 +2743,7 @@ nv50_graph_construct_xfer_tprop(struct nouveau_grctx *ctx)
 	xf_emit(ctx, 1, 0);		/* 00000007 ALPHA_TEST_FUNC */
 	xf_emit(ctx, 1, 0);		/* ffffffff ALPHA_TEST_REF */
 	xf_emit(ctx, 1, 0);		/* 00000001 ALPHA_TEST_ENABLE */
-	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa)
+	if (IS_NVA3F(dev_priv->chipset))
 		xf_emit(ctx, 1, 1);	/* 0000000f UNK16A0 */
 	xf_emit(ctx, 1, 0);		/* 7/f MULTISAMPLE_SAMPLES_LOG2 */
 	xf_emit(ctx, 1, 0);		/* 00000001 tesla UNK1534 */
@@ -2758,7 +2777,7 @@ nv50_graph_construct_xfer_tprop(struct nouveau_grctx *ctx)
 	xf_emit(ctx, 1, 1);		/* 00000001 SIFC_BITMAP_WRITE_BIT0_ENABLE */
 	xf_emit(ctx, 1, 0);		/* 00000007 ALPHA_TEST_FUNC */
 	xf_emit(ctx, 1, 0);		/* 00000001 ALPHA_TEST_ENABLE */
-	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa) {
+	if (IS_NVA3F(dev_priv->chipset)) {
 		xf_emit(ctx, 1, 3);	/* 00000003 tesla UNK16B4 */
 		xf_emit(ctx, 1, 0);	/* 00000003 */
 		xf_emit(ctx, 1, 0);	/* 00000003 tesla UNK1298 */
@@ -2776,7 +2795,7 @@ nv50_graph_construct_xfer_tprop(struct nouveau_grctx *ctx)
 	xf_emit(ctx, 1, 1);		/* 0000001f BLEND_FUNC_DST_RGB */
 	xf_emit(ctx, 1, 1);		/* 00000007 BLEND_EQUATION_RGB */
 	xf_emit(ctx, 1, 2);		/* 0000001f BLEND_FUNC_SRC_RGB */
-	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa) {
+	if (IS_NVA3F(dev_priv->chipset)) {
 		xf_emit(ctx, 1, 0);	/* 00000001 UNK12E4 */
 		xf_emit(ctx, 8, 1);	/* 00000007 IBLEND_EQUATION_RGB */
 		xf_emit(ctx, 8, 1);	/* 00000007 IBLEND_EQUATION_ALPHA */
@@ -2804,7 +2823,7 @@ nv50_graph_construct_xfer_tprop(struct nouveau_grctx *ctx)
 	xf_emit(ctx, 1, 0xcf);		/* 000000ff SIFC_FORMAT */
 	xf_emit(ctx, 1, 0xcf);		/* 000000ff DRAW_COLOR_FORMAT */
 	xf_emit(ctx, 1, 0xcf);		/* 000000ff SRC_FORMAT */
-	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa)
+	if (IS_NVA3F(dev_priv->chipset))
 		xf_emit(ctx, 1, 1);	/* 0000001f tesla UNK169C */
 	xf_emit(ctx, 1, 0);		/* ffffffff tesla UNK1A3C */
 	xf_emit(ctx, 1, 0);		/* 7/f[NVA3] MULTISAMPLE_SAMPLES_LOG2 */
@@ -2828,7 +2847,7 @@ nv50_graph_construct_xfer_tprop(struct nouveau_grctx *ctx)
 	xf_emit(ctx, 1, 0);		/* 00000001 DEPTH_TEST_ENABLE */
 	xf_emit(ctx, 1, 0x11);		/* 3f/7f DST_FORMAT */
 	xf_emit(ctx, 1, 1);		/* 00000001 DST_LINEAR */
-	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa)
+	if (IS_NVA3F(dev_priv->chipset))
 		xf_emit(ctx, 1, 1);	/* 0000001f tesla UNK169C */
 	if(dev_priv->chipset == 0x50)
 		xf_emit(ctx, 1, 0);	/* ff */
@@ -2865,7 +2884,7 @@ nv50_graph_construct_xfer_tprop(struct nouveau_grctx *ctx)
 	xf_emit(ctx, 1, 1);		/* 00000001 ZETA_ENABLE */
 	xf_emit(ctx, 1, 0);		/* 00000007 */
 	xf_emit(ctx, 1, 0);		/* ffffffff tesla UNK1A3C */
-	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa)
+	if (IS_NVA3F(dev_priv->chipset))
 		xf_emit(ctx, 1, 1);	/* 0000001f tesla UNK169C */
 	xf_emit(ctx, 8, 0);		/* 0000ffff DMA_COLOR */
 	xf_emit(ctx, 1, 0);		/* 0000ffff DMA_GLOBAL */
@@ -2903,7 +2922,7 @@ nv50_graph_construct_xfer_tprop(struct nouveau_grctx *ctx)
 	xf_emit(ctx, 1, 0);		/* 0001ffff GP_BUILTIN_RESULT_EN */
 	xf_emit(ctx, 1, 0);		/* 00000003 UNK0F90 */
 	xf_emit(ctx, 1, 0);		/* 00000007 */
-	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa)
+	if (IS_NVA3F(dev_priv->chipset))
 		xf_emit(ctx, 1, 1);	/* 0000001f tesla UNK169C */
 	xf_emit(ctx, 1, magic2);	/* 001fffff tesla UNK0F78 */
 	xf_emit(ctx, 1, 0);		/* 7/f MULTISAMPLE_SAMPLES_LOG2 */
@@ -2932,7 +2951,7 @@ nv50_graph_construct_xfer_tprop(struct nouveau_grctx *ctx)
 	xf_emit(ctx, 1, 0x1001);	/* 00001fff ZETA_ARRAY_MODE */
 	xf_emit(ctx, 1, 0);		/* ffffffff tesla UNK1A3C */
 	xf_emit(ctx, 1, 0);		/* 7/f MULTISAMPLE_SAMPLES_LOG2 */
-	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa)
+	if (IS_NVA3F(dev_priv->chipset))
 		xf_emit(ctx, 1, 0);	/* 00000001 */
 	xf_emit(ctx, 1, 0);		/* ffff0ff3 */
 	xf_emit(ctx, 1, 0x11);		/* 3f/7f RT_FORMAT */
@@ -2946,7 +2965,7 @@ nv50_graph_construct_xfer_tprop(struct nouveau_grctx *ctx)
 	xf_emit(ctx, 1, 0);		/* 00000001 FRAMEBUFFER_SRGB */
 	xf_emit(ctx, 1, 0);		/* 7 */
 	xf_emit(ctx, 1, 0);		/* 00000001 LOGIC_OP_ENABLE */
-	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa) {
+	if (IS_NVA3F(dev_priv->chipset)) {
 		xf_emit(ctx, 1, 0);	/* 00000001 UNK1140 */
 		xf_emit(ctx, 1, 1);	/* 0000001f tesla UNK169C */
 	}
@@ -2970,7 +2989,7 @@ nv50_graph_construct_xfer_tprop(struct nouveau_grctx *ctx)
 	xf_emit(ctx, 1, 0);		/* 00000001 SAMPLECNT_ENABLE */
 	xf_emit(ctx, 1, 0);		/* 0000000f ZETA_FORMAT */
 	xf_emit(ctx, 1, 1);		/* 00000001 ZETA_ENABLE */
-	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa) {
+	if (IS_NVA3F(dev_priv->chipset)) {
 		xf_emit(ctx, 1, 1);	/* 0000001f tesla UNK169C */
 		xf_emit(ctx, 1, 0);	/* 0000000f tesla UNK15C8 */
 	}
@@ -2985,7 +3004,7 @@ nv50_graph_construct_xfer_tprop(struct nouveau_grctx *ctx)
 		xf_emit(ctx, 2, 0);		/* 7, f */
 		xf_emit(ctx, 1, 1);		/* 1 */
 		xf_emit(ctx, 1, 0);		/* 7/f */
-		if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa)
+		if (IS_NVA3F(dev_priv->chipset))
 			xf_emit(ctx, 0x9, 0);	/* 1 */
 		else
 			xf_emit(ctx, 0x8, 0);	/* 1 */
@@ -2999,7 +3018,7 @@ nv50_graph_construct_xfer_tprop(struct nouveau_grctx *ctx)
 		xf_emit(ctx, 1, 0x11);		/* 7f */
 		xf_emit(ctx, 1, 1);		/* 1 */
 		xf_emit(ctx, 5, 0);		/* 1, 7, 3ff, 3, 7 */
-		if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa) {
+		if (IS_NVA3F(dev_priv->chipset)) {
 			xf_emit(ctx, 1, 0);	/* 00000001 UNK1140 */
 			xf_emit(ctx, 1, 1);	/* 0000001f tesla UNK169C */
 		}
@@ -3035,7 +3054,7 @@ nv50_graph_construct_xfer_tex(struct nouveau_grctx *ctx)
 		xf_emit(ctx, 1, 0);	/* 00000003 turing UNK37C tesla UNK1690 */
 		xf_emit(ctx, 1, 0);	/* 00000003 BLIT_CONTROL */
 		xf_emit(ctx, 1, 0);	/* 00000001 turing UNK32C tesla UNK0F94 */
-	} else if (dev_priv->chipset < 0xaa) {
+	} else if (!IS_NVAAF(dev_priv->chipset)) {
 		xf_emit(ctx, 1, 0);	/* ffffffff tesla UNK1A34? */
 		xf_emit(ctx, 1, 0);	/* 00000003 */
 		xf_emit(ctx, 1, 0);	/* 000003ff */
@@ -3067,7 +3086,7 @@ nv50_graph_construct_xfer_unk8cxx(struct nouveau_grctx *ctx)
 	xf_emit(ctx, 1, 0);		/* 00000001 LINE_STIPPLE_ENABLE */
 	xf_emit(ctx, 1, 0x00ffff00);	/* 00ffffff LINE_STIPPLE_PATTERN */
 	xf_emit(ctx, 1, 1);		/* 00000001 tesla UNK0F98 */
-	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa)
+	if (IS_NVA3F(dev_priv->chipset))
 		xf_emit(ctx, 1, 1);	/* 0000001f tesla UNK169C */
 	xf_emit(ctx, 1, 0);		/* 00000003 tesla UNK1668 */
 	xf_emit(ctx, 1, 0);		/* 00000001 LINE_STIPPLE_ENABLE */
@@ -3113,12 +3132,28 @@ nv50_graph_construct_xfer_mpc(struct nouveau_grctx *ctx)
 {
 	struct drm_nouveau_private *dev_priv = ctx->dev->dev_private;
 	int i, mpcnt;
-	if (dev_priv->chipset == 0x98 || dev_priv->chipset == 0xaa)
-		mpcnt = 1;
-	else if (dev_priv->chipset < 0xa0 || dev_priv->chipset >= 0xa8)
-		mpcnt = 2;
-	else
-		mpcnt = 3;
+	switch (dev_priv->chipset) {
+		case 0x98:
+		case 0xaa:
+			mpcnt = 1;
+			break;
+		case 0x50:
+		case 0x84:
+		case 0x86:
+		case 0x92:
+		case 0x94:
+		case 0x96:
+		case 0xa8:
+		case 0xac:
+			mpcnt = 2;
+			break;
+		case 0xa0:
+		case 0xa3:
+		case 0xa5:
+		case 0xaf:
+			mpcnt = 3;
+			break;
+	}
 	for (i = 0; i < mpcnt; i++) {
 		xf_emit(ctx, 1, 0);		/* ff */
 		xf_emit(ctx, 1, 0x80);		/* ffffffff tesla UNK1404 */
@@ -3129,7 +3164,7 @@ nv50_graph_construct_xfer_mpc(struct nouveau_grctx *ctx)
 		xf_emit(ctx, 1, 0x1000);	/* 0000ffff tesla UNK0D60 */
 		xf_emit(ctx, 1, 0);		/* ff/3ff */
 		xf_emit(ctx, 1, 0);		/* ffffffff tesla UNK1A30 */
-		if (dev_priv->chipset == 0x86 || dev_priv->chipset == 0x98 || dev_priv->chipset >= 0xa8) {
+		if (dev_priv->chipset == 0x86 || dev_priv->chipset == 0x98 || dev_priv->chipset == 0xa8 || IS_NVAAF(dev_priv->chipset)) {
 			xf_emit(ctx, 1, 0xe00);		/* 7fff */
 			xf_emit(ctx, 1, 0x1e00);	/* 7fff */
 		}
@@ -3142,7 +3177,7 @@ nv50_graph_construct_xfer_mpc(struct nouveau_grctx *ctx)
 		xf_emit(ctx, 1, 0);		/* 00000001 GP_ENABLE */
 		xf_emit(ctx, 1, 4);		/* 000000ff FP_REG_ALLOC_TEMP */
 		xf_emit(ctx, 1, 2);		/* 00000003 REG_MODE */
-		if (dev_priv->chipset >= 0xaa)
+		if (IS_NVAAF(dev_priv->chipset))
 			xf_emit(ctx, 0xb, 0);	/* RO */
 		else if (dev_priv->chipset >= 0xa0)
 			xf_emit(ctx, 0xc, 0);	/* RO */
@@ -3165,7 +3200,7 @@ nv50_graph_construct_xfer_mpc(struct nouveau_grctx *ctx)
 	xf_emit(ctx, 1, 0);			/* ffffffff SHARED_SIZE */
 	xf_emit(ctx, 1, 0x1fe21);		/* 1ffff/3ffff[NVA0+] tesla UNk0FAC */
 	xf_emit(ctx, 1, 0);			/* ffffffff tesla UNK1A34 */
-	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa)
+	if (IS_NVA3F(dev_priv->chipset))
 		xf_emit(ctx, 1, 1);		/* 0000001f tesla UNK169C */
 	xf_emit(ctx, 1, 0);			/* ff/3ff */
 	xf_emit(ctx, 1, 0);			/* 1 LINKED_TSC */
@@ -3180,7 +3215,7 @@ nv50_graph_construct_xfer_mpc(struct nouveau_grctx *ctx)
 	xf_emit(ctx, 1, 0);			/* 00000007 */
 	xf_emit(ctx, 1, 0xfac6881);		/* 0fffffff RT_CONTROL */
 	xf_emit(ctx, 1, 0);			/* 00000003 MULTISAMPLE_CTRL */
-	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa)
+	if (IS_NVA3F(dev_priv->chipset))
 		xf_emit(ctx, 1, 3);		/* 00000003 tesla UNK16B4 */
 	xf_emit(ctx, 1, 0);			/* 00000001 ALPHA_TEST_ENABLE */
 	xf_emit(ctx, 1, 0);			/* 00000007 ALPHA_TEST_FUNC */
@@ -3195,7 +3230,7 @@ nv50_graph_construct_xfer_mpc(struct nouveau_grctx *ctx)
 	xf_emit(ctx, 1, 1);			/* 0000001f BLEND_FUNC_DST_ALPHA */
 	xf_emit(ctx, 1, 1);			/* 00000007 BLEND_EQUATION_ALPHA */
 	xf_emit(ctx, 1, 1);			/* 00000001 UNK133C */
-	if (dev_priv->chipset > 0xa0 && dev_priv->chipset < 0xaa) {
+	if (IS_NVA3F(dev_priv->chipset)) {
 		xf_emit(ctx, 1, 0);		/* 00000001 UNK12E4 */
 		xf_emit(ctx, 8, 2);		/* 0000001f IBLEND_FUNC_SRC_RGB */
 		xf_emit(ctx, 8, 1);		/* 0000001f IBLEND_FUNC_DST_RGB */
