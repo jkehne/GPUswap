@@ -23,6 +23,9 @@
  */
 
 #include <linux/console.h>
+#ifdef __linux__
+#include <linux/version.h>
+#endif
 
 #include "drmP.h"
 #include "drm.h"
@@ -142,7 +145,11 @@ static struct drm_driver driver;
 static int __devinit
 nouveau_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 {
-	return drm_get_dev(pdev, ent, &driver);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,36)
+		return drm_get_pci_dev(pdev, ent, &driver);
+#else
+		return drm_get_dev(pdev, ent, &driver);
+#endif
 }
 
 static void

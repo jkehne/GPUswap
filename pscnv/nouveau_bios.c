@@ -22,6 +22,10 @@
  * SOFTWARE.
  */
 
+#ifdef __linux__
+#include <linux/version.h>
+#endif
+
 #include "drmP.h"
 #define NV_DEBUG_NOTRACE
 #include "nouveau_drv.h"
@@ -2167,12 +2171,22 @@ peek_fb(struct drm_device *dev, struct io_mapping *fb,
 	uint32_t val = 0;
 
 	if (off < pci_resource_len(dev->pdev, 1)) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,36)
+		uint8_t __iomem *p =
+			io_mapping_map_atomic_wc(fb, off & PAGE_MASK, KM_USER0);
+#else
 		uint8_t __iomem *p =
 			io_mapping_map_atomic_wc(fb, off & PAGE_MASK);
+#endif
 
 		val = ioread32(p + (off & ~PAGE_MASK));
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,36)
+		io_mapping_unmap_atomic(p, KM_USER0);
+#else
 		io_mapping_unmap_atomic(p);
+#endif
+
 	}
 
 	return val;
@@ -2183,13 +2197,22 @@ poke_fb(struct drm_device *dev, struct io_mapping *fb,
 	uint32_t off, uint32_t val)
 {
 	if (off < pci_resource_len(dev->pdev, 1)) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,36)
+		uint8_t __iomem *p =
+			io_mapping_map_atomic_wc(fb, off & PAGE_MASK, KM_USER0);
+#else
 		uint8_t __iomem *p =
 			io_mapping_map_atomic_wc(fb, off & PAGE_MASK);
+#endif
 
 		iowrite32(val, p + (off & ~PAGE_MASK));
 		wmb();
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,36)
+		io_mapping_unmap_atomic(p, KM_USER0);
+#else
 		io_mapping_unmap_atomic(p);
+#endif
 	}
 }
 

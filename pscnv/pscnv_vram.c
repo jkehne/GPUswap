@@ -252,8 +252,8 @@ pscnv_vram_init(struct drm_device *dev)
 	list_add(&allmem->local_list, &dev_priv->vram_free_list);
 	pscnv_vram_try_untype(dev, allmem);
 
-	dev_priv->fb_mtrr = drm_mtrr_add(drm_get_resource_start(dev, 1),
-					 drm_get_resource_len(dev, 1),
+	dev_priv->fb_mtrr = drm_mtrr_add(pci_resource_start(dev->pdev, 1),
+					 pci_resource_len(dev->pdev, 1),
 					 DRM_MTRR_WC);
 
 	return 0;
@@ -280,8 +280,8 @@ restart:
 	}
 
 	if (dev_priv->fb_mtrr >= 0) {
-		drm_mtrr_del(dev_priv->fb_mtrr, drm_get_resource_start(dev, 1),
-			     drm_get_resource_len(dev, 1), DRM_MTRR_WC);
+		drm_mtrr_del(dev_priv->fb_mtrr, pci_resource_start(dev->pdev, 1),
+			     pci_resource_len(dev->pdev, 1), DRM_MTRR_WC);
 		dev_priv->fb_mtrr = 0;
 	}
 
