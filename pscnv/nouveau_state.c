@@ -177,7 +177,14 @@ nouveau_card_init(struct drm_device *dev)
 	if (ret)
 		goto out_bios;
 
-	ret = nv50_vm_init(dev);
+	switch (dev_priv->card_type) {
+		case NV_50:
+			ret = nv50_vm_init(dev);
+			break;
+		default:
+			NV_ERROR(dev, "No VM implementation for NV%02x!\n", dev_priv->chipset);
+			ret = -ENOSYS;
+	}
 	if (ret)
 		goto out_vram;
 
@@ -199,11 +206,17 @@ nouveau_card_init(struct drm_device *dev)
 		goto out_gpio;
 
 	/* XXX: handle noaccel */
-	/* PFIFO */
-	ret = nv50_fifo_init(dev);
-	if (!ret) {
-		/* PGRAPH */
-		nv50_graph_init(dev);
+	switch (dev_priv->card_type) {
+		case NV_50:
+			/* PFIFO */
+			ret = nv50_fifo_init(dev);
+			if (!ret) {
+				/* PGRAPH */
+				nv50_graph_init(dev);
+			}
+			break;
+		default:
+			break;
 	}
 
 	if (drm_core_check_feature(dev, DRIVER_MODESET)) {
@@ -473,6 +486,9 @@ int nouveau_load(struct drm_device *dev, unsigned long flags)
 	case 0xa0:
 		dev_priv->card_type = NV_50;
 		break;
+	case 0xc0:
+		dev_priv->card_type = NV_C0;
+		break;
 	default:
 		NV_INFO(dev, "Unsupported chipset 0x%08x\n", reg0);
 		return -EINVAL;
@@ -550,10 +566,7 @@ int nouveau_unload(struct drm_device *dev)
 	if (drm_core_check_feature(dev, DRIVER_MODESET)) {
 		drm_kms_helper_poll_fini(dev);
 		nouveau_fbcon_fini(dev);
-		if (dev_priv->card_type >= NV_50)
-			nv50_display_destroy(dev);
-		else
-			/*nv04_display_destroy(dev)*/;
+		dev_priv->engine.display.destroy(dev);
 		nouveau_close(dev);
 	}
 
