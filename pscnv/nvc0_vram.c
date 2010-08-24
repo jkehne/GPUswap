@@ -61,6 +61,9 @@ nvc0_vram_init(struct drm_device *dev)
 		return -ENODEV;
 	}
 
+	NV_INFO(dev, "VRAM: size 0x%llx, %d controllers\n",
+			dev_priv->vram_size, ctrlr_num);
+
 	ret = pscnv_mm_init(0x40000, dev_priv->vram_size - 0x20000, 0x1000, 0x20000, 0x1000, &dev_priv->vram_mm);
 	if (ret) {
 		kfree(dev_priv->vram);
