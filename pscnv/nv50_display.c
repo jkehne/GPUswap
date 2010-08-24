@@ -113,7 +113,15 @@ nv50_evo_channel_new(struct drm_device *dev, struct nouveau_channel **pchan)
 	for (i = 0; i < 0x1000; i += 4)
 		nv_wv32(chan->evo_obj, i, 0);
 
-	if (dev_priv->chipset != 0x50) {
+	if (dev_priv->chipset >= 0xc0) {
+		ret = nv50_evo_dmaobj_new(chan, 0x3d, NvEvoFE, 0xfe, 0x19,
+					  0, 0xffffffff);
+		if (ret) {
+			nv50_evo_channel_del(pchan);
+			return ret;
+		}
+	} else
+	if (dev_priv->chipset > 0x50) {
 		ret = nv50_evo_dmaobj_new(chan, 0x3d, NvEvoFB16, 0x70, 0x19,
 					  0, 0xffffffff);
 		if (ret) {
@@ -218,9 +226,12 @@ nv50_display_init(struct drm_device *dev)
 	NV_DEBUG_KMS(dev, "ram_amount %d\n", ram_amount);
 	if (ram_amount > 256*1024*1024)
 		ram_amount = 256*1024*1024;
-	nv_wr32(dev, NV50_PDISPLAY_RAM_AMOUNT, ram_amount - 1);
-	nv_wr32(dev, NV50_PDISPLAY_UNK_388, 0x150000);
-	nv_wr32(dev, NV50_PDISPLAY_UNK_38C, 0);
+
+	if (dev_priv->card_type < NV_C0) {
+		nv_wr32(dev, NV50_PDISPLAY_RAM_AMOUNT, ram_amount - 1);
+		nv_wr32(dev, NV50_PDISPLAY_UNK_388, 0x150000);
+		nv_wr32(dev, NV50_PDISPLAY_UNK_38C, 0);
+	}
 
 	/* The precise purpose is unknown, i suspect it has something to do
 	 * with text mode.

@@ -77,7 +77,8 @@ enum {
 	/* G80+ display objects */
 	NvEvoVRAM	= 0x01000000,
 	NvEvoFB16	= 0x01000001,
-	NvEvoFB32	= 0x01000002
+	NvEvoFB32	= 0x01000002,
+	NvEvoFE         = 0x01000003,
 };
 
 #if 0
