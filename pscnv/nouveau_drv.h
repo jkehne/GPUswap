@@ -44,6 +44,7 @@
 #include "pscnv_vm.h"
 #include "pscnv_ramht.h"
 #include "pscnv_engine.h"
+#include "pscnv_mm.h"
 struct nouveau_grctx;
 
 #define MAX_NUM_DCB_ENTRIES 16
@@ -298,6 +299,7 @@ struct drm_nouveau_private {
 	struct pscnv_vm_engine *vm;
 	struct pscnv_chan_engine *chan;
 	struct pscnv_engine *engines[PSCNV_ENGINES_NUM];
+	int vm_ok;
 #if 0
 	struct nouveau_channel *channel;
 #endif
@@ -1117,7 +1119,7 @@ static inline uint32_t nv_rv32(struct pscnv_bo *bo,
 	struct drm_nouveau_private *dev_priv = bo->dev->dev_private;
 	uint32_t res;
 	uint64_t addr = bo->start + offset;
-	if (bo->map3 && dev_priv->vm)
+	if (bo->map3 && dev_priv->vm && dev_priv->vm_ok)
 		return ioread32_native(dev_priv->ramin + bo->map3->start - dev_priv->fb_size + offset);
 	spin_lock(&dev_priv->pramin_lock);
 	if (addr >> 16 != dev_priv->pramin_start) {
@@ -1134,7 +1136,7 @@ static inline void nv_wv32(struct pscnv_bo *bo,
 {
 	struct drm_nouveau_private *dev_priv = bo->dev->dev_private;
 	uint64_t addr = bo->start + offset;
-	if (bo->map3 && dev_priv->vm)
+	if (bo->map3 && dev_priv->vm && dev_priv->vm_ok)
 		return iowrite32_native(val, dev_priv->ramin + bo->map3->start - dev_priv->fb_size + offset);
 	spin_lock(&dev_priv->pramin_lock);
 	if (addr >> 16 != dev_priv->pramin_start) {

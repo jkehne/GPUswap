@@ -31,31 +31,6 @@
 #include "pscnv_vm.h"
 #include "pscnv_chan.h"
 
-#undef PSCNV_RB_AUGMENT
-
-static void PSCNV_RB_AUGMENT(struct pscnv_vm_mapnode *node) {
-	uint64_t maxgap = 0;
-	struct pscnv_vm_mapnode *left = PSCNV_RB_LEFT(node, entry);
-	struct pscnv_vm_mapnode *right = PSCNV_RB_RIGHT(node, entry);
-	if (!node->bo)
-		maxgap = node->size;
-	if (left && left->maxgap > maxgap)
-		maxgap = left->maxgap;
-	if (right && right->maxgap > maxgap)
-		maxgap = right->maxgap;
-	node->maxgap = maxgap;
-}
-
-static int mapcmp(struct pscnv_vm_mapnode *a, struct pscnv_vm_mapnode *b) {
-	if (a->start < b->start)
-		return -1;
-	else if (a->start > b->start)
-		return 1;
-	return 0;
-}
-
-PSCNV_RB_GENERATE_STATIC(pscnv_vm_maptree, pscnv_vm_mapnode, entry, mapcmp)
-
 int pscnv_vspace_tlb_flush (struct pscnv_vspace *vs) {
 	struct drm_nouveau_private *dev_priv = vs->dev->dev_private;
 	int i, ret;
@@ -72,7 +47,6 @@ struct pscnv_vspace *
 pscnv_vspace_new (struct drm_device *dev) {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct pscnv_vspace *res = kzalloc(sizeof *res, GFP_KERNEL);
-	struct pscnv_vm_mapnode *fmap;
 	if (!res) {
 		NV_ERROR(dev, "VM: Couldn't alloc vspace\n");
 		return 0;
@@ -81,37 +55,33 @@ pscnv_vspace_new (struct drm_device *dev) {
 	kref_init(&res->ref);
 	mutex_init(&res->lock);
 	INIT_LIST_HEAD(&res->chan_list);
-	PSCNV_RB_INIT(&res->maps);
 	if (dev_priv->vm->do_vspace_new(res)) {
 		kfree(res);
 		return 0;
 	}
-	fmap = kzalloc(sizeof *fmap, GFP_KERNEL);
-	if (!fmap) {
-		NV_ERROR(dev, "VM: Couldn't alloc mapping\n");
+	/* XXX: move to per-card code */
+	if (pscnv_mm_init(0, 1ull << 40, 0x1000, 0x10000, 0x20000000, &res->mm)) {
 		dev_priv->vm->do_vspace_free(res);
 		kfree(res);
 		return 0;
 	}
-	fmap->vspace = res;
-	fmap->start = 0;
-	fmap->size = 1ULL << 40;
-	fmap->maxgap = fmap->size;
-	PSCNV_RB_INSERT(pscnv_vm_maptree, &res->maps, fmap);
 	return res;
+}
+
+static void
+pscnv_vspace_free_unmap(struct pscnv_mm_node *node) {
+	struct pscnv_bo *bo = node->tag;
+	drm_gem_object_unreference_unlocked(bo->gem);
+	pscnv_mm_free(node);
 }
 
 void
 pscnv_vspace_free(struct pscnv_vspace *vs) {
 	struct drm_nouveau_private *dev_priv = vs->dev->dev_private;
-	struct pscnv_vm_mapnode *node;
-	while ((node = PSCNV_RB_ROOT(&vs->maps))) {
-		if (node->bo && !vs->isbar) {
-			drm_gem_object_unreference_unlocked(node->bo->gem);
-		}
-		PSCNV_RB_REMOVE(pscnv_vm_maptree, &vs->maps, node);
-		kfree(node);
-	}
+	if (vs->isbar)
+		pscnv_mm_takedown(vs->mm, pscnv_mm_free);
+	else
+		pscnv_mm_takedown(vs->mm, pscnv_vspace_free_unmap);
 	dev_priv->vm->do_vspace_free(vs);
 	kfree(vs);
 }
@@ -128,124 +98,44 @@ void pscnv_vspace_ref_free(struct kref *ref) {
 	dev_priv->vspaces[vid] = 0;
 }
 
-static struct pscnv_vm_mapnode *
-pscnv_vspace_map_int(struct pscnv_vspace *vs, struct pscnv_bo *vo,
-		uint64_t start, uint64_t end, int back,
-		struct pscnv_vm_mapnode *node)
-{
-	struct pscnv_vm_mapnode *left, *right, *res;
-	int lok, rok;
-	uint64_t mstart, mend;
-	left = PSCNV_RB_LEFT(node, entry);
-	right = PSCNV_RB_RIGHT(node, entry);
-	lok = left && left->maxgap >= vo->size && node->start > start;
-	rok = right && right->maxgap >= vo->size && node->start + node->size  < end;
-	if (pscnv_vm_debug >= 2)
-		NV_INFO (vs->dev, "VM map: %llx %llx %llx %llx %llx %llx %llx %llx %llx %d %d\n", node->start, node->size, node->maxgap,
-				left?left->start:0, left?left->size:0, left?left->maxgap:0,
-				right?right->start:0, right?right->size:0, right?right->maxgap:0, lok, rok);
-	if (!back && lok) {
-		res = pscnv_vspace_map_int(vs, vo, start, end, back, left);
-		if (res)
-			return res;
-	}
-	if (back && rok) {
-		res = pscnv_vspace_map_int(vs, vo, start, end, back, right);
-		if (res)
-			return res;
-	}
-	mstart = node->start;
-	if (mstart < start)
-		mstart = start;
-	mend = node->start + node->size;
-	if (mend > end)
-		mend = end;
-	if (mstart + vo->size <= mend && !node->bo) {
-		if (back)
-			mstart = mend - vo->size;
-		mend = mstart + vo->size;
-		if (node->start + node->size != mend) {
-			struct pscnv_vm_mapnode *split = kzalloc(sizeof *split, GFP_KERNEL);
-			if (!split)
-				return 0;
-			split->start = mend;
-			split->size = node->start + node->size - mend;
-			split->vspace = vs;
-			node->size = mend - node->start;
-			split->maxgap = split->size;
-			PSCNV_RB_INSERT(pscnv_vm_maptree, &vs->maps, split);
-		}
-		if (node->start != mstart) {
-			struct pscnv_vm_mapnode *split = kzalloc(sizeof *split, GFP_KERNEL);
-			if (!split)
-				return 0;
-			split->start = node->start;
-			split->size = mstart - node->start;
-			split->vspace = vs;
-			node->start = mstart;
-			node->size = mend - node->start;
-			split->maxgap = split->size;
-			PSCNV_RB_INSERT(pscnv_vm_maptree, &vs->maps, split);
-		}
-		node->bo = vo;
-		PSCNV_RB_AUGMENT(node);
-		return node;
-	}
-	if (back && lok) {
-		res = pscnv_vspace_map_int(vs, vo, start, end, back, left);
-		if (res)
-			return res;
-	}
-	if (!back && rok) {
-		res = pscnv_vspace_map_int(vs, vo, start, end, back, right);
-		if (res)
-			return res;
-	}
-	return 0;
-}
-
 static int
-pscnv_vspace_unmap_node_unlocked(struct pscnv_vm_mapnode *node) {
-	struct drm_nouveau_private *dev_priv = node->vspace->dev->dev_private;
+pscnv_vspace_unmap_node_unlocked(struct pscnv_mm_node *node) {
+	struct pscnv_vspace *vs = node->tag2;
+	struct drm_nouveau_private *dev_priv = vs->dev->dev_private;
+	struct pscnv_bo *bo = node->tag;
 	if (pscnv_vm_debug >= 1) {
-		NV_INFO(node->vspace->dev, "Unmapping range %llx-%llx.\n", node->start, node->start + node->size);
+		NV_INFO(vs->dev, "Unmapping range %llx-%llx.\n", node->start, node->start + node->size);
 	}
-	dev_priv->vm->do_unmap(node->vspace, node->start, node->size);
-	if (!node->vspace->isbar) {
-		drm_gem_object_unreference(node->bo->gem);
+	dev_priv->vm->do_unmap(vs, node->start, node->size);
+
+	if (!vs->isbar) {
+		drm_gem_object_unreference(bo->gem);
 	}
-	node->bo = 0;
-	node->maxgap = node->size;
-	PSCNV_RB_AUGMENT(node);
-	/* XXX: try merge */
+	pscnv_mm_free(node);
 	return 0;
 }
 
 int
-pscnv_vspace_map(struct pscnv_vspace *vs, struct pscnv_bo *vo,
+pscnv_vspace_map(struct pscnv_vspace *vs, struct pscnv_bo *bo,
 		uint64_t start, uint64_t end, int back,
-		struct pscnv_vm_mapnode **res)
+		struct pscnv_mm_node **res)
 {
-	struct pscnv_vm_mapnode *node;
+	struct pscnv_mm_node *node;
 	int ret;
 	struct drm_nouveau_private *dev_priv = vs->dev->dev_private;
-	start += 0xfff;
-	start &= ~0xfffull;
-	end &= ~0xfffull;
-	if (end > (1ull << 40))
-		end = 1ull << 40;
-	if (start >= end)
-		return -EINVAL;
 	mutex_lock(&vs->lock);
-	node = pscnv_vspace_map_int(vs, vo, start, end, back, PSCNV_RB_ROOT(&vs->maps));
-	if (!node) {
+	/* XXX: handle large pages */
+	ret = pscnv_mm_alloc(vs->mm, bo->size, back?PSCNV_MM_FROMBACK:0, start, end, &node);
+	if (ret) {
 		mutex_unlock(&vs->lock);
-		return -ENOMEM;
+		return ret;
 	}
+	node->tag = bo;
+	node->tag2 = vs;
 	if (pscnv_vm_debug >= 1)
-		NV_INFO(vs->dev, "Mapping VO %x/%d at %llx-%llx.\n", vo->cookie, vo->serial, node->start,
+		NV_INFO(vs->dev, "Mapping BO %x/%d at %llx-%llx.\n", bo->cookie, bo->serial, node->start,
 				node->start + node->size);
-	ret = dev_priv->vm->do_map(vs, vo, node->start);
+	ret = dev_priv->vm->do_map(vs, bo, node->start);
 	if (ret) {
 		pscnv_vspace_unmap_node_unlocked(node);
 	}
@@ -255,8 +145,8 @@ pscnv_vspace_map(struct pscnv_vspace *vs, struct pscnv_bo *vo,
 }
 
 int
-pscnv_vspace_unmap_node(struct pscnv_vm_mapnode *node) {
-	struct pscnv_vspace *vs = node->vspace;
+pscnv_vspace_unmap_node(struct pscnv_mm_node *node) {
+	struct pscnv_vspace *vs = node->tag2;
 	int ret;
 	mutex_lock(&vs->lock);
 	ret = pscnv_vspace_unmap_node_unlocked(node);
@@ -266,23 +156,11 @@ pscnv_vspace_unmap_node(struct pscnv_vm_mapnode *node) {
 
 int
 pscnv_vspace_unmap(struct pscnv_vspace *vs, uint64_t start) {
-	struct pscnv_vm_mapnode *node;
 	int ret;
 	mutex_lock(&vs->lock);
-	node = PSCNV_RB_ROOT(&vs->maps);
-	while (node) {
-		if (node->start == start && node->bo) {
-			ret = pscnv_vspace_unmap_node_unlocked(node);
-			mutex_unlock(&vs->lock);
-			return ret;
-		}
-		if (start < node->start)
-			node = PSCNV_RB_LEFT(node, entry);
-		else
-			node = PSCNV_RB_RIGHT(node, entry);
-	}
+	ret = pscnv_vspace_unmap_node_unlocked(pscnv_mm_find_node(vs->mm, start));
 	mutex_unlock(&vs->lock);
-	return -ENOENT;
+	return ret;
 }
 
 static struct vm_operations_struct pscnv_vram_ops = {
@@ -438,7 +316,7 @@ int pscnv_ioctl_vspace_map(struct drm_device *dev, void *data,
 	struct pscnv_vspace *vs;
 	struct drm_gem_object *obj;
 	struct pscnv_bo *vo;
-	struct pscnv_vm_mapnode *map;
+	struct pscnv_mm_node *map;
 	int ret;
 
 	NOUVEAU_CHECK_INITIALISED_WITH_RETURN;

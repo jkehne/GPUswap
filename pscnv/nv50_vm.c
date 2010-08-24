@@ -239,6 +239,7 @@ nv50_vm_init(struct drm_device *dev) {
 	nv_wr32(dev, 0x1708, 0x80000000 | bar1dma >> 4);
 	nv_wr32(dev, 0x170c, 0x80000000 | bar3dma >> 4);
 	mutex_init(&dev_priv->vm_mutex);
+	dev_priv->vm_ok = 1;
 	nv50_vm_map_kernel(vme->barch->bo);
 	nv50_vm_map_kernel(nv50_vs(vme->barvm)->pt[0]);
 	return 0;
@@ -251,6 +252,7 @@ nv50_vm_takedown(struct drm_device *dev) {
 	struct pscnv_vspace *vs = vme->barvm;
 	struct pscnv_chan *ch = vme->barch;
 	/* XXX: write me. */
+	dev_priv->vm_ok = 0;
 	vme->barvm = 0;
 	vme->barch = 0;
 	nv_wr32(dev, 0x1708, 0);
@@ -259,8 +261,8 @@ nv50_vm_takedown(struct drm_device *dev) {
 	nv_wr32(dev, 0x1704, 0);
 	pscnv_chan_free(ch);
 	pscnv_vspace_free(vs);
-	dev_priv->vm = 0;
 	kfree(vme);
+	dev_priv->vm = 0;
 }
 
 /* VM trap handling on NV50 is some kind of a fucking joke.

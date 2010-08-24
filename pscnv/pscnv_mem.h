@@ -49,8 +49,8 @@ struct pscnv_bo {
 	/* the following used for GEM objects only */
 	uint32_t user[8];
 	struct drm_gem_object *gem;
-	struct pscnv_vm_mapnode *map1;
-	struct pscnv_vm_mapnode *map3;
+	struct pscnv_mm_node *map1;
+	struct pscnv_mm_node *map3;
 	/* VRAM only: the first mm node */
 	struct pscnv_mm_node *mmnode;
 	/* SYSRaM only: list of pages */
