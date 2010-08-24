@@ -28,170 +28,16 @@
 #include "drm.h"
 #include "nouveau_drv.h"
 #include "pscnv_mem.h"
-#include <linux/list.h>
-#include <linux/kernel.h>
-#include <linux/mutex.h>
-
-static inline uint64_t
-pscnv_roundup (uint64_t x, uint32_t y)
-{
-	return (x + y - 1) / y * y;
-}
-
-static inline struct pscnv_vram_region *
-pscnv_vram_global_next (struct drm_device *dev, struct pscnv_vram_region *reg)
-{
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	if (reg->global_list.next == &dev_priv->vram_global_list)
-		return 0;
-	return list_entry(reg->global_list.next, struct pscnv_vram_region, global_list);
-}
-
-static inline struct pscnv_vram_region *
-pscnv_vram_global_prev (struct drm_device *dev, struct pscnv_vram_region *reg)
-{
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	if (reg->global_list.prev == &dev_priv->vram_global_list)
-		return 0;
-	return list_entry(reg->global_list.prev, struct pscnv_vram_region, global_list);
-}
-
-static inline struct pscnv_vram_region *
-pscnv_vram_free_next (struct drm_device *dev, struct pscnv_vram_region *reg)
-{
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	if (reg->local_list.next == &dev_priv->vram_free_list)
-		return 0;
-	return list_entry(reg->local_list.next, struct pscnv_vram_region, local_list);
-}
-
-static inline struct pscnv_vram_region *
-pscnv_vram_free_prev (struct drm_device *dev, struct pscnv_vram_region *reg)
-{
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	if (reg->local_list.prev == &dev_priv->vram_free_list)
-		return 0;
-	return list_entry(reg->local_list.prev, struct pscnv_vram_region, local_list);
-}
-
-/* splits off a new region starting from left side of existing region */
-static struct pscnv_vram_region *
-pscnv_vram_split_left (struct drm_device *dev, struct pscnv_vram_region *reg, uint64_t size)
-{
-	struct pscnv_vram_region *left = kmalloc (sizeof *left, GFP_KERNEL);
-	if (!left)
-		return 0;
-	left->type = reg->type;
-	left->start = reg->start;
-	left->size = size;
-	list_add_tail(&left->local_list, &reg->local_list);
-	list_add_tail(&left->global_list, &reg->global_list);
-	reg->size -= left->size;
-	reg->start += left->size;
-	if (pscnv_mem_debug >= 3)
-		NV_INFO(dev, "Split left type %d: %llx:%llx:%llx\n", reg->type,
-				left->start, reg->start, reg->start + reg->size);
-	return left;
-}
-
-/* splits off a new region starting from right side of existing region */
-static struct pscnv_vram_region *
-pscnv_vram_split_right (struct drm_device *dev, struct pscnv_vram_region *reg, uint64_t size)
-{
-	struct pscnv_vram_region *right = kmalloc (sizeof *right, GFP_KERNEL);
-	if (!right)
-		return 0;
-	right->type = reg->type;
-	right->start = reg->start + reg->size - size;
-	right->size = size;
-	list_add(&right->local_list, &reg->local_list);
-	list_add(&right->global_list, &reg->global_list);
-	reg->size -= right->size;
-	if (pscnv_mem_debug >= 3)
-		NV_INFO(dev, "Split right type %d: %llx:%llx:%llx\n", reg->type,
-				reg->start, right->start, right->start + right->size);
-	return right;
-}
-
-/* try to merge two regions, returning the merged region, or first region if merge failed. */
-static struct pscnv_vram_region *
-pscnv_vram_try_merge (struct drm_device *dev, struct pscnv_vram_region *a, struct pscnv_vram_region *b)
-{
-	struct pscnv_vram_region *c, *d;
-	if (a->start < b->start)
-		c = a, d = b;
-	else
-		c = b, d = a;
-	if (c->start + c->size != d->start) {
-		NV_ERROR(dev, "internal error: tried to merge non-adjacent regions at %llx-%llx and %llx-%llx!\n", a->start, a->start + a->size, b->start, b->start + b->size);
-		return a;
-	}
-	if (a->type != b->type)
-		return a;
-	if (pscnv_mem_debug >= 3)
-		NV_INFO(dev, "Merging type %d: %llx:%llx:%llx\n", a->type,
-				c->start, d->start, d->start + d->size);
-	c->size += d->size;
-	list_del(&d->global_list);
-	list_del(&d->local_list);
-	kfree(d);
-	return c;
-}
-
-/* try to merge adjacent regions into given region, returning the merged result */
-static struct pscnv_vram_region *
-pscnv_vram_try_merge_adjacent (struct drm_device *dev, struct pscnv_vram_region *reg)
-{
-	struct pscnv_vram_region *next, *prev;
-	next = pscnv_vram_global_next(dev, reg);
-	if (next)
-		reg = pscnv_vram_try_merge (dev, reg, next);
-	prev = pscnv_vram_global_prev(dev, reg);
-	if (prev)
-		reg = pscnv_vram_try_merge (dev, reg, prev);
-	return reg;
-}
-
-/* given a typed free region, try to convert to an untyped region, splitting
- * out the middle if needed */
-static int
-pscnv_vram_try_untype(struct drm_device *dev, struct pscnv_vram_region *reg) {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	uint64_t split = pscnv_roundup (reg->start, dev_priv->vram_rblock_size);
-	uint64_t finalsize;
-	/* can we fit one full rblock to untype? */
-	if (split + dev_priv->vram_rblock_size > reg->start + reg->size)
-		/* if not, return */
-		return 0;
-	/* okay. proceed with untyping. check if we need to cut off the
-	 * left part. */
-	if (split != reg->start) {
-		if (!pscnv_vram_split_left(dev, reg, split - reg->start))
-			return -ENOMEM;
-	}
-	/* compute what the final size of the new region will be */
-	finalsize = reg->size / dev_priv->vram_rblock_size * dev_priv->vram_rblock_size;
-	/* if needed, cut off the right part too */
-	if (finalsize != reg->size) {
-		if (!pscnv_vram_split_right(dev, reg, reg->size - finalsize))
-			return -ENOMEM;
-	}
-	/* ok, we can untype the region now. */
-	reg->type = PSCNV_VRAM_FREE_UNTYPED;
-	pscnv_vram_try_merge_adjacent(dev, reg);
-	return 0;
-}
 
 int
 pscnv_vram_init(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct pscnv_vram_region *allmem;
 	uint32_t r0, r4, rc, ru, rt;
 	int parts, i, colbits, rowbitsa, rowbitsb, banks;
 	uint64_t rowsize, predicted;
-	INIT_LIST_HEAD(&dev_priv->vram_global_list);
-	INIT_LIST_HEAD(&dev_priv->vram_free_list);
+	uint32_t rblock_size;
+	int ret;
 	mutex_init(&dev_priv->vram_mutex);
 
 	if (dev_priv->card_type != NV_50) {
@@ -235,22 +81,16 @@ pscnv_vram_init(struct drm_device *dev)
 
 	/* XXX: 100250 has more bits. check what they do some day. */
 	if (rt & 1)
-		dev_priv->vram_rblock_size = rowsize * 3;
+		rblock_size = rowsize * 3;
 	else
-		dev_priv->vram_rblock_size = rowsize;
+		rblock_size = rowsize;
 
 	NV_INFO(dev, "VRAM: size 0x%llx, LSR period %x\n",
-			dev_priv->vram_size, dev_priv->vram_rblock_size);
+			dev_priv->vram_size, rblock_size);
 
-	allmem = kmalloc (sizeof *allmem, GFP_KERNEL);
-	if (!allmem)
-		return -ENOMEM;
-	allmem->type = PSCNV_VRAM_FREE_SANE;
-	allmem->start = 0x40000;
-	allmem->size = dev_priv->vram_size - 0x40000 - 0x2000;
-	list_add(&allmem->global_list, &dev_priv->vram_global_list);
-	list_add(&allmem->local_list, &dev_priv->vram_free_list);
-	pscnv_vram_try_untype(dev, allmem);
+	ret = pscnv_mm_init(0x40000, dev_priv->vram_size - 0x20000, 0x1000, 0x10000, rblock_size, &dev_priv->vram_mm);
+	if (ret)
+		return ret;
 
 	dev_priv->fb_mtrr = drm_mtrr_add(pci_resource_start(dev->pdev, 1),
 					 pci_resource_len(dev->pdev, 1),
@@ -259,25 +99,18 @@ pscnv_vram_init(struct drm_device *dev)
 	return 0;
 }
 
+static void pscnv_vram_takedown_free(struct pscnv_mm_node *node) {
+	struct pscnv_bo *bo = node->tag;
+	NV_ERROR(bo->dev, "BO %d of type %08x still exists at takedown!\n",
+			bo->serial, bo->cookie);
+	pscnv_vram_free(bo);
+}
+
 int
 pscnv_vram_takedown(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct list_head *pos, *next;
-restart:
-	list_for_each_safe(pos, next, &dev_priv->vram_global_list) {
-		struct pscnv_vram_region *reg = list_entry(pos, struct pscnv_vram_region, global_list);
-		if (reg->type > PSCNV_VRAM_LAST_FREE) {
-			NV_ERROR(dev, "BO %d of type %08x still exists at takedown!\n",
-					reg->bo->serial, reg->bo->cookie);
-			pscnv_vram_free(reg->bo);
-			goto restart;
-		}
-	}
-	list_for_each_safe(pos, next, &dev_priv->vram_global_list) {
-		struct pscnv_vram_region *reg = list_entry(pos, struct pscnv_vram_region, global_list);
-		kfree (reg);
-	}
+	pscnv_mm_takedown(dev_priv->vram_mm, pscnv_vram_takedown_free);
 
 	if (dev_priv->fb_mtrr >= 0) {
 		drm_mtrr_del(dev_priv->fb_mtrr, pci_resource_start(dev->pdev, 1),
@@ -293,9 +126,7 @@ pscnv_vram_alloc(struct pscnv_bo *bo)
 {
 	struct drm_device *dev = bo->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct pscnv_vram_region *cur, *next;
-	uint32_t size = bo->size;
-	int lsr;
+	int flags, ret;
 	switch (bo->tile_flags) {
 		case 0:
 		case 0x10:
@@ -336,7 +167,7 @@ pscnv_vram_alloc(struct pscnv_bo *bo)
 		case 0x79:
 		case 0x7c:
 		case 0x7d:
-			lsr = 0;
+			flags = 0;
 			break;
 		case 0x18:
 		case 0x19:
@@ -364,149 +195,26 @@ pscnv_vram_alloc(struct pscnv_bo *bo)
 		case 0x76:
 		case 0x7a:
 		case 0x7b:
-			lsr = 1;
+			flags = PSCNV_MM_T1 | PSCNV_MM_FROMBACK;
 			break;
 		default:
 			return -EINVAL;
 	}
-	INIT_LIST_HEAD(&bo->regions);
+	if ((bo->flags & PSCNV_GEM_MEMTYPE_MASK) == PSCNV_GEM_VRAM_LARGE)
+		flags |= PSCNV_MM_LP;
+	if (!(bo->flags & PSCNV_GEM_CONTIG))
+		flags |= PSCNV_MM_FRAGOK;
 	mutex_lock(&dev_priv->vram_mutex);
-	if (list_empty(&dev_priv->vram_free_list)) {
-		mutex_unlock(&dev_priv->vram_mutex);
-		return -ENOMEM;
-	}
-	if (!lsr)
-		cur = list_entry(dev_priv->vram_free_list.next, struct pscnv_vram_region, local_list);
-	else
-		cur = list_entry(dev_priv->vram_free_list.prev, struct pscnv_vram_region, local_list);
-
-	/* go through the list, looking for free region that might fit the bill */
-	while (cur) {
-		if (!lsr)
-			next = pscnv_vram_free_next(dev, cur);
-		else
-			next = pscnv_vram_free_prev(dev, cur);
-		/* if contig VO is wanted, skip too small regions */
-		if (cur->size >= size || !(bo->flags & PSCNV_GEM_CONTIG)) {
-			/* if region is untyped, we can use it but we need to
-			 * convert to typed first.
-			 */
-			/* XXX here: if we have adjacent typed and untyped
-			 * free regions, we should treat them as a single large
-			 * typed region for purposes of allocating memory.
-			 * With the current code, we'll get these blocks
-			 * allocated in sequence, but represented by two
-			 * separate regions in the region list. This kills
-			 * contig optimisations. And if asked for contig
-			 * allocation, it'll just ignore the first region.
-			 *
-			 * Fix this later.
-			 */
-			if (cur->type == PSCNV_VRAM_FREE_UNTYPED) {
-				uint64_t ssize = pscnv_roundup(size, dev_priv->vram_rblock_size);
-				if (ssize > cur->size)
-					ssize = cur->size;
-				if (ssize != cur->size) {
-					if (!lsr)
-						pscnv_vram_split_right(dev, cur, cur->size - ssize);
-					else
-						pscnv_vram_split_left(dev, cur, cur->size - ssize);
-				}
-				if (!lsr)
-					cur->type = PSCNV_VRAM_FREE_SANE;
-				else
-					cur->type = PSCNV_VRAM_FREE_LSR;
-				/* now fall through. */
-			}
-			if (cur->type == (lsr?PSCNV_VRAM_FREE_LSR:PSCNV_VRAM_FREE_SANE)) {
-				if (cur->size > size) {
-					if (lsr)
-						cur = pscnv_vram_split_right(dev, cur, size);
-					else
-						cur = pscnv_vram_split_left(dev, cur, size);
-				}
-				cur->type = (lsr?PSCNV_VRAM_USED_LSR:PSCNV_VRAM_USED_SANE);
-				list_del(&cur->local_list);
-				if (lsr)
-					list_add(&cur->local_list, &bo->regions);
-				else
-					list_add_tail(&cur->local_list, &bo->regions);
-				if (pscnv_mem_debug >= 2)
-					NV_INFO (dev, "Using block at %llx-%llx\n",
-							cur->start, cur->start + cur->size);
-				if (bo->flags & PSCNV_GEM_CONTIG)
-					bo->start = cur->start;
-				cur->bo = bo;
-				size -= cur->size;
-			}
-			if (!size) {
-				mutex_unlock(&dev_priv->vram_mutex);
-				return 0;
-			}
-		}
-		cur = next;
-	}
-	/* no free blocks. remove what we managed to alloc and fail. */
+	ret = pscnv_mm_alloc(dev_priv->vram_mm, bo->size, flags, 0, dev_priv->vram_size, &bo->mmnode);
+	if (bo->flags & PSCNV_GEM_CONTIG)
+		bo->start = bo->mmnode->start;
 	mutex_unlock(&dev_priv->vram_mutex);
-	pscnv_vram_free(bo);
-	return -ENOMEM;
-}
-
-static int
-pscnv_vram_free_region (struct drm_device *dev, struct pscnv_vram_region *reg) {
-	int lsr;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct pscnv_vram_region *next, *prev;
-	if (reg->type == PSCNV_VRAM_USED_LSR) {
-		reg->type = PSCNV_VRAM_FREE_LSR;
-		lsr = 1;
-	} else if (reg->type == PSCNV_VRAM_USED_SANE) {
-		reg->type = PSCNV_VRAM_FREE_SANE;
-		lsr = 0;
-	} else {
-		NV_ERROR (dev, "Trying to free block %llx-%llx of type %d.\n",
-				reg->start, reg->start+reg->size, reg->type);
-		return -EINVAL;
-	}
-	mutex_lock(&dev_priv->vram_mutex);
-	if (pscnv_mem_debug >= 3)
-		NV_INFO (dev, "Freeing block %llx-%llx of type %d.\n",
-				reg->start, reg->start+reg->size, reg->type);
-	list_del(&reg->local_list);
-	next = pscnv_vram_global_next(dev, reg);
-	prev = pscnv_vram_global_prev(dev, reg);
-	/* search in both directions for the nearest free block. */
-	while (1) {
-		if (next && next->type <= PSCNV_VRAM_FREE_LSR) {
-			list_add_tail(&reg->local_list, &next->local_list);
-			break;
-		} else if (prev && prev->type <= PSCNV_VRAM_LAST_FREE) {
-			list_add(&reg->local_list, &prev->local_list);
-			break;
-		} else if (!next) {
-			list_add_tail(&reg->local_list, &dev_priv->vram_free_list);
-			break;
-		} else if (!prev) {
-			list_add(&reg->local_list, &dev_priv->vram_free_list);
-			break;
-		} else {
-			next = pscnv_vram_global_next(dev, next);
-			prev = pscnv_vram_global_prev(dev, prev);
-		}
-	}
-	reg = pscnv_vram_try_merge_adjacent (dev, reg);
-	pscnv_vram_try_untype (dev, reg);
-	mutex_unlock(&dev_priv->vram_mutex);
-	return 0;
+	return ret;
 }
 
 int
 pscnv_vram_free(struct pscnv_bo *bo)
 {
-	struct list_head *pos, *next;
-	list_for_each_safe(pos, next, &bo->regions) {
-		struct pscnv_vram_region *reg = list_entry(pos, struct pscnv_vram_region, local_list);
-		pscnv_vram_free_region (bo->dev, reg);
-	}
+	pscnv_mm_free(bo->mmnode);
 	return 0;
 }

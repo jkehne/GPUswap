@@ -348,9 +348,7 @@ struct drm_nouveau_private {
 
 	uint64_t mmio_phys;
 
-	struct list_head vram_global_list;
-	struct list_head vram_free_list;
-	uint32_t vram_rblock_size;
+	struct pscnv_mm *vram_mm;
 	struct mutex vram_mutex;
 
 	struct pscnv_vspace *vspaces[128];

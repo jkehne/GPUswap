@@ -54,20 +54,19 @@ nv50_vspace_fill_pd_slot (struct pscnv_vspace *vs, uint32_t pdenum) {
 int
 nv50_vspace_do_map (struct pscnv_vspace *vs, struct pscnv_bo *bo, uint64_t offset) {
 	struct drm_nouveau_private *dev_priv = vs->dev->dev_private;
-	struct list_head *pos;
+	struct pscnv_mm_node *n;
 	int ret, i, j;
 	switch (bo->flags & PSCNV_GEM_MEMTYPE_MASK) {
 		case PSCNV_GEM_VRAM_SMALL:
 		case PSCNV_GEM_VRAM_LARGE:
-			list_for_each(pos, &bo->regions) {
+			for (n = bo->mmnode; n; n = n->next) {
 				/* XXX: beef up to use contig blocks */
-				struct pscnv_vram_region *reg = list_entry(pos, struct pscnv_vram_region, local_list);
 				uint64_t roff;
-				for (roff = 0; roff < reg->size; roff += 0x1000, offset += 0x1000) {
+				for (roff = 0; roff < n->size; roff += 0x1000, offset += 0x1000) {
 					uint32_t pgnum = offset / 0x1000;
 					uint32_t pdenum = pgnum / NV50_VM_SPTE_COUNT;
 					uint32_t ptenum = pgnum % NV50_VM_SPTE_COUNT;
-					uint64_t pte = reg->start + roff;
+					uint64_t pte = n->start + roff;
 					pte |= (uint64_t)bo->tile_flags << 40;
 					pte |= 1; /* present */
 					if (!nv50_vs(vs)->pt[pdenum])

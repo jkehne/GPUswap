@@ -27,6 +27,7 @@
 #ifndef __PSCNV_VRAM_H__
 #define __PSCNV_VRAM_H__
 #include "pscnv_drm.h"
+#include "pscnv_mm.h"
 
 #define PSCNV_MEM_PAGE_SIZE 0x1000
 
@@ -50,37 +51,11 @@ struct pscnv_bo {
 	struct drm_gem_object *gem;
 	struct pscnv_vm_mapnode *map1;
 	struct pscnv_vm_mapnode *map3;
-	/* VRAM only: a linked list of VRAM regions making up this BO. */
-	struct list_head regions;
+	/* VRAM only: the first mm node */
+	struct pscnv_mm_node *mmnode;
 	/* SYSRaM only: list of pages */
 	struct page **pages;
 	dma_addr_t *dmapages;
-};
-
-/* a contiguous VRAM region. They're linked into two lists: global list of
- * all regions and local list of regions within a single VO or free list.
- */
-struct pscnv_vram_region {
-	struct list_head global_list;
-	struct list_head local_list;
-	/* VRAM is split into so-called rblocks. Pages can be sane or LSR.
-	 * you cannot have both sane and LSR pages in a single rblock.
-	 * So an rblock can be in one of three states - UNTYPED when no
-	 * pages are allocated in it, SANE when it contains sane pages,
-	 * and LSR when it contains LSR pages. Region type is a combination
-	 * of containing rblock state and free/used status.
-	 */
-	enum {
-		PSCNV_VRAM_FREE_UNTYPED,
-		PSCNV_VRAM_FREE_SANE,
-		PSCNV_VRAM_FREE_LSR,
-		PSCNV_VRAM_LAST_FREE = PSCNV_VRAM_FREE_LSR,
-		PSCNV_VRAM_USED_SANE,
-		PSCNV_VRAM_USED_LSR,
-	} type;
-	uint64_t start;
-	uint64_t size;
-	struct pscnv_bo *bo;
 };
 
 extern int pscnv_mem_init(struct drm_device *);
