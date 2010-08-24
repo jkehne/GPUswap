@@ -44,6 +44,8 @@ nv50_evo_channel_del(struct nouveau_channel **pchan)
 
 	if (chan->pushbuf)
 		pscnv_mem_free(chan->pushbuf);
+	if (chan->evo_obj)
+		pscnv_mem_free(chan->evo_obj);
 
 	kfree(chan);
 }
@@ -96,9 +98,7 @@ nv50_evo_channel_new(struct drm_device *dev, struct nouveau_channel **pchan)
 	chan->user_put = NV50_PDISPLAY_USER_PUT(0);
 	chan->user_get = NV50_PDISPLAY_USER_GET(0);
 
-	/* nouveau allocates 32kiB here, but there's no way we'd ever use it all.
-	 * with a total of 3 objects, 8kiB is more than enough. */
-	chan->evo_obj = dev_priv->evo_obj;
+	chan->evo_obj = pscnv_mem_alloc(dev, 0x2000, PSCNV_GEM_CONTIG | PSCNV_GEM_VRAM_LARGE, 0, 0xd1501a7);
 	if (!chan->evo_obj) {
 		nv50_evo_channel_del(pchan);
 		NV_ERROR(dev, "Error allocating EVO channel memory\n");

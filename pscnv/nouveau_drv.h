@@ -388,7 +388,6 @@ struct drm_nouveau_private {
 		u16 script;
 		u32 pclk;
 	} evo_irq;
-	struct pscnv_bo *evo_obj;
 
 	struct {
 		struct dentry *channel_root;

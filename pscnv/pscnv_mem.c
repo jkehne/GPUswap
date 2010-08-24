@@ -53,31 +53,12 @@ pscnv_mem_init(struct drm_device *dev)
 	if (ret)
 		return ret;
 
-	/* XXX BIG HACK ALERT
-	 *
-	 * EVO is the only thing we use right now that needs >4kiB alignment.
-	 * We could do this correctly, but that'd require rewriting a lot of
-	 * the allocator code. So, since there's only a single EVO channel
-	 * per card, we just statically allocate EVO at address 0x40000.
-	 *
-	 * This is first alloc ever, so it's guaranteed to land at the correct
-	 * place.
-	 */
-
-	if (drm_core_check_feature(dev, DRIVER_MODESET)) {
-		dev_priv->evo_obj = pscnv_mem_alloc(dev, 0x2000, PSCNV_GEM_CONTIG, 0, 0xd1501a7);
-	}
-
 	return 0;
 }
 
 int
 pscnv_mem_takedown(struct drm_device *dev)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	if (drm_core_check_feature(dev, DRIVER_MODESET)) {
-		pscnv_mem_free(dev_priv->evo_obj);
-	}
 	return pscnv_vram_takedown(dev);
 }
 
