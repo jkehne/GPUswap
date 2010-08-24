@@ -55,6 +55,9 @@ pscnv_mem_init(struct drm_device *dev)
 		case NV_50:
 			ret = nv50_vram_init(dev);
 			break;
+		case NV_C0:
+			ret = nvc0_vram_init(dev);
+			break;
 		default:
 			NV_ERROR(dev, "No VRAM allocator for NV%02x!\n", dev_priv->chipset);
 			ret = -ENOSYS;

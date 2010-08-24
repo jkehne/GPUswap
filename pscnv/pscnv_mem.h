@@ -74,6 +74,7 @@ extern int pscnv_vram_free(struct pscnv_bo *bo);
 extern void pscnv_vram_takedown(struct drm_device *dev);
 
 extern int nv50_vram_init(struct drm_device *);
+extern int nvc0_vram_init(struct drm_device *);
 
 extern int pscnv_sysram_alloc(struct pscnv_bo *);
 extern int pscnv_sysram_free(struct pscnv_bo *);
