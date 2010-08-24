@@ -3,7 +3,6 @@
 
 #include "drmP.h"
 #include "drm.h"
-#include "nouveau_drv.h"
 #include "pscnv_tree.h"
 
 PSCNV_RB_HEAD(pscnv_mm_head, pscnv_mm_node);
@@ -31,6 +30,7 @@ struct pscnv_mm_node {
 	struct pscnv_mm_node *next;
 	struct pscnv_mm_node *prev;
 	void *tag;
+	void *tag2;
 };
 
 #define PSCNV_MM_T1		1
