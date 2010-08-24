@@ -48,18 +48,38 @@ pscnv_mem_init(struct drm_device *dev)
 		NV_ERROR(dev, "Error setting DMA mask: %d\n", ret);
 		return ret;
 	}
+
+	mutex_init(&dev_priv->vram_mutex);
 	
-	ret = pscnv_vram_init(dev);
+	switch (dev_priv->card_type) {
+		case NV_50:
+			ret = nv50_vram_init(dev);
+			break;
+		default:
+			NV_ERROR(dev, "No VRAM allocator for NV%02x!\n", dev_priv->chipset);
+			ret = -ENOSYS;
+	}
 	if (ret)
 		return ret;
+
+	dev_priv->fb_mtrr = drm_mtrr_add(pci_resource_start(dev->pdev, 1),
+					 pci_resource_len(dev->pdev, 1),
+					 DRM_MTRR_WC);
 
 	return 0;
 }
 
-int
+void
 pscnv_mem_takedown(struct drm_device *dev)
 {
-	return pscnv_vram_takedown(dev);
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	dev_priv->vram->takedown(dev);
+
+	if (dev_priv->fb_mtrr >= 0) {
+		drm_mtrr_del(dev_priv->fb_mtrr, pci_resource_start(dev->pdev, 1),
+			     pci_resource_len(dev->pdev, 1), DRM_MTRR_WC);
+		dev_priv->fb_mtrr = 0;
+	}
 }
 
 struct pscnv_bo *
@@ -99,7 +119,7 @@ pscnv_mem_alloc(struct drm_device *dev,
 	switch (res->flags & PSCNV_GEM_MEMTYPE_MASK) {
 		case PSCNV_GEM_VRAM_SMALL:
 		case PSCNV_GEM_VRAM_LARGE:
-			ret = pscnv_vram_alloc(res);
+			ret = dev_priv->vram->alloc(res);
 			break;
 		case PSCNV_GEM_SYSRAM_SNOOP:
 		case PSCNV_GEM_SYSRAM_NOSNOOP:
@@ -129,7 +149,7 @@ pscnv_mem_free(struct pscnv_bo *bo)
 	switch (bo->flags & PSCNV_GEM_MEMTYPE_MASK) {
 		case PSCNV_GEM_VRAM_SMALL:
 		case PSCNV_GEM_VRAM_LARGE:
-			pscnv_vram_free(bo);
+			dev_priv->vram->free(bo);
 			break;
 		case PSCNV_GEM_SYSRAM_SNOOP:
 		case PSCNV_GEM_SYSRAM_NOSNOOP:
@@ -138,4 +158,28 @@ pscnv_mem_free(struct pscnv_bo *bo)
 	}
 	kfree (bo);
 	return 0;
+}
+
+int
+pscnv_vram_free(struct pscnv_bo *bo)
+{
+	struct drm_nouveau_private *dev_priv = bo->dev->dev_private;
+	mutex_lock(&dev_priv->vram_mutex);
+	pscnv_mm_free(bo->mmnode);
+	mutex_unlock(&dev_priv->vram_mutex);
+	return 0;
+}
+
+static void pscnv_vram_takedown_free(struct pscnv_mm_node *node) {
+	struct pscnv_bo *bo = node->tag;
+	NV_ERROR(bo->dev, "BO %d of type %08x still exists at takedown!\n",
+			bo->serial, bo->cookie);
+	pscnv_mem_free(bo);
+}
+
+void
+pscnv_vram_takedown(struct drm_device *dev)
+{
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	pscnv_mm_takedown(dev_priv->vram_mm, pscnv_vram_takedown_free);
 }

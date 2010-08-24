@@ -58,16 +58,22 @@ struct pscnv_bo {
 	dma_addr_t *dmapages;
 };
 
+struct pscnv_vram_engine {
+	void (*takedown) (struct drm_device *);
+	int (*alloc) (struct pscnv_bo *);
+	int (*free) (struct pscnv_bo *);
+};
+
 extern int pscnv_mem_init(struct drm_device *);
-extern int pscnv_mem_takedown(struct drm_device *);
+extern void pscnv_mem_takedown(struct drm_device *);
 extern struct pscnv_bo *pscnv_mem_alloc(struct drm_device *,
 		uint64_t size, int flags, int tile_flags, uint32_t cookie);
 extern int pscnv_mem_free(struct pscnv_bo *);
 
-extern int pscnv_vram_init(struct drm_device *);
-extern int pscnv_vram_takedown(struct drm_device *);
-extern int pscnv_vram_alloc(struct pscnv_bo *);
-extern int pscnv_vram_free(struct pscnv_bo *);
+extern int pscnv_vram_free(struct pscnv_bo *bo);
+extern void pscnv_vram_takedown(struct drm_device *dev);
+
+extern int nv50_vram_init(struct drm_device *);
 
 extern int pscnv_sysram_alloc(struct pscnv_bo *);
 extern int pscnv_sysram_free(struct pscnv_bo *);

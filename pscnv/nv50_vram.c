@@ -29,8 +29,10 @@
 #include "nouveau_drv.h"
 #include "pscnv_mem.h"
 
+int nv50_vram_alloc(struct pscnv_bo *bo);
+
 int
-pscnv_vram_init(struct drm_device *dev)
+nv50_vram_init(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	uint32_t r0, r4, rc, ru, rt;
@@ -38,13 +40,16 @@ pscnv_vram_init(struct drm_device *dev)
 	uint64_t rowsize, predicted;
 	uint32_t rblock_size;
 	int ret;
-	mutex_init(&dev_priv->vram_mutex);
 
-	if (dev_priv->card_type != NV_50) {
-		NV_ERROR(dev, "Sorry, no VRAM allocator for NV%02x. Bailing.\n",
-				dev_priv->chipset);
-		return -EINVAL;
+	dev_priv->vram = kzalloc (sizeof *dev_priv->vram, GFP_KERNEL);
+	if (!dev_priv->vram) {
+		NV_ERROR(dev, "VRAM: out ot memory\n");
+		return -ENOMEM;
 	}
+
+	dev_priv->vram->alloc = nv50_vram_alloc;
+	dev_priv->vram->free = pscnv_vram_free;
+	dev_priv->vram->takedown = pscnv_vram_takedown;
 
 	/* XXX: NVAA/NVAC don't have VRAM, only stolen system RAM. figure out
 	 * how much of all this is applicable there. */
@@ -71,6 +76,7 @@ pscnv_vram_init(struct drm_device *dev)
 	dev_priv->vram_size = (rc & 0xfffff000) | ((uint64_t)rc & 0xff) << 32;
 	if (!dev_priv->vram_size) {
 		NV_ERROR(dev, "Memory controller claims 0 VRAM - aborting.\n");
+		kfree(dev_priv->vram);
 		return -ENODEV;
 	}
 	if (dev_priv->vram_size != predicted) {
@@ -89,40 +95,16 @@ pscnv_vram_init(struct drm_device *dev)
 			dev_priv->vram_size, rblock_size);
 
 	ret = pscnv_mm_init(0x40000, dev_priv->vram_size - 0x20000, 0x1000, 0x10000, rblock_size, &dev_priv->vram_mm);
-	if (ret)
+	if (ret) {
+		kfree(dev_priv->vram);
 		return ret;
-
-	dev_priv->fb_mtrr = drm_mtrr_add(pci_resource_start(dev->pdev, 1),
-					 pci_resource_len(dev->pdev, 1),
-					 DRM_MTRR_WC);
-
-	return 0;
-}
-
-static void pscnv_vram_takedown_free(struct pscnv_mm_node *node) {
-	struct pscnv_bo *bo = node->tag;
-	NV_ERROR(bo->dev, "BO %d of type %08x still exists at takedown!\n",
-			bo->serial, bo->cookie);
-	pscnv_vram_free(bo);
-}
-
-int
-pscnv_vram_takedown(struct drm_device *dev)
-{
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	pscnv_mm_takedown(dev_priv->vram_mm, pscnv_vram_takedown_free);
-
-	if (dev_priv->fb_mtrr >= 0) {
-		drm_mtrr_del(dev_priv->fb_mtrr, pci_resource_start(dev->pdev, 1),
-			     pci_resource_len(dev->pdev, 1), DRM_MTRR_WC);
-		dev_priv->fb_mtrr = 0;
 	}
 
 	return 0;
 }
 
 int
-pscnv_vram_alloc(struct pscnv_bo *bo)
+nv50_vram_alloc(struct pscnv_bo *bo)
 {
 	struct drm_device *dev = bo->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
@@ -210,11 +192,4 @@ pscnv_vram_alloc(struct pscnv_bo *bo)
 		bo->start = bo->mmnode->start;
 	mutex_unlock(&dev_priv->vram_mutex);
 	return ret;
-}
-
-int
-pscnv_vram_free(struct pscnv_bo *bo)
-{
-	pscnv_mm_free(bo->mmnode);
-	return 0;
 }

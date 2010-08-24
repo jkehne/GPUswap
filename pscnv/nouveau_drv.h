@@ -44,7 +44,6 @@
 #include "pscnv_vm.h"
 #include "pscnv_ramht.h"
 #include "pscnv_engine.h"
-#include "pscnv_mm.h"
 struct nouveau_grctx;
 
 #define MAX_NUM_DCB_ENTRIES 16
@@ -69,6 +68,8 @@ enum nouveau_flags {
 	NV_NFORCE   = 0x10000000,
 	NV_NFORCE2  = 0x20000000
 };
+
+struct pscnv_bo;
 
 struct nouveau_channel {
 	struct drm_device *dev;
@@ -296,6 +297,7 @@ struct drm_nouveau_private {
 	struct nouveau_channel *fifos[NOUVEAU_MAX_CHANNEL_NR];
 #endif
 	struct nouveau_engine engine;
+	struct pscnv_vram_engine *vram;
 	struct pscnv_vm_engine *vm;
 	struct pscnv_chan_engine *chan;
 	struct pscnv_engine *engines[PSCNV_ENGINES_NUM];
