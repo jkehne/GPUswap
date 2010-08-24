@@ -38,10 +38,8 @@
 
 #define DRM_FILE_PAGE_OFFSET (0x100000000ULL >> PAGE_SHIFT)
 
-#include "pscnv_drm.h"
 #include "nouveau_bios.h"
 #include "pscnv_mem.h"
-#include "pscnv_vm.h"
 #include "pscnv_ramht.h"
 #include "pscnv_engine.h"
 struct nouveau_grctx;

@@ -28,6 +28,7 @@
 #include "drm.h"
 #include "nouveau_drv.h"
 #include "pscnv_mem.h"
+#include "pscnv_vm.h"
 #include <linux/list.h>
 #include <linux/kernel.h>
 #include <linux/mutex.h>
