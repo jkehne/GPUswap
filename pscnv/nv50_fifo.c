@@ -219,25 +219,21 @@ int pscnv_ioctl_fifo_init(struct drm_device *dev, void *data,
 	if (!eng)
 		return -ENODEV;
 
-	mutex_lock (&dev_priv->vm_mutex);
-
 	ch = pscnv_get_chan(dev, file_priv, req->cid);
-	if (!ch) {
-		mutex_unlock (&dev_priv->vm_mutex);
+	if (!ch)
 		return -ENOENT;
-	}
 
 	/* XXX: verify that we get a DMA object. */
 	pb_inst = pscnv_ramht_find(&ch->ramht, req->pb_handle);
 	if (!pb_inst || pb_inst & 0xffff0000) {
-		mutex_unlock (&dev_priv->vm_mutex);
+		pscnv_chan_unref(ch);
 		return -ENOENT;
 	}
 
 	if (!ch->engdata[PSCNV_ENGINE_FIFO]) {
 		ret = eng->chan_alloc(eng, ch);
 		if (ret) {
-			mutex_unlock (&dev_priv->vm_mutex);
+			pscnv_chan_unref(ch);
 			return ret;
 		}
 	}
@@ -295,7 +291,7 @@ int pscnv_ioctl_fifo_init(struct drm_device *dev, void *data,
 	nv50_fifo_playlist_update(eng);
 	spin_unlock_irqrestore(&fifo->lock, flags);
 
-	mutex_unlock (&dev_priv->vm_mutex);
+	pscnv_chan_unref(ch);
 	return 0;
 }
 
@@ -312,25 +308,21 @@ int pscnv_ioctl_fifo_init_ib(struct drm_device *dev, void *data,
 
 	NOUVEAU_CHECK_INITIALISED_WITH_RETURN;
 
-	mutex_lock (&dev_priv->vm_mutex);
-
 	ch = pscnv_get_chan(dev, file_priv, req->cid);
-	if (!ch) {
-		mutex_unlock (&dev_priv->vm_mutex);
+	if (!ch)
 		return -ENOENT;
-	}
 
 	/* XXX: verify that we get a DMA object. */
 	pb_inst = pscnv_ramht_find(&ch->ramht, req->pb_handle);
 	if (!pb_inst || pb_inst & 0xffff0000) {
-		mutex_unlock (&dev_priv->vm_mutex);
+		pscnv_chan_unref(ch);
 		return -ENOENT;
 	}
 
 	if (!ch->engdata[PSCNV_ENGINE_FIFO]) {
 		ret = eng->chan_alloc(eng, ch);
 		if (ret) {
-			mutex_unlock (&dev_priv->vm_mutex);
+			pscnv_chan_unref(ch);
 			return ret;
 		}
 	}
@@ -388,7 +380,7 @@ int pscnv_ioctl_fifo_init_ib(struct drm_device *dev, void *data,
 	nv50_fifo_playlist_update(eng);
 	spin_unlock_irqrestore(&fifo->lock, flags);
 
-	mutex_unlock (&dev_priv->vm_mutex);
+	pscnv_chan_unref(ch);
 	return 0;
 }
 

@@ -29,25 +29,21 @@ int pscnv_ioctl_obj_eng_new(struct drm_device *dev, void *data,
 	return -ENODEV;
 
 found:
-	mutex_lock (&dev_priv->vm_mutex);
-
 	ch = pscnv_get_chan(dev, file_priv, req->cid);
-	if (!ch) {
-		mutex_unlock (&dev_priv->vm_mutex);
+	if (!ch)
 		return -ENOENT;
-	}
 
 	if (!ch->engdata[i]) {
 		ret = dev_priv->engines[i]->chan_alloc(dev_priv->engines[i], ch);
 		if (ret) {
-			mutex_unlock (&dev_priv->vm_mutex);
+			pscnv_chan_unref(ch);
 			return ret;
 		}
 	}
 
 	ret = dev_priv->engines[i]->chan_obj_new(dev_priv->engines[i], ch, req->handle, oclass, req->flags);
 
-	mutex_unlock (&dev_priv->vm_mutex);
+	pscnv_chan_unref(ch);
 	return ret;
 }
 

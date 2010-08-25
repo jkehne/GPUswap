@@ -33,23 +33,70 @@
 #include "pscnv_chan.h"
 #include "nv50_chan.h"
 
+
+static int pscnv_chan_bind (struct pscnv_chan *ch, int fake) {
+	struct drm_nouveau_private *dev_priv = ch->vspace->dev->dev_private;
+	unsigned long flags;
+	int i;
+	BUG_ON(ch->cid);
+	spin_lock_irqsave(&dev_priv->chan->ch_lock, flags);
+	if (fake) {
+		ch->cid = -fake;
+		BUG_ON(dev_priv->chan->fake_chans[fake]);
+		dev_priv->chan->fake_chans[fake] = ch;
+		spin_unlock_irqrestore(&dev_priv->chan->ch_lock, flags);
+		return 0;
+	} else {
+		for (i = 1; i < 128; i++)
+			if (!dev_priv->chan->chans[i]) {
+				ch->cid = i;
+				dev_priv->chan->chans[i] = ch;
+				spin_unlock_irqrestore(&dev_priv->chan->ch_lock, flags);
+				return 0;
+			}
+		spin_unlock_irqrestore(&dev_priv->chan->ch_lock, flags);
+		NV_ERROR(ch->vspace->dev, "CHAN: Out of channels\n");
+		return -ENOSPC;
+	}
+}
+
+static void pscnv_chan_unbind (struct pscnv_chan *ch) {
+	struct drm_nouveau_private *dev_priv = ch->vspace->dev->dev_private;
+	unsigned long flags;
+	spin_lock_irqsave(&dev_priv->chan->ch_lock, flags);
+	if (ch->cid < 0) {
+		BUG_ON(dev_priv->chan->fake_chans[-ch->cid] != ch);
+		dev_priv->chan->fake_chans[-ch->cid] = 0;
+	} else {
+		BUG_ON(dev_priv->chan->chans[ch->cid] != ch);
+		dev_priv->chan->chans[ch->cid] = 0;
+	}
+	ch->cid = 0;
+	spin_unlock_irqrestore(&dev_priv->chan->ch_lock, flags);
+}
+
 struct pscnv_chan *
 pscnv_chan_new (struct pscnv_vspace *vs, int fake) {
 	struct drm_nouveau_private *dev_priv = vs->dev->dev_private;
 	struct pscnv_chan *res = kzalloc(sizeof *res, GFP_KERNEL);
-	if (!res)
+	if (!res) {
+		NV_ERROR(vs->dev, "CHAN: Couldn't alloc channel\n");
 		return 0;
-	if (fake)
-		res->cid = -fake;
-	else
-		res->cid = 0;
+	}
 	res->vspace = vs;
-	kref_get(&vs->ref);
+	pscnv_vspace_ref(vs);
 	spin_lock_init(&res->instlock);
 	spin_lock_init(&res->ramht.lock);
 	kref_init(&res->ref);
-
-	if (dev_priv->chan->do_chan_new (res)) {
+	if (pscnv_chan_bind(res, fake)) {
+		pscnv_vspace_unref(vs);
+		kfree(res);
+		return 0;
+	}
+	NV_INFO(vs->dev, "CHAN: Allocating channel %d\n", res->cid);
+	if (dev_priv->chan->do_chan_new(res)) {
+		pscnv_vspace_unref(vs);
+		pscnv_chan_unbind(res);
 		kfree(res);
 		return 0;
 	}
@@ -57,10 +104,14 @@ pscnv_chan_new (struct pscnv_vspace *vs, int fake) {
 	return res;
 }
 
-void
-pscnv_chan_free(struct pscnv_chan *ch) {
-	struct drm_nouveau_private *dev_priv = ch->vspace->dev->dev_private;
-	if (ch->cid) {
+void pscnv_chan_ref_free(struct kref *ref) {
+	struct pscnv_chan *ch = container_of(ref, struct pscnv_chan, ref);
+	struct drm_device *dev = ch->vspace->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+
+	NV_INFO(dev, "CHAN: Freeing channel %d\n", ch->cid);
+
+	if (ch->cid >= 0) {
 		int i;
 		for (i = 0; i < PSCNV_ENGINES_NUM; i++)
 			if (ch->engdata[i]) {
@@ -70,7 +121,8 @@ pscnv_chan_free(struct pscnv_chan *ch) {
 			}
 	}
 	dev_priv->chan->do_chan_free(ch);
-	kref_put(&ch->vspace->ref, pscnv_vspace_ref_free);
+	pscnv_chan_unbind(ch);
+	pscnv_vspace_unref(ch->vspace);
 	kfree(ch);
 }
 
@@ -79,10 +131,16 @@ struct pscnv_chan *
 pscnv_get_chan(struct drm_device *dev, struct drm_file *file_priv, int cid)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	unsigned long flags;
+	spin_lock_irqsave(&dev_priv->chan->ch_lock, flags);
 
-	if (cid < 128 && cid >= 0 && dev_priv->chans[cid] && dev_priv->chans[cid]->filp == file_priv) {
-		return dev_priv->chans[cid];
+	if (cid < 128 && cid >= 0 && dev_priv->chan->chans[cid] && dev_priv->chan->chans[cid]->filp == file_priv) {
+		struct pscnv_chan *res = dev_priv->chan->chans[cid];
+		pscnv_chan_ref(res);
+		spin_unlock_irqrestore(&dev_priv->chan->ch_lock, flags);
+		return res;
 	}
+	spin_unlock_irqrestore(&dev_priv->chan->ch_lock, flags);
 	return 0;
 }
 
@@ -90,93 +148,52 @@ int pscnv_ioctl_chan_new(struct drm_device *dev, void *data,
 						struct drm_file *file_priv)
 {
 	struct drm_pscnv_chan_new *req = data;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	int cid = -1;
 	struct pscnv_vspace *vs;
 	struct pscnv_chan *ch;
-	int i;
 
 	NOUVEAU_CHECK_INITIALISED_WITH_RETURN;
 
-	mutex_lock (&dev_priv->vm_mutex);
-
 	vs = pscnv_get_vspace(dev, file_priv, req->vid);
-	if (!vs) {
-		mutex_unlock (&dev_priv->vm_mutex);
+	if (!vs)
 		return -ENOENT;
-	}
 
-	for (i = 1; i < 128; i++)
-		if (!dev_priv->chans[i]) {
-			cid = i;
-			break;
-		}
-
-	if (cid == -1) {
-		mutex_unlock (&dev_priv->vm_mutex);
-		return -ENOSPC;
-	}
-
-	ch = dev_priv->chans[cid] = pscnv_chan_new(vs, 0);
-	if (!dev_priv->chans[cid]) {
-		mutex_unlock (&dev_priv->vm_mutex);
+	ch = pscnv_chan_new(vs, 0);
+	if (!ch) {
+		pscnv_vspace_unref(vs);
 		return -ENOMEM;
 	}
-	ch->cid = cid;
+	pscnv_vspace_unref(vs);
+
+	req->cid = ch->cid;
+	req->map_handle = 0xc0000000 | ch->cid << 16;
 
 	ch->filp = file_priv;
 	
-	req->cid = cid;
-	req->map_handle = 0xc0000000 | cid << 16;
-
-	nv50_chan_new_fifo(ch);
-
-	NV_INFO(dev, "Allocating FIFO %d\n", cid);
-
-	mutex_unlock (&dev_priv->vm_mutex);
 	return 0;
-}
-
-static void pscnv_chan_ref_free(struct kref *ref) {
-	struct pscnv_chan *ch = container_of(ref, struct pscnv_chan, ref);
-	int cid = ch->cid;
-	struct drm_nouveau_private *dev_priv = ch->vspace->dev->dev_private;
-
-	NV_INFO(ch->vspace->dev, "Freeing FIFO %d\n", cid);
-
-	pscnv_chan_free(ch);
-
-	dev_priv->chans[cid] = 0;
 }
 
 int pscnv_ioctl_chan_free(struct drm_device *dev, void *data,
 						struct drm_file *file_priv)
 {
 	struct drm_pscnv_chan_free *req = data;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	int cid = req->cid;
 	struct pscnv_chan *ch;
 
 	NOUVEAU_CHECK_INITIALISED_WITH_RETURN;
 
-	mutex_lock (&dev_priv->vm_mutex);
-	ch = pscnv_get_chan(dev, file_priv, cid);
-	if (!ch) {
-		mutex_unlock (&dev_priv->vm_mutex);
+	ch = pscnv_get_chan(dev, file_priv, req->cid);
+	if (!ch)
 		return -ENOENT;
-	}
 
 	ch->filp = 0;
-	kref_put(&ch->ref, pscnv_chan_ref_free);
+	pscnv_chan_unref(ch);
+	pscnv_chan_unref(ch);
 
-	mutex_unlock (&dev_priv->vm_mutex);
 	return 0;
 }
 
 int pscnv_ioctl_obj_vdma_new(struct drm_device *dev, void *data,
 						struct drm_file *file_priv) {
 	struct drm_pscnv_obj_vdma_new *req = data;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct pscnv_chan *ch;
 	int ret;
 	uint32_t oclass, inst;
@@ -188,37 +205,31 @@ int pscnv_ioctl_obj_vdma_new(struct drm_device *dev, void *data,
 	if (oclass != 2 && oclass != 3 && oclass != 0x3d)
 		return -EINVAL;
 
-	mutex_lock (&dev_priv->vm_mutex);
-
 	ch = pscnv_get_chan(dev, file_priv, req->cid);
-	if (!ch) {
-		mutex_unlock (&dev_priv->vm_mutex);
+	if (!ch)
 		return -ENOENT;
-	}
 
 	inst = nv50_chan_dmaobj_new(ch, 0x7fc00000 | oclass, req->start, req->size);
 	if (!inst) {
-		mutex_unlock (&dev_priv->vm_mutex);
+		pscnv_chan_unref(ch);
 		return -ENOMEM;
 	}
 
 	ret = pscnv_ramht_insert (&ch->ramht, req->handle, inst >> 4);
 
-	mutex_unlock (&dev_priv->vm_mutex);
+	pscnv_chan_unref(ch);
+
 	return ret;
 }
 
 static void pscnv_chan_vm_open(struct vm_area_struct *vma) {
 	struct pscnv_chan *ch = vma->vm_private_data;
-	kref_get(&ch->ref);
+	pscnv_chan_ref(ch);
 }
 
 static void pscnv_chan_vm_close(struct vm_area_struct *vma) {
 	struct pscnv_chan *ch = vma->vm_private_data;
-	struct drm_nouveau_private *dev_priv = ch->vspace->dev->dev_private;
-	mutex_lock (&dev_priv->vm_mutex);
-	kref_put(&ch->ref, pscnv_chan_ref_free);
-	mutex_unlock (&dev_priv->vm_mutex);
+	pscnv_chan_unref(ch);
 }
 
 static struct vm_operations_struct pscnv_chan_vm_ops = {
@@ -237,15 +248,10 @@ int pscnv_chan_mmap(struct file *filp, struct vm_area_struct *vma)
 	if ((vma->vm_pgoff * PAGE_SIZE & ~0x7f0000ull) == 0xc0000000) {
 		if (vma->vm_end - vma->vm_start > 0x2000)
 			return -EINVAL;
-		mutex_lock (&dev_priv->vm_mutex);
 		cid = (vma->vm_pgoff * PAGE_SIZE >> 16) & 0x7f;
 		ch = pscnv_get_chan(dev, filp->private_data, cid);
-		if (!ch) {
-			mutex_unlock (&dev_priv->vm_mutex);
+		if (!ch)
 			return -ENOENT;
-		}
-		kref_get(&ch->ref);
-		mutex_unlock (&dev_priv->vm_mutex);
 
 		vma->vm_flags |= VM_RESERVED | VM_IO | VM_PFNMAP | VM_DONTEXPAND;
 		vma->vm_ops = &pscnv_chan_vm_ops;
@@ -258,17 +264,15 @@ int pscnv_chan_mmap(struct file *filp, struct vm_area_struct *vma)
 }
 
 void pscnv_chan_cleanup(struct drm_device *dev, struct drm_file *file_priv) {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	int cid;
 	struct pscnv_chan *ch;
 
-	mutex_lock (&dev_priv->vm_mutex);
 	for (cid = 0; cid < 128; cid++) {
 		ch = pscnv_get_chan(dev, file_priv, cid);
 		if (!ch)
 			continue;
 		ch->filp = 0;
-		kref_put(&ch->ref, pscnv_chan_ref_free);
+		pscnv_chan_unref(ch);
+		pscnv_chan_unref(ch);
 	}
-	mutex_unlock (&dev_priv->vm_mutex);
 }

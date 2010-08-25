@@ -27,6 +27,8 @@
 #ifndef __PSCNV_VM_H__
 #define __PSCNV_VM_H__
 
+#include <linux/kref.h>
+
 struct pscnv_bo;
 struct pscnv_chan;
 
@@ -50,14 +52,27 @@ struct pscnv_vm_engine {
 	int (*map_user) (struct pscnv_bo *);
 	int (*map_kernel) (struct pscnv_bo *);
 	void (*bar_flush) (struct drm_device *dev);
+	struct pscnv_vspace *fake_vspaces[4];
+	struct pscnv_vspace *vspaces[128];
+	spinlock_t vs_lock;
 };
 
 extern struct pscnv_vspace *pscnv_vspace_new(struct drm_device *, int fake);
-extern void pscnv_vspace_free(struct pscnv_vspace *);
 extern int pscnv_vspace_map(struct pscnv_vspace *, struct pscnv_bo *, uint64_t start, uint64_t end, int back, struct pscnv_mm_node **res);
 extern int pscnv_vspace_unmap(struct pscnv_vspace *, uint64_t start);
 extern int pscnv_vspace_unmap_node(struct pscnv_mm_node *node);
+
 extern void pscnv_vspace_ref_free(struct kref *ref);
+
+static inline void pscnv_vspace_ref(struct pscnv_vspace *vs) {
+	kref_get(&vs->ref);
+}
+
+static inline void pscnv_vspace_unref(struct pscnv_vspace *vs) {
+	kref_put(&vs->ref, pscnv_vspace_ref_free);
+}
+
+struct pscnv_vspace *pscnv_get_vspace(struct drm_device *dev, struct drm_file *file_priv, int vid);
 
 extern void pscnv_vspace_cleanup(struct drm_device *dev, struct drm_file *file_priv);
 extern int pscnv_mmap(struct file *filp, struct vm_area_struct *vma);
@@ -70,9 +85,6 @@ int pscnv_ioctl_vspace_map(struct drm_device *dev, void *data,
 						struct drm_file *file_priv);
 int pscnv_ioctl_vspace_unmap(struct drm_device *dev, void *data,
 						struct drm_file *file_priv);
-
-/* needs vm_mutex held */
-struct pscnv_vspace *pscnv_get_vspace(struct drm_device *dev, struct drm_file *file_priv, int vid);
 
 int nv50_vm_init(struct drm_device *dev);
 

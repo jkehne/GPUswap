@@ -51,10 +51,22 @@ struct pscnv_chan_engine {
 	void (*takedown) (struct drm_device *dev);
 	int (*do_chan_new) (struct pscnv_chan *ch);
 	void (*do_chan_free) (struct pscnv_chan *ch);
+	struct pscnv_chan *fake_chans[4];
+	struct pscnv_chan *chans[128];
+	spinlock_t ch_lock;
 };
 
 extern struct pscnv_chan *pscnv_chan_new(struct pscnv_vspace *, int fake);
-extern void pscnv_chan_free(struct pscnv_chan *);
+
+extern void pscnv_chan_ref_free(struct kref *ref);
+
+static inline void pscnv_chan_ref(struct pscnv_chan *ch) {
+	kref_get(&ch->ref);
+}
+
+static inline void pscnv_chan_unref(struct pscnv_chan *ch) {
+	kref_put(&ch->ref, pscnv_chan_ref_free);
+}
 
 extern void pscnv_chan_cleanup(struct drm_device *dev, struct drm_file *file_priv);
 extern int pscnv_chan_mmap(struct file *filp, struct vm_area_struct *vma);

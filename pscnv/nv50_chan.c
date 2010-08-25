@@ -71,19 +71,14 @@ int nv50_chan_new (struct pscnv_chan *ch) {
 				return -ENOMEM;
 			}
 		}
+		if (dev_priv->chipset != 0x50) {
+			nv_wr32(vs->dev, 0x2600 + ch->cid * 4, (ch->bo->start + ch->ramfc) >> 8);
+		} else {
+			nv_wr32(vs->dev, 0x2600 + ch->cid * 4, ch->bo->start >> 12);
+		}
 	}
 	dev_priv->vm->bar_flush(vs->dev);
 	return 0;
-}
-
-void nv50_chan_new_fifo (struct pscnv_chan *ch) {
-	struct drm_device *dev = ch->vspace->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	if (dev_priv->chipset != 0x50) {
-		nv_wr32(dev, 0x2600 + ch->cid * 4, (ch->bo->start + ch->ramfc) >> 8);
-	} else {
-		nv_wr32(dev, 0x2600 + ch->cid * 4, ch->bo->start >> 12);
-	}
 }
 
 int
@@ -165,5 +160,6 @@ nv50_chan_init(struct drm_device *dev) {
 	che->base.do_chan_new = nv50_chan_new;
 	che->base.do_chan_free = nv50_chan_free;
 	dev_priv->chan = &che->base;
+	spin_lock_init(&dev_priv->chan->ch_lock);
 	return 0;
 }

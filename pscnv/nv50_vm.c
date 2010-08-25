@@ -253,7 +253,7 @@ nv50_vm_init(struct drm_device *dev) {
 	}
 	vme->barch = pscnv_chan_new (vme->barvm, 1);
 	if (!vme->barch) {
-		pscnv_vspace_free(vme->barvm);
+		pscnv_vspace_unref(vme->barvm);
 		kfree(vme);
 		dev_priv->vm = 0;
 		return -ENOMEM;
@@ -263,7 +263,7 @@ nv50_vm_init(struct drm_device *dev) {
 	bar3dma = nv50_chan_dmaobj_new(vme->barch, 0x7fc00000, dev_priv->fb_size, dev_priv->ramin_size);
 	nv_wr32(dev, 0x1708, 0x80000000 | bar1dma >> 4);
 	nv_wr32(dev, 0x170c, 0x80000000 | bar3dma >> 4);
-	mutex_init(&dev_priv->vm_mutex);
+	spin_lock_init(&dev_priv->vm->vs_lock);
 	dev_priv->vm_ok = 1;
 	nv50_vm_map_kernel(vme->barch->bo);
 	nv50_vm_map_kernel(nv50_vs(vme->barvm)->pt[0]);
@@ -284,8 +284,8 @@ nv50_vm_takedown(struct drm_device *dev) {
 	nv_wr32(dev, 0x170c, 0);
 	nv_wr32(dev, 0x1710, 0);
 	nv_wr32(dev, 0x1704, 0);
-	pscnv_chan_free(ch);
-	pscnv_vspace_free(vs);
+	pscnv_chan_unref(ch);
+	pscnv_vspace_unref(vs);
 	kfree(vme);
 	dev_priv->vm = 0;
 }

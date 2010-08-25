@@ -14,7 +14,6 @@ struct nv50_chan_engine {
 	struct pscnv_chan_engine base;
 };
 
-extern void nv50_chan_new_fifo(struct pscnv_chan *);
 extern int nv50_chan_iobj_new(struct pscnv_chan *, uint32_t size);
 extern int nv50_chan_dmaobj_new(struct pscnv_chan *, uint32_t type, uint64_t start, uint64_t size);
 

@@ -353,11 +353,6 @@ struct drm_nouveau_private {
 	struct pscnv_mm *vram_mm;
 	struct mutex vram_mutex;
 
-	struct pscnv_vspace *vspaces[128];
-	struct mutex vm_mutex;
-	struct pscnv_chan *fake_chans[4];
-	struct pscnv_chan *chans[128];
-
 	/* for slow-path nv_wv32/nv_rv32 */
 
 	spinlock_t pramin_lock;

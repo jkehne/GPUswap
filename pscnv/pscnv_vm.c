@@ -31,6 +31,48 @@
 #include "pscnv_vm.h"
 #include "pscnv_chan.h"
 
+
+static int pscnv_vspace_bind (struct pscnv_vspace *vs, int fake) {
+	struct drm_nouveau_private *dev_priv = vs->dev->dev_private;
+	unsigned long flags;
+	int i;
+	BUG_ON(vs->vid);
+	spin_lock_irqsave(&dev_priv->vm->vs_lock, flags);
+	if (fake) {
+		vs->vid = -fake;
+		BUG_ON(dev_priv->vm->fake_vspaces[fake]);
+		dev_priv->vm->fake_vspaces[fake] = vs;
+		spin_unlock_irqrestore(&dev_priv->vm->vs_lock, flags);
+		return 0;
+	} else {
+		for (i = 1; i < 128; i++)
+			if (!dev_priv->vm->vspaces[i]) {
+				vs->vid = i;
+				dev_priv->vm->vspaces[i] = vs;
+				spin_unlock_irqrestore(&dev_priv->vm->vs_lock, flags);
+				return 0;
+			}
+		spin_unlock_irqrestore(&dev_priv->vm->vs_lock, flags);
+		NV_ERROR(vs->dev, "VM: Out of vspaces\n");
+		return -ENOSPC;
+	}
+}
+
+static void pscnv_vspace_unbind (struct pscnv_vspace *vs) {
+	struct drm_nouveau_private *dev_priv = vs->dev->dev_private;
+	unsigned long flags;
+	spin_lock_irqsave(&dev_priv->vm->vs_lock, flags);
+	if (vs->vid < 0) {
+		BUG_ON(dev_priv->vm->fake_vspaces[-vs->vid] != vs);
+		dev_priv->vm->fake_vspaces[-vs->vid] = 0;
+	} else {
+		BUG_ON(dev_priv->vm->vspaces[vs->vid] != vs);
+		dev_priv->vm->vspaces[vs->vid] = 0;
+	}
+	vs->vid = 0;
+	spin_unlock_irqrestore(&dev_priv->vm->vs_lock, flags);
+}
+
 struct pscnv_vspace *
 pscnv_vspace_new (struct drm_device *dev, int fake) {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
@@ -39,14 +81,16 @@ pscnv_vspace_new (struct drm_device *dev, int fake) {
 		NV_ERROR(dev, "VM: Couldn't alloc vspace\n");
 		return 0;
 	}
-	if (fake)
-		res->vid = -fake;
-	else
-		res->vid = 0;
 	res->dev = dev;
 	kref_init(&res->ref);
 	mutex_init(&res->lock);
+	if (pscnv_vspace_bind(res, fake)) {
+		kfree(res);
+		return 0;
+	}
+	NV_INFO(dev, "VM: Allocating vspace %d\n", res->vid);
 	if (dev_priv->vm->do_vspace_new(res)) {
+		pscnv_vspace_unbind(res);
 		kfree(res);
 		return 0;
 	}
@@ -60,27 +104,17 @@ pscnv_vspace_free_unmap(struct pscnv_mm_node *node) {
 	pscnv_mm_free(node);
 }
 
-void
-pscnv_vspace_free(struct pscnv_vspace *vs) {
+void pscnv_vspace_ref_free(struct kref *ref) {
+	struct pscnv_vspace *vs = container_of(ref, struct pscnv_vspace, ref);
 	struct drm_nouveau_private *dev_priv = vs->dev->dev_private;
+	NV_INFO(vs->dev, "VM: Freeing vspace %d\n", vs->vid);
 	if (vs->vid < 0)
 		pscnv_mm_takedown(vs->mm, pscnv_mm_free);
 	else
 		pscnv_mm_takedown(vs->mm, pscnv_vspace_free_unmap);
 	dev_priv->vm->do_vspace_free(vs);
+	pscnv_vspace_unbind(vs);
 	kfree(vs);
-}
-
-void pscnv_vspace_ref_free(struct kref *ref) {
-	struct pscnv_vspace *vs = container_of(ref, struct pscnv_vspace, ref);
-	int vid = vs->vid;
-	struct drm_nouveau_private *dev_priv = vs->dev->dev_private;
-
-	NV_INFO(vs->dev, "Freeing VSPACE %d\n", vid);
-
-	pscnv_vspace_free(vs);
-
-	dev_priv->vspaces[vid] = 0;
 }
 
 static int
@@ -89,7 +123,7 @@ pscnv_vspace_unmap_node_unlocked(struct pscnv_mm_node *node) {
 	struct drm_nouveau_private *dev_priv = vs->dev->dev_private;
 	struct pscnv_bo *bo = node->tag;
 	if (pscnv_vm_debug >= 1) {
-		NV_INFO(vs->dev, "Unmapping range %llx-%llx.\n", node->start, node->start + node->size);
+		NV_INFO(vs->dev, "VM: vspace %d: Unmapping range %llx-%llx.\n", vs->vid, node->start, node->start + node->size);
 	}
 	dev_priv->vm->do_unmap(vs, node->start, node->size);
 
@@ -117,7 +151,7 @@ pscnv_vspace_map(struct pscnv_vspace *vs, struct pscnv_bo *bo,
 	node->tag = bo;
 	node->tag2 = vs;
 	if (pscnv_vm_debug >= 1)
-		NV_INFO(vs->dev, "Mapping BO %x/%d at %llx-%llx.\n", bo->cookie, bo->serial, node->start,
+		NV_INFO(vs->dev, "VM: vspace %d: Mapping BO %x/%d at %llx-%llx.\n", vs->vid, bo->cookie, bo->serial, node->start,
 				node->start + node->size);
 	ret = dev_priv->vm->do_map(vs, bo, node->start);
 	if (ret) {
@@ -216,15 +250,20 @@ int pscnv_mmap(struct file *filp, struct vm_area_struct *vma)
 	}
 }
 
-/* needs vm_mutex held */
 struct pscnv_vspace *
 pscnv_get_vspace(struct drm_device *dev, struct drm_file *file_priv, int vid)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	unsigned long flags;
+	spin_lock_irqsave(&dev_priv->vm->vs_lock, flags);
 
-	if (vid < 128 && vid >= 0 && dev_priv->vspaces[vid] && dev_priv->vspaces[vid]->filp == file_priv) {
-		return dev_priv->vspaces[vid];
+	if (vid < 128 && vid >= 0 && dev_priv->vm->vspaces[vid] && dev_priv->vm->vspaces[vid]->filp == file_priv) {
+		struct pscnv_vspace *res = dev_priv->vm->vspaces[vid];
+		pscnv_vspace_ref(res);
+		spin_unlock_irqrestore(&dev_priv->vm->vs_lock, flags);
+		return res;
 	}
+	spin_unlock_irqrestore(&dev_priv->vm->vs_lock, flags);
 	return 0;
 }
 
@@ -232,39 +271,18 @@ int pscnv_ioctl_vspace_new(struct drm_device *dev, void *data,
 						struct drm_file *file_priv)
 {
 	struct drm_pscnv_vspace_req *req = data;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	int vid = -1;
-	int i;
+	struct pscnv_vspace *vs;
 
 	NOUVEAU_CHECK_INITIALISED_WITH_RETURN;
 
-	mutex_lock (&dev_priv->vm_mutex);
-
-	for (i = 0; i < 128; i++)
-		if (!dev_priv->vspaces[i]) {
-			vid = i;
-			break;
-		}
-
-	if (vid == -1) {
-		mutex_unlock (&dev_priv->vm_mutex);
-		return -ENOSPC;
-	}
-
-	dev_priv->vspaces[vid] = pscnv_vspace_new(dev, 0);
-	if (!dev_priv->vspaces[i]) {
-		mutex_unlock (&dev_priv->vm_mutex);
+	vs = pscnv_vspace_new(dev, 0);
+	if (!vs)
 		return -ENOMEM;
-	}
 
-	dev_priv->vspaces[vid]->filp = file_priv;
-	dev_priv->vspaces[vid]->vid = vid;
-	
-	req->vid = vid;
+	req->vid = vs->vid;
 
-	NV_INFO(dev, "Allocating VSPACE %d\n", vid);
+	vs->filp = file_priv;
 
-	mutex_unlock (&dev_priv->vm_mutex);
 	return 0;
 }
 
@@ -272,23 +290,19 @@ int pscnv_ioctl_vspace_free(struct drm_device *dev, void *data,
 						struct drm_file *file_priv)
 {
 	struct drm_pscnv_vspace_req *req = data;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	int vid = req->vid;
 	struct pscnv_vspace *vs;
 
 	NOUVEAU_CHECK_INITIALISED_WITH_RETURN;
 
-	mutex_lock (&dev_priv->vm_mutex);
 	vs = pscnv_get_vspace(dev, file_priv, vid);
-	if (!vs) {
-		mutex_unlock (&dev_priv->vm_mutex);
+	if (!vs)
 		return -ENOENT;
-	}
 
 	vs->filp = 0;
-	kref_put(&vs->ref, pscnv_vspace_ref_free);
+	pscnv_vspace_unref(vs);
+	pscnv_vspace_unref(vs);
 
-	mutex_unlock (&dev_priv->vm_mutex);
 	return 0;
 }
 
@@ -296,36 +310,32 @@ int pscnv_ioctl_vspace_map(struct drm_device *dev, void *data,
 						struct drm_file *file_priv)
 {
 	struct drm_pscnv_vspace_map *req = data;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct pscnv_vspace *vs;
 	struct drm_gem_object *obj;
-	struct pscnv_bo *vo;
+	struct pscnv_bo *bo;
 	struct pscnv_mm_node *map;
 	int ret;
 
 	NOUVEAU_CHECK_INITIALISED_WITH_RETURN;
 
-	mutex_lock (&dev_priv->vm_mutex);
-
 	vs = pscnv_get_vspace(dev, file_priv, req->vid);
-	if (!vs) {
-		mutex_unlock (&dev_priv->vm_mutex);
+	if (!vs)
 		return -ENOENT;
-	}
 
 	obj = drm_gem_object_lookup(dev, file_priv, req->handle);
 	if (!obj) {
-		mutex_unlock (&dev_priv->vm_mutex);
+		pscnv_vspace_unref(vs);
 		return -EBADF;
 	}
 
-	vo = obj->driver_private;
+	bo = obj->driver_private;
 
-	ret = pscnv_vspace_map(vs, vo, req->start, req->end, req->back, &map);
-	if (map)
+	ret = pscnv_vspace_map(vs, bo, req->start, req->end, req->back, &map);
+	if (!ret)
 		req->offset = map->start;
 
-	mutex_unlock (&dev_priv->vm_mutex);
+	pscnv_vspace_unref(vs);
+
 	return ret;
 }
 
@@ -333,38 +343,33 @@ int pscnv_ioctl_vspace_unmap(struct drm_device *dev, void *data,
 						struct drm_file *file_priv)
 {
 	struct drm_pscnv_vspace_unmap *req = data;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct pscnv_vspace *vs;
 	int ret;
 
 	NOUVEAU_CHECK_INITIALISED_WITH_RETURN;
 
-	mutex_lock (&dev_priv->vm_mutex);
 
 	vs = pscnv_get_vspace(dev, file_priv, req->vid);
-	if (!vs) {
-		mutex_unlock (&dev_priv->vm_mutex);
+	if (!vs)
 		return -ENOENT;
-	}
 
 	ret = pscnv_vspace_unmap(vs, req->offset);
 
-	mutex_unlock (&dev_priv->vm_mutex);
+	pscnv_vspace_unref(vs);
+
 	return ret;
 }
 
 void pscnv_vspace_cleanup(struct drm_device *dev, struct drm_file *file_priv) {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	int vid;
 	struct pscnv_vspace *vs;
 
-	mutex_lock (&dev_priv->vm_mutex);
 	for (vid = 0; vid < 128; vid++) {
 		vs = pscnv_get_vspace(dev, file_priv, vid);
 		if (!vs)
 			continue;
 		vs->filp = 0;
-		kref_put(&vs->ref, pscnv_vspace_ref_free);
+		pscnv_vspace_unref(vs);
+		pscnv_vspace_unref(vs);
 	}
-	mutex_unlock (&dev_priv->vm_mutex);
 }
