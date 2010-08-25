@@ -152,7 +152,7 @@ void nv50_fifo_playlist_update (struct pscnv_engine *eng) {
 }
 
 int nv50_fifo_chan_alloc(struct pscnv_engine *eng, struct pscnv_chan *ch) {
-	ch->vspace->engref[PSCNV_ENGINE_FIFO]--;
+	nv50_vs(ch->vspace)->engref[PSCNV_ENGINE_FIFO]++;
 	ch->engdata[PSCNV_ENGINE_FIFO] = ch; /* dummy */
 	return 0;
 }
@@ -198,7 +198,7 @@ void nv50_fifo_chan_kill(struct pscnv_engine *eng, struct pscnv_chan *ch) {
 }
 
 void nv50_fifo_chan_free(struct pscnv_engine *eng, struct pscnv_chan *ch) {
-	ch->vspace->engref[PSCNV_ENGINE_FIFO]--;
+	nv50_vs(ch->vspace)->engref[PSCNV_ENGINE_FIFO]--;
 	ch->engdata[PSCNV_ENGINE_FIFO] = 0;
 }
 

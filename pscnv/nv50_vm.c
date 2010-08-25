@@ -20,6 +20,18 @@ nv50_vm_flush(struct drm_device *dev, int unit) {
 	return 0;
 }
 
+int nv50_vspace_tlb_flush (struct pscnv_vspace *vs) {
+	struct drm_nouveau_private *dev_priv = vs->dev->dev_private;
+	int i, ret;
+	for (i = 0; i < PSCNV_ENGINES_NUM; i++) {
+		struct pscnv_engine *eng = dev_priv->engines[i];
+		if (nv50_vs(vs)->engref[i])
+			if ((ret = eng->tlb_flush(eng, vs)))
+				return ret;
+	}
+	return 0;
+}
+
 static int
 nv50_vspace_fill_pd_slot (struct pscnv_vspace *vs, uint32_t pdenum) {
 	struct drm_nouveau_private *dev_priv = vs->dev->dev_private;
@@ -133,7 +145,7 @@ nv50_vspace_do_unmap (struct pscnv_vspace *vs, uint64_t offset, uint64_t length)
 	if (vs->isbar) {
 		return nv50_vm_flush(vs->dev, 6);
 	} else {
-		pscnv_vspace_tlb_flush(vs);
+		nv50_vspace_tlb_flush(vs);
 	}
 	return 0;
 }

@@ -304,7 +304,7 @@ int nv50_graph_chan_alloc(struct pscnv_engine *eng, struct pscnv_chan *ch) {
 	nv_wv32(ch->bo, hdr + 0x14, 0);
 	dev_priv->vm->bar_flush(dev);
 
-	ch->vspace->engref[PSCNV_ENGINE_GRAPH]++;
+	nv50_vs(ch->vspace)->engref[PSCNV_ENGINE_GRAPH]++;
 	ch->engdata[PSCNV_ENGINE_GRAPH] = grch;
 	return 0;
 }
@@ -359,7 +359,7 @@ void nv50_graph_chan_free(struct pscnv_engine *eng, struct pscnv_chan *ch) {
 	struct nv50_graph_chan *grch = ch->engdata[PSCNV_ENGINE_GRAPH];
 	pscnv_mem_free(grch->grctx);
 	kfree(grch);
-	ch->vspace->engref[PSCNV_ENGINE_GRAPH]--;
+	nv50_vs(ch->vspace)->engref[PSCNV_ENGINE_GRAPH]--;
 	ch->engdata[PSCNV_ENGINE_GRAPH] = 0;
 }
 

@@ -31,18 +31,6 @@
 #include "pscnv_vm.h"
 #include "pscnv_chan.h"
 
-int pscnv_vspace_tlb_flush (struct pscnv_vspace *vs) {
-	struct drm_nouveau_private *dev_priv = vs->dev->dev_private;
-	int i, ret;
-	for (i = 0; i < PSCNV_ENGINES_NUM; i++) {
-		struct pscnv_engine *eng = dev_priv->engines[i];
-		if (vs->engref[i])
-			if ((ret = eng->tlb_flush(eng, vs)))
-				return ret;
-	}
-	return 0;
-}
-
 struct pscnv_vspace *
 pscnv_vspace_new (struct drm_device *dev) {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;

@@ -37,7 +37,6 @@ struct pscnv_vspace {
 	struct list_head chan_list;
 	struct pscnv_mm *mm;
 	struct drm_file *filp;
-	int engref[PSCNV_ENGINES_NUM];
 	struct kref ref;
 	void *engdata;
 	int isbar;
@@ -61,7 +60,6 @@ extern int pscnv_vspace_map(struct pscnv_vspace *, struct pscnv_bo *, uint64_t s
 extern int pscnv_vspace_unmap(struct pscnv_vspace *, uint64_t start);
 extern int pscnv_vspace_unmap_node(struct pscnv_mm_node *node);
 extern void pscnv_vspace_ref_free(struct kref *ref);
-int pscnv_vspace_tlb_flush (struct pscnv_vspace *vs);
 
 extern void pscnv_vspace_cleanup(struct drm_device *dev, struct drm_file *file_priv);
 extern int pscnv_mmap(struct file *filp, struct vm_area_struct *vma);

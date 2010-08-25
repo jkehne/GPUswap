@@ -20,6 +20,7 @@ struct nv50_vm_engine {
 };
 
 struct nv50_vspace {
+	int engref[PSCNV_ENGINES_NUM];
 	struct pscnv_bo *pt[NV50_VM_PDE_COUNT];
 };
 
