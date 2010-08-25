@@ -33,6 +33,7 @@
 #include <linux/kref.h>
 
 struct pscnv_chan {
+	struct drm_device *dev;
 	int cid;
 	struct pscnv_vspace *vspace;
 	struct list_head vspace_list;
@@ -56,7 +57,7 @@ struct pscnv_chan_engine {
 	spinlock_t ch_lock;
 };
 
-extern struct pscnv_chan *pscnv_chan_new(struct pscnv_vspace *, int fake);
+extern struct pscnv_chan *pscnv_chan_new(struct drm_device *dev, struct pscnv_vspace *, int fake);
 
 extern void pscnv_chan_ref_free(struct kref *ref);
 

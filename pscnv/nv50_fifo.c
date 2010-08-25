@@ -162,7 +162,7 @@ int nv50_fifo_tlb_flush(struct pscnv_engine *eng, struct pscnv_vspace *vs) {
 }
 
 void nv50_fifo_chan_kill(struct pscnv_engine *eng, struct pscnv_chan *ch) {
-	struct drm_device *dev = ch->vspace->dev;
+	struct drm_device *dev = ch->dev;
 	struct nv50_fifo_engine *fifo = nv50_fifo(eng);
 	unsigned long flags;
 	spin_lock_irqsave(&fifo->lock, flags);

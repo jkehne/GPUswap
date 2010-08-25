@@ -251,7 +251,7 @@ nv50_vm_init(struct drm_device *dev) {
 		dev_priv->vm = 0;
 		return -ENOMEM;
 	}
-	vme->barch = pscnv_chan_new (vme->barvm, 1);
+	vme->barch = pscnv_chan_new (dev, vme->barvm, 1);
 	if (!vme->barch) {
 		pscnv_vspace_unref(vme->barvm);
 		kfree(vme);
