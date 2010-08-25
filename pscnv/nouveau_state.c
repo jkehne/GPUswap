@@ -622,7 +622,7 @@ int pscnv_ioctl_getparam(struct drm_device *dev, void *data,
 		/* NV40 and NV50 versions are quite different, but register
 		 * address is the same. User is supposed to know the card
 		 * family anyway... */
-		if (dev_priv->chipset >= 0x40) {
+		if (dev_priv->card_type >= NV_40 && dev_priv->card_type < NV_C0) {
 			getparam->value = nv_rd32(dev, NV40_PMC_GRAPH_UNITS);
 			break;
 		}
