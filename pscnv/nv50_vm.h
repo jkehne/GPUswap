@@ -3,7 +3,7 @@
 
 #include "drmP.h"
 #include "drm.h"
-#include "pscnv_engine.h"
+#include "pscnv_vm.h"
 
 #define NV50_VM_SIZE		0x10000000000ULL
 #define NV50_VM_PDE_COUNT	0x800

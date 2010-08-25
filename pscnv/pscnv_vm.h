@@ -27,10 +27,8 @@
 #ifndef __PSCNV_VM_H__
 #define __PSCNV_VM_H__
 
-#include "pscnv_mm.h"
-#include "pscnv_engine.h"
-
 struct pscnv_bo;
+struct pscnv_chan;
 
 struct pscnv_vspace {
 	int vid;
@@ -43,6 +41,17 @@ struct pscnv_vspace {
 	struct kref ref;
 	void *engdata;
 	int isbar;
+};
+
+struct pscnv_vm_engine {
+	void (*takedown) (struct drm_device *dev);
+	int (*do_vspace_new) (struct pscnv_vspace *vs);
+	void (*do_vspace_free) (struct pscnv_vspace *vs);
+	int (*do_map) (struct pscnv_vspace *vs, struct pscnv_bo *bo, uint64_t offset);
+	int (*do_unmap) (struct pscnv_vspace *vs, uint64_t offset, uint64_t length);
+	int (*map_user) (struct pscnv_bo *);
+	int (*map_kernel) (struct pscnv_bo *);
+	void (*bar_flush) (struct drm_device *dev);
 };
 
 extern struct pscnv_vspace *pscnv_vspace_new(struct drm_device *);
@@ -67,5 +76,7 @@ int pscnv_ioctl_vspace_unmap(struct drm_device *dev, void *data,
 
 /* needs vm_mutex held */
 struct pscnv_vspace *pscnv_get_vspace(struct drm_device *dev, struct drm_file *file_priv, int vid);
+
+int nv50_vm_init(struct drm_device *dev);
 
 #endif

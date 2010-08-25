@@ -32,6 +32,7 @@
 #include "nouveau_dma.h"
 #include "nouveau_fbcon.h"
 #include "drm_crtc_helper.h"
+#include "pscnv_vm.h"
 
 static void
 nv50_evo_channel_del(struct nouveau_channel **pchan)

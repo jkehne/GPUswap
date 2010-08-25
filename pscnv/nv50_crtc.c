@@ -38,6 +38,7 @@
 #include "nouveau_dma.h"
 #include "nouveau_connector.h"
 #include "nv50_display.h"
+#include "pscnv_vm.h"
 
 static void
 nv50_crtc_lut_load(struct drm_crtc *crtc)

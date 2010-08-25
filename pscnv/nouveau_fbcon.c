@@ -48,6 +48,7 @@
 #include "nouveau_fbcon.h"
 #include "nouveau_dma.h"
 #include "pscnv_gem.h"
+#include "pscnv_vm.h"
 
 static int
 nouveau_fbcon_sync(struct fb_info *info)

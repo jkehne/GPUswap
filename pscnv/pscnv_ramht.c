@@ -28,6 +28,7 @@
 #include "drmP.h"
 #include "nouveau_drv.h"
 #include "pscnv_ramht.h"
+#include "pscnv_vm.h"
 
 uint32_t pscnv_ramht_hash(struct pscnv_ramht *ramht, uint32_t handle) {
 	uint32_t hash = 0;
