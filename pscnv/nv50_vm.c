@@ -52,6 +52,13 @@ nv50_vspace_fill_pd_slot (struct pscnv_vspace *vs, uint32_t pdenum) {
 }
 
 int
+nv50_vspace_place_map (struct pscnv_vspace *vs, struct pscnv_bo *bo,
+		uint64_t start, uint64_t end, int back,
+		struct pscnv_mm_node **res) {
+	return pscnv_mm_alloc(vs->mm, bo->size, back?PSCNV_MM_FROMBACK:0, start, end, res);
+}
+
+int
 nv50_vspace_do_map (struct pscnv_vspace *vs, struct pscnv_bo *bo, uint64_t offset) {
 	struct drm_nouveau_private *dev_priv = vs->dev->dev_private;
 	struct pscnv_mm_node *n;
@@ -132,12 +139,16 @@ nv50_vspace_do_unmap (struct pscnv_vspace *vs, uint64_t offset, uint64_t length)
 }
 
 int nv50_vspace_new(struct pscnv_vspace *vs) {
+	int ret;
 	vs->engdata = kzalloc(sizeof(struct nv50_vspace), GFP_KERNEL);
 	if (!vs->engdata) {
 		NV_ERROR(vs->dev, "VM: Couldn't alloc vspace eng\n");
 		return -ENOMEM;
 	}
-	return 0;
+	ret = pscnv_mm_init(0, 1ull << 40, 0x1000, 0x10000, 0x20000000, &vs->mm);
+	if (ret) 
+		kfree(vs->engdata);
+	return ret;
 }
 
 void nv50_vspace_free(struct pscnv_vspace *vs) {
@@ -193,6 +204,7 @@ nv50_vm_init(struct drm_device *dev) {
 	vme->base.takedown = nv50_vm_takedown;
 	vme->base.do_vspace_new = nv50_vspace_new;
 	vme->base.do_vspace_free = nv50_vspace_free;
+	vme->base.place_map = nv50_vspace_place_map;
 	vme->base.do_map = nv50_vspace_do_map;
 	vme->base.do_unmap = nv50_vspace_do_unmap;
 	vme->base.map_user = nv50_vm_map_user;

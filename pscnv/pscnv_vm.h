@@ -47,6 +47,7 @@ struct pscnv_vm_engine {
 	void (*takedown) (struct drm_device *dev);
 	int (*do_vspace_new) (struct pscnv_vspace *vs);
 	void (*do_vspace_free) (struct pscnv_vspace *vs);
+	int (*place_map) (struct pscnv_vspace *, struct pscnv_bo *, uint64_t start, uint64_t end, int back, struct pscnv_mm_node **res);
 	int (*do_map) (struct pscnv_vspace *vs, struct pscnv_bo *bo, uint64_t offset);
 	int (*do_unmap) (struct pscnv_vspace *vs, uint64_t offset, uint64_t length);
 	int (*map_user) (struct pscnv_bo *);

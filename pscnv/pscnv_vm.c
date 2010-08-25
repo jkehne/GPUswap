@@ -59,12 +59,6 @@ pscnv_vspace_new (struct drm_device *dev) {
 		kfree(res);
 		return 0;
 	}
-	/* XXX: move to per-card code */
-	if (pscnv_mm_init(0, 1ull << 40, 0x1000, 0x10000, 0x20000000, &res->mm)) {
-		dev_priv->vm->do_vspace_free(res);
-		kfree(res);
-		return 0;
-	}
 	return res;
 }
 
@@ -124,8 +118,7 @@ pscnv_vspace_map(struct pscnv_vspace *vs, struct pscnv_bo *bo,
 	int ret;
 	struct drm_nouveau_private *dev_priv = vs->dev->dev_private;
 	mutex_lock(&vs->lock);
-	/* XXX: handle large pages */
-	ret = pscnv_mm_alloc(vs->mm, bo->size, back?PSCNV_MM_FROMBACK:0, start, end, &node);
+	ret = dev_priv->vm->place_map(vs, bo, start, end, back, &node);
 	if (ret) {
 		mutex_unlock(&vs->lock);
 		return ret;
