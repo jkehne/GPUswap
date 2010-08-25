@@ -34,7 +34,6 @@ struct pscnv_vspace {
 	int vid;
 	struct drm_device *dev;
 	struct mutex lock;
-	struct list_head chan_list;
 	struct pscnv_mm *mm;
 	struct drm_file *filp;
 	struct kref ref;

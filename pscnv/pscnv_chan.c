@@ -43,22 +43,17 @@ pscnv_chan_new (struct pscnv_vspace *vs, int fake) {
 		res->cid = -fake;
 	else
 		res->cid = 0;
-	mutex_lock(&vs->lock);
 	res->vspace = vs;
 	kref_get(&vs->ref);
 	spin_lock_init(&res->instlock);
 	spin_lock_init(&res->ramht.lock);
 	kref_init(&res->ref);
-	list_add(&res->vspace_list, &vs->chan_list);
 
 	if (dev_priv->chan->do_chan_new (res)) {
-		list_del(&res->vspace_list);
-		mutex_unlock(&vs->lock);
 		kfree(res);
 		return 0;
 	}
 
-	mutex_unlock(&vs->lock);
 	return res;
 }
 
@@ -74,12 +69,7 @@ pscnv_chan_free(struct pscnv_chan *ch) {
 				eng->chan_free(eng, ch);
 			}
 	}
-	mutex_lock(&ch->vspace->lock);
-	list_del(&ch->vspace_list);
-	mutex_unlock(&ch->vspace->lock);
-	if (ch->cache)
-		pscnv_mem_free(ch->cache);
-	pscnv_mem_free(ch->bo);
+	dev_priv->chan->do_chan_free(ch);
 	kref_put(&ch->vspace->ref, pscnv_vspace_ref_free);
 	kfree(ch);
 }

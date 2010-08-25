@@ -54,7 +54,7 @@ nv50_vspace_fill_pd_slot (struct pscnv_vspace *vs, uint32_t pdenum) {
 	else
 		chan_pd = NV84_CHAN_PD;
 
-	list_for_each(pos, &vs->chan_list) {
+	list_for_each(pos, &nv50_vs(vs)->chan_list) {
 		struct pscnv_chan *ch = list_entry(pos, struct pscnv_chan, vspace_list);
 		uint64_t pde = nv50_vs(vs)->pt[pdenum]->start | 3;
 		nv_wv32(ch->bo, chan_pd + pdenum * 8 + 4, pde >> 32);
@@ -157,6 +157,7 @@ int nv50_vspace_new(struct pscnv_vspace *vs) {
 		NV_ERROR(vs->dev, "VM: Couldn't alloc vspace eng\n");
 		return -ENOMEM;
 	}
+	INIT_LIST_HEAD(&nv50_vs(vs)->chan_list);
 	ret = pscnv_mm_init(0, 1ull << 40, 0x1000, 0x10000, 0x20000000, &vs->mm);
 	if (ret) 
 		kfree(vs->engdata);

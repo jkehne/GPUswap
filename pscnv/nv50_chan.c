@@ -30,6 +30,8 @@ int nv50_chan_new (struct pscnv_chan *ch) {
 	if (vs->vid != -1)
 		dev_priv->vm->map_kernel(ch->bo);
 
+	mutex_lock(&vs->lock);
+	list_add(&ch->vspace_list, &nv50_vs(vs)->chan_list);
 	if (dev_priv->chipset == 0x50)
 		chan_pd = NV50_CHAN_PD;
 	else
@@ -42,6 +44,8 @@ int nv50_chan_new (struct pscnv_chan *ch) {
 			nv_wv32(ch->bo, chan_pd + i * 8, 0);
 		}
 	}
+	mutex_unlock(&vs->lock);
+
 	ch->instpos = chan_pd + NV50_VM_PDE_COUNT * 8;
 
 	if (ch->cid >= 0) {
@@ -134,6 +138,12 @@ nv50_chan_dmaobj_new(struct pscnv_chan *ch, uint32_t type, uint64_t start, uint6
 }
 
 void nv50_chan_free(struct pscnv_chan *ch) {
+	pscnv_mem_free(ch->bo);
+	if (ch->cache)
+		pscnv_mem_free(ch->cache);
+	mutex_lock(&ch->vspace->lock);
+	list_del(&ch->vspace_list);
+	mutex_unlock(&ch->vspace->lock);
 }
 
 void

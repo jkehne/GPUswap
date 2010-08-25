@@ -46,7 +46,6 @@ pscnv_vspace_new (struct drm_device *dev, int fake) {
 	res->dev = dev;
 	kref_init(&res->ref);
 	mutex_init(&res->lock);
-	INIT_LIST_HEAD(&res->chan_list);
 	if (dev_priv->vm->do_vspace_new(res)) {
 		kfree(res);
 		return 0;
