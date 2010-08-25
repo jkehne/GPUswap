@@ -261,7 +261,10 @@ struct nv04_mode_state {
 };
 
 enum nouveau_card_type {
-	NV_04      = 0x00,
+	NV_01      = 0x01,
+	NV_02      = 0x02,
+	NV_03      = 0x03,
+	NV_04      = 0x04,
 	NV_10      = 0x10,
 	NV_20      = 0x20,
 	NV_30      = 0x30,
