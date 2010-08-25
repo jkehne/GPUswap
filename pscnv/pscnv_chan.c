@@ -194,11 +194,15 @@ int pscnv_ioctl_chan_free(struct drm_device *dev, void *data,
 int pscnv_ioctl_obj_vdma_new(struct drm_device *dev, void *data,
 						struct drm_file *file_priv) {
 	struct drm_pscnv_obj_vdma_new *req = data;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct pscnv_chan *ch;
 	int ret;
 	uint32_t oclass, inst;
 
 	NOUVEAU_CHECK_INITIALISED_WITH_RETURN;
+
+	if (dev_priv->card_type != NV_50)
+		return -ENOSYS;
 
 	oclass = req->oclass;
 
