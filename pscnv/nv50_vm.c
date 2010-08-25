@@ -170,6 +170,7 @@ void nv50_vspace_free(struct pscnv_vspace *vs) {
 			pscnv_mem_free(nv50_vs(vs)->pt[i]);
 		}
 	}
+	kfree(vs->engdata);
 }
 
 int nv50_vm_map_user(struct pscnv_bo *bo) {
