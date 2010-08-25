@@ -179,6 +179,17 @@ nouveau_card_init(struct drm_device *dev)
 
 	switch (dev_priv->card_type) {
 		case NV_50:
+			ret = nv50_chan_init(dev);
+			break;
+		default:
+			NV_ERROR(dev, "No CHAN implementation for NV%02x!\n", dev_priv->chipset);
+			ret = -ENOSYS;
+	}
+	if (ret)
+		goto out_vram;
+
+	switch (dev_priv->card_type) {
+		case NV_50:
 			ret = nv50_vm_init(dev);
 			break;
 		default:
@@ -186,7 +197,7 @@ nouveau_card_init(struct drm_device *dev)
 			ret = -ENOSYS;
 	}
 	if (ret)
-		goto out_vram;
+		goto out_chan;
 
 	/* PMC */
 	nv_wr32(dev, NV03_PMC_ENABLE, 0xFFFFFFFF);
@@ -283,6 +294,8 @@ out_gpio:
 out_vm:
 	nv_wr32(dev, 0x1140, 0);
 	dev_priv->vm->takedown(dev);
+out_chan:
+	dev_priv->chan->takedown(dev);
 out_vram:
 	pscnv_mem_takedown(dev);
 out_bios:
@@ -315,6 +328,7 @@ static void nouveau_card_takedown(struct drm_device *dev)
 				dev_priv->engines[i] = 0;
 			}
 		dev_priv->vm->takedown(dev);
+		dev_priv->chan->takedown(dev);
 		pscnv_mem_takedown(dev);
 		nv_wr32(dev, 0x1140, 0);
 		nouveau_bios_takedown(dev);

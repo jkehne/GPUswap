@@ -47,6 +47,12 @@ struct pscnv_chan {
 	void *engdata[PSCNV_ENGINES_NUM];
 };
 
+struct pscnv_chan_engine {
+	void (*takedown) (struct drm_device *dev);
+	int (*do_chan_new) (struct pscnv_chan *ch);
+	void (*do_chan_free) (struct pscnv_chan *ch);
+};
+
 extern struct pscnv_chan *pscnv_chan_new(struct pscnv_vspace *, int fake);
 extern void pscnv_chan_free(struct pscnv_chan *);
 
@@ -60,5 +66,7 @@ int pscnv_ioctl_chan_free(struct drm_device *dev, void *data,
 						struct drm_file *file_priv);
 int pscnv_ioctl_obj_vdma_new(struct drm_device *dev, void *data,
 						struct drm_file *file_priv);
+
+int nv50_chan_init(struct drm_device *dev);
 
 #endif

@@ -72,7 +72,7 @@ int nv50_chan_new (struct pscnv_chan *ch) {
 	return 0;
 }
 
-void nv50_chan_init (struct pscnv_chan *ch) {
+void nv50_chan_new_fifo (struct pscnv_chan *ch) {
 	struct drm_device *dev = ch->vspace->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	if (dev_priv->chipset != 0x50) {
@@ -133,3 +133,27 @@ nv50_chan_dmaobj_new(struct pscnv_chan *ch, uint32_t type, uint64_t start, uint6
 	return res;
 }
 
+void nv50_chan_free(struct pscnv_chan *ch) {
+}
+
+void
+nv50_chan_takedown(struct drm_device *dev) {
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nv50_chan_engine *che = nv50_ch(dev_priv->chan);
+	kfree(che);
+}
+
+int
+nv50_chan_init(struct drm_device *dev) {
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nv50_chan_engine *che = kzalloc(sizeof *che, GFP_KERNEL);
+	if (!che) {
+		NV_ERROR(dev, "CH: Couldn't alloc engine\n");
+		return -ENOMEM;
+	}
+	che->base.takedown = nv50_chan_takedown;
+	che->base.do_chan_new = nv50_chan_new;
+	che->base.do_chan_free = nv50_chan_free;
+	dev_priv->chan = &che->base;
+	return 0;
+}

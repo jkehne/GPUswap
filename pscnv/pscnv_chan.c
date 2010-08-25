@@ -35,6 +35,7 @@
 
 struct pscnv_chan *
 pscnv_chan_new (struct pscnv_vspace *vs, int fake) {
+	struct drm_nouveau_private *dev_priv = vs->dev->dev_private;
 	struct pscnv_chan *res = kzalloc(sizeof *res, GFP_KERNEL);
 	if (!res)
 		return 0;
@@ -50,7 +51,7 @@ pscnv_chan_new (struct pscnv_vspace *vs, int fake) {
 	kref_init(&res->ref);
 	list_add(&res->vspace_list, &vs->chan_list);
 
-	if (nv50_chan_new (res)) {
+	if (dev_priv->chan->do_chan_new (res)) {
 		list_del(&res->vspace_list);
 		mutex_unlock(&vs->lock);
 		kfree(res);
@@ -138,7 +139,7 @@ int pscnv_ioctl_chan_new(struct drm_device *dev, void *data,
 	req->cid = cid;
 	req->map_handle = 0xc0000000 | cid << 16;
 
-	nv50_chan_init(ch);
+	nv50_chan_new_fifo(ch);
 
 	NV_INFO(dev, "Allocating FIFO %d\n", cid);
 
