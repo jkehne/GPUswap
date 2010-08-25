@@ -43,7 +43,7 @@ nv50_vspace_fill_pd_slot (struct pscnv_vspace *vs, uint32_t pdenum) {
 		return -ENOMEM;
 	}
 
-	if (!vs->isbar)
+	if (vs->vid != -1)
 		nv50_vm_map_kernel(nv50_vs(vs)->pt[pdenum]);
 
 	for (i = 0; i < NV50_VM_SPTE_COUNT; i++)
@@ -142,7 +142,7 @@ nv50_vspace_do_unmap (struct pscnv_vspace *vs, uint64_t offset, uint64_t length)
 		length -= 0x1000;
 	}
 	dev_priv->vm->bar_flush(vs->dev);
-	if (vs->isbar) {
+	if (vs->vid == -1) {
 		return nv50_vm_flush(vs->dev, 6);
 	} else {
 		nv50_vspace_tlb_flush(vs);
@@ -243,14 +243,13 @@ nv50_vm_init(struct drm_device *dev) {
 		nv_wr32(dev, 0x100c90, 0x1d07ff);
 		break;
 	}
-	vme->barvm = pscnv_vspace_new (dev);
+	vme->barvm = pscnv_vspace_new (dev, 1);
 	if (!vme->barvm) {
 		kfree(vme);
 		dev_priv->vm = 0;
 		return -ENOMEM;
 	}
-	vme->barvm->isbar = 1;
-	vme->barch = pscnv_chan_new (vme->barvm);
+	vme->barch = pscnv_chan_new (vme->barvm, 1);
 	if (!vme->barch) {
 		pscnv_vspace_free(vme->barvm);
 		kfree(vme);

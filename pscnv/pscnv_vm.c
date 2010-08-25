@@ -32,13 +32,17 @@
 #include "pscnv_chan.h"
 
 struct pscnv_vspace *
-pscnv_vspace_new (struct drm_device *dev) {
+pscnv_vspace_new (struct drm_device *dev, int fake) {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct pscnv_vspace *res = kzalloc(sizeof *res, GFP_KERNEL);
 	if (!res) {
 		NV_ERROR(dev, "VM: Couldn't alloc vspace\n");
 		return 0;
 	}
+	if (fake)
+		res->vid = -fake;
+	else
+		res->vid = 0;
 	res->dev = dev;
 	kref_init(&res->ref);
 	mutex_init(&res->lock);
@@ -60,7 +64,7 @@ pscnv_vspace_free_unmap(struct pscnv_mm_node *node) {
 void
 pscnv_vspace_free(struct pscnv_vspace *vs) {
 	struct drm_nouveau_private *dev_priv = vs->dev->dev_private;
-	if (vs->isbar)
+	if (vs->vid < 0)
 		pscnv_mm_takedown(vs->mm, pscnv_mm_free);
 	else
 		pscnv_mm_takedown(vs->mm, pscnv_vspace_free_unmap);
@@ -90,7 +94,7 @@ pscnv_vspace_unmap_node_unlocked(struct pscnv_mm_node *node) {
 	}
 	dev_priv->vm->do_unmap(vs, node->start, node->size);
 
-	if (!vs->isbar) {
+	if (vs->vid >= 0) {
 		drm_gem_object_unreference(bo->gem);
 	}
 	pscnv_mm_free(node);
@@ -248,7 +252,7 @@ int pscnv_ioctl_vspace_new(struct drm_device *dev, void *data,
 		return -ENOSPC;
 	}
 
-	dev_priv->vspaces[vid] = pscnv_vspace_new(dev);
+	dev_priv->vspaces[vid] = pscnv_vspace_new(dev, 0);
 	if (!dev_priv->vspaces[i]) {
 		mutex_unlock (&dev_priv->vm_mutex);
 		return -ENOMEM;

@@ -35,7 +35,6 @@
 struct pscnv_chan {
 	int cid;
 	struct pscnv_vspace *vspace;
-	int isbar;
 	struct list_head vspace_list;
 	struct pscnv_bo *bo;
 	spinlock_t instlock;
@@ -48,7 +47,7 @@ struct pscnv_chan {
 	void *engdata[PSCNV_ENGINES_NUM];
 };
 
-extern struct pscnv_chan *pscnv_chan_new(struct pscnv_vspace *);
+extern struct pscnv_chan *pscnv_chan_new(struct pscnv_vspace *, int fake);
 extern void pscnv_chan_free(struct pscnv_chan *);
 
 extern void pscnv_chan_cleanup(struct drm_device *dev, struct drm_file *file_priv);

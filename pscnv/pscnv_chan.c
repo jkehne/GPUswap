@@ -34,12 +34,15 @@
 #include "nv50_chan.h"
 
 struct pscnv_chan *
-pscnv_chan_new (struct pscnv_vspace *vs) {
+pscnv_chan_new (struct pscnv_vspace *vs, int fake) {
 	struct pscnv_chan *res = kzalloc(sizeof *res, GFP_KERNEL);
 	if (!res)
 		return 0;
+	if (fake)
+		res->cid = -fake;
+	else
+		res->cid = 0;
 	mutex_lock(&vs->lock);
-	res->isbar = vs->isbar;
 	res->vspace = vs;
 	kref_get(&vs->ref);
 	spin_lock_init(&res->instlock);
@@ -124,7 +127,7 @@ int pscnv_ioctl_chan_new(struct drm_device *dev, void *data,
 		return -ENOSPC;
 	}
 
-	ch = dev_priv->chans[cid] = pscnv_chan_new(vs);
+	ch = dev_priv->chans[cid] = pscnv_chan_new(vs, 0);
 	if (!dev_priv->chans[cid]) {
 		mutex_unlock (&dev_priv->vm_mutex);
 		return -ENOMEM;

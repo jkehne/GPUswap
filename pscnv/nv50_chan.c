@@ -16,18 +16,18 @@ int nv50_chan_new (struct pscnv_chan *ch) {
 	 * heap. for the BAR fake channel, we'll only need two objects,
 	 * so keep it minimal
 	 */
-	if (!ch->isbar)
+	if (ch->cid >= 0)
 		size = 0x10000;
 	else if (dev_priv->chipset == 0x50)
 		size = 0x6000;
 	else
 		size = 0x5000;
 	ch->bo = pscnv_mem_alloc(vs->dev, size, PSCNV_GEM_CONTIG,
-			0, (ch->isbar ? 0xc5a2ba7 : 0xc5a2f1f0));
+			0, (ch->cid == -1 ? 0xc5a2ba7 : 0xc5a2f1f0));
 	if (!ch->bo)
 		return -ENOMEM;
 
-	if (!vs->isbar)
+	if (vs->vid != -1)
 		dev_priv->vm->map_kernel(ch->bo);
 
 	if (dev_priv->chipset == 0x50)
@@ -44,7 +44,7 @@ int nv50_chan_new (struct pscnv_chan *ch) {
 	}
 	ch->instpos = chan_pd + NV50_VM_PDE_COUNT * 8;
 
-	if (!ch->isbar) {
+	if (ch->cid >= 0) {
 		int i;
 		ch->ramht.bo = ch->bo;
 		ch->ramht.bits = 9;
