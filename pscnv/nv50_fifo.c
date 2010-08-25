@@ -200,6 +200,7 @@ void nv50_fifo_chan_kill(struct pscnv_engine *eng, struct pscnv_chan *ch) {
 void nv50_fifo_chan_free(struct pscnv_engine *eng, struct pscnv_chan *ch) {
 	nv50_vs(ch->vspace)->engref[PSCNV_ENGINE_FIFO]--;
 	ch->engdata[PSCNV_ENGINE_FIFO] = 0;
+	nv50_vm_flush(eng->dev, 5);
 }
 
 int pscnv_ioctl_fifo_init(struct drm_device *dev, void *data,

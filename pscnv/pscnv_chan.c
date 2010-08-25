@@ -71,7 +71,6 @@ pscnv_chan_free(struct pscnv_chan *ch) {
 				struct pscnv_engine *eng = dev_priv->engines[i];
 				eng->chan_kill(eng, ch);
 				eng->chan_free(eng, ch);
-				eng->tlb_flush(eng, ch->vspace);
 			}
 	}
 	mutex_lock(&ch->vspace->lock);

@@ -361,6 +361,7 @@ void nv50_graph_chan_free(struct pscnv_engine *eng, struct pscnv_chan *ch) {
 	kfree(grch);
 	nv50_vs(ch->vspace)->engref[PSCNV_ENGINE_GRAPH]--;
 	ch->engdata[PSCNV_ENGINE_GRAPH] = 0;
+	nv50_graph_tlb_flush(eng, ch->vspace);
 }
 
 int nv50_graph_chan_obj_new(struct pscnv_engine *eng, struct pscnv_chan *ch, uint32_t handle, uint32_t oclass, uint32_t flags) {
