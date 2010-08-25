@@ -3131,7 +3131,7 @@ static void
 nv50_graph_construct_xfer_mpc(struct nouveau_grctx *ctx)
 {
 	struct drm_nouveau_private *dev_priv = ctx->dev->dev_private;
-	int i, mpcnt;
+	int i, mpcnt = 2;
 	switch (dev_priv->chipset) {
 		case 0x98:
 		case 0xaa:
