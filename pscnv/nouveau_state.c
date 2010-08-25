@@ -480,11 +480,19 @@ int nouveau_load(struct drm_device *dev, unsigned long flags)
 			dev_priv->chipset = 0x05;
 		else
 			dev_priv->chipset = 0x04;
-	} else
-		dev_priv->chipset = 0xff;
+	} else {
+		dev_priv->chipset = (reg0 & 0xf0000) >> 16;
+		if (dev_priv->chipset < 1 || dev_priv->chipset > 3)
+			dev_priv->chipset = 0xff;
+	}
 
 	switch (dev_priv->chipset & 0xf0) {
 	case 0x00:
+		if (dev_priv->chipset >= 4)
+			dev_priv->card_type = NV_04;
+		else
+			dev_priv->card_type = dev_priv->chipset;
+		break;
 	case 0x10:
 	case 0x20:
 	case 0x30:
@@ -508,7 +516,7 @@ int nouveau_load(struct drm_device *dev, unsigned long flags)
 		return -EINVAL;
 	}
 
-	NV_INFO(dev, "Detected an NV%2x generation card (0x%08x)\n",
+	NV_INFO(dev, "Detected an NV%02x generation card (0x%08x)\n",
 		dev_priv->card_type, reg0);
 
 	dev_priv->fb_size = pci_resource_len(dev->pdev, 1);
@@ -628,7 +636,7 @@ int pscnv_ioctl_getparam(struct drm_device *dev, void *data,
 		/* NV40 and NV50 versions are quite different, but register
 		 * address is the same. User is supposed to know the card
 		 * family anyway... */
-		if (dev_priv->chipset >= 0x40) {
+		if (dev_priv->card_type >= NV_40 && dev_priv->card_type < NV_C0) {
 			getparam->value = nv_rd32(dev, NV40_PMC_GRAPH_UNITS);
 			break;
 		}

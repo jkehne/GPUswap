@@ -168,7 +168,7 @@ enum nv04_fp_display_regs {
 
 struct nv04_crtc_reg {
 	unsigned char MiscOutReg;     /* */
-	uint8_t CRTC[0x9f];
+	uint8_t CRTC[0xa0];
 	uint8_t CR58[0x10];
 	uint8_t Sequencer[5];
 	uint8_t Graphics[9];
@@ -261,7 +261,10 @@ struct nv04_mode_state {
 };
 
 enum nouveau_card_type {
-	NV_04      = 0x00,
+	NV_01      = 0x01,
+	NV_02      = 0x02,
+	NV_03      = 0x03,
+	NV_04      = 0x04,
 	NV_10      = 0x10,
 	NV_20      = 0x20,
 	NV_30      = 0x30,
