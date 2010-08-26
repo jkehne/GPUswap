@@ -39,6 +39,8 @@ struct pscnv_vspace {
 	struct pscnv_mm *mm;
 	struct drm_file *filp;
 	struct kref ref;
+	uint64_t size;
+	uint32_t flags;
 	void *engdata;
 };
 
@@ -57,7 +59,7 @@ struct pscnv_vm_engine {
 	spinlock_t vs_lock;
 };
 
-extern struct pscnv_vspace *pscnv_vspace_new(struct drm_device *, int fake);
+extern struct pscnv_vspace *pscnv_vspace_new(struct drm_device *, uint64_t size, uint32_t flags, int fake);
 extern int pscnv_vspace_map(struct pscnv_vspace *, struct pscnv_bo *, uint64_t start, uint64_t end, int back, struct pscnv_mm_node **res);
 extern int pscnv_vspace_unmap(struct pscnv_vspace *, uint64_t start);
 extern int pscnv_vspace_unmap_node(struct pscnv_mm_node *node);

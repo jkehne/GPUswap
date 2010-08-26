@@ -74,7 +74,7 @@ static void pscnv_vspace_unbind (struct pscnv_vspace *vs) {
 }
 
 struct pscnv_vspace *
-pscnv_vspace_new (struct drm_device *dev, int fake) {
+pscnv_vspace_new (struct drm_device *dev, uint64_t size, uint32_t flags, int fake) {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct pscnv_vspace *res = kzalloc(sizeof *res, GFP_KERNEL);
 	if (!res) {
@@ -82,6 +82,8 @@ pscnv_vspace_new (struct drm_device *dev, int fake) {
 		return 0;
 	}
 	res->dev = dev;
+	res->size = size;
+	res->flags = flags;
 	kref_init(&res->ref);
 	mutex_init(&res->lock);
 	if (pscnv_vspace_bind(res, fake)) {
@@ -275,7 +277,7 @@ int pscnv_ioctl_vspace_new(struct drm_device *dev, void *data,
 
 	NOUVEAU_CHECK_INITIALISED_WITH_RETURN;
 
-	vs = pscnv_vspace_new(dev, 0);
+	vs = pscnv_vspace_new(dev, 1ull << 40, 0, 0);
 	if (!vs)
 		return -ENOMEM;
 

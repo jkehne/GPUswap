@@ -152,13 +152,18 @@ nv50_vspace_do_unmap (struct pscnv_vspace *vs, uint64_t offset, uint64_t length)
 
 int nv50_vspace_new(struct pscnv_vspace *vs) {
 	int ret;
+
+	/* XXX: could actually use it some day... */
+	if (vs->size > 1ull << 40)
+		return -EINVAL;
+
 	vs->engdata = kzalloc(sizeof(struct nv50_vspace), GFP_KERNEL);
 	if (!vs->engdata) {
 		NV_ERROR(vs->dev, "VM: Couldn't alloc vspace eng\n");
 		return -ENOMEM;
 	}
 	INIT_LIST_HEAD(&nv50_vs(vs)->chan_list);
-	ret = pscnv_mm_init(0, 1ull << 40, 0x1000, 0x10000, 0x20000000, &vs->mm);
+	ret = pscnv_mm_init(0, vs->size, 0x1000, 0x10000, 0x20000000, &vs->mm);
 	if (ret) 
 		kfree(vs->engdata);
 	return ret;
@@ -245,7 +250,7 @@ nv50_vm_init(struct drm_device *dev) {
 		nv_wr32(dev, 0x100c90, 0x1d07ff);
 		break;
 	}
-	vme->barvm = pscnv_vspace_new (dev, 1);
+	vme->barvm = pscnv_vspace_new (dev, dev_priv->fb_size + dev_priv->ramin_size, 0, 1);
 	if (!vme->barvm) {
 		kfree(vme);
 		dev_priv->vm = 0;
