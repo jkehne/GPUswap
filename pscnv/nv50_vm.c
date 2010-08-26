@@ -234,6 +234,8 @@ nv50_vm_init(struct drm_device *dev) {
 		vme->base.bar_flush = nv84_vm_bar_flush;
 	dev_priv->vm = &vme->base;
 
+	spin_lock_init(&dev_priv->vm->vs_lock);
+
 	/* This is needed to get meaningful information from 100c90
 	 * on traps. No idea what these values mean exactly. */
 	switch (dev_priv->chipset) {
@@ -268,7 +270,6 @@ nv50_vm_init(struct drm_device *dev) {
 	bar3dma = nv50_chan_dmaobj_new(vme->barch, 0x7fc00000, dev_priv->fb_size, dev_priv->ramin_size);
 	nv_wr32(dev, 0x1708, 0x80000000 | bar1dma >> 4);
 	nv_wr32(dev, 0x170c, 0x80000000 | bar3dma >> 4);
-	spin_lock_init(&dev_priv->vm->vs_lock);
 	dev_priv->vm_ok = 1;
 	nv50_vm_map_kernel(vme->barch->bo);
 	nv50_vm_map_kernel(nv50_vs(vme->barvm)->pt[0]);
