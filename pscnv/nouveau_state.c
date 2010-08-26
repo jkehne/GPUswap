@@ -77,7 +77,7 @@ static int nouveau_init_engine_ptrs(struct drm_device *dev)
 		engine->display.destroy		= nv04_display_destroy;
 #endif
 		NV_ERROR(dev, "NV%02x unsupported\n", dev_priv->chipset);
-		return 1;
+		return -ENOSYS;
 	} else {
 		engine->display.early_init	= nv50_display_early_init;
 		engine->display.late_takedown	= nv50_display_late_takedown;
