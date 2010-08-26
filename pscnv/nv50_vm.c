@@ -280,18 +280,14 @@ void
 nv50_vm_takedown(struct drm_device *dev) {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct nv50_vm_engine *vme = nv50_vm(dev_priv->vm);
-	struct pscnv_vspace *vs = vme->barvm;
-	struct pscnv_chan *ch = vme->barch;
 	/* XXX: write me. */
 	dev_priv->vm_ok = 0;
-	vme->barvm = 0;
-	vme->barch = 0;
 	nv_wr32(dev, 0x1708, 0);
 	nv_wr32(dev, 0x170c, 0);
 	nv_wr32(dev, 0x1710, 0);
 	nv_wr32(dev, 0x1704, 0);
-	pscnv_chan_unref(ch);
-	pscnv_vspace_unref(vs);
+	pscnv_chan_unref(vme->barch);
+	pscnv_vspace_unref(vme->barvm);
 	kfree(vme);
 	dev_priv->vm = 0;
 }
