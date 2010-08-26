@@ -89,5 +89,6 @@ int pscnv_ioctl_vspace_unmap(struct drm_device *dev, void *data,
 						struct drm_file *file_priv);
 
 int nv50_vm_init(struct drm_device *dev);
+int nvc0_vm_init(struct drm_device *dev);
 
 #endif

@@ -181,6 +181,9 @@ nouveau_card_init(struct drm_device *dev)
 		case NV_50:
 			ret = nv50_chan_init(dev);
 			break;
+		case NV_C0:
+			ret = nvc0_chan_init(dev);
+			break;
 		default:
 			NV_ERROR(dev, "No CHAN implementation for NV%02x!\n", dev_priv->chipset);
 			ret = -ENOSYS;
@@ -191,6 +194,9 @@ nouveau_card_init(struct drm_device *dev)
 	switch (dev_priv->card_type) {
 		case NV_50:
 			ret = nv50_vm_init(dev);
+			break;
+		case NV_C0:
+			ret = nvc0_vm_init(dev);
 			break;
 		default:
 			NV_ERROR(dev, "No VM implementation for NV%02x!\n", dev_priv->chipset);

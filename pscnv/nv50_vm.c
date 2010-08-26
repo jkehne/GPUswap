@@ -234,6 +234,7 @@ nv50_vm_init(struct drm_device *dev) {
 		vme->base.bar_flush = nv84_vm_bar_flush;
 	dev_priv->vm = &vme->base;
 
+	dev_priv->vm_ramin_base = dev_priv->fb_size;
 	spin_lock_init(&dev_priv->vm->vs_lock);
 
 	/* This is needed to get meaningful information from 100c90

@@ -82,5 +82,6 @@ int pscnv_ioctl_obj_vdma_new(struct drm_device *dev, void *data,
 						struct drm_file *file_priv);
 
 int nv50_chan_init(struct drm_device *dev);
+int nvc0_chan_init(struct drm_device *dev);
 
 #endif

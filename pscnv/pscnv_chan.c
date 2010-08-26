@@ -254,20 +254,26 @@ int pscnv_chan_mmap(struct file *filp, struct vm_area_struct *vma)
 	int cid;
 	struct pscnv_chan *ch;
 
-	if ((vma->vm_pgoff * PAGE_SIZE & ~0x7f0000ull) == 0xc0000000) {
-		if (vma->vm_end - vma->vm_start > 0x2000)
-			return -EINVAL;
-		cid = (vma->vm_pgoff * PAGE_SIZE >> 16) & 0x7f;
-		ch = pscnv_get_chan(dev, filp->private_data, cid);
-		if (!ch)
-			return -ENOENT;
+	switch (dev_priv->card_type) {
+	case NV_50:
+		if ((vma->vm_pgoff * PAGE_SIZE & ~0x7f0000ull) == 0xc0000000) {
+			if (vma->vm_end - vma->vm_start > 0x2000)
+				return -EINVAL;
+			cid = (vma->vm_pgoff * PAGE_SIZE >> 16) & 0x7f;
+			ch = pscnv_get_chan(dev, filp->private_data, cid);
+			if (!ch)
+				return -ENOENT;
 
-		vma->vm_flags |= VM_RESERVED | VM_IO | VM_PFNMAP | VM_DONTEXPAND;
-		vma->vm_ops = &pscnv_chan_vm_ops;
-		vma->vm_private_data = ch;
-		return remap_pfn_range(vma, vma->vm_start, 
-			(dev_priv->mmio_phys + 0xc00000 + cid * 0x2000) >> PAGE_SHIFT,
-			vma->vm_end - vma->vm_start, PAGE_SHARED);
+			vma->vm_flags |= VM_RESERVED | VM_IO | VM_PFNMAP | VM_DONTEXPAND;
+			vma->vm_ops = &pscnv_chan_vm_ops;
+			vma->vm_private_data = ch;
+			return remap_pfn_range(vma, vma->vm_start, 
+				(dev_priv->mmio_phys + 0xc00000 + cid * 0x2000) >> PAGE_SHIFT,
+				vma->vm_end - vma->vm_start, PAGE_SHARED);
+		}
+		break;
+	default:
+		return -ENOSYS;
 	}
 	return -EINVAL;
 }
