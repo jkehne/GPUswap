@@ -47,7 +47,7 @@ static int pscnv_chan_bind (struct pscnv_chan *ch, int fake) {
 		spin_unlock_irqrestore(&dev_priv->chan->ch_lock, flags);
 		return 0;
 	} else {
-		for (i = 1; i < 128; i++)
+		for (i = dev_priv->chan->ch_min; i <= dev_priv->chan->ch_max; i++)
 			if (!dev_priv->chan->chans[i]) {
 				ch->cid = i;
 				dev_priv->chan->chans[i] = ch;

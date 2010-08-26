@@ -161,5 +161,7 @@ nv50_chan_init(struct drm_device *dev) {
 	che->base.do_chan_free = nv50_chan_free;
 	dev_priv->chan = &che->base;
 	spin_lock_init(&dev_priv->chan->ch_lock);
+	dev_priv->chan->ch_min = 1;
+	dev_priv->chan->ch_max = 126;
 	return 0;
 }

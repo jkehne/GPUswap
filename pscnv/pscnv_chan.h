@@ -55,6 +55,7 @@ struct pscnv_chan_engine {
 	struct pscnv_chan *fake_chans[4];
 	struct pscnv_chan *chans[128];
 	spinlock_t ch_lock;
+	int ch_min, ch_max;
 };
 
 extern struct pscnv_chan *pscnv_chan_new(struct drm_device *dev, struct pscnv_vspace *, int fake);
