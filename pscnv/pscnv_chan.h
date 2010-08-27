@@ -35,6 +35,8 @@
 struct pscnv_chan {
 	struct drm_device *dev;
 	int cid;
+	/* protected by ch_lock below, used for lookup */
+	uint32_t handle;
 	struct pscnv_vspace *vspace;
 	struct list_head vspace_list;
 	struct pscnv_bo *bo;
@@ -73,6 +75,7 @@ static inline void pscnv_chan_unref(struct pscnv_chan *ch) {
 extern void pscnv_chan_cleanup(struct drm_device *dev, struct drm_file *file_priv);
 extern int pscnv_chan_mmap(struct file *filp, struct vm_area_struct *vma);
 struct pscnv_chan *pscnv_get_chan(struct drm_device *dev, struct drm_file *file_priv, int cid);
+extern int pscnv_chan_handle_lookup(struct drm_device *dev, uint32_t handle);
 
 int pscnv_ioctl_chan_new(struct drm_device *dev, void *data,
 						struct drm_file *file_priv);

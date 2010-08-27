@@ -10,6 +10,7 @@ int nv50_chan_new (struct pscnv_chan *ch) {
 	struct drm_nouveau_private *dev_priv = ch->dev->dev_private;
 	uint64_t size;
 	uint32_t chan_pd;
+	unsigned long flags;
 	int i;
 	/* determine size of underlying VO... for normal channels,
 	 * allocate 64kiB since they have to store the objects
@@ -26,6 +27,10 @@ int nv50_chan_new (struct pscnv_chan *ch) {
 			0, (ch->cid == -1 ? 0xc5a2ba7 : 0xc5a2f1f0));
 	if (!ch->bo)
 		return -ENOMEM;
+
+	spin_lock_irqsave(&dev_priv->chan->ch_lock, flags);
+	ch->handle = ch->bo->start >> 12;
+	spin_unlock_irqrestore(&dev_priv->chan->ch_lock, flags);
 
 	if (vs->vid != -1)
 		dev_priv->vm->map_kernel(ch->bo);
@@ -67,6 +72,9 @@ int nv50_chan_new (struct pscnv_chan *ch) {
 			ch->cache = pscnv_mem_alloc(vs->dev, 0x1000, PSCNV_GEM_CONTIG,
 					0, 0xf1f0cace);
 			if (!ch->cache) {
+				spin_lock_irqsave(&dev_priv->chan->ch_lock, flags);
+				ch->handle = 0;
+				spin_unlock_irqrestore(&dev_priv->chan->ch_lock, flags);
 				pscnv_mem_free(ch->bo);
 				return -ENOMEM;
 			}
@@ -133,6 +141,11 @@ nv50_chan_dmaobj_new(struct pscnv_chan *ch, uint32_t type, uint64_t start, uint6
 }
 
 void nv50_chan_free(struct pscnv_chan *ch) {
+	struct drm_nouveau_private *dev_priv = ch->dev->dev_private;
+	unsigned long flags;
+	spin_lock_irqsave(&dev_priv->chan->ch_lock, flags);
+	ch->handle = 0;
+	spin_unlock_irqrestore(&dev_priv->chan->ch_lock, flags);
 	pscnv_mem_free(ch->bo);
 	if (ch->cache)
 		pscnv_mem_free(ch->cache);
@@ -163,36 +176,5 @@ nv50_chan_init(struct drm_device *dev) {
 	spin_lock_init(&dev_priv->chan->ch_lock);
 	dev_priv->chan->ch_min = 1;
 	dev_priv->chan->ch_max = 126;
-	return 0;
-}
-
-struct pscnv_chan *nv50_chan_lookup(struct drm_device *dev, uint32_t handle) {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	unsigned long flags;
-	struct pscnv_chan *res;
-	int i;
-	BUG_ON(handle & 0xc0000000);
-	spin_lock_irqsave(&dev_priv->chan->ch_lock, flags);
-	for (i = 0; i < 128; i++) {
-		res = dev_priv->chan->chans[i];
-		if (!res)
-			continue;
-		if (res->bo->start >> 12 != handle)
-			continue;
-		pscnv_chan_ref(res);
-		spin_unlock_irqrestore(&dev_priv->chan->ch_lock, flags);
-		return res;
-	}
-	for (i = 0; i < 4; i++) {
-		res = dev_priv->chan->fake_chans[i];
-		if (!res)
-			continue;
-		if (res->bo->start >> 12 != handle)
-			continue;
-		pscnv_chan_ref(res);
-		spin_unlock_irqrestore(&dev_priv->chan->ch_lock, flags);
-		return res;
-	}
-	spin_unlock_irqrestore(&dev_priv->chan->ch_lock, flags);
 	return 0;
 }

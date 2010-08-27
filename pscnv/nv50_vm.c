@@ -470,7 +470,7 @@ void nv50_vm_trap(struct drm_device *dev) {
 	char unit2[50];
 	char unit3[50];
 	struct pscnv_enumval *ev;
-	struct pscnv_chan *chan;
+	int chan;
 	if (idx & 0x80000000) {
 		idx &= 0xffffff;
 		for (i = 0; i < 6; i++) {
@@ -506,13 +506,12 @@ void nv50_vm_trap(struct drm_device *dev) {
 			snprintf(unit3, sizeof(unit3), "%s", ev->name);
 		else
 			snprintf(unit3, sizeof(unit3), "0x%x", s3);
-		chan = nv50_chan_lookup(dev, trap[2] << 16 | trap[1]);
-		if (chan) {
+		chan = pscnv_chan_handle_lookup(dev, trap[2] << 16 | trap[1]);
+		if (chan != 128) {
 			NV_INFO(dev, "VM: Trapped %s at %02x%04x%04x ch %d on %s/%s/%s, reason %s\n",
 				(trap[5]&0x100?"read":"write"),
 				trap[5]&0xff, trap[4]&0xffff,
-				trap[3]&0xffff, chan->cid, unit1, unit2, unit3, reason);
-			pscnv_chan_unref(chan);
+				trap[3]&0xffff, chan, unit1, unit2, unit3, reason);
 		} else {
 			NV_INFO(dev, "VM: Trapped %s at %02x%04x%04x UNKNOWN ch %08x on %s/%s/%s, reason %s\n",
 				(trap[5]&0x100?"read":"write"),

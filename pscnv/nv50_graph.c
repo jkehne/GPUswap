@@ -581,7 +581,6 @@ void nv50_graph_irq_handler(struct pscnv_engine *eng) {
 	uint32_t status;
 	unsigned long flags;
 	uint32_t st, chandle, addr, data, datah, ecode, class, subc, mthd;
-	struct pscnv_chan *chan;
 	int cid;
 	spin_lock_irqsave(&graph->lock, flags);
 	status = nv_rd32(dev, 0x400100);
@@ -594,11 +593,8 @@ void nv50_graph_irq_handler(struct pscnv_engine *eng) {
 	datah = nv_rd32(dev, 0x40070c);
 	chandle = nv_rd32(dev, 0x400784);
 	class = nv_rd32(dev, 0x400814) & 0xffff;
-	chan = nv50_chan_lookup(dev, chandle);
-	if (chan) {
-		cid = chan->cid;
-	} else {
-		cid = 0;
+	cid = pscnv_chan_handle_lookup(dev, chandle);
+	if (cid == 128) {
 		NV_ERROR(dev, "PGRAPH: UNKNOWN channel %x active!\n", chandle);
 	}
 
@@ -666,8 +662,6 @@ void nv50_graph_irq_handler(struct pscnv_engine *eng) {
 		nv_wr32(dev, 0x400100, status);
 	}
 	nv50_vm_trap(dev);
-	if (chan)
-		pscnv_chan_unref(chan);
 	nv_wr32(dev, 0x400500, 0x10001);
 	spin_unlock_irqrestore(&graph->lock, flags);
 }

@@ -85,6 +85,7 @@ pscnv_chan_new (struct drm_device *dev, struct pscnv_vspace *vs, int fake) {
 	}
 	res->dev = dev;
 	res->vspace = vs;
+	res->handle = 0xffffffff;
 	if (vs)
 		pscnv_vspace_ref(vs);
 	spin_lock_init(&res->instlock);
@@ -290,4 +291,32 @@ void pscnv_chan_cleanup(struct drm_device *dev, struct drm_file *file_priv) {
 		pscnv_chan_unref(ch);
 		pscnv_chan_unref(ch);
 	}
+}
+
+int pscnv_chan_handle_lookup(struct drm_device *dev, uint32_t handle) {
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	unsigned long flags;
+	struct pscnv_chan *res;
+	int i;
+	spin_lock_irqsave(&dev_priv->chan->ch_lock, flags);
+	for (i = 0; i < 128; i++) {
+		res = dev_priv->chan->chans[i];
+		if (!res)
+			continue;
+		if (res->bo->start >> 12 != handle)
+			continue;
+		spin_unlock_irqrestore(&dev_priv->chan->ch_lock, flags);
+		return i;
+	}
+	for (i = 0; i < 4; i++) {
+		res = dev_priv->chan->fake_chans[i];
+		if (!res)
+			continue;
+		if (res->handle != handle)
+			continue;
+		spin_unlock_irqrestore(&dev_priv->chan->ch_lock, flags);
+		return -i;
+	}
+	spin_unlock_irqrestore(&dev_priv->chan->ch_lock, flags);
+	return 128;
 }

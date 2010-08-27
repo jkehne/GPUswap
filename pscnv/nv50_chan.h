@@ -16,6 +16,5 @@ struct nv50_chan_engine {
 
 extern int nv50_chan_iobj_new(struct pscnv_chan *, uint32_t size);
 extern int nv50_chan_dmaobj_new(struct pscnv_chan *, uint32_t type, uint64_t start, uint64_t size);
-extern struct pscnv_chan *nv50_chan_lookup(struct drm_device *dev, uint32_t handle);
 
 #endif /* __NV50_CHAN_H__ */

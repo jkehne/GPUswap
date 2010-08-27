@@ -8,10 +8,15 @@
 int nvc0_chan_new (struct pscnv_chan *ch) {
 	struct pscnv_vspace *vs = ch->vspace;
 	struct drm_nouveau_private *dev_priv = ch->dev->dev_private;
+	unsigned long flags;
 	ch->bo = pscnv_mem_alloc(ch->dev, 0x1000, PSCNV_GEM_CONTIG,
 			0, (ch->cid < 0 ? 0xc5a2ba7 : 0xc5a2f1f0));
 	if (!ch->bo)
 		return -ENOMEM;
+
+	spin_lock_irqsave(&dev_priv->chan->ch_lock, flags);
+	ch->handle = ch->bo->start >> 12;
+	spin_unlock_irqrestore(&dev_priv->chan->ch_lock, flags);
 
 	if (vs->vid != -3)
 		dev_priv->vm->map_kernel(ch->bo);
@@ -23,6 +28,9 @@ int nvc0_chan_new (struct pscnv_chan *ch) {
 
 	if (ch->cid >= 0) {
 		NV_ERROR(ch->dev, "CH: No FIFO chan support\n");
+		spin_lock_irqsave(&dev_priv->chan->ch_lock, flags);
+		ch->handle = 0;
+		spin_unlock_irqrestore(&dev_priv->chan->ch_lock, flags);
 		pscnv_mem_free(ch->bo);
 		return -ENOSYS;
 	}
@@ -31,6 +39,11 @@ int nvc0_chan_new (struct pscnv_chan *ch) {
 }
 
 void nvc0_chan_free(struct pscnv_chan *ch) {
+	struct drm_nouveau_private *dev_priv = ch->dev->dev_private;
+	unsigned long flags;
+	spin_lock_irqsave(&dev_priv->chan->ch_lock, flags);
+	ch->handle = 0;
+	spin_unlock_irqrestore(&dev_priv->chan->ch_lock, flags);
 	pscnv_mem_free(ch->bo);
 }
 
