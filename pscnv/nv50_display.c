@@ -74,8 +74,13 @@ nv50_evo_dmaobj_new(struct nouveau_channel *evo, uint32_t class, uint32_t name,
 	nv_wv32(evo->evo_obj, inst + 0x04, limit);
 	nv_wv32(evo->evo_obj, inst + 0x08, offset);
 	nv_wv32(evo->evo_obj, inst + 0x0c, 0x00000000);
-	nv_wv32(evo->evo_obj, inst + 0x10, 0x00000000);
-	nv_wv32(evo->evo_obj, inst + 0x14, 0x00010000);
+	if (dev_priv->card_type >= NV_C0) {
+		nv_wv32(evo->evo_obj, inst + 0x10, 0x00000010);
+		nv_wv32(evo->evo_obj, inst + 0x14, tile_flags ? 0 : 0x20000);
+	} else {
+		nv_wv32(evo->evo_obj, inst + 0x10, 0x00000000);
+		nv_wv32(evo->evo_obj, inst + 0x14, 0x00010000);
+	}
 	dev_priv->vm->bar_flush(dev);
 
 	return 0;
