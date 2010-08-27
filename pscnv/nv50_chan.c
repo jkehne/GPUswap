@@ -165,3 +165,34 @@ nv50_chan_init(struct drm_device *dev) {
 	dev_priv->chan->ch_max = 126;
 	return 0;
 }
+
+struct pscnv_chan *nv50_chan_lookup(struct drm_device *dev, uint32_t handle) {
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	unsigned long flags;
+	struct pscnv_chan *res;
+	int i;
+	BUG_ON(handle & 0xc0000000);
+	spin_lock_irqsave(&dev_priv->chan->ch_lock, flags);
+	for (i = 0; i < 128; i++) {
+		res = dev_priv->chan->chans[i];
+		if (!res)
+			continue;
+		if (res->bo->start >> 12 != handle)
+			continue;
+		pscnv_chan_ref(res);
+		spin_unlock_irqrestore(&dev_priv->chan->ch_lock, flags);
+		return res;
+	}
+	for (i = 0; i < 4; i++) {
+		res = dev_priv->chan->fake_chans[i];
+		if (!res)
+			continue;
+		if (res->bo->start >> 12 != handle)
+			continue;
+		pscnv_chan_ref(res);
+		spin_unlock_irqrestore(&dev_priv->chan->ch_lock, flags);
+		return res;
+	}
+	spin_unlock_irqrestore(&dev_priv->chan->ch_lock, flags);
+	return 0;
+}
