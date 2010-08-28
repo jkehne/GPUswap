@@ -39,6 +39,7 @@
 #include "nouveau_connector.h"
 #include "nv50_display.h"
 #include "pscnv_vm.h"
+#include "pscnv_kapi.h"
 
 static void
 nv50_crtc_lut_load(struct drm_crtc *crtc)
@@ -405,6 +406,7 @@ nv50_crtc_cursor_move(struct drm_crtc *crtc, int x, int y)
 	return 0;
 }
 
+#ifdef PSCNV_KAPI_GAMMA_SET_5
 static void
 nv50_crtc_gamma_set(struct drm_crtc *crtc, u16 *r, u16 *g, u16 *b,
 		    uint32_t size)
@@ -433,6 +435,36 @@ nv50_crtc_gamma_set(struct drm_crtc *crtc, u16 *r, u16 *g, u16 *b,
 
 	nv50_crtc_lut_load(crtc);
 }
+#else
+#ifdef PSCNV_KAPI_GAMMA_SET_6
+static void
+nv50_crtc_gamma_set(struct drm_crtc *crtc, u16 *r, u16 *g, u16 *b,
+		    uint32_t start, uint32_t size)
+{
+	int end = (start + size > 256) ? 256 : start + size, i;
+	struct nouveau_crtc *nv_crtc = nouveau_crtc(crtc);
+	for (i = start; i < end; i++) {
+		nv_crtc->lut.r[i] = r[i];
+		nv_crtc->lut.g[i] = g[i];
+		nv_crtc->lut.b[i] = b[i];
+	}
+
+	/* We need to know the depth before we upload, but it's possible to
+	 * get called before a framebuffer is bound.  If this is the case,
+	 * mark the lut values as dirty by setting depth==0, and it'll be
+	 * uploaded on the first mode_set_base()
+	 */
+	if (!nv_crtc->base.fb) {
+		nv_crtc->lut.depth = 0;
+		return;
+	}
+
+	nv50_crtc_lut_load(crtc);
+}
+#else
+#error cannot determine gamma_set API
+#endif
+#endif
 
 static void
 nv50_crtc_save(struct drm_crtc *crtc)

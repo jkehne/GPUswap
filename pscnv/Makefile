@@ -23,8 +23,14 @@ EXTRA_CFLAGS = -Iinclude/drm
 
 SYSSRC = /lib/modules/$(shell uname -r)/build
 
-all:
+all: pscnv_kapi.h
 	+make -C $(SYSSRC) M=$(PWD) modules
 
 clean:
 	+make -C $(SYSSRC) M=$(PWD) clean
+
+pscnv_kapi.h:
+	./kapitest.sh $(SYSSRC) > pscnv_kapi.h
+
+kapitest:
+	./kapitest.sh $(SYSSRC) > pscnv_kapi.h

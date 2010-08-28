@@ -4,8 +4,10 @@
 pscnv/.tmp_versions
 pscnv/Module.symvers
 pscnv/modules.order
+pscnv/kapitest/modules.order
 pscnv/pscnv.ko
 pscnv/pscnv.mod.c
+pscnv/pscnv_kapi.h
 test/get_param
 test/gem
 test/map
