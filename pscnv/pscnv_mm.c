@@ -1,4 +1,5 @@
 #include "pscnv_mm.h"
+#include "nouveau_drv.h"
 
 #undef PSCNV_RB_AUGMENT
 
@@ -76,8 +77,12 @@ static void pscnv_mm_free_node(struct pscnv_mm_node *node) {
 	struct pscnv_mm_node *prev = PSCNV_RB_PREV(pscnv_mm_head, entry, node);
 	struct pscnv_mm_node *next = PSCNV_RB_NEXT(pscnv_mm_head, entry, node);
 	int i;
+	if (pscnv_mm_debug >= 2)
+		NV_INFO(node->mm->dev, "MM: Freeing node %llx..%llx of type %d\n", node->start, node->start + node->size, node->type);
 	node->type = PSCNV_MM_TYPE_FREE;
 	if (prev->type == PSCNV_MM_TYPE_FREE) {
+		if (pscnv_mm_debug >= 2)
+			NV_INFO(node->mm->dev, "MM: Merging left with node %llx..%llx\n", prev->start, prev->start + prev->size);
 		BUG_ON(prev->start + prev->size != node->start);
 		node->start = prev->start;
 		node->size += prev->size;
@@ -85,6 +90,8 @@ static void pscnv_mm_free_node(struct pscnv_mm_node *node) {
 		kfree(prev);
 	}
 	if (next->type == PSCNV_MM_TYPE_FREE) {
+		if (pscnv_mm_debug >= 2)
+			NV_INFO(node->mm->dev, "MM: Merging right with node %llx..%llx\n", next->start, next->start + next->size);
 		BUG_ON(node->start + node->size != next->start);
 		node->size += next->size;
 		PSCNV_RB_REMOVE(pscnv_mm_head, &node->mm->head, next);
@@ -192,6 +199,8 @@ static int pscnv_mm_alloc_single(struct pscnv_mm_node *node, uint64_t size, uint
 		if (e < s)
 			e = s;
 		if (e-s >= minsz) {
+			if (pscnv_mm_debug >= 2)
+				NV_INFO(node->mm->dev, "MM: Using node %llx..%llx, space %llx..%llx\n", node->start, node->start + node->size, s, e);
 			if (e-s > size) {
 				if (back)
 					s = e - size;
@@ -236,6 +245,8 @@ static int pscnv_mm_alloc_single(struct pscnv_mm_node *node, uint64_t size, uint
 				PSCNV_RB_INSERT(pscnv_mm_head, &node->mm->head, rsp);
 				pscnv_mm_free_node(rsp);
 			}
+			if (pscnv_mm_debug >= 2)
+				NV_INFO(node->mm->dev, "MM: After split: %llx..%llx\n", node->start, node->start + node->size);
 
 			*res = node;
 			return 0;
@@ -263,6 +274,8 @@ int pscnv_mm_alloc(struct pscnv_mm *mm, uint64_t size, uint32_t flags, uint64_t 
 	/* avoid various bounduary conditions */
 	if (size > (1ull << 60))
 		return -EINVAL;
+	if (pscnv_mm_debug >= 1)
+		NV_INFO(mm->dev, "MM: Allocation size %llx at %llx..%llx flags %d\n", size, start, end, flags);
 	while (size) {
 		struct pscnv_mm_node *cur;
 		ret = pscnv_mm_alloc_single(PSCNV_RB_ROOT(&mm->head), size, flags, start, end, &cur);

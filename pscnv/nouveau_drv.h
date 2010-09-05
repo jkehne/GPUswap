@@ -443,6 +443,7 @@ extern int nouveau_fbpercrtc;
 extern int nouveau_tv_disable;
 extern char *nouveau_tv_norm;
 extern int nouveau_reg_debug;
+extern int pscnv_mm_debug;
 extern int pscnv_mem_debug;
 extern int pscnv_vm_debug;
 extern int pscnv_gem_debug;
