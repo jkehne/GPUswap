@@ -280,8 +280,11 @@ int pscnv_mm_alloc(struct pscnv_mm *mm, uint64_t size, uint32_t flags, uint64_t 
 			last = cur;
 		} else {
 			*res = last = cur;
+			cur->prev = 0;
 		}
 	}
+	if (last)
+		last->next = 0;
 	return 0;
 }
 
