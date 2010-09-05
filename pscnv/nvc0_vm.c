@@ -282,7 +282,7 @@ int nvc0_vspace_new(struct pscnv_vspace *vs) {
 	for (i = 0; i < NVC0_PDE_HT_SIZE; ++i)
 		INIT_LIST_HEAD(&nvc0_vs(vs)->ptht[i]);
 
-	ret = pscnv_mm_init(0, vs->size, 0x1000, 0x20000, 1, &vs->mm);
+	ret = pscnv_mm_init(vs->dev, 0, vs->size, 0x1000, 0x20000, 1, &vs->mm);
 	if (ret) {
 		pscnv_mem_free(nvc0_vs(vs)->pd);
 		kfree(vs->engdata);

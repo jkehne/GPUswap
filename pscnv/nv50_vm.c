@@ -163,7 +163,7 @@ int nv50_vspace_new(struct pscnv_vspace *vs) {
 		return -ENOMEM;
 	}
 	INIT_LIST_HEAD(&nv50_vs(vs)->chan_list);
-	ret = pscnv_mm_init(0, vs->size, 0x1000, 0x10000, 0x20000000, &vs->mm);
+	ret = pscnv_mm_init(vs->dev, 0, vs->size, 0x1000, 0x10000, 0x20000000, &vs->mm);
 	if (ret) 
 		kfree(vs->engdata);
 	return ret;

@@ -94,7 +94,7 @@ nv50_vram_init(struct drm_device *dev)
 	NV_INFO(dev, "VRAM: size 0x%llx, LSR period %x\n",
 			dev_priv->vram_size, rblock_size);
 
-	ret = pscnv_mm_init(0x40000, dev_priv->vram_size - 0x20000, 0x1000, 0x10000, rblock_size, &dev_priv->vram_mm);
+	ret = pscnv_mm_init(dev, 0x40000, dev_priv->vram_size - 0x20000, 0x1000, 0x10000, rblock_size, &dev_priv->vram_mm);
 	if (ret) {
 		kfree(dev_priv->vram);
 		return ret;

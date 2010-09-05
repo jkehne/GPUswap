@@ -108,7 +108,7 @@ void pscnv_mm_free(struct pscnv_mm_node *node) {
 	}
 }
 
-int pscnv_mm_init(uint64_t start, uint64_t end, uint32_t spsize, uint32_t lpsize, uint32_t tssize, struct pscnv_mm **res) {
+int pscnv_mm_init(struct drm_device *dev, uint64_t start, uint64_t end, uint32_t spsize, uint32_t lpsize, uint32_t tssize, struct pscnv_mm **res) {
 	struct pscnv_mm *mm = kzalloc(sizeof *mm, GFP_KERNEL);
 	struct pscnv_mm_node *ss, *se, *node;
 	if (!mm)
@@ -128,6 +128,7 @@ int pscnv_mm_init(uint64_t start, uint64_t end, uint32_t spsize, uint32_t lpsize
 		kfree(mm);
 		return -ENOMEM;
 	}
+	mm->dev = dev;
 	mm->spsize = spsize;
 	mm->lpsize = lpsize;
 	mm->tssize = tssize;
