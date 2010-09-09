@@ -32,5 +32,7 @@ clean:
 pscnv_kapi.h:
 	./kapitest.sh $(SYSSRC) > pscnv_kapi.h
 
+.PHONY: kapitest
+
 kapitest:
 	./kapitest.sh $(SYSSRC) > pscnv_kapi.h
