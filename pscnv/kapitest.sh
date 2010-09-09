@@ -1,5 +1,5 @@
 #!/bin/sh
-TESTS="gamma_set_5 gamma_set_6"
+TESTS="gamma_set_5 gamma_set_6 drm_ioctl_def drm_ioctl_def_drv"
 
 make -k -C $1 M=$PWD/kapitest clean >&2
 make -k -C $1 M=$PWD/kapitest modules >&2

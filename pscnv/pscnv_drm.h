@@ -154,4 +154,19 @@ struct drm_pscnv_obj_eng_new {
 #define DRM_PSCNV_OBJ_ENG_NEW        0x2a	/* Create a new engine object on a channel */
 #define DRM_PSCNV_FIFO_INIT_IB       0x2b	/* Initialises IB PFIFO processing on a channel */
 
+#define DRM_IOCTL_PSCNV_GETPARAM           DRM_IOWR(DRM_COMMAND_BASE + DRM_PSCNV_GETPARAM, struct drm_pscnv_getparam)
+#define DRM_IOCTL_PSCNV_GEM_NEW            DRM_IOWR(DRM_COMMAND_BASE + DRM_PSCNV_GEM_NEW, struct drm_pscnv_gem_info)
+#define DRM_IOCTL_PSCNV_GEM_INFO           DRM_IOWR(DRM_COMMAND_BASE + DRM_PSCNV_GEM_INFO, struct drm_pscnv_gem_info)
+/* also uses generic GEM close, flink, open ioctls */
+#define DRM_IOCTL_PSCNV_VSPACE_NEW         DRM_IOR(DRM_COMMAND_BASE + DRM_PSCNV_VSPACE_NEW, struct drm_pscnv_vspace_req)
+#define DRM_IOCTL_PSCNV_VSPACE_FREE        DRM_IOW(DRM_COMMAND_BASE + DRM_PSCNV_VSPACE_FREE, struct drm_pscnv_vspace_req)
+#define DRM_IOCTL_PSCNV_VSPACE_MAP         DRM_IOWR(DRM_COMMAND_BASE + DRM_PSCNV_VSPACE_MAP, struct drm_pscnv_vspace_map)
+#define DRM_IOCTL_PSCNV_VSPACE_UNMAP       DRM_IOW(DRM_COMMAND_BASE + DRM_PSCNV_VSPACE_UNMAP, struct drm_pscnv_vspace_unmap)
+#define DRM_IOCTL_PSCNV_CHAN_NEW           DRM_IOWR(DRM_COMMAND_BASE + DRM_PSCNV_CHAN_NEW, struct drm_pscnv_chan_new)
+#define DRM_IOCTL_PSCNV_CHAN_FREE          DRM_IOW(DRM_COMMAND_BASE + DRM_PSCNV_CHAN_FREE, struct drm_pscnv_chan_free)
+#define DRM_IOCTL_PSCNV_OBJ_VDMA_NEW       DRM_IOW(DRM_COMMAND_BASE + DRM_PSCNV_OBJ_VDMA_NEW, struct drm_pscnv_obj_vdma_new)
+#define DRM_IOCTL_PSCNV_FIFO_INIT          DRM_IOW(DRM_COMMAND_BASE + DRM_PSCNV_FIFO_INIT, struct drm_pscnv_fifo_init)
+#define DRM_IOCTL_PSCNV_OBJ_ENG_NEW        DRM_IOW(DRM_COMMAND_BASE + DRM_PSCNV_OBJ_ENG_NEW, struct drm_pscnv_obj_eng_new)
+#define DRM_IOCTL_PSCNV_FIFO_INIT_IB       DRM_IOW(DRM_COMMAND_BASE + DRM_PSCNV_FIFO_INIT_IB, struct drm_pscnv_fifo_init_ib)
+
 #endif /* __PSCNV_DRM_H__ */
