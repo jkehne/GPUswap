@@ -41,6 +41,7 @@
 #include "nouveau_connector.h"
 #include "nv50_display.h"
 #include "pscnv_engine.h"
+#include "pscnv_fifo.h"
 
 void
 nouveau_irq_preinstall(struct drm_device *dev)
@@ -1261,6 +1262,12 @@ nouveau_irq_handler(DRM_IRQ_ARGS)
 		dev_priv->fbdev_info->flags |= FBINFO_HWACCEL_DISABLED;
 	}
 #endif
+
+	if (status & 0x100) {
+		if (dev_priv->fifo)
+			dev_priv->fifo->irq_handler(dev);
+		status &= ~0x100;
+	}
 
 	for (i = 0; i < PSCNV_ENGINES_NUM; i++) {
 		eng = dev_priv->engines[i];

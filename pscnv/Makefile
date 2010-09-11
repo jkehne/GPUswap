@@ -8,7 +8,7 @@ pscnv-y := nouveau_drv.o nouveau_state.o \
 	     nv50_display.o nv50_crtc.o nv50_cursor.o nv50_calc.o nv50_dac.o \
 	     nv50_sor.o \
 	     pscnv_mm.o pscnv_mem.o pscnv_vm.o pscnv_gem.o \
-	     pscnv_ramht.o pscnv_chan.o pscnv_engine.o pscnv_sysram.o \
+	     pscnv_ramht.o pscnv_chan.o pscnv_engine.o pscnv_sysram.o pscnv_fifo.o \
 	     nv50_vram.o nv50_vm.o nv50_chan.o nv50_fifo.o nv50_graph.o \
 	     nvc0_vram.o nvc0_vm.o nvc0_chan.o
 

@@ -301,6 +301,7 @@ struct drm_nouveau_private {
 	struct pscnv_vram_engine *vram;
 	struct pscnv_vm_engine *vm;
 	struct pscnv_chan_engine *chan;
+	struct pscnv_fifo_engine *fifo;
 	struct pscnv_engine *engines[PSCNV_ENGINES_NUM];
 	int vm_ok;
 	uint64_t vm_ramin_base;

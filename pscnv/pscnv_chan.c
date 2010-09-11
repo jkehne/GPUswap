@@ -31,6 +31,7 @@
 #include "pscnv_vm.h"
 #include "pscnv_ramht.h"
 #include "pscnv_chan.h"
+#include "pscnv_fifo.h"
 #include "nv50_chan.h"
 
 
@@ -118,6 +119,7 @@ void pscnv_chan_ref_free(struct kref *ref) {
 
 	if (ch->cid >= 0) {
 		int i;
+		dev_priv->fifo->chan_kill(ch);
 		for (i = 0; i < PSCNV_ENGINES_NUM; i++)
 			if (ch->engdata[i]) {
 				struct pscnv_engine *eng = dev_priv->engines[i];

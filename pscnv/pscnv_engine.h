@@ -17,10 +17,8 @@ struct pscnv_engine {
 	void (*chan_kill) (struct pscnv_engine *eng, struct pscnv_chan *ch);
 };
 
-int nv50_fifo_init(struct drm_device *dev);
 int nv50_graph_init(struct drm_device *dev);
 
-#define PSCNV_ENGINE_FIFO	0
 #define PSCNV_ENGINE_GRAPH	1
 
 #define PSCNV_ENGINES_NUM	16

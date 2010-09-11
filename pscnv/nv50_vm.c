@@ -23,6 +23,7 @@ nv50_vm_flush(struct drm_device *dev, int unit) {
 int nv50_vspace_tlb_flush (struct pscnv_vspace *vs) {
 	struct drm_nouveau_private *dev_priv = vs->dev->dev_private;
 	int i, ret;
+	nv50_vm_flush(vs->dev, 5); /* PFIFO always active */
 	for (i = 0; i < PSCNV_ENGINES_NUM; i++) {
 		struct pscnv_engine *eng = dev_priv->engines[i];
 		if (nv50_vs(vs)->engref[i])

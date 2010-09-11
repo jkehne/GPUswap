@@ -27,6 +27,16 @@
 #ifndef __PSCNV_FIFO_H__
 #define __PSCNV_FIFO_H__
 
+struct pscnv_fifo_engine {
+	void (*takedown) (struct drm_device *dev);
+	void (*irq_handler) (struct drm_device *dev);
+	int (*chan_init_dma) (struct pscnv_chan *ch, uint32_t pb_handle, uint32_t flags, uint32_t slimask, uint64_t pb_start);
+	int (*chan_init_ib) (struct pscnv_chan *ch, uint32_t pb_handle, uint32_t flags, uint32_t slimask, uint64_t ib_start, uint32_t ib_order);
+	void (*chan_kill) (struct pscnv_chan *ch);
+};
+
+int nv50_fifo_init(struct drm_device *dev);
+
 int pscnv_ioctl_fifo_init(struct drm_device *dev, void *data,
 						struct drm_file *file_priv);
 int pscnv_ioctl_fifo_init_ib(struct drm_device *dev, void *data,
