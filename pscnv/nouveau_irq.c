@@ -1275,9 +1275,10 @@ nouveau_irq_handler(DRM_IRQ_ARGS)
 
 	for (i = 0; i < 32; i++) {
 		if (status & 1 << i) {
-			if (dev_priv->irq_handler[i])
+			if (dev_priv->irq_handler[i]) {
 				dev_priv->irq_handler[i](dev, i);
-			status &= ~(1 << i);
+				status &= ~(1 << i);
+			}
 		}
 	}
 
