@@ -27,12 +27,10 @@ int nvc0_chan_new (struct pscnv_chan *ch) {
 	nv_wv32(ch->bo, 0x20c, (vs->size - 1) >> 32);
 
 	if (ch->cid >= 0) {
-		NV_ERROR(ch->dev, "CH: No FIFO chan support\n");
+		nv_wr32(ch->dev, 0x3000 + ch->cid * 8, (0x4 << 28) | ch->bo->start >> 12);
 		spin_lock_irqsave(&dev_priv->chan->ch_lock, flags);
-		ch->handle = 0;
+		ch->handle = ch->bo->start >> 12;
 		spin_unlock_irqrestore(&dev_priv->chan->ch_lock, flags);
-		pscnv_mem_free(ch->bo);
-		return -ENOSYS;
 	}
 	dev_priv->vm->bar_flush(ch->dev);
 	return 0;
@@ -62,6 +60,8 @@ nvc0_chan_init(struct drm_device *dev) {
 		NV_ERROR(dev, "CH: Couldn't alloc engine\n");
 		return -ENOMEM;
 	}
+	nv_wr32(dev, 0x200, nv_rd32(dev, 0x200) & 0xfffffeff);
+	nv_wr32(dev, 0x200, nv_rd32(dev, 0x200) | 0x00000100);
 	che->base.takedown = nvc0_chan_takedown;
 	che->base.do_chan_new = nvc0_chan_new;
 	che->base.do_chan_free = nvc0_chan_free;

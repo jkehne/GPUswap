@@ -234,6 +234,10 @@ nouveau_card_init(struct drm_device *dev)
 				nv50_graph_init(dev);
 			}
 			break;
+		case NV_C0:
+			/* PFIFO */
+			nvc0_fifo_init(dev);
+			break;
 		default:
 			break;
 	}
