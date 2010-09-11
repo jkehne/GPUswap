@@ -349,6 +349,8 @@ nvc0_vm_init(struct drm_device *dev) {
 	nv_wr32(dev, 0x200, 0xfffffeff);
 	nv_wr32(dev, 0x200, 0xffffffff);
 
+	nv_wr32(dev, 0x100c80, 0x00208000);
+
 	vme->bar3vm = pscnv_vspace_new (dev, dev_priv->ramin_size, 0, 3);
 	if (!vme->bar3vm) {
 		kfree(vme);
