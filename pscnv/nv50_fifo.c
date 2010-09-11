@@ -124,7 +124,8 @@ void nv50_fifo_takedown(struct drm_device *dev) {
 	nv_wr32(dev, 0x2500, 0x101);
 	pscnv_mem_free(fifo->playlist[0]);
 	pscnv_mem_free(fifo->playlist[1]);
-	/* XXX */
+	kfree(fifo);
+	dev_priv->fifo = 0;
 }
 
 void nv50_fifo_playlist_update (struct drm_device *dev) {
