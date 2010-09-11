@@ -278,6 +278,11 @@ int nvc0_vspace_new(struct pscnv_vspace *vs) {
 
 	if (vs->vid != -3)
 		nvc0_vm_map_kernel(nvc0_vs(vs)->pd);
+
+	for (i = 0; i < NVC0_VM_PDE_COUNT; i++) {
+		nv_wv32(nvc0_vs(vs)->pd, i * 8, 0);
+		nv_wv32(nvc0_vs(vs)->pd, i * 8 + 4, 0);
+	}
 	
 	for (i = 0; i < NVC0_PDE_HT_SIZE; ++i)
 		INIT_LIST_HEAD(&nvc0_vs(vs)->ptht[i]);
