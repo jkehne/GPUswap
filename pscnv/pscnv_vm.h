@@ -74,19 +74,8 @@ static inline void pscnv_vspace_unref(struct pscnv_vspace *vs) {
 	kref_put(&vs->ref, pscnv_vspace_ref_free);
 }
 
-struct pscnv_vspace *pscnv_get_vspace(struct drm_device *dev, struct drm_file *file_priv, int vid);
-
-extern void pscnv_vspace_cleanup(struct drm_device *dev, struct drm_file *file_priv);
 extern int pscnv_mmap(struct file *filp, struct vm_area_struct *vma);
 
-int pscnv_ioctl_vspace_new(struct drm_device *dev, void *data,
-						struct drm_file *file_priv);
-int pscnv_ioctl_vspace_free(struct drm_device *dev, void *data,
-						struct drm_file *file_priv);
-int pscnv_ioctl_vspace_map(struct drm_device *dev, void *data,
-						struct drm_file *file_priv);
-int pscnv_ioctl_vspace_unmap(struct drm_device *dev, void *data,
-						struct drm_file *file_priv);
 
 int nv50_vm_init(struct drm_device *dev);
 int nvc0_vm_init(struct drm_device *dev);

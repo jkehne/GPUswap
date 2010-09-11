@@ -27,8 +27,8 @@
 #include "drm.h"
 #include "drmP.h"
 #include "nouveau_drv.h"
-#include "pscnv_fifo.h"
 #include "pscnv_chan.h"
+#include "pscnv_fifo.h"
 #include "nv50_vm.h"
 
 struct nv50_fifo_engine {

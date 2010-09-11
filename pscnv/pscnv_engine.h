@@ -23,7 +23,5 @@ int nv50_graph_init(struct drm_device *dev);
 
 #define PSCNV_ENGINES_NUM	16
 
-int pscnv_ioctl_obj_eng_new(struct drm_device *dev, void *data,
-						struct drm_file *file_priv);
 
 #endif

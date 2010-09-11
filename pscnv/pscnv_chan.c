@@ -32,8 +32,7 @@
 #include "pscnv_ramht.h"
 #include "pscnv_chan.h"
 #include "pscnv_fifo.h"
-#include "nv50_chan.h"
-
+#include "pscnv_ioctl.h"
 
 static int pscnv_chan_bind (struct pscnv_chan *ch, int fake) {
 	struct drm_nouveau_private *dev_priv = ch->dev->dev_private;
@@ -134,106 +133,6 @@ void pscnv_chan_ref_free(struct kref *ref) {
 	kfree(ch);
 }
 
-/* needs vm_mutex held */
-struct pscnv_chan *
-pscnv_get_chan(struct drm_device *dev, struct drm_file *file_priv, int cid)
-{
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	unsigned long flags;
-	spin_lock_irqsave(&dev_priv->chan->ch_lock, flags);
-
-	if (cid < 128 && cid >= 0 && dev_priv->chan->chans[cid] && dev_priv->chan->chans[cid]->filp == file_priv) {
-		struct pscnv_chan *res = dev_priv->chan->chans[cid];
-		pscnv_chan_ref(res);
-		spin_unlock_irqrestore(&dev_priv->chan->ch_lock, flags);
-		return res;
-	}
-	spin_unlock_irqrestore(&dev_priv->chan->ch_lock, flags);
-	return 0;
-}
-
-int pscnv_ioctl_chan_new(struct drm_device *dev, void *data,
-						struct drm_file *file_priv)
-{
-	struct drm_pscnv_chan_new *req = data;
-	struct pscnv_vspace *vs;
-	struct pscnv_chan *ch;
-
-	NOUVEAU_CHECK_INITIALISED_WITH_RETURN;
-
-	vs = pscnv_get_vspace(dev, file_priv, req->vid);
-	if (!vs)
-		return -ENOENT;
-
-	ch = pscnv_chan_new(dev, vs, 0);
-	if (!ch) {
-		pscnv_vspace_unref(vs);
-		return -ENOMEM;
-	}
-	pscnv_vspace_unref(vs);
-
-	req->cid = ch->cid;
-	req->map_handle = 0xc0000000 | ch->cid << 16;
-
-	ch->filp = file_priv;
-	
-	return 0;
-}
-
-int pscnv_ioctl_chan_free(struct drm_device *dev, void *data,
-						struct drm_file *file_priv)
-{
-	struct drm_pscnv_chan_free *req = data;
-	struct pscnv_chan *ch;
-
-	NOUVEAU_CHECK_INITIALISED_WITH_RETURN;
-
-	ch = pscnv_get_chan(dev, file_priv, req->cid);
-	if (!ch)
-		return -ENOENT;
-
-	ch->filp = 0;
-	pscnv_chan_unref(ch);
-	pscnv_chan_unref(ch);
-
-	return 0;
-}
-
-int pscnv_ioctl_obj_vdma_new(struct drm_device *dev, void *data,
-						struct drm_file *file_priv) {
-	struct drm_pscnv_obj_vdma_new *req = data;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct pscnv_chan *ch;
-	int ret;
-	uint32_t oclass, inst;
-
-	NOUVEAU_CHECK_INITIALISED_WITH_RETURN;
-
-	if (dev_priv->card_type != NV_50)
-		return -ENOSYS;
-
-	oclass = req->oclass;
-
-	if (oclass != 2 && oclass != 3 && oclass != 0x3d)
-		return -EINVAL;
-
-	ch = pscnv_get_chan(dev, file_priv, req->cid);
-	if (!ch)
-		return -ENOENT;
-
-	inst = nv50_chan_dmaobj_new(ch, 0x7fc00000 | oclass, req->start, req->size);
-	if (!inst) {
-		pscnv_chan_unref(ch);
-		return -ENOMEM;
-	}
-
-	ret = pscnv_ramht_insert (&ch->ramht, req->handle, inst >> 4);
-
-	pscnv_chan_unref(ch);
-
-	return ret;
-}
-
 static void pscnv_chan_vm_open(struct vm_area_struct *vma) {
 	struct pscnv_chan *ch = vma->vm_private_data;
 	pscnv_chan_ref(ch);
@@ -279,20 +178,6 @@ int pscnv_chan_mmap(struct file *filp, struct vm_area_struct *vma)
 		return -ENOSYS;
 	}
 	return -EINVAL;
-}
-
-void pscnv_chan_cleanup(struct drm_device *dev, struct drm_file *file_priv) {
-	int cid;
-	struct pscnv_chan *ch;
-
-	for (cid = 0; cid < 128; cid++) {
-		ch = pscnv_get_chan(dev, file_priv, cid);
-		if (!ch)
-			continue;
-		ch->filp = 0;
-		pscnv_chan_unref(ch);
-		pscnv_chan_unref(ch);
-	}
 }
 
 int pscnv_chan_handle_lookup(struct drm_device *dev, uint32_t handle) {

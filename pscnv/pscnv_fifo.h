@@ -37,9 +37,4 @@ struct pscnv_fifo_engine {
 
 int nv50_fifo_init(struct drm_device *dev);
 
-int pscnv_ioctl_fifo_init(struct drm_device *dev, void *data,
-						struct drm_file *file_priv);
-int pscnv_ioctl_fifo_init_ib(struct drm_device *dev, void *data,
-						struct drm_file *file_priv);
-
 #endif

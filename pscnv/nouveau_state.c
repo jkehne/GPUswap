@@ -40,6 +40,7 @@
 #include "pscnv_vm.h"
 #include "pscnv_chan.h"
 #include "pscnv_fifo.h"
+#include "pscnv_ioctl.h"
 
 static void nouveau_stub_takedown(struct drm_device *dev) {}
 static int nouveau_stub_init(struct drm_device *dev) { return 0; }
@@ -608,55 +609,6 @@ int nouveau_unload(struct drm_device *dev)
 
 	kfree(dev_priv);
 	dev->dev_private = NULL;
-	return 0;
-}
-
-int pscnv_ioctl_getparam(struct drm_device *dev, void *data,
-						struct drm_file *file_priv)
-{
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct drm_pscnv_getparam *getparam = data;
-
-	NOUVEAU_CHECK_INITIALISED_WITH_RETURN;
-
-	switch (getparam->param) {
-	case PSCNV_GETPARAM_CHIPSET_ID:
-		getparam->value = dev_priv->chipset;
-		break;
-	case PSCNV_GETPARAM_PCI_VENDOR:
-		getparam->value = dev->pci_vendor;
-		break;
-	case PSCNV_GETPARAM_PCI_DEVICE:
-		getparam->value = dev->pci_device;
-		break;
-	case PSCNV_GETPARAM_BUS_TYPE:
-		if (drm_device_is_agp(dev))
-			getparam->value = NV_AGP;
-		else if (drm_device_is_pcie(dev))
-			getparam->value = NV_PCIE;
-		else
-			getparam->value = NV_PCI;
-		break;
-	case PSCNV_GETPARAM_PTIMER_TIME:
-		getparam->value = nv04_timer_read(dev);
-		break;
-	case PSCNV_GETPARAM_FB_SIZE:
-		getparam->value = dev_priv->vram_size;
-		break;
-	case PSCNV_GETPARAM_GRAPH_UNITS:
-		/* NV40 and NV50 versions are quite different, but register
-		 * address is the same. User is supposed to know the card
-		 * family anyway... */
-		if (dev_priv->card_type >= NV_40 && dev_priv->card_type < NV_C0) {
-			getparam->value = nv_rd32(dev, NV40_PMC_GRAPH_UNITS);
-			break;
-		}
-		/* FALLTHRU */
-	default:
-		NV_ERROR(dev, "unknown parameter %lld\n", getparam->param);
-		return -EINVAL;
-	}
-
 	return 0;
 }
 
