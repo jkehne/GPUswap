@@ -9,7 +9,6 @@ struct pscnv_engine {
 	int irq;
 	uint32_t *oclasses;
 	void (*takedown) (struct pscnv_engine *eng);
-	void (*irq_handler) (struct pscnv_engine *eng);
 	int (*tlb_flush) (struct pscnv_engine *eng, struct pscnv_vspace *vs);
 	int (*chan_alloc) (struct pscnv_engine *eng, struct pscnv_chan *ch);
 	void (*chan_free) (struct pscnv_engine *eng, struct pscnv_chan *ch);

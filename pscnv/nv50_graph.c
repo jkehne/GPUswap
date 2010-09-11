@@ -141,7 +141,7 @@ static int nvaf_graph_oclasses[] = {
 };
 
 void nv50_graph_takedown(struct pscnv_engine *eng);
-void nv50_graph_irq_handler(struct pscnv_engine *eng);
+void nv50_graph_irq_handler(struct drm_device *dev, int irq);
 int nv50_graph_tlb_flush(struct pscnv_engine *eng, struct pscnv_vspace *vs);
 int nv50_graph_chan_alloc(struct pscnv_engine *eng, struct pscnv_chan *ch);
 void nv50_graph_chan_free(struct pscnv_engine *eng, struct pscnv_chan *ch);
@@ -175,7 +175,6 @@ int nv50_graph_init(struct drm_device *dev) {
 	else
 		res->base.oclasses = nvaf_graph_oclasses;
 	res->base.takedown = nv50_graph_takedown;
-	res->base.irq_handler = nv50_graph_irq_handler;
 	res->base.tlb_flush = nv50_graph_tlb_flush;
 	res->base.chan_alloc = nv50_graph_chan_alloc;
 	res->base.chan_kill = nv50_graph_chan_kill;
@@ -207,9 +206,7 @@ int nv50_graph_init(struct drm_device *dev) {
 			}
 		}
 	nv_wr32(dev, 0x400108, -1);	/* TRAP */
-	nv_wr32(dev, 0x400138, -1);	/* TRAP_EN */
 	nv_wr32(dev, 0x400100, -1);	/* INTR */
-	nv_wr32(dev, 0x40013c, -1);	/* INTR_EN */
 
 	/* set ctxprog flags */
 	nv_wr32(dev, 0x400824, 0x00004000);
@@ -254,13 +251,22 @@ int nv50_graph_init(struct drm_device *dev) {
 	nv_wr32(dev, 0x400320, 4);
 
 	dev_priv->engines[PSCNV_ENGINE_GRAPH] = &res->base;
+
+	nouveau_irq_register(dev, 12, nv50_graph_irq_handler);
+
+	nv_wr32(dev, 0x400138, -1);	/* TRAP_EN */
+	nv_wr32(dev, 0x40013c, -1);	/* INTR_EN */
 	return 0;
 }
 
 void nv50_graph_takedown(struct pscnv_engine *eng) {
+	struct drm_nouveau_private *dev_priv = eng->dev->dev_private;
 	nv_wr32(eng->dev, 0x400138, 0);	/* TRAP_EN */
 	nv_wr32(eng->dev, 0x40013c, 0);	/* INTR_EN */
+	nouveau_irq_unregister(eng->dev, 12);
 	/* XXX */
+	kfree(eng);
+	dev_priv->engines[PSCNV_ENGINE_GRAPH] = 0;
 }
 
 int nv50_graph_chan_alloc(struct pscnv_engine *eng, struct pscnv_chan *ch) {
@@ -573,10 +579,9 @@ void nv50_graph_trap_handler(struct drm_device *dev, int cid) {
 	}
 }
 
-void nv50_graph_irq_handler(struct pscnv_engine *eng) {
-	struct drm_device *dev = eng->dev;
+void nv50_graph_irq_handler(struct drm_device *dev, int irq) {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nv50_graph_engine *graph = nv50_graph(eng);
+	struct nv50_graph_engine *graph = nv50_graph(dev_priv->engines[PSCNV_ENGINE_GRAPH]);
 	uint32_t status;
 	unsigned long flags;
 	uint32_t st, chandle, addr, data, datah, ecode, class, subc, mthd;

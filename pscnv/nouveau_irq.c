@@ -1227,6 +1227,24 @@ nouveau_pbus_irq_handler(struct drm_device *dev) {
 	}
 }
 
+void nouveau_irq_register(struct drm_device *dev, int irq, nouveau_irqhandler_t handler) {
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	unsigned long flags;
+	spin_lock_irqsave(&dev_priv->irq_lock, flags);
+	BUG_ON(dev_priv->irq_handler[irq]);
+	dev_priv->irq_handler[irq] = handler;
+	spin_unlock_irqrestore(&dev_priv->irq_lock, flags);
+}
+
+void nouveau_irq_unregister(struct drm_device *dev, int irq) {
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	unsigned long flags;
+	spin_lock_irqsave(&dev_priv->irq_lock, flags);
+	BUG_ON(!dev_priv->irq_handler[irq]);
+	dev_priv->irq_handler[irq] = 0;
+	spin_unlock_irqrestore(&dev_priv->irq_lock, flags);
+}
+
 irqreturn_t
 nouveau_irq_handler(DRM_IRQ_ARGS)
 {
@@ -1238,7 +1256,6 @@ nouveau_irq_handler(DRM_IRQ_ARGS)
 #endif
 	unsigned long flags;
 	int i;
-	struct pscnv_engine *eng;
 
 	status = nv_rd32(dev, NV03_PMC_INTR_0);
 	if (!status)
@@ -1256,26 +1273,20 @@ nouveau_irq_handler(DRM_IRQ_ARGS)
 		status &= ~0x10000000;
 	}
 
+	for (i = 0; i < 32; i++) {
+		if (status & 1 << i) {
+			if (dev_priv->irq_handler[i])
+				dev_priv->irq_handler[i](dev, i);
+			status &= ~(1 << i);
+		}
+	}
+
 #if 0
 	if (dev_priv->fbdev_info) {
 		fbdev_flags = dev_priv->fbdev_info->flags;
 		dev_priv->fbdev_info->flags |= FBINFO_HWACCEL_DISABLED;
 	}
 #endif
-
-	if (status & 0x100) {
-		if (dev_priv->fifo)
-			dev_priv->fifo->irq_handler(dev);
-		status &= ~0x100;
-	}
-
-	for (i = 0; i < PSCNV_ENGINES_NUM; i++) {
-		eng = dev_priv->engines[i];
-		if (eng && eng->irq != -1 && (status & 1 << eng->irq)) {
-			eng->irq_handler(eng);
-			status &= ~(1 << eng->irq);
-		}
-	}
 
 	if (status & NV_PMC_INTR_0_CRTCn_PENDING) {
 		nouveau_crtc_irq_handler(dev, (status>>24)&3);

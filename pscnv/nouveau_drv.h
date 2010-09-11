@@ -44,6 +44,8 @@
 #include "pscnv_engine.h"
 struct nouveau_grctx;
 
+typedef void (*nouveau_irqhandler_t) (struct drm_device *dev, int irq);
+
 #define MAX_NUM_DCB_ENTRIES 16
 
 #define NOUVEAU_MAX_CHANNEL_NR 128
@@ -310,6 +312,7 @@ struct drm_nouveau_private {
 #endif
 
 	spinlock_t irq_lock;
+	nouveau_irqhandler_t irq_handler[32];
 
 #if 0 /* relevant only for pre-NV50 */
 	/* RAMIN configuration, RAMFC, RAMHT and RAMRO offsets */
@@ -576,6 +579,8 @@ extern irqreturn_t nouveau_irq_handler(DRM_IRQ_ARGS);
 extern void        nouveau_irq_preinstall(struct drm_device *);
 extern int         nouveau_irq_postinstall(struct drm_device *);
 extern void        nouveau_irq_uninstall(struct drm_device *);
+extern void        nouveau_irq_register(struct drm_device *, int irq, nouveau_irqhandler_t handler);
+extern void        nouveau_irq_unregister(struct drm_device *, int irq);
 #if 0
 /* nouveau_sgdma.c */
 extern int nouveau_sgdma_init(struct drm_device *);

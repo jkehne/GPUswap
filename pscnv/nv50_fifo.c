@@ -41,7 +41,7 @@ struct nv50_fifo_engine {
 #define nv50_fifo(x) container_of(x, struct nv50_fifo_engine, base)
 
 void nv50_fifo_takedown(struct drm_device *dev);
-void nv50_fifo_irq_handler(struct drm_device *dev);
+void nv50_fifo_irq_handler(struct drm_device *dev, int irq);
 int nv50_fifo_chan_init_dma (struct pscnv_chan *ch, uint32_t pb_handle, uint32_t flags, uint32_t slimask, uint64_t pb_start);
 int nv50_fifo_chan_init_ib (struct pscnv_chan *ch, uint32_t pb_handle, uint32_t flags, uint32_t slimask, uint64_t ib_start, uint32_t ib_order);
 void nv50_fifo_chan_kill(struct pscnv_chan *ch);
@@ -57,7 +57,6 @@ int nv50_fifo_init(struct drm_device *dev) {
 	}
 
 	res->base.takedown = nv50_fifo_takedown;
-	res->base.irq_handler = nv50_fifo_irq_handler;
 	res->base.chan_kill = nv50_fifo_chan_kill;
 	res->base.chan_init_dma = nv50_fifo_chan_init_dma;
 	res->base.chan_init_ib = nv50_fifo_chan_init_ib;
@@ -86,9 +85,8 @@ int nv50_fifo_init(struct drm_device *dev) {
 	for (i = 0; i < 128; i++)
 		nv_wr32(dev, 0x2600 + i * 4, 0);
 	
-	/* reset and enable interrupts */
+	/* reset interrupts */
 	nv_wr32(dev, 0x2100, -1);
-	nv_wr32(dev, 0x2140, -1);
 
 	/* XXX: wtf? */
 	nv_wr32(dev, 0x250c, 0x6f3cfc34);
@@ -107,6 +105,10 @@ int nv50_fifo_init(struct drm_device *dev) {
 	nv_wr32(dev, 0x2500, 1);
 
 	dev_priv->fifo = &res->base;
+
+	/* enable interrupts */
+	nouveau_irq_register(dev, 8, nv50_fifo_irq_handler);
+	nv_wr32(dev, 0x2140, -1);
 	return 0;
 }
 
@@ -114,9 +116,10 @@ void nv50_fifo_takedown(struct drm_device *dev) {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	int i;
 	struct nv50_fifo_engine *fifo = nv50_fifo(dev_priv->fifo);
+	nv_wr32(dev, 0x2140, 0);
+	nouveau_irq_unregister(dev, 8);
 	for (i = 0; i < 128; i++)
 		nv_wr32(dev, 0x2600 + i * 4, 0);
-	nv_wr32(dev, 0x2140, 0);
 	nv_wr32(dev, 0x32ec, 0);
 	nv_wr32(dev, 0x2500, 0x101);
 	pscnv_mem_free(fifo->playlist[0]);
@@ -356,7 +359,7 @@ static struct pscnv_enumval *pscnv_enum_find (struct pscnv_enumval *list, int va
 		return 0;
 }
 
-void nv50_fifo_irq_handler(struct drm_device *dev) {
+void nv50_fifo_irq_handler(struct drm_device *dev, int irq) {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct nv50_fifo_engine *fifo = nv50_fifo(dev_priv->fifo);
 	uint32_t status;
