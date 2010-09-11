@@ -190,6 +190,7 @@ nv50_vram_alloc(struct pscnv_bo *bo)
 	ret = pscnv_mm_alloc(dev_priv->vram_mm, bo->size, flags, 0, dev_priv->vram_size, &bo->mmnode);
 	if (bo->flags & PSCNV_GEM_CONTIG)
 		bo->start = bo->mmnode->start;
+	bo->mmnode->tag = bo;
 	mutex_unlock(&dev_priv->vram_mutex);
 	return ret;
 }

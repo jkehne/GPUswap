@@ -165,6 +165,8 @@ restart:
 	if (!cur->sentinel) {
 		while (cur->prev)
 			cur = cur->prev;
+		if (pscnv_mm_debug >= 1)
+			NV_INFO (mm->dev, "MM: takedown free %llx..%llx type %d\n", cur->start, cur->start + cur->size, cur->type);
 		free_callback(cur);
 		goto restart;
 	}
