@@ -29,7 +29,7 @@ all: pscnv_kapi.h
 clean:
 	+make -C $(SYSSRC) M=$(PWD) clean
 
-pscnv_kapi.h:
+pscnv_kapi.h: kapitest.sh
 	./kapitest.sh $(SYSSRC) > pscnv_kapi.h
 
 .PHONY: kapitest
