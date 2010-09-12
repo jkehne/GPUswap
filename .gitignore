@@ -13,4 +13,5 @@ test/gem
 test/map
 test/m2mf
 test/loop
+test/subc0
 *.a
