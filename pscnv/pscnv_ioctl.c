@@ -8,6 +8,7 @@
 #include "pscnv_fifo.h"
 #include "pscnv_gem.h"
 #include "nv50_chan.h"
+#include "pscnv_kapi.h"
 
 int pscnv_ioctl_getparam(struct drm_device *dev, void *data,
 						struct drm_file *file_priv)
@@ -458,7 +459,7 @@ struct drm_ioctl_desc nouveau_ioctls[] = {
 	DRM_IOCTL_DEF_DRV(PSCNV_OBJ_ENG_NEW, pscnv_ioctl_obj_eng_new, DRM_UNLOCKED),
 	DRM_IOCTL_DEF_DRV(PSCNV_FIFO_INIT_IB, pscnv_ioctl_fifo_init_ib, DRM_UNLOCKED),
 };
-#else
+#elif defined(PSCNV_KAPI_DRM_IOCTL_DEF)
 struct drm_ioctl_desc nouveau_ioctls[] = {
 	DRM_IOCTL_DEF(DRM_PSCNV_GETPARAM, pscnv_ioctl_getparam, DRM_UNLOCKED),
 	DRM_IOCTL_DEF(DRM_PSCNV_GEM_NEW, pscnv_ioctl_gem_new, DRM_UNLOCKED),
@@ -474,6 +475,8 @@ struct drm_ioctl_desc nouveau_ioctls[] = {
 	DRM_IOCTL_DEF(DRM_PSCNV_OBJ_ENG_NEW, pscnv_ioctl_obj_eng_new, DRM_UNLOCKED),
 	DRM_IOCTL_DEF(DRM_PSCNV_FIFO_INIT_IB, pscnv_ioctl_fifo_init_ib, DRM_UNLOCKED),
 };
+#else
+#error "Unknown IOCTLDEF method."
 #endif
 
 int nouveau_max_ioctl = DRM_ARRAY_SIZE(nouveau_ioctls);
