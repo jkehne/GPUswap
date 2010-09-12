@@ -122,6 +122,10 @@ int nvc0_fifo_init(struct drm_device *dev)
         nv_wr32(dev, 0x2218, 0xfffffffb);
         nv_wr32(dev, 0x221c, 0xfffffffd);
 
+	nv_wr32(dev, 0x4010c, 0xffffffff);
+	nv_wr32(dev, 0x4210c, 0xffffffff);
+	nv_wr32(dev, 0x4410c, 0xffffffff);
+
 	nv_wr32(dev, 0x2200, 1);
 
 	nv_wr32(dev, 0x2254,
@@ -300,6 +304,34 @@ void nvc0_pfifo_page_fault(struct drm_device *dev, int unit)
 		(flags & 0x80) ? 'w' : 'r', pgf_cause_str(flags));
 }
 
+void nvc0_pfifo_subfifo_fault(struct drm_device *dev, int unit)
+{
+	int cid = nv_rd32(dev, 0x40120 + unit * 0x2000) & 0x7f;
+	int status = nv_rd32(dev, 0x40108 + unit * 0x2000);
+	uint32_t addr = nv_rd32(dev, 0x400c0 + unit * 0x2000);
+	uint32_t data = nv_rd32(dev, 0x400c4 + unit * 0x2000);
+	int sub = addr >> 16 & 7;
+	int mthd = addr & 0x3ffc;
+	int mode = addr >> 21 & 7;
+
+	if (status & 0x200000) {
+		NV_INFO(dev, "PSUBFIFO %d ILLEGAL_MTHD: ch %d sub %d mthd %04x%s [mode %d] data %08x\n", unit, cid, sub, mthd, ((addr & 1)?" NI":""), mode, data);
+		nv_wr32(dev, 0x400c0 + unit * 0x2000, 0x80600008);
+		nv_wr32(dev, 0x40108 + unit * 0x2000, 0x200000);
+		status &= ~0x200000;
+	}
+	if (status & 0x800000) {
+		NV_INFO(dev, "PSUBFIFO %d EMPTY_SUBCHANNEL: ch %d sub %d mthd %04x%s [mode %d] data %08x\n", unit, cid, sub, mthd, ((addr & 1)?" NI":""), mode, data);
+		nv_wr32(dev, 0x400c0 + unit * 0x2000, 0x80600008);
+		nv_wr32(dev, 0x40108 + unit * 0x2000, 0x800000);
+		status &= ~0x800000;
+	}
+	if (status) {
+		NV_INFO(dev, "unknown PSUBFIFO INTR: 0x%08x\n", status);
+		nv_wr32(dev, 0x4010c + unit * 0x2000, nv_rd32(dev, 0x4010c + unit * 0x2000) & ~status);
+	}
+}
+
 void nvc0_fifo_irq_handler(struct drm_device *dev, int irq)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
@@ -329,6 +361,18 @@ void nvc0_fifo_irq_handler(struct drm_device *dev, int irq)
 		status &= ~0x10000000;
 	}
 
+	if (status & 0x20000000) {
+		uint32_t bits = nv_rd32(dev, 0x25a0);
+		uint32_t units = bits;
+		while (units) {
+			int i = ffs(units) - 1;
+			units &= ~(1 << i);
+			nvc0_pfifo_subfifo_fault(dev, i);
+		}
+		nv_wr32(dev, 0x25a0, bits); /* ack */
+		status &= ~0x20000000;
+	}
+
 	if (status & 0x00000100) {
 		uint32_t ibpk[2];
 		uint32_t data = nv_rd32(dev, 0x400c4);
@@ -342,8 +386,7 @@ void nvc0_fifo_irq_handler(struct drm_device *dev, int irq)
 	}
 
 	if (status) {
-		NV_INFO(dev, "unknown PFIFO INTR: 0x%08x\n",
-			status);
+		NV_INFO(dev, "unknown PFIFO INTR: 0x%08x\n", status);
 		/* disable interrupts */
 		nv_wr32(dev, 0x2140, nv_rd32(dev, 0x2140) & ~status);
 	}
