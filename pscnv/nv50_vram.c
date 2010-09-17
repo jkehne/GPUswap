@@ -190,8 +190,11 @@ nv50_vram_alloc(struct pscnv_bo *bo)
 		default:
 			return -EINVAL;
 	}
-	if ((bo->flags & PSCNV_GEM_MEMTYPE_MASK) == PSCNV_GEM_VRAM_LARGE)
+	bo->size = roundup(bo->size, 0x1000);
+	if ((bo->flags & PSCNV_GEM_MEMTYPE_MASK) == PSCNV_GEM_VRAM_LARGE) {
 		flags |= PSCNV_MM_LP;
+		bo->size = roundup(bo->size, 0x10000);
+	}
 	if (!(bo->flags & PSCNV_GEM_CONTIG))
 		flags |= PSCNV_MM_FRAGOK;
 	mutex_lock(&dev_priv->vram_mutex);
