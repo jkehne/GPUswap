@@ -51,48 +51,56 @@ nv50_vram_init(struct drm_device *dev)
 	dev_priv->vram->free = pscnv_vram_free;
 	dev_priv->vram->takedown = pscnv_vram_takedown;
 
-	/* XXX: NVAA/NVAC don't have VRAM, only stolen system RAM. figure out
-	 * how much of all this is applicable there. */
-	r0 = nv_rd32(dev, 0x100200);
-	r4 = nv_rd32(dev, 0x100204);
-	rc = nv_rd32(dev, 0x10020c);
-	rt = nv_rd32(dev, 0x100250);
-	ru = nv_rd32(dev, 0x1540);
-	NV_INFO (dev, "Memory config regs: %08x %08x %08x %08x %08x\n", r0, r4, rc, rt, ru);
-
-	parts = 0;
-	for (i = 0; i < 8; i++)
-		if (ru & (1 << (i + 16)))
-			parts++;
-	colbits = (r4 >> 12) & 0xf;
-	rowbitsa = ((r4 >> 16) & 0xf) + 8;
-	rowbitsb = ((r4 >> 20) & 0xf) + 8;
-	banks = ((r4 & 1 << 24) ? 8 : 4);
-	rowsize = parts * banks * (1 << colbits) * 8;
-	predicted = rowsize << rowbitsa;
-	if (r0 & 4)
-		predicted += rowsize << rowbitsb;
-
-	dev_priv->vram_size = (rc & 0xfffff000) | ((uint64_t)rc & 0xff) << 32;
-	if (!dev_priv->vram_size) {
-		NV_ERROR(dev, "Memory controller claims 0 VRAM - aborting.\n");
-		kfree(dev_priv->vram);
-		return -ENODEV;
-	}
-	if (dev_priv->vram_size != predicted) {
-		NV_WARN(dev, "Memory controller reports VRAM size of 0x%llx, inconsistent with our calculation of 0x%llx!\n", dev_priv->vram_size, predicted);
-	}
-	if (dev_priv->chipset == 0xaa || dev_priv->chipset == 0xac)
+	if (dev_priv->chipset == 0xaa || dev_priv->chipset == 0xac || dev_priv->chipset == 0xaf) {
+		rc = nv_rd32(dev, 0x10020c);
 		dev_priv->vram_sys_base = (uint64_t)nv_rd32(dev, 0x100e10) << 12;
+		dev_priv->vram_size = (rc & 0xfffff000) | ((uint64_t)rc & 0xff) << 32;
+		rblock_size = 0x1000;
 
-	/* XXX: 100250 has more bits. check what they do some day. */
-	if (rt & 1)
-		rblock_size = rowsize * 3;
-	else
-		rblock_size = rowsize;
+		NV_INFO(dev, "VRAM: IGP stolen area at %llx size 0x%llx",
+				dev_priv->vram_sys_base, dev_priv->vram_size);
+	} else {
+		dev_priv->vram_sys_base = 0;
 
-	NV_INFO(dev, "VRAM: size 0x%llx, LSR period %x\n",
-			dev_priv->vram_size, rblock_size);
+		r0 = nv_rd32(dev, 0x100200);
+		r4 = nv_rd32(dev, 0x100204);
+		rc = nv_rd32(dev, 0x10020c);
+		rt = nv_rd32(dev, 0x100250);
+		ru = nv_rd32(dev, 0x1540);
+		NV_INFO (dev, "Memory config regs: %08x %08x %08x %08x %08x\n", r0, r4, rc, rt, ru);
+
+		parts = 0;
+		for (i = 0; i < 8; i++)
+			if (ru & (1 << (i + 16)))
+				parts++;
+		colbits = (r4 >> 12) & 0xf;
+		rowbitsa = ((r4 >> 16) & 0xf) + 8;
+		rowbitsb = ((r4 >> 20) & 0xf) + 8;
+		banks = ((r4 & 1 << 24) ? 8 : 4);
+		rowsize = parts * banks * (1 << colbits) * 8;
+		predicted = rowsize << rowbitsa;
+		if (r0 & 4)
+			predicted += rowsize << rowbitsb;
+
+		dev_priv->vram_size = (rc & 0xfffff000) | ((uint64_t)rc & 0xff) << 32;
+		if (!dev_priv->vram_size) {
+			NV_ERROR(dev, "Memory controller claims 0 VRAM - aborting.\n");
+			kfree(dev_priv->vram);
+			return -ENODEV;
+		}
+		if (dev_priv->vram_size != predicted) {
+			NV_WARN(dev, "Memory controller reports VRAM size of 0x%llx, inconsistent with our calculation of 0x%llx!\n", dev_priv->vram_size, predicted);
+		}
+
+		/* XXX: 100250 has more bits. check what they do some day. */
+		if (rt & 1)
+			rblock_size = rowsize * 3;
+		else
+			rblock_size = rowsize;
+
+		NV_INFO(dev, "VRAM: size 0x%llx, LSR period %x\n",
+				dev_priv->vram_size, rblock_size);
+	}
 
 	ret = pscnv_mm_init(dev, 0x40000, dev_priv->vram_size - 0x20000, 0x1000, 0x10000, rblock_size, &dev_priv->vram_mm);
 	if (ret) {
