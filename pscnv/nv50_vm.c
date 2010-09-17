@@ -87,6 +87,10 @@ nv50_vspace_do_map (struct pscnv_vspace *vs, struct pscnv_bo *bo, uint64_t offse
 					uint32_t pdenum = pgnum / NV50_VM_SPTE_COUNT;
 					uint32_t ptenum = pgnum % NV50_VM_SPTE_COUNT;
 					uint64_t pte = n->start + roff;
+					if (dev_priv->chipset == 0xaa || dev_priv->chipset == 0xac || dev_priv->chipset == 0xaf) {
+						pte += dev_priv->vram_sys_base;
+						pte |= 0x30;
+					}
 					pte |= (uint64_t)bo->tile_flags << 40;
 					pte |= 1; /* present */
 					if (!nv50_vs(vs)->pt[pdenum])
