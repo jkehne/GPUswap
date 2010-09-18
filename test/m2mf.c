@@ -104,6 +104,10 @@ main()
 	}
 
 	volatile uint32_t *chmap = mmap(0, 0x2000, PROT_READ | PROT_WRITE, MAP_SHARED, fd, ch_map_handle);
+	if ((void *)chmap == MAP_FAILED) {
+		perror("mmap");
+		return 1;
+	}
 	printf ("Mapped at %p\n", chmap);
 
 	pb_map[0] = 0x40060;
