@@ -172,6 +172,9 @@ int pscnv_chan_mmap(struct file *filp, struct vm_area_struct *vma)
 			vma->vm_flags |= VM_RESERVED | VM_IO | VM_PFNMAP | VM_DONTEXPAND;
 			vma->vm_ops = &pscnv_chan_vm_ops;
 			vma->vm_private_data = ch;
+
+			vma->vm_file = filp;
+
 			return remap_pfn_range(vma, vma->vm_start, 
 				(dev_priv->mmio_phys + 0xc00000 + cid * 0x2000) >> PAGE_SHIFT,
 				vma->vm_end - vma->vm_start, PAGE_SHARED);
