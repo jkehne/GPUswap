@@ -34,6 +34,8 @@
 void pscnv_gem_free_object (struct drm_gem_object *obj) {
 	struct pscnv_bo *vo = obj->driver_private;
 	pscnv_mem_free(vo);
+	drm_gem_object_release(obj);
+	kfree(obj);
 }
 
 struct drm_gem_object *pscnv_gem_new(struct drm_device *dev, uint64_t size, uint32_t flags,
