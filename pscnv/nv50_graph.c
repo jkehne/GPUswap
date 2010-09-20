@@ -162,7 +162,6 @@ int nv50_graph_init(struct drm_device *dev) {
 	}
 
 	res->base.dev = dev;
-	res->base.irq = 12;
 	if (dev_priv->chipset == 0x50)
 		res->base.oclasses = nv50_graph_oclasses;
 	else if (dev_priv->chipset < 0xa0)
