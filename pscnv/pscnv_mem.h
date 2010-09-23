@@ -57,6 +57,7 @@ struct pscnv_bo {
 	struct page **pages;
 	dma_addr_t *dmapages;
 };
+#define PSCNV_GEM_NOUSER	0x10
 
 struct pscnv_vram_engine {
 	void (*takedown) (struct drm_device *);
