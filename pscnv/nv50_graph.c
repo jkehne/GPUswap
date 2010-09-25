@@ -143,6 +143,7 @@ static int nvaf_graph_oclasses[] = {
 void nv50_graph_takedown(struct pscnv_engine *eng);
 void nv50_graph_irq_handler(struct drm_device *dev, int irq);
 int nv50_graph_tlb_flush(struct pscnv_engine *eng, struct pscnv_vspace *vs);
+int nv86_graph_tlb_flush(struct pscnv_engine *eng, struct pscnv_vspace *vs);
 int nv50_graph_chan_alloc(struct pscnv_engine *eng, struct pscnv_chan *ch);
 void nv50_graph_chan_free(struct pscnv_engine *eng, struct pscnv_chan *ch);
 void nv50_graph_chan_kill(struct pscnv_engine *eng, struct pscnv_chan *ch);
@@ -174,7 +175,10 @@ int nv50_graph_init(struct drm_device *dev) {
 	else
 		res->base.oclasses = nvaf_graph_oclasses;
 	res->base.takedown = nv50_graph_takedown;
-	res->base.tlb_flush = nv50_graph_tlb_flush;
+	if (dev_priv->chipset == 0x86)
+		res->base.tlb_flush = nv86_graph_tlb_flush;
+	else
+		res->base.tlb_flush = nv50_graph_tlb_flush;
 	res->base.chan_alloc = nv50_graph_chan_alloc;
 	res->base.chan_kill = nv50_graph_chan_kill;
 	res->base.chan_free = nv50_graph_chan_free;
@@ -316,6 +320,33 @@ int nv50_graph_chan_alloc(struct pscnv_engine *eng, struct pscnv_chan *ch) {
 
 int nv50_graph_tlb_flush(struct pscnv_engine *eng, struct pscnv_vspace *vs) {
 	return nv50_vm_flush(eng->dev, 0);
+}
+
+int nv86_graph_tlb_flush(struct pscnv_engine *eng, struct pscnv_vspace *vs) {
+	/* NV86 TLB fuckup special workaround. */
+	struct drm_device *dev = eng->dev;
+	uint64_t start;
+	/* initial guess... */
+	uint32_t mask380 = 0xffffffff;
+	uint32_t mask384 = 0xffffffff;
+	uint32_t mask388 = 0xffffffff;
+	struct nv50_graph_engine *graph = nv50_graph(eng);
+	int ret;
+	unsigned long flags;
+	spin_lock_irqsave(&graph->lock, flags);
+	nv_wr32(dev, 0x400500, 0);
+	start = nv04_timer_read(dev);
+	while ((nv_rd32(dev, 0x400380) & mask380) || (nv_rd32(dev, 0x400384) & mask384) || (nv_rd32(dev, 0x400388) & mask388)) {
+		if (nv04_timer_read(dev) - start >= 2000000000) {
+			/* if you see this message, mask* above probably need to be adjusted to not contain the bits you see failing */
+			NV_ERROR(dev, "PGRAPH: idle wait for TLB flush fail: %08x %08x %08x [%08x]!\n", nv_rd32(dev, 0x400380), nv_rd32(dev, 0x400384), nv_rd32(dev, 0x400388), nv_rd32(dev, 0x400700));
+			break;
+		}
+	}
+	ret = nv50_vm_flush(dev, 0);
+	nv_wr32(dev, 0x400500, 0x10001);
+	spin_unlock_irqrestore(&graph->lock, flags);
+	return ret;
 }
 
 void nv50_graph_chan_kill(struct pscnv_engine *eng, struct pscnv_chan *ch) {
