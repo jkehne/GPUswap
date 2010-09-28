@@ -36,6 +36,7 @@
 #include "nouveau_crtc.h"
 #include "nouveau_connector.h"
 #include "nouveau_hw.h"
+#include "pscnv_kapi.h"
 
 static struct nouveau_encoder *
 find_encoder_by_type(struct drm_connector *connector, int type)
@@ -198,7 +199,15 @@ nouveau_connector_set_encoder(struct drm_connector *connector,
 }
 
 static enum drm_connector_status
+#ifdef PSCNV_KAPI_DRM_CONNECTOR_DETECT_1
+nouveau_connector_detect(struct drm_connector *connector)
+#else
+#ifdef PSCNV_KAPI_DRM_CONNECTOR_DETECT_2
 nouveau_connector_detect(struct drm_connector *connector, bool force)
+#else
+#error cannot determine drm_connector.detect API
+#endif
+#endif
 {
 	struct drm_device *dev = connector->dev;
 	struct nouveau_connector *nv_connector = nouveau_connector(connector);
@@ -282,7 +291,15 @@ detect_analog:
 }
 
 static enum drm_connector_status
+#ifdef PSCNV_KAPI_DRM_CONNECTOR_DETECT_1
+nouveau_connector_detect_lvds(struct drm_connector *connector)
+#else
+#ifdef PSCNV_KAPI_DRM_CONNECTOR_DETECT_2
 nouveau_connector_detect_lvds(struct drm_connector *connector, bool force)
+#else
+#error cannot determine drm_connector.detect API
+#endif
+#endif
 {
 	struct drm_device *dev = connector->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
@@ -303,7 +320,15 @@ nouveau_connector_detect_lvds(struct drm_connector *connector, bool force)
 
 	/* Try retrieving EDID via DDC */
 	if (!dev_priv->vbios.fp_no_ddc) {
+#ifdef PSCNV_KAPI_DRM_CONNECTOR_DETECT_1
+		status = nouveau_connector_detect(connector);
+#else
+#ifdef PSCNV_KAPI_DRM_CONNECTOR_DETECT_2
 		status = nouveau_connector_detect(connector, force);
+#else
+#error cannot determine drm_connector.detect API
+#endif
+#endif
 		if (status == connector_status_connected)
 			goto out;
 	}
