@@ -291,6 +291,8 @@ uint32_t nv17_dac_sample_load(struct drm_encoder *encoder)
 	msleep(5);
 
 	sample = NVReadRAMDAC(dev, 0, NV_PRAMDAC_TEST_CONTROL + regoffset);
+	/* do it again just in case it's a residual current */
+	sample &= NVReadRAMDAC(dev, 0, NV_PRAMDAC_TEST_CONTROL + regoffset);
 
 	temp = NVReadRAMDAC(dev, head, NV_PRAMDAC_TEST_CONTROL);
 	NVWriteRAMDAC(dev, head, NV_PRAMDAC_TEST_CONTROL,
@@ -350,14 +352,8 @@ static void nv04_dac_prepare(struct drm_encoder *encoder)
 	helper->dpms(encoder, DRM_MODE_DPMS_OFF);
 
 	nv04_dfp_disable(dev, head);
-
-	/* Some NV4x have unknown values (0x3f, 0x50, 0x54, 0x6b, 0x79, 0x7f)
-	 * at LCD__INDEX which we don't alter
-	 */
-	if (!(crtcstate[head].CRTC[NV_CIO_CRE_LCD__INDEX] & 0x44))
-		crtcstate[head].CRTC[NV_CIO_CRE_LCD__INDEX] = 0;
+	crtcstate[head].CRTC[NV_CIO_CRE_LCD__INDEX] = 0;
 }
-
 
 static void nv04_dac_mode_set(struct drm_encoder *encoder,
 			      struct drm_display_mode *mode,

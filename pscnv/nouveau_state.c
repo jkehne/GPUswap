@@ -36,6 +36,7 @@
 #include "pscnv_drm.h"
 #include "nouveau_reg.h"
 #include "nouveau_fbcon.h"
+#include "nouveau_pm.h"
 #include "nv50_display.h"
 #include "pscnv_vm.h"
 #include "pscnv_chan.h"
@@ -56,18 +57,53 @@ static int nouveau_init_engine_ptrs(struct drm_device *dev)
 		engine->gpio.get		= NULL;
 		engine->gpio.set		= NULL;
 		engine->gpio.irq_enable		= NULL;
+		engine->pm.clock_get		= nv04_pm_clock_get;
+		engine->pm.clock_pre		= nv04_pm_clock_pre;
+		engine->pm.clock_set		= nv04_pm_clock_set;
 	} else if (dev_priv->chipset < 0x50 || (dev_priv->chipset & 0xf0) == 0x60) {
 		engine->gpio.init		= nouveau_stub_init;
 		engine->gpio.takedown		= nouveau_stub_takedown;
 		engine->gpio.get		= nv10_gpio_get;
 		engine->gpio.set		= nv10_gpio_set;
 		engine->gpio.irq_enable		= NULL;
+		engine->pm.clock_get		= nv04_pm_clock_get;
+		engine->pm.clock_pre		= nv04_pm_clock_pre;
+		engine->pm.clock_set		= nv04_pm_clock_set;
 	} else {
 		engine->gpio.init		= nv50_gpio_init;
 		engine->gpio.takedown		= nouveau_stub_takedown;
 		engine->gpio.get		= nv50_gpio_get;
 		engine->gpio.set		= nv50_gpio_set;
 		engine->gpio.irq_enable		= nv50_gpio_irq_enable;
+		switch (dev_priv->chipset) {
+		case 0xa3:
+		case 0xa5:
+		case 0xa8:
+		case 0xaf:
+			engine->pm.clock_get	= nva3_pm_clock_get;
+			engine->pm.clock_pre	= nva3_pm_clock_pre;
+			engine->pm.clock_set	= nva3_pm_clock_set;
+			break;
+		case 0xc0:
+			break;
+		default:
+			engine->pm.clock_get	= nv50_pm_clock_get;
+			engine->pm.clock_pre	= nv50_pm_clock_pre;
+			engine->pm.clock_set	= nv50_pm_clock_set;
+			break;
+		}
+	}
+
+	if (dev_priv->chipset < 0x40) {
+	} else if (dev_priv->chipset < 0x80) {
+		engine->pm.temp_get		= nv40_temp_get;
+	} else {
+		engine->pm.temp_get		= nv84_temp_get;
+	}
+
+	if (dev_priv->chipset >= 0x30 && dev_priv->chipset < 0xc0) {
+		engine->pm.voltage_get		= nouveau_voltage_gpio_get;
+		engine->pm.voltage_set		= nouveau_voltage_gpio_set;
 	}
 
 	if (dev_priv->chipset < 0x50 || (dev_priv->chipset & 0xf0) == 0x60) {
@@ -173,6 +209,8 @@ nouveau_card_init(struct drm_device *dev)
 		ret = nouveau_bios_init(dev);
 		if (ret)
 			goto out_display_early;
+
+		nouveau_pm_init(dev);
 	}
 
 	ret = pscnv_mem_init(dev);
@@ -313,6 +351,7 @@ out_chan:
 out_vram:
 	pscnv_mem_takedown(dev);
 out_bios:
+	nouveau_pm_fini(dev);
 	if (drm_core_check_feature(dev, DRIVER_MODESET)) {
 		nouveau_bios_takedown(dev);
 	}
@@ -347,6 +386,7 @@ static void nouveau_card_takedown(struct drm_device *dev)
 		dev_priv->chan->takedown(dev);
 		pscnv_mem_takedown(dev);
 		nv_wr32(dev, 0x1140, 0);
+		nouveau_pm_fini(dev);
 		nouveau_bios_takedown(dev);
 
 		vga_client_register(dev->pdev, NULL, NULL, NULL);
