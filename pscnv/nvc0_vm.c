@@ -193,9 +193,17 @@ write_pt(struct pscnv_bo *pt, int pte, int count, uint64_t phys,
 
 int
 nvc0_vspace_place_map (struct pscnv_vspace *vs, struct pscnv_bo *bo,
-		uint64_t start, uint64_t end, int back,
-		struct pscnv_mm_node **res) {
-	return pscnv_mm_alloc(vs->mm, bo->size, back?PSCNV_MM_FROMBACK:0, start, end, res);
+		       uint64_t start, uint64_t end, int back,
+		       struct pscnv_mm_node **res)
+{
+	int flags = 0;
+
+	if ((bo->flags & PSCNV_GEM_MEMTYPE_MASK) == PSCNV_GEM_VRAM_LARGE)
+		flags = PSCNV_MM_LP;
+	if (back)
+		flags |= PSCNV_MM_FROMBACK;
+
+	return pscnv_mm_alloc(vs->mm, bo->size, flags, start, end, res);
 }
 
 int
