@@ -213,6 +213,7 @@ nvc0_vspace_do_map(struct pscnv_vspace *vs,
 	struct drm_nouveau_private *dev_priv = vs->dev->dev_private;
 	uint32_t pfl0, pfl1;
 	struct pscnv_mm_node *reg;
+	int i;
 
 	pfl0 = 1;
 	if (vs->vid >= 0 && (bo->flags & PSCNV_GEM_NOUSER))
@@ -221,13 +222,34 @@ nvc0_vspace_do_map(struct pscnv_vspace *vs,
 	pfl1 = bo->tile_flags << 4;
 
 	switch (bo->flags & PSCNV_GEM_MEMTYPE_MASK) {
+	case PSCNV_GEM_SYSRAM_NOSNOOP:
+		pfl1 |= 0x0;
+		/* fall through */
+	case PSCNV_GEM_SYSRAM_SNOOP:
+	{
+		unsigned int pde = NVC0_PDE(offset);
+		unsigned int pte = (offset & NVC0_VM_BLOCK_MASK) >> PAGE_SHIFT;
+		struct nvc0_pgt *pt = nvc0_vspace_pgt(vs, pde);
+		pfl1 |= 0x7;
+		for (i = 0; i < (bo->size >> PAGE_SHIFT); ++i) {
+			uint64_t phys = bo->dmapages[i];
+			nv_wv32(pt->bo[1], pte * 8 + 4, pfl1);
+			nv_wv32(pt->bo[1], pte * 8 + 0, (phys >> 8) | pfl0);
+			pte++;
+			if ((pte & (NVC0_VM_BLOCK_MASK >> PAGE_SHIFT)) == 0) {
+				pte = 0;
+				pt = nvc0_vspace_pgt(vs, ++pde);
+			}
+		}
+	}
+		break;
 	case PSCNV_GEM_VRAM_SMALL:
 	case PSCNV_GEM_VRAM_LARGE:
 		for (reg = bo->mmnode; reg; reg = reg->next) {
 			uint32_t psh, psz;
 			uint64_t phys = reg->start, size = reg->size;
 
-			int s = (bo->flags & PSCNV_GEM_MEMTYPE_MASK) == PSCNV_GEM_VRAM_SMALL;
+			int s = (bo->flags & PSCNV_GEM_MEMTYPE_MASK) != PSCNV_GEM_VRAM_LARGE;
 			if (vs->vid == -3)
 				s = 1;
 			psh = s ? NVC0_SPAGE_SHIFT : NVC0_LPAGE_SHIFT;
@@ -255,9 +277,6 @@ nvc0_vspace_do_map(struct pscnv_vspace *vs,
 			}
 		}
 		break;
-	case PSCNV_GEM_SYSRAM_SNOOP:
-	case PSCNV_GEM_SYSRAM_NOSNOOP:
-		/* XXX */
 	default:
 		return -ENOSYS;
 	}
