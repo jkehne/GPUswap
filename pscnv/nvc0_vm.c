@@ -53,7 +53,7 @@ nvc0_tlb_flush(struct pscnv_vspace *vs)
 	nv_wr32(dev, 0x100cb8, nvc0_vs(vs)->pd->start >> 8);
 	nv_wr32(dev, 0x100cbc, 0x80000000 | ((vs->vid == -3) ? 0x5 : 0x1));
 
-	if (!nv_wait(0x100c80, ~0, val)) {
+	if (!nv_wait(dev, 0x100c80, ~0, val)) {
 		NV_ERROR(vs->dev, "tlb flush timed out\n");
 		return -EBUSY;
 	}

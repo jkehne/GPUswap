@@ -135,9 +135,95 @@ struct nouveau_gpio_engine {
 	void (*irq_enable)(struct drm_device *, enum dcb_gpio_tag, bool on);
 };
 
+struct nouveau_pm_voltage_level {
+	u8 voltage;
+	u8 vid;
+};
+
+struct nouveau_pm_voltage {
+	bool supported;
+	u8 vid_mask;
+
+	struct nouveau_pm_voltage_level *level;
+	int nr_level;
+};
+
+#define NOUVEAU_PM_MAX_LEVEL 8
+struct nouveau_pm_level {
+	struct device_attribute dev_attr;
+	char name[32];
+	int id;
+
+	u32 core;
+	u32 memory;
+	u32 shader;
+	u32 unk05;
+
+	u8 voltage;
+	u8 fanspeed;
+
+	u16 memscript;
+};
+
+struct nouveau_pm_temp_sensor_constants {
+	u16 offset_constant;
+	s16 offset_mult;
+	u16 offset_div;
+	u16 slope_mult;
+	u16 slope_div;
+};
+
+struct nouveau_pm_threshold_temp {
+	s16 critical;
+	s16 down_clock;
+	s16 fan_boost;
+};
+
+struct nouveau_pm_memtiming {
+	u32 reg_100220;
+	u32 reg_100224;
+	u32 reg_100228;
+	u32 reg_10022c;
+	u32 reg_100230;
+	u32 reg_100234;
+	u32 reg_100238;
+	u32 reg_10023c;
+};
+
+struct nouveau_pm_memtimings {
+	bool supported;
+	struct nouveau_pm_memtiming *timing;
+	int nr_timing;
+};
+
+struct nouveau_pm_engine {
+	struct nouveau_pm_voltage voltage;
+	struct nouveau_pm_level perflvl[NOUVEAU_PM_MAX_LEVEL];
+	int nr_perflvl;
+	struct nouveau_pm_memtimings memtimings;
+	struct nouveau_pm_temp_sensor_constants sensor_constants;
+	struct nouveau_pm_threshold_temp threshold_temp;
+
+	struct nouveau_pm_level boot;
+	struct nouveau_pm_level *cur;
+
+	struct device *hwmon;
+
+	int (*clock_get)(struct drm_device *, u32 id);
+	void *(*clock_pre)(struct drm_device *, struct nouveau_pm_level *,
+			   u32 id, int khz);
+	void (*clock_set)(struct drm_device *, void *);
+	int (*voltage_get)(struct drm_device *);
+	int (*voltage_set)(struct drm_device *, int voltage);
+	int (*fanspeed_get)(struct drm_device *);
+	int (*fanspeed_set)(struct drm_device *, int fanspeed);
+	int (*temp_get)(struct drm_device *);
+};
+
 struct nouveau_engine {
 	struct nouveau_display_engine display;
 	struct nouveau_gpio_engine    gpio;
+	struct nouveau_pm_engine      pm;
 };
 
 struct nouveau_pll_vals {
@@ -437,7 +523,7 @@ nouveau_bo_ref(struct nouveau_bo *ref, struct nouveau_bo **pnvbo)
 } while (0)
 
 /* nouveau_drv.c */
-extern int nouveau_noagp;
+extern int nouveau_agpmode;
 extern int nouveau_duallink;
 extern int nouveau_uscript_lvds;
 extern int nouveau_uscript_tmds;
@@ -457,7 +543,10 @@ extern int nouveau_ctxfw;
 extern int nouveau_ignorelid;
 extern int nouveau_nofbaccel;
 extern int nouveau_noaccel;
+extern int nouveau_force_post;
 extern int nouveau_override_conntype;
+extern char *nouveau_perflvl;
+extern int nouveau_perflvl_wr;
 
 extern struct drm_ioctl_desc nouveau_ioctls[];
 extern int nouveau_max_ioctl;
@@ -661,6 +750,7 @@ extern struct dcb_gpio_entry *nouveau_bios_gpio_entry(struct drm_device *,
 						      enum dcb_gpio_tag);
 extern struct dcb_connector_table_entry *
 nouveau_bios_connector_entry(struct drm_device *, int index);
+extern u32 get_pll_register(struct drm_device *, enum pll_types);
 extern int get_pll_limits(struct drm_device *, uint32_t limit_match,
 			  struct pll_lims *);
 extern int nouveau_bios_run_display_table(struct drm_device *,
@@ -983,12 +1073,11 @@ static inline void nv_wr32(struct drm_device *dev, unsigned reg, u32 val)
 	iowrite32_native(val, dev_priv->mmio + reg);
 }
 
-static inline void nv_mask(struct drm_device *dev, u32 reg, u32 mask, u32 val)
+static inline u32 nv_mask(struct drm_device *dev, u32 reg, u32 mask, u32 val)
 {
 	u32 tmp = nv_rd32(dev, reg);
-	tmp &= ~mask;
-	tmp |= val;
-	nv_wr32(dev, reg, tmp);
+	nv_wr32(dev, reg, (tmp & ~mask) | val);
+	return tmp;
 }
 
 static inline u8 nv_rd08(struct drm_device *dev, unsigned reg)
@@ -1003,7 +1092,7 @@ static inline void nv_wr08(struct drm_device *dev, unsigned reg, u8 val)
 	iowrite8(val, dev_priv->mmio + reg);
 }
 
-#define nv_wait(reg, mask, val) \
+#define nv_wait(dev, reg, mask, val) \
 	nouveau_wait_until(dev, 2000000000ULL, (reg), (mask), (val))
 #if 0 /* not removing yet - may be useful for pre-NV50 one day */
 /* PRAMIN access */
@@ -1103,6 +1192,16 @@ nv_two_reg_pll(struct drm_device *dev)
 		return true;
 	return false;
 }
+
+static inline bool
+nv_match_device(struct drm_device *dev, unsigned device,
+		unsigned sub_vendor, unsigned sub_device)
+{
+	return dev->pdev->device == device &&
+		dev->pdev->subsystem_vendor == sub_vendor &&
+		dev->pdev->subsystem_device == sub_device;
+}
+
 #if 0
 #define NV_SW                                                        0x0000506e
 #define NV_SW_DMA_SEMAPHORE                                          0x00000060

@@ -174,7 +174,7 @@ void nvc0_fifo_playlist_update(struct drm_device *dev)
 	nv_wr32(dev, 0x2270, vo->start >> 12);
 	nv_wr32(dev, 0x2274, 0x1f00000 | pos / 8);
 
-	if (!nv_wait(0x227c, (1 << 20), 0))
+	if (!nv_wait(dev, 0x227c, (1 << 20), 0))
 		NV_WARN(dev, "WARNING: PFIFO 227c = 0x%08x\n",
 			nv_rd32(dev, 0x227c));
 }
@@ -191,7 +191,7 @@ void nvc0_fifo_chan_kill(struct pscnv_chan *ch)
 	status = nv_rd32(dev, 0x3004 + ch->cid * 8);
 	nv_wr32(dev, 0x3004 + ch->cid * 8, status & ~1);
 	nv_wr32(dev, 0x2634, ch->cid);
-	if (!nv_wait(0x2634, ~0, ch->cid))
+	if (!nv_wait(dev, 0x2634, ~0, ch->cid))
 		NV_WARN(dev, "WARNING: 2634 = 0x%08x\n", nv_rd32(dev, 0x2634));
 
 	nvc0_fifo_playlist_update(dev);

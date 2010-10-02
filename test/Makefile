@@ -1,4 +1,4 @@
-PROGS = get_param gem map m2mf loop subc0
+PROGS = get_param gem map m2mf loop subc0 ib mem_test
 
 all: $(PROGS)
 
@@ -6,7 +6,7 @@ all: $(PROGS)
 	make -C ../libpscnv libpscnv.a
 
 %: %.c ../libpscnv/libpscnv.h ../libpscnv/libpscnv.a
-	gcc -I../libpscnv -I/usr/include/libdrm -o $@ $< ../libpscnv/libpscnv.a -ldrm -g
+	gcc -O3 -I../libpscnv -I/usr/include/libdrm -o $@ $< ../libpscnv/libpscnv.a -ldrm -g
 
 clean:
 	rm -f $(PROGS)

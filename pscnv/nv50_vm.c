@@ -71,59 +71,73 @@ nv50_vspace_place_map (struct pscnv_vspace *vs, struct pscnv_bo *bo,
 	return pscnv_mm_alloc(vs->mm, bo->size, back?PSCNV_MM_FROMBACK:0, start, end, res);
 }
 
+static int nv50_vspace_map_contig_range (struct pscnv_vspace *vs, uint64_t offset, uint64_t pte, uint64_t size, int lp) {
+	int ret;
+	/* XXX: add LP support */
+	BUG_ON(lp);
+	while (size) {
+		uint32_t pgnum = offset / 0x1000;
+		uint32_t pdenum = pgnum / NV50_VM_SPTE_COUNT;
+		uint32_t ptenum = pgnum % NV50_VM_SPTE_COUNT;
+		int lev = 0;
+		int i;
+		while (lev < 7 && size >= (0x1000 << (lev + 1)) && !(offset & (1 << (lev + 12))))
+			lev++;
+		if (!nv50_vs(vs)->pt[pdenum])
+			if ((ret = nv50_vspace_fill_pd_slot (vs, pdenum)))
+				return ret;
+		for (i = 0; i < (1 << lev); i++) {
+			nv_wv32(nv50_vs(vs)->pt[pdenum], (ptenum + i) * 8 + 4, pte >> 32);
+			nv_wv32(nv50_vs(vs)->pt[pdenum], (ptenum + i) * 8, pte | lev << 7);
+			if (pscnv_vm_debug >= 3)
+				NV_INFO(vs->dev, "VM: [%08x][%08x] = %016llx\n", pdenum, ptenum + i, pte | lev << 7);
+		}
+		size -= (0x1000 << lev);
+		offset += (0x1000 << lev);
+		pte += (0x1000 << lev);
+	}
+	return 0;
+}
+
 int
 nv50_vspace_do_map (struct pscnv_vspace *vs, struct pscnv_bo *bo, uint64_t offset) {
 	struct drm_nouveau_private *dev_priv = vs->dev->dev_private;
 	struct pscnv_mm_node *n;
-	int ret, i, j;
+	int ret, i;
+	uint64_t roff = 0;
 	switch (bo->flags & PSCNV_GEM_MEMTYPE_MASK) {
 		case PSCNV_GEM_VRAM_SMALL:
 		case PSCNV_GEM_VRAM_LARGE:
 			for (n = bo->mmnode; n; n = n->next) {
-				/* XXX: beef up to use contig blocks */
-				uint64_t roff;
-				for (roff = 0; roff < n->size; roff += 0x1000, offset += 0x1000) {
-					uint32_t pgnum = offset / 0x1000;
-					uint32_t pdenum = pgnum / NV50_VM_SPTE_COUNT;
-					uint32_t ptenum = pgnum % NV50_VM_SPTE_COUNT;
-					uint64_t pte = n->start + roff;
-					if (dev_priv->chipset == 0xaa || dev_priv->chipset == 0xac || dev_priv->chipset == 0xaf) {
-						pte += dev_priv->vram_sys_base;
-						pte |= 0x30;
-					}
-					pte |= (uint64_t)bo->tile_flags << 40;
-					pte |= 1; /* present */
-					if (!nv50_vs(vs)->pt[pdenum])
-						if ((ret = nv50_vspace_fill_pd_slot (vs, pdenum))) {
-							nv50_vspace_do_unmap (vs, offset, bo->size);
-							return ret;
-						}
-					nv_wv32(nv50_vs(vs)->pt[pdenum], ptenum * 8 + 4, pte >> 32);
-					nv_wv32(nv50_vs(vs)->pt[pdenum], ptenum * 8, pte);
+				/* XXX: add LP support */
+				uint64_t pte = n->start;
+				if (dev_priv->chipset == 0xaa || dev_priv->chipset == 0xac || dev_priv->chipset == 0xaf) {
+					pte += dev_priv->vram_sys_base;
+					pte |= 0x30;
 				}
+				pte |= (uint64_t)bo->tile_flags << 40;
+				pte |= 1; /* present */
+				if ((ret = nv50_vspace_map_contig_range(vs, offset + roff, pte, n->size, 0))) {
+					nv50_vspace_do_unmap (vs, offset, bo->size);
+					return ret;
+				}
+				roff += n->size;
 			}
 			break;
 		case PSCNV_GEM_SYSRAM_SNOOP:
 		case PSCNV_GEM_SYSRAM_NOSNOOP:
 			for (i = 0; i < (bo->size >> PAGE_SHIFT); i++) {
-				for (j = 0; j < PAGE_SIZE / 0x1000; j++, offset += 0x1000) {
-					uint32_t pgnum = offset / 0x1000;
-					uint32_t pdenum = pgnum / NV50_VM_SPTE_COUNT;
-					uint32_t ptenum = pgnum % NV50_VM_SPTE_COUNT;
-					uint64_t pte = bo->dmapages[i] + j * 0x1000;
-					pte |= 1;
-					if ((bo->flags & PSCNV_GEM_MEMTYPE_MASK) == PSCNV_GEM_SYSRAM_SNOOP)
-						pte |= 0x20;
-					else
-						pte |= 0x30;
-					if (!nv50_vs(vs)->pt[pdenum])
-						if ((ret = nv50_vspace_fill_pd_slot (vs, pdenum))) {
-							nv50_vspace_do_unmap (vs, offset, bo->size);
-							return ret;
-						}
-					nv_wv32(nv50_vs(vs)->pt[pdenum], ptenum * 8 + 4, pte >> 32);
-					nv_wv32(nv50_vs(vs)->pt[pdenum], ptenum * 8, pte);
+				uint64_t pte = bo->dmapages[i];
+				pte |= 1;
+				if ((bo->flags & PSCNV_GEM_MEMTYPE_MASK) == PSCNV_GEM_SYSRAM_SNOOP)
+					pte |= 0x20;
+				else
+					pte |= 0x30;
+				if ((ret = nv50_vspace_map_contig_range(vs, offset + roff, pte, PAGE_SIZE, 0))) {
+					nv50_vspace_do_unmap (vs, offset, bo->size);
+					return ret;
 				}
+				roff += PAGE_SIZE;
 			}
 			break;
 		default:
@@ -482,7 +496,7 @@ void nv50_vm_trap(struct drm_device *dev) {
 			nv_wr32(dev, 0x100c90, idx | i << 24);
 			trap[i] = nv_rd32(dev, 0x100c94);
 		}
-		if (dev_priv->chipset < 0xa3 || dev_priv->chipset >= 0xaa) {
+		if (dev_priv->chipset < 0xa3 || (dev_priv->chipset >= 0xaa && dev_priv->chipset <= 0xac)) {
 			s0 = trap[0] & 0xf;
 			s1 = (trap[0] >> 4) & 0xf;
 			s2 = (trap[0] >> 8) & 0xf;

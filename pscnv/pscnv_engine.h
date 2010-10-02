@@ -6,7 +6,6 @@ struct pscnv_vspace;
 
 struct pscnv_engine {
 	struct drm_device *dev;
-	int irq;
 	uint32_t *oclasses;
 	void (*takedown) (struct pscnv_engine *eng);
 	int (*tlb_flush) (struct pscnv_engine *eng, struct pscnv_vspace *vs);
