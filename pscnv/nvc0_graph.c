@@ -29,17 +29,25 @@
 #include "nouveau_reg.h"
 #include "pscnv_engine.h"
 #include "pscnv_chan.h"
+#include "nvc0_vm.h"
 
 struct nvc0_graph_engine {
 	struct pscnv_engine base;
 	spinlock_t lock;
 	uint32_t grctx_size;
+	uint32_t *grctx_initvals;
 	int ropc_count;
 	int tp_count;
+	struct pscnv_bo *obj188b4;
+	struct pscnv_bo *obj188b8;
+	struct pscnv_bo *obj08004;
+	struct pscnv_bo *obj0800c;
+	struct pscnv_bo *obj19848;
 };
 
 struct nvc0_graph_chan {
 	struct pscnv_bo *grctx;
+	struct pscnv_mm_node *grctx_vm;
 };
 
 #define nvc0_graph(x) container_of(x, struct nvc0_graph_engine, base)
@@ -48,6 +56,8 @@ void nvc0_graph_takedown(struct pscnv_engine *eng);
 int nvc0_graph_chan_alloc(struct pscnv_engine *eng, struct pscnv_chan *ch);
 void nvc0_graph_chan_free(struct pscnv_engine *eng, struct pscnv_chan *ch);
 void nvc0_graph_chan_kill(struct pscnv_engine *eng, struct pscnv_chan *ch);
+
+void nvc0_ctxctl_load_fuc(struct drm_device *dev);
 
 static inline void
 nvc0_graph_init_reset(struct drm_device *dev)
@@ -93,11 +103,9 @@ nvc0_graph_init_units(struct drm_device *dev)
 #define MP_REG(i, j, r) ((0x504000 + (i) * 0x8000 + (j) * 0x800) + (r))
 
 static void
-nvc0_graph_tp_init(struct drm_device *dev)
+nvc0_graph_tp_init(struct drm_device *dev, struct nvc0_graph_engine *graph)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	int i, j;
-	int tp_count = nv_rd32(dev, TP_REG(0, 0x2608)) >> 16;
 
 #if 0
 	nv_wr32(dev, 0x418980, 0x11110000);
@@ -107,18 +115,18 @@ nvc0_graph_tp_init(struct drm_device *dev)
 	nv_wr32(dev, 0x41898c, 0);
 #endif
 
-	for (i = 0; i < tp_count; ++i) {
+	for (i = 0; i < graph->tp_count; ++i) {
 		int mp_count = nv_rd32(dev, TP_REG(i, 0x2608)) & 0xffff;
 
 		nv_wr32(dev, TP_REG(i, 0x0914),
-			(dev_priv->ropc_count << 8) | mp_count);
+			(graph->ropc_count << 8) | mp_count);
 		nv_wr32(dev, TP_REG(i, 0x0910), 0x4000e); /* 4000f */
 		nv_wr32(dev, TP_REG(i, 0x0918), 0x92493); /* 88889 */
 	}
 	nv_wr32(dev, 0x419bd4, 0x92493);
-	nv_wr32(dev, 0x4188ac, dev_priv->ropc_count);
+	nv_wr32(dev, 0x4188ac, graph->ropc_count);
 
-        for (i = 0; i < tp_count; ++i) {
+	for (i = 0; i < graph->tp_count; ++i) {
 		int mp_count = nv_rd32(dev, TP_REG(i, 0x2608)) & 0xffff;
 
 		NV_INFO(dev, "init TP%i (%i MPs)\n", i, mp_count);
@@ -128,35 +136,34 @@ nvc0_graph_tp_init(struct drm_device *dev)
                 nv_wr32(dev, TP_REG(i, 0x1028), 0xc0000000);
                 nv_wr32(dev, TP_REG(i, 0x0824), 0xc0000000);
 
-                for (j = 0; j < mp_count; ++j) {
-                        nv_wr32(dev, MP_REG(i, j, 0x508), 0xffffffff);
-                        nv_wr32(dev, MP_REG(i, j, 0x50c), 0xffffffff);
-                        nv_wr32(dev, MP_REG(i, j, 0x224), 0xc0000000);
-                        nv_wr32(dev, MP_REG(i, j, 0x48c), 0xc0000000);
-                        nv_wr32(dev, MP_REG(i, j, 0x084), 0xc0000000);
-                        nv_wr32(dev, MP_REG(i, j, 0x644), 0x1ffffe);
-                        nv_wr32(dev, MP_REG(i, j, 0x64c), 0xf);
-                }
+		for (j = 0; j < mp_count; ++j) {
+			nv_wr32(dev, MP_REG(i, j, 0x508), 0xffffffff);
+			nv_wr32(dev, MP_REG(i, j, 0x50c), 0xffffffff);
+			nv_wr32(dev, MP_REG(i, j, 0x224), 0xc0000000);
+			nv_wr32(dev, MP_REG(i, j, 0x48c), 0xc0000000);
+			nv_wr32(dev, MP_REG(i, j, 0x084), 0xc0000000);
+			nv_wr32(dev, MP_REG(i, j, 0x644), 0x1ffffe);
+			nv_wr32(dev, MP_REG(i, j, 0x64c), 0xf);
+		}
 
-                nv_wr32(dev, TP_REG(i, 0x2c90), 0xffffffff); /* CTXCTL */
-                nv_wr32(dev, TP_REG(i, 0x2c94), 0xffffffff); /* CTXCTL */
+		nv_wr32(dev, TP_REG(i, 0x2c90), 0xffffffff); /* CTXCTL */
+		nv_wr32(dev, TP_REG(i, 0x2c94), 0xffffffff); /* CTXCTL */
         }
 }
 
 #define ROPC_REG(i, r) ((0x410000 + (i) * 0x400) + (r))
 
 static void
-nvc0_graph_ropc_init(struct drm_device *dev)
+nvc0_graph_ropc_init(struct drm_device *dev, struct nvc0_graph_engine *graph)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	int i;
 
-        for (i = 0; i < dev_priv->ropc_count; ++i) {
-                nv_wr32(dev, ROPC_REG(i, 0x144), 0xc0000000);
-                nv_wr32(dev, ROPC_REG(i, 0x070), 0xc0000000);
-                nv_wr32(dev, ROPC_REG(i, 0x204), 0xffffffff);
-                nv_wr32(dev, ROPC_REG(i, 0x208), 0xffffffff);
-        }
+	for (i = 0; i < graph->ropc_count; ++i) {
+		nv_wr32(dev, ROPC_REG(i, 0x144), 0xc0000000);
+		nv_wr32(dev, ROPC_REG(i, 0x070), 0xc0000000);
+		nv_wr32(dev, ROPC_REG(i, 0x204), 0xffffffff);
+		nv_wr32(dev, ROPC_REG(i, 0x208), 0xffffffff);
+	}
 }
 
 static void
@@ -164,38 +171,32 @@ nvc0_graph_init_regs(struct drm_device *dev)
 {
 	NV_INFO(dev, "%s\n", __FUNCTION__);
 
-        nv_wr32(dev, 0x400080, 0x003083c2);
-        nv_wr32(dev, 0x400088, 0x00006fe7);
-        nv_wr32(dev, 0x40008c, 0x00000000);
-        nv_wr32(dev, 0x400090, 0x00000030);
+	nv_wr32(dev, 0x400080, 0x003083c2);
+	nv_wr32(dev, 0x400088, 0x00006fe7);
+	nv_wr32(dev, 0x40008c, 0x00000000);
+	nv_wr32(dev, 0x400090, 0x00000030);
         
-        nv_wr32(dev, 0x40013c, 0x013901f7); /* INTR_EN */
-        nv_wr32(dev, 0x400140, 0x00000100);
-        nv_wr32(dev, 0x400144, 0x00000000);
-        nv_wr32(dev, 0x400148, 0x00000110);
-        nv_wr32(dev, 0x400138, 0x00000000); /* TRAP_EN */
-        nv_wr32(dev, 0x400130, 0x00000000);
-        nv_wr32(dev, 0x400134, 0x00000000);
-        nv_wr32(dev, 0x400124, 0x00000002);
-
-	NV_INFO(dev, "400700 = 0x%08x expect 0\n", nv_rd32(dev, 0x400700));
-	NV_INFO(dev, "002640 = 0x%08x expect 0\n", nv_rd32(dev, 0x002640));
+	nv_wr32(dev, 0x40013c, 0x013901f7); /* INTR_EN */
+	nv_wr32(dev, 0x400140, 0x00000100);
+	nv_wr32(dev, 0x400144, 0x00000000);
+	nv_wr32(dev, 0x400148, 0x00000110);
+	nv_wr32(dev, 0x400138, 0x00000000); /* TRAP_EN */
+	nv_wr32(dev, 0x400130, 0x00000000);
+	nv_wr32(dev, 0x400134, 0x00000000);
+	nv_wr32(dev, 0x400124, 0x00000002);
 
 	nv_wr32(dev, 0x4188ac, 0x00000005);
 }
 
-void nvc0_ctxctl_load_ctxprog(struct drm_device *dev);
-
 static int
-nvc0_graph_init_ctxctl(struct drm_device *dev)
+nvc0_graph_init_ctxctl(struct drm_device *dev, struct nvc0_graph_engine *graph)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	uint32_t wait[3];
 	int i, j, tp_num, cx_num;
 
 	NV_DEBUG(dev, "%s\n", __FUNCTION__);
 
-	nvc0_ctxctl_load_ctxprog(dev);
+	nvc0_ctxctl_load_fuc(dev);
 
 	nv_wr32(dev, 0x409840, 0xffffffff);
 	nv_wr32(dev, 0x41a10c, 0);
@@ -203,8 +204,8 @@ nvc0_graph_init_ctxctl(struct drm_device *dev)
 	nv_wr32(dev, 0x41a100, 2);
 	nv_wr32(dev, 0x409100, 2);
 
-	if (!nv_wait(0x409800, 0x1, 0x1))
-		NV_ERROR(dev, "ERROR: PGRAPH 0x9800 stalled\n");
+	if (!nv_wait(dev, 0x409800, 0x1, 0x1))
+		NV_ERROR(dev, "PGRAPH: 0x9800 stalled\n");
 
 	nv_wr32(dev, 0x409840, 0xffffffff);
 	nv_wr32(dev, 0x409500, 0x7fffffff);
@@ -219,13 +220,17 @@ nvc0_graph_init_ctxctl(struct drm_device *dev)
 		nv_wr32(dev, 0x409500, 0);
 		nv_wr32(dev, 0x409504, wait[i]);
 
-		if (!nv_wait_neq(0x409800, ~0, 0x0))
-			NV_WARN(dev, "WARNING: PGRAPH 0x9800 stalled: %i\n", i);
+		if (!nv_wait_neq(dev, 0x409800, ~0, 0x0))
+			NV_WARN(dev, "PGRAPH: 0x9800 stalled (%i)\n", i);
 
-		if (wait[i] == 0x10) {
+		switch (wait[i]) {
+		case 0x10:
 			/* we may need one more round-up */
-			dev_priv->grctx_size =
+			graph->grctx_size =
 				(nv_rd32(dev, 0x409800) + 0xffff) & ~0xffff;
+			break;
+		default:
+			break;
 		}
 	}
 
@@ -298,37 +303,44 @@ nvc0_graph_store_ctx(struct drm_device *dev)
 	nv_wr32(dev, 0x409500, (0x8 << 28) | inst);
 	nv_wr32(dev, 0x409504, 0x9);
 
-	if (!nv_wait(0x409800, ~0, 0x1)) {
-		NV_ERROR(dev, "FATAL: failed to store PGRAPH context\n");
+	if (!nv_wait(dev, 0x409800, ~0, 0x1)) {
+		NV_ERROR(dev, "PGRAPH: failed to store context\n");
 		return -EBUSY;
 	}
-	NV_INFO(dev, "context has been written, 409800 = 0x%08x\n",
+	NV_INFO(dev, "PGRAPH: context stored: 0x%08x\n",
 		nv_rd32(dev, 0x409800));
 
 	return 0;
 }
 
+void
+nvc0_grctx_construct(struct drm_device *dev, struct pscnv_chan *chan);
+
 static int
-nvc0_grctx_generate(struct drm_device *dev, struct pscnv_chan *chan)
+nvc0_grctx_generate(struct drm_device *dev, struct nvc0_graph_engine *graph,
+		    struct pscnv_chan *chan)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nvc0_graph_chan *grch = chan->engdata[PSCNV_ENGINE_GRAPH];
 	int i, ret;
 	uint32_t *grctx;
 
-	BUG_ON(dev_priv->grctx_vals);
+	if (graph->grctx_initvals)
+		return 0;
+	NV_INFO(dev, "PGRAPH: generating default grctx\n");
 
-	grctx = kmalloc(dev_priv->grctx_size, GFP_KERNEL);
+	grctx = kmalloc(graph->grctx_size, GFP_KERNEL);
 	if (!grctx)
 		return -ENOMEM;
 
-	nvc0_graph_load_ctx(dev, chan->vo);
+	nvc0_graph_load_ctx(dev, chan->bo);
 
-	nv_wv32(chan->grctx, 0x1c, 1);
-	nv_wv32(chan->grctx, 0x20, 0);
-	nvc0_bar3_flush(dev);
-	nv_wv32(chan->grctx, 0x28, 0);
-	nv_wv32(chan->grctx, 0x2c, 0);
-	nvc0_bar3_flush(dev);
+	nv_wv32(grch->grctx, 0x1c, 1);
+	nv_wv32(grch->grctx, 0x20, 0);
+	dev_priv->vm->bar_flush(dev);
+	nv_wv32(grch->grctx, 0x28, 0);
+	nv_wv32(grch->grctx, 0x2c, 0);
+	dev_priv->vm->bar_flush(dev);
 
 	nvc0_grctx_construct(dev, chan);
 
@@ -336,37 +348,39 @@ nvc0_grctx_generate(struct drm_device *dev, struct pscnv_chan *chan)
 	if (ret)
 		return ret;
 
-	for (i = 0; i < dev_priv->grctx_size / 4; ++i)
-		grctx[i] = nv_rv32(chan->grctx, i * 4);
+	for (i = 0; i < graph->grctx_size / 4; ++i)
+		grctx[i] = nv_rv32(grch->grctx, i * 4);
 
 	for (i = 0; i < 0x100 / 4; ++i)
 		NV_DEBUG(dev, "grctx[%i] = 0x%08x\n", i, grctx[i]);
 
-	dev_priv->grctx_vals = grctx;
+	graph->grctx_initvals = grctx;
 
 	nv_wr32(dev, 0x104048, nv_rd32(dev, 0x104048) | 3);
 	nv_wr32(dev, 0x105048, nv_rd32(dev, 0x105048) | 3);
 
-	nv_wv32(chan->grctx, 0xf4, 0);
-	nv_wv32(chan->grctx, 0xf8, 0);
-	nv_wv32(chan->grctx, 0x10, 0); /* mmio list size */
-	nv_wv32(chan->grctx, 0x14, 0); /* mmio list */
-	nv_wv32(chan->grctx, 0x18, 0);
-	nv_wv32(chan->grctx, 0x1c, 1);
-	nv_wv32(chan->grctx, 0x20, 0);
-	nv_wv32(chan->grctx, 0x28, 0);
-	nv_wv32(chan->grctx, 0x2c, 0);
-	nvc0_bar3_flush(dev);
+	nv_wv32(grch->grctx, 0xf4, 0);
+	nv_wv32(grch->grctx, 0xf8, 0);
+	nv_wv32(grch->grctx, 0x10, 0); /* mmio list size */
+	nv_wv32(grch->grctx, 0x14, 0); /* mmio list */
+	nv_wv32(grch->grctx, 0x18, 0);
+	nv_wv32(grch->grctx, 0x1c, 1);
+	nv_wv32(grch->grctx, 0x20, 0);
+	nv_wv32(grch->grctx, 0x28, 0);
+	nv_wv32(grch->grctx, 0x2c, 0);
+	dev_priv->vm->bar_flush(dev);
 
 	return 0;
 }
 
 void
-nvc0_graph_takedown(struct drm_device *dev)
+nvc0_graph_takedown(struct pscnv_engine *eng)
 {
-	nv_wr32(dev, 0x400138, 0); /* TRAP_EN */
-	nv_wr32(dev, 0x40013c, 0); /* INTR_EN */
+	nv_wr32(eng->dev, 0x400138, 0); /* TRAP_EN */
+	nv_wr32(eng->dev, 0x40013c, 0); /* INTR_EN */
 }
+
+void nv50_graph_irq_handler(struct drm_device *dev, int irq);
 
 int
 nvc0_graph_init(struct drm_device *dev)
@@ -380,6 +394,7 @@ nvc0_graph_init(struct drm_device *dev)
 		NV_ERROR(dev, "PGRAPH: Couldn't allocate engine!\n");
 		return -ENOMEM;
 	}
+	NV_INFO(dev, "PGRAPH: initializing\n");
 
 	dev_priv->engines[PSCNV_ENGINE_GRAPH] = &res->base;
 	res->base.dev = dev;
@@ -391,61 +406,64 @@ nvc0_graph_init(struct drm_device *dev)
 
 	if (!(vo = pscnv_mem_alloc(dev, 0x1000, PSCNV_GEM_CONTIG, 0, 0x4188b4)))
 		return -ENOMEM;
-	ret = pscnv_vspace_map3(vo);
+	ret = dev_priv->vm->map_kernel(vo);
 	if (ret)
 		return ret;
-	dev_priv->obj188b4 = vo;
+	res->obj188b4 = vo;
 
 	if (!(vo = pscnv_mem_alloc(dev, 0x1000, PSCNV_GEM_CONTIG, 0, 0x4188b8)))
 		return -ENOMEM;
-	ret = pscnv_vspace_map3(vo);
+	ret = dev_priv->vm->map_kernel(vo);
 	if (ret)
 		return ret;
-	dev_priv->obj188b8 = vo;
+	res->obj188b8 = vo;
 
 	for (i = 0; i < 0x1000; i += 4) {
-		nv_wv32(dev_priv->obj188b4, i, 0x10);
-		nv_wv32(dev_priv->obj188b8, i, 0x10);
+		nv_wv32(res->obj188b4, i, 0x10);
+		nv_wv32(res->obj188b8, i, 0x10);
 	}
-	nvc0_bar3_flush(dev);
+	dev_priv->vm->bar_flush(dev);
 
 	vo = pscnv_mem_alloc(dev, 0x1000, PSCNV_GEM_CONTIG | PSCNV_GEM_NOUSER,
 			      0, 0x408004);
 	if (!vo)
 		return -ENOMEM;
-	ret = pscnv_vspace_map3(vo);
+	ret = dev_priv->vm->map_kernel(vo);
 	if (ret)
 		return ret;
-	dev_priv->obj08004 = vo;
+	res->obj08004 = vo;
 
 	vo = pscnv_mem_alloc(dev, 0x1000, PSCNV_GEM_CONTIG | PSCNV_GEM_NOUSER,
 			      0, 0x40800c);
 	if (!vo)
 		return -ENOMEM;
-	ret = pscnv_vspace_map3(vo);
+	ret = dev_priv->vm->map_kernel(vo);
 	if (ret)
 		return ret;
-	dev_priv->obj0800c = vo;
+	res->obj0800c = vo;
 
 	vo = pscnv_mem_alloc(dev, 3 << 17, PSCNV_GEM_CONTIG, 0, 0x419848);
 	if (!vo)
 		return -ENOMEM;
-	ret = pscnv_vspace_map3(vo);
+	ret = dev_priv->vm->map_kernel(vo);
 	if (ret)
 		return ret;
-	dev_priv->obj19848 = vo;
+	res->obj19848 = vo;
 
 	nv_wr32(dev, 0x400500, nv_rd32(dev, 0x400500) & ~0x00010001);
 
 	nvc0_graph_init_reset(dev);
+
+	res->tp_count = nv_rd32(dev, TP_REG(0, 0x2608)) >> 16;
+	res->ropc_count = nv_rd32(dev, 0x121c74);
 
 	nv_wr32(dev, 0x418880, 0);
 	nv_wr32(dev, 0x4188a4, 0);
 	for (i = 0; i < 4; ++i)
 		nv_wr32(dev, 0x418888 + i * 4, 0);
 
-	nv_wr32(dev, 0x4188b4, dev_priv->obj188b4->start >> 8);
-	nv_wr32(dev, 0x4188b8, dev_priv->obj188b4->start >> 8);
+	nv_wr32(dev, 0x4188b4, res->obj188b4->start >> 8);
+	nv_wr32(dev, 0x4188b8, res->obj188b4->start >> 8);
 
 	nvc0_graph_init_regs(dev);
 
@@ -455,131 +473,167 @@ nvc0_graph_init(struct drm_device *dev)
 	nv_wr32(dev, 0x40013c, 0xffffffff);
 
 	nvc0_graph_init_units(dev);
-	nvc0_graph_tp_init(dev);
-	nvc0_graph_ropc_init(dev);
+	nvc0_graph_tp_init(dev, res);
+	nvc0_graph_ropc_init(dev, res);
 
 	nvc0_graph_init_intr(dev);
 
-	return nvc0_graph_init_ctxctl(dev);
-}
+	ret = nvc0_graph_init_ctxctl(dev, res);
+	if (ret)
+		return ret;
 
-void nv50_graph_takedown(struct pscnv_engine *eng) {
-	/* XXX */
+	nouveau_irq_register(dev, 12, nv50_graph_irq_handler); /* XXX */
+
+	return 0;
 }
 
 /* list of PGRAPH writes put in grctx+0x14, count of writes grctx+0x10 */
 static int
 nvc0_graph_init_obj14(struct pscnv_vspace *vs)
 {
+	struct drm_device *dev = vs->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct pscnv_bo *vo;
 	int i, ret;
 
-	vo = pscnv_mem_alloc(vs->dev, 0x1000, PSCNV_GEM_CONTIG, 0, 0x63c10014);
+	vo = pscnv_mem_alloc(vs->dev, 0x1000, PSCNV_GEM_CONTIG, 0, 0x33101157);
 	if (!vo)
 		return -ENOMEM;
-	vs->ctxsw_vo = vo;
+	nvc0_vs(vs)->mmio_bo = vo;
 
-	ret = pscnv_vspace_map3(vs->ctxsw_vo);
+	ret = dev_priv->vm->map_kernel(nvc0_vs(vs)->mmio_bo);
 	if (ret)
 		return ret;
-	ret = pscnv_vspace_map(vs, vo, 0x1000, (1ULL << 40) - 1,
-			       0, &vs->ctxsw_vm);
+
+	ret = pscnv_vspace_map(vs, vo, 0x1000, (1ULL << 40) - 1, 0,
+			       &nvc0_vs(vs)->mmio_vm);
 	if (ret)
 		return ret;
 
 	i = -4;
 	nv_wv32(vo, i += 4, 0x418810);
-	nv_wv32(vo, i += 4, (8 << 28) | (vs->obj19848->start >> 12));
+	nv_wv32(vo, i += 4, (8 << 28) | (nvc0_vs(vs)->obj19848->start >> 12));
 
 	nv_wv32(vo, i += 4, 0x419848);
-	nv_wv32(vo, i += 4, (1 << 28) | (vs->obj19848->start >> 12));
+	nv_wv32(vo, i += 4, (1 << 28) | (nvc0_vs(vs)->obj19848->start >> 12));
 
 	nv_wv32(vo, i += 4, 0x408004);
-	nv_wv32(vo, i += 4, (8 << 28) | (vs->obj08004->start >> 12));
+	nv_wv32(vo, i += 4, nvc0_vs(vs)->obj08004->start >> 8);
 
 	nv_wv32(vo, i += 4, 0x40800c);
-	nv_wv32(vo, i += 4, (1 << 28) | (vs->obj0800c->start >> 12));
+	nv_wv32(vo, i += 4, nvc0_vs(vs)->obj0800c->start >> 8);
+
+	nv_wv32(vo, i += 4, 0x419004);
+	nv_wv32(vo, i += 4, nvc0_vs(vs)->obj0800c->start >> 8);
+
+	nv_wv32(vo, i += 4, 0x418808);
+	nv_wv32(vo, i += 4, nvc0_vs(vs)->obj08004->start >> 8);
 
 	return 0;
 }
 
 int
-nvc0_chan_init_grctx(struct drm_device *dev, struct pscnv_chan *chan)
+nvc0_graph_chan_alloc(struct pscnv_engine *eng, struct pscnv_chan *chan)
 {
+	struct drm_device *dev = eng->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nvc0_graph_engine *graph = nvc0_graph(eng);
 	int i, ret;
+	struct nvc0_graph_chan *grch = kzalloc(sizeof *grch, GFP_KERNEL);
 
-	NV_INFO(dev, "%s\n", __FUNCTION__);
+	if (!grch) {
+		NV_ERROR(dev, "PGRAPH: Couldn't allocate channel !\n");
+		return -ENOMEM;
+	}
 
-	dev_priv->grctx_size = 0x60000;
+	graph->grctx_size = 0x60000; /* XXX */
 
-	chan->grctx = pscnv_mem_alloc(dev, dev_priv->grctx_size,
-				       PSCNV_GEM_CONTIG | PSCNV_GEM_NOUSER,
-				       0, 0x93ac0747);
-	if (!chan->grctx)
+	grch->grctx = pscnv_mem_alloc(dev, graph->grctx_size,
+				      PSCNV_GEM_CONTIG | PSCNV_GEM_NOUSER,
+				      0, 0x93ac0747);
+	if (!grch->grctx)
 		return -ENOMEM;
 
-	ret = pscnv_vspace_map3(chan->grctx);
+	ret = dev_priv->vm->map_kernel(grch->grctx);
 	if (ret) {
-		pscnv_mem_free(chan->grctx);
+		pscnv_mem_free(grch->grctx);
 		return ret;
 	}
 
 	ret = pscnv_vspace_map(chan->vspace,
-			       chan->grctx, 0x1000, (1ULL << 40) - 1,
-			       0, &chan->grctx_vm);
+			       grch->grctx, 0x1000, (1ULL << 40) - 1,
+			       0, &grch->grctx_vm);
 	if (ret) {
-		pscnv_mem_free(chan->grctx);
+		pscnv_mem_free(grch->grctx);
 		return ret;
 	}
 
-	nv_wv32(chan->vo, 0x210, chan->grctx_vm->start | 4);
-	nv_wv32(chan->vo, 0x214, chan->grctx_vm->start >> 32);
-	nvc0_bar3_flush(dev);
+	nv_wv32(chan->bo, 0x210, grch->grctx_vm->start | 4);
+	nv_wv32(chan->bo, 0x214, grch->grctx_vm->start >> 32);
+	dev_priv->vm->bar_flush(dev);
 
-	if (!chan->vspace->obj08004) {
-		ret = pscnv_vspace_map(chan->vspace, dev_priv->obj08004,
+	if (!nvc0_vs(chan->vspace)->obj08004) {
+		ret = pscnv_vspace_map(chan->vspace, graph->obj08004,
 				       0x1000, (1ULL << 40) - 1, 0,
-				       &chan->vspace->obj08004);
+				       &nvc0_vs(chan->vspace)->obj08004);
 		if (ret)
 			return ret;
 
-		ret = pscnv_vspace_map(chan->vspace, dev_priv->obj0800c,
+		ret = pscnv_vspace_map(chan->vspace, graph->obj0800c,
 				       0x1000, (1ULL << 40) - 1, 0,
-				       &chan->vspace->obj0800c);
+				       &nvc0_vs(chan->vspace)->obj0800c);
 		if (ret)
 			return ret;
 
-		ret = pscnv_vspace_map(chan->vspace, dev_priv->obj19848,
+		ret = pscnv_vspace_map(chan->vspace, graph->obj19848,
 				       0x1000, (1ULL << 40) - 1, 0,
-				       &chan->vspace->obj19848);
+				       &nvc0_vs(chan->vspace)->obj19848);
 		if (ret)
 			return ret;
 	}
 
-	if (!dev_priv->grctx_vals)
-		return nvc0_grctx_generate(dev, chan);
+	chan->engdata[PSCNV_ENGINE_GRAPH] = grch;
+
+	if (!graph->grctx_initvals)
+		return nvc0_grctx_generate(dev, graph, chan);
 
 	/* fill in context values generated for 1st context */
-	for (i = 0; i < dev_priv->grctx_size / 4; ++i)
-		nv_wv32(chan->grctx, i * 4, dev_priv->grctx_vals[i]);
+	for (i = 0; i < graph->grctx_size / 4; ++i)
+		nv_wv32(grch->grctx, i * 4, graph->grctx_initvals[i]);
 
-	if (!chan->vspace->ctxsw_vo) {
+	if (!nvc0_vs(chan->vspace)->mmio_bo) {
 		ret = nvc0_graph_init_obj14(chan->vspace);
 		if (ret)
 			return ret;
 	}
 
-	nv_wv32(chan->grctx, 0xf4, 0);
-	nv_wv32(chan->grctx, 0xf8, 0);
-	nv_wv32(chan->grctx, 0x10, 4); /* mmio list size */
-	nv_wv32(chan->grctx, 0x14, chan->vspace->ctxsw_vm->start);
-	nv_wv32(chan->grctx, 0x18, chan->vspace->ctxsw_vm->start >> 32);
-	nv_wv32(chan->grctx, 0x1c, 1);
-	nv_wv32(chan->grctx, 0x20, 0);
-	nv_wv32(chan->grctx, 0x28, 0);
-	nv_wv32(chan->grctx, 0x2c, 0);
-	nvc0_bar3_flush(dev);
+	nv_wv32(grch->grctx, 0xf4, 0);
+	nv_wv32(grch->grctx, 0xf8, 0);
+	nv_wv32(grch->grctx, 0x10, 6); /* mmio list size */
+	nv_wv32(grch->grctx, 0x14, nvc0_vs(chan->vspace)->mmio_vm->start);
+	nv_wv32(grch->grctx, 0x18, nvc0_vs(chan->vspace)->mmio_vm->start >> 32);
+	nv_wv32(grch->grctx, 0x1c, 1);
+	nv_wv32(grch->grctx, 0x20, 0);
+	nv_wv32(grch->grctx, 0x28, 0);
+	nv_wv32(grch->grctx, 0x2c, 0);
+	dev_priv->vm->bar_flush(dev);
 
 	return 0;
+}
+
+void
+nvc0_graph_chan_kill(struct pscnv_engine *eng, struct pscnv_chan *ch)
+{
+	/* FIXME */
+}
+
+void
+nvc0_graph_chan_free(struct pscnv_engine *eng, struct pscnv_chan *ch)
+{
+	struct nvc0_graph_chan *grch = ch->engdata[PSCNV_ENGINE_GRAPH];
+
+	pscnv_vspace_unmap_node(grch->grctx_vm);
+	pscnv_mem_free(grch->grctx);
+	kfree(grch);
+	ch->engdata[PSCNV_ENGINE_GRAPH] = NULL;
 }

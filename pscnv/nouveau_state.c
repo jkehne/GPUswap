@@ -274,7 +274,11 @@ nouveau_card_init(struct drm_device *dev)
 			break;
 		case NV_C0:
 			/* PFIFO */
-			nvc0_fifo_init(dev);
+			ret = nvc0_fifo_init(dev);
+			if (!ret) {
+				/* PGRAPH */
+				nvc0_graph_init(dev);
+			}
 			break;
 		default:
 			break;
@@ -664,6 +668,20 @@ bool nouveau_wait_until(struct drm_device *dev, uint64_t timeout,
 
 	do {
 		if ((nv_rd32(dev, reg) & mask) == val)
+			return true;
+	} while (nv04_timer_read(dev) - start < timeout);
+
+	return false;
+}
+
+/* Wait until (value(reg) & mask) != val, up until timeout has hit. */
+bool nouveau_wait_until_neq(struct drm_device *dev, uint64_t timeout,
+			    uint32_t reg, uint32_t mask, uint32_t val)
+{
+	uint64_t start = nv04_timer_read(dev);
+
+	do {
+		if ((nv_rd32(dev, reg) & mask) != val)
 			return true;
 	} while (nv04_timer_read(dev) - start < timeout);
 

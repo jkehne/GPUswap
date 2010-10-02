@@ -2,9 +2,9 @@
 #include "drmP.h"
 #include "nouveau_drv.h"
 #include "nouveau_reg.h"
-#include "pscnv_graph.h"
 #include "pscnv_chan.h"
 
+#include "nvc0_vm.h"
 #include "nvc0_ctxctl.h"
 
 #define NVC0_CTXCTL_1A_DATA_INDEX 0x41a1c0
@@ -23,8 +23,12 @@
 
 #define NVC0_CTXCTL_WRITE_AUTOINCR (1 << 24)
 
+#define NVC0_PGRAPH_TP_REG(i, r)  ((0x500000 + (i) * 0x8000) + (r))
+#define NVC0_PGRAPH_MP_REG(i, j, r) \
+	((0x504000 + (i) * 0x8000 + (j) * 0x800) + (r))
+
 void
-nvc0_ctxctl_load_ctxprog(struct drm_device *dev)
+nvc0_ctxctl_load_fuc(struct drm_device *dev)
 {
 	const uint32_t *data;
 	int i, j;
@@ -95,6 +99,7 @@ void
 nvc0_grctx_construct(struct drm_device *dev, struct pscnv_chan *chan)
 {
 	struct pscnv_vspace *vspace = chan->vspace;
+	struct nvc0_vspace *vs = nvc0_vs(vspace);
 	int tp_count;
 	int mp_count[32];
 	int mp_count_max = 0;
@@ -491,15 +496,15 @@ nvc0_grctx_construct(struct drm_device *dev, struct pscnv_chan *chan)
 	nv_wr32(dev, 0x419f54, 0x00000000);
 
 	nv_wr32(dev, 0x404154, 0x00000000);
-	nv_wr32(dev, 0x408004, vspace->obj08004->start >> 8);
+	nv_wr32(dev, 0x408004, vs->obj08004->start >> 8);
 	nv_wr32(dev, 0x408008, 0x80000018);
-	nv_wr32(dev, 0x40800c, vspace->obj0800c->start >> 8);
+	nv_wr32(dev, 0x40800c, vs->obj0800c->start >> 8);
 	nv_wr32(dev, 0x408010, 0x80000000);
-	nv_wr32(dev, 0x418810, (8 << 28) | (vspace->obj19848->start >> 12));
-	nv_wr32(dev, 0x419848, (1 << 28) | (vspace->obj19848->start >> 12));
-	nv_wr32(dev, 0x419004, vspace->obj0800c->start >> 8);
+	nv_wr32(dev, 0x418810, (8 << 28) | (vs->obj19848->start >> 12));
+	nv_wr32(dev, 0x419848, (1 << 28) | (vs->obj19848->start >> 12));
+	nv_wr32(dev, 0x419004, vs->obj0800c->start >> 8);
 	nv_wr32(dev, 0x419008, 0x00000000);
-	nv_wr32(dev, 0x418808, vspace->obj08004->start >> 8);
+	nv_wr32(dev, 0x418808, vs->obj08004->start >> 8);
 	nv_wr32(dev, 0x41880c, 0x80000018);
 	nv_wr32(dev, 0x405830, 0x02180000);
 

@@ -257,6 +257,9 @@ int nvc0_fifo_chan_init_ib (struct pscnv_chan *ch, uint32_t pb_handle, uint32_t 
 
 	spin_unlock_irqrestore(&fifo->lock, irqflags);
 
+	dev_priv->engines[PSCNV_ENGINE_GRAPH]->
+		chan_alloc(dev_priv->engines[PSCNV_ENGINE_GRAPH], ch);
+
 	return 0;
 }
 
