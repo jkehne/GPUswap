@@ -223,14 +223,14 @@ nvc0_vspace_do_map(struct pscnv_vspace *vs,
 
 	switch (bo->flags & PSCNV_GEM_MEMTYPE_MASK) {
 	case PSCNV_GEM_SYSRAM_NOSNOOP:
-		pfl1 |= 0x0;
+		pfl1 |= 0x2;
 		/* fall through */
 	case PSCNV_GEM_SYSRAM_SNOOP:
 	{
 		unsigned int pde = NVC0_PDE(offset);
 		unsigned int pte = (offset & NVC0_VM_BLOCK_MASK) >> PAGE_SHIFT;
 		struct nvc0_pgt *pt = nvc0_vspace_pgt(vs, pde);
-		pfl1 |= 0x7;
+		pfl1 |= 0x5;
 		for (i = 0; i < (bo->size >> PAGE_SHIFT); ++i) {
 			uint64_t phys = bo->dmapages[i];
 			nv_wv32(pt->bo[1], pte * 8 + 4, pfl1);
