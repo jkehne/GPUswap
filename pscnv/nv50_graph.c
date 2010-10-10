@@ -427,6 +427,7 @@ static struct pscnv_enumval dispatch_errors[] = {
 
 	{ 0xb, "INVALID_ADDRESS_ALIGNMENT", 0 },
 	{ 0xc, "INVALID_BITFIELD", 0 },
+	{ 0xd, "BEGIN_END_ACTIVE", 0 },
 
 	{ 0x10, "RT_DOUBLE_BIND", 0 },
 	{ 0x11, "RT_TYPES_MISMATCH", 0 },
