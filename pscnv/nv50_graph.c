@@ -466,9 +466,80 @@ static struct pscnv_enumval *pscnv_enum_find (struct pscnv_enumval *list, int va
 		return 0;
 }
 
+void nv50_graph_tprop_trap(struct drm_device *dev, int cid, int tp) {
+	static const char *const tprop_tnames[14] = {
+		"RT0",
+		"RT1",
+		"RT2",
+		"RT3",
+		"RT4",
+		"RT5",
+		"RT6",
+		"RT7",
+		"ZETA",
+		"LOCAL",
+		"GLOBAL",
+		"STACK",
+		"DST2D",
+		"???",
+	};
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	uint32_t staddr, status;
+	uint32_t e0c, e10, e14, e18, e1c, e20, e24;
+	int surf;
+	uint64_t addr;
+	if (dev_priv->chipset < 0xa0)
+		staddr = 0x408e08 + tp * 0x1000;
+	else
+		staddr = 0x408708 + tp * 0x800;
+	status = nv_rd32(dev, staddr) & 0x7fffffff;
+	e0c = nv_rd32(dev, staddr + 4);
+	e10 = nv_rd32(dev, staddr + 8);
+	e14 = nv_rd32(dev, staddr + 0xc);
+	e18 = nv_rd32(dev, staddr + 0x10);
+	e1c = nv_rd32(dev, staddr + 0x14);
+	e20 = nv_rd32(dev, staddr + 0x18);
+	e24 = nv_rd32(dev, staddr + 0x1c);
+	surf = e24 >> 0x18 & 0xf;
+	addr = e10 | (uint64_t)e14 << 32;
+	if (surf > 13)
+		surf = 13;
+	if (status & 0x10) {
+		NV_ERROR(dev, "PGRAPH_TRAP_TPROP: ch %d TP %d surf %s DST2D_FAULT at %llx\n", cid, tp, tprop_tnames[surf], addr);
+		status &= ~0x10;
+	}
+	if (status & 0x40) {
+		NV_ERROR(dev, "PGRAPH_TRAP_TPROP: ch %d TP %d surf %s RT_FAULT at %llx\n", cid, tp, tprop_tnames[surf], addr);
+		status &= ~0x40;
+	}
+	if (status & 0x80) {
+		NV_ERROR(dev, "PGRAPH_TRAP_TPROP: ch %d TP %d surf %s CUDA_FAULT at %llx\n", cid, tp, tprop_tnames[surf], addr);
+		status &= ~0x80;
+	}
+	if (status & 0x800) {
+		NV_ERROR(dev, "PGRAPH_TRAP_TPROP: ch %d TP %d surf %s STORAGE_TYPE_MISMATCH type %02x\n", cid, tp, tprop_tnames[surf], e24 & 0x7f);
+		status &= ~0x800;
+	}
+	if (status) {
+		NV_ERROR(dev, "PGRAPH_TRAP_TPROP: ch %d TP %d surf %s status %08x\n", cid, tp, tprop_tnames[surf], status);
+	}
+	NV_ERROR(dev, "magic: %08x %08x %08x %08x %08x %08x %08x\n",
+			nv_rd32(dev, staddr + 4),
+			nv_rd32(dev, staddr + 8),
+			nv_rd32(dev, staddr + 0xc),
+			nv_rd32(dev, staddr + 0x10),
+			nv_rd32(dev, staddr + 0x14),
+			nv_rd32(dev, staddr + 0x18),
+			nv_rd32(dev, staddr + 0x1c));
+	nv_wr32(dev, staddr, 0xc0000000);
+}
+
 void nv50_graph_trap_handler(struct drm_device *dev, int cid) {
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	uint32_t status = nv_rd32(dev, 0x400108);
 	uint32_t ustatus;
+	uint32_t units = nv_rd32(dev, 0x1540);
+	int i;
 
 	if (status & 0x001) {
 		ustatus = nv_rd32(dev, 0x400804) & 0x7fffffff;
@@ -601,6 +672,20 @@ void nv50_graph_trap_handler(struct drm_device *dev, int cid) {
 		nv_wr32(dev, 0x402000, 0xc0000000);
 		nv_wr32(dev, 0x400108, 0x020);
 		status &= ~0x020;
+	}
+
+	if (status & 0x100) {
+		for (i = 0; i < 16; i++)
+			if (units & 1 << i) {
+				if (dev_priv->chipset < 0xa0)
+					ustatus = nv_rd32(dev, 0x408e08 + i * 0x1000);
+				else
+					ustatus = nv_rd32(dev, 0x408708 + i * 0x800);
+				if (ustatus & 0x7fffffff)
+					nv50_graph_tprop_trap(dev, cid, i);
+			}
+		nv_wr32(dev, 0x400108, 0x100);
+		status &= ~0x100;
 	}
 
 	/* XXX: per-TP traps. */
