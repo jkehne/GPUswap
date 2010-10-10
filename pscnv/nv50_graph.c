@@ -524,13 +524,7 @@ void nv50_graph_tprop_trap(struct drm_device *dev, int cid, int tp) {
 		NV_ERROR(dev, "PGRAPH_TRAP_TPROP: ch %d TP %d surf %s status %08x\n", cid, tp, tprop_tnames[surf], status);
 	}
 	NV_ERROR(dev, "magic: %08x %08x %08x %08x %08x %08x %08x\n",
-			nv_rd32(dev, staddr + 4),
-			nv_rd32(dev, staddr + 8),
-			nv_rd32(dev, staddr + 0xc),
-			nv_rd32(dev, staddr + 0x10),
-			nv_rd32(dev, staddr + 0x14),
-			nv_rd32(dev, staddr + 0x18),
-			nv_rd32(dev, staddr + 0x1c));
+			e0c, e10, e14, e18, e1c, e20, e24);
 	nv_wr32(dev, staddr, 0xc0000000);
 }
 
