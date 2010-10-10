@@ -361,7 +361,7 @@ static struct pscnv_enumval vm_trap_reasons[] = {
 	{ 0, "PT_NOT_PRESENT", 0},
 	{ 1, "PT_TOO_SHORT", 0 },
 	{ 2, "PAGE_NOT_PRESENT", 0 },
-	/* 3 is magic flag 0x40 set in PTE */
+	{ 3, "PAGE_SYSTEM_ONLY", 0 },
 	{ 4, "PAGE_READ_ONLY", 0 },
 	/* 5 never seen */
 	{ 6, "NULL_DMAOBJ", 0 },
