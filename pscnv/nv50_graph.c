@@ -466,6 +466,40 @@ static struct pscnv_enumval *pscnv_enum_find (struct pscnv_enumval *list, int va
 		return 0;
 }
 
+void nv50_graph_tex_trap(struct drm_device *dev, int cid, int tp) {
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	uint32_t staddr, status;
+	uint32_t e04, e08, e0c, e10;
+	uint64_t addr;
+	if (dev_priv->chipset < 0xa0)
+		staddr = 0x408900 + tp * 0x1000;
+	else
+		staddr = 0x408600 + tp * 0x800;
+	status = nv_rd32(dev, staddr) & 0x7fffffff;
+	e04 = nv_rd32(dev, staddr + 4);
+	e08 = nv_rd32(dev, staddr + 8);
+	e0c = nv_rd32(dev, staddr + 0xc);
+	e10 = nv_rd32(dev, staddr + 0x10);
+	addr = (uint64_t)e08 << 8;
+	if (!(status & 1)) { // seems always set...
+		NV_ERROR(dev, "PGRAPH_TRAP_TEXTURE: ch %d TP %d status %08x [no 1!]\n", cid, tp, status);
+	}
+	status &= ~1;
+	if (status & 2) {
+		NV_ERROR(dev, "PGRAPH_TRAP_TEXTURE: ch %d TP %d FAULT at %llx\n", cid, tp, addr);
+		status &= ~2;
+	}
+	if (status & 8) {
+		NV_ERROR(dev, "PGRAPH_TRAP_TEXTURE: ch %d TP %d STORAGE_TYPE_MISMATCH type %02x\n", cid, tp, e10 >> 5 & 0x7f);
+		status &= ~8;
+	}
+	if (status) {
+		NV_ERROR(dev, "PGRAPH_TRAP_TEXTURE: ch %d TP %d status %08x\n", cid, tp, status);
+	}
+	NV_ERROR(dev, "magic: %08x %08x %08x %08x\n", e04, e08, e0c, e10);
+	nv_wr32(dev, staddr, 0xc0000000);
+}
+
 void nv50_graph_tprop_trap(struct drm_device *dev, int cid, int tp) {
 	static const char *const tprop_tnames[14] = {
 		"RT0",
@@ -666,6 +700,20 @@ void nv50_graph_trap_handler(struct drm_device *dev, int cid) {
 		nv_wr32(dev, 0x402000, 0xc0000000);
 		nv_wr32(dev, 0x400108, 0x020);
 		status &= ~0x020;
+	}
+
+	if (status & 0x040) {
+		for (i = 0; i < 16; i++)
+			if (units & 1 << i) {
+				if (dev_priv->chipset < 0xa0)
+					ustatus = nv_rd32(dev, 0x408900 + i * 0x1000);
+				else
+					ustatus = nv_rd32(dev, 0x408600 + i * 0x800);
+				if (ustatus & 0x7fffffff)
+					nv50_graph_tex_trap(dev, cid, i);
+			}
+		nv_wr32(dev, 0x400108, 0x040);
+		status &= ~0x040;
 	}
 
 	if (status & 0x100) {
