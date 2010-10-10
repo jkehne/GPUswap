@@ -424,7 +424,7 @@ static struct pscnv_enumval dispatch_errors[] = {
 	{ 5, "INVALID_ENUM", 0 },
 
 	{ 8, "INVALID_OBJECT", 0 },
-
+	{ 9, "READ_ONLY_OBJECT", 0 },
 	{ 0xa, "SUPERVISOR_OBJECT", 0 },
 	{ 0xb, "INVALID_ADDRESS_ALIGNMENT", 0 },
 	{ 0xc, "INVALID_BITFIELD", 0 },
