@@ -500,6 +500,25 @@ void nv50_graph_tex_trap(struct drm_device *dev, int cid, int tp) {
 	nv_wr32(dev, staddr, 0xc0000000);
 }
 
+void nv50_graph_mpc_trap(struct drm_device *dev, int cid, int tp) {
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	uint32_t staddr, status;
+	if (dev_priv->chipset < 0xa0)
+		staddr = 0x408314 + tp * 0x1000;
+	else
+		staddr = 0x40831c + tp * 0x800;
+	status = nv_rd32(dev, staddr) & 0x7fffffff;
+	if (status & 0x1000) {
+		// the faulting address / g[] index / MP id / anything is nowhere to be found.
+		NV_ERROR(dev, "PGRAPH_TRAP_MPC: ch %d TP %d GLOBAL_LIMIT\n", cid, tp);
+		status &= ~0x1000;
+	}
+	if (status) {
+		NV_ERROR(dev, "PGRAPH_TRAP_MPC: ch %d TP %d status %08x\n", cid, tp, status);
+	}
+	nv_wr32(dev, staddr, 0xc0000000);
+}
+
 void nv50_graph_tprop_trap(struct drm_device *dev, int cid, int tp) {
 	static const char *const tprop_tnames[14] = {
 		"RT0",
@@ -714,6 +733,20 @@ void nv50_graph_trap_handler(struct drm_device *dev, int cid) {
 			}
 		nv_wr32(dev, 0x400108, 0x040);
 		status &= ~0x040;
+	}
+
+	if (status & 0x080) {
+		for (i = 0; i < 16; i++)
+			if (units & 1 << i) {
+				if (dev_priv->chipset < 0xa0)
+					ustatus = nv_rd32(dev, 0x408314 + i * 0x1000);
+				else
+					ustatus = nv_rd32(dev, 0x40831c + i * 0x800);
+				if (ustatus & 0x7fffffff)
+					nv50_graph_mpc_trap(dev, cid, i);
+			}
+		nv_wr32(dev, 0x400108, 0x080);
+		status &= ~0x080;
 	}
 
 	if (status & 0x100) {
