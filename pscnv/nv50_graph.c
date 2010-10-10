@@ -500,6 +500,32 @@ void nv50_graph_tex_trap(struct drm_device *dev, int cid, int tp) {
 	nv_wr32(dev, staddr, 0xc0000000);
 }
 
+void nv50_graph_mp_trap(struct drm_device *dev, int cid, int tp, int mp) {
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	uint32_t mpaddr, mp10, status, pc, oplo, ophi;
+	if (dev_priv->chipset < 0xa0)
+		mpaddr = 0x408200 + tp * 0x1000 + mp * 0x80;
+	else
+		mpaddr = 0x408100 + tp * 0x800 + mp * 0x80;
+	mp10 = nv_rd32(dev, mpaddr + 0x10);
+	status = nv_rd32(dev, mpaddr + 0x14);
+	nv_rd32(dev, mpaddr + 0x20);
+	pc = nv_rd32(dev, mpaddr + 0x24);
+	oplo = nv_rd32(dev, mpaddr + 0x70);
+	ophi = nv_rd32(dev, mpaddr + 0x74);
+	if (!status)
+		return;
+	if (status & 0x10) {
+		NV_ERROR(dev, "PGRAPH_TRAP_MP: ch %d TP %d MP %d INVALID_OPCODE at %06x warp %d op %08x %08x\n", cid, tp, mp, pc & 0xffffff, pc >> 24, oplo, ophi);
+		status &= ~0x10;
+	}
+	if (status) {
+		NV_ERROR(dev, "PGRAPH_TRAP_MP: ch %d TP %d MP %d status %08x at %06x warp %d op %08x %08x\n", cid, tp, mp, status, pc & 0xffffff, pc >> 24, oplo, ophi);
+	}
+	nv_wr32(dev, mpaddr + 0x10, mp10);
+	nv_wr32(dev, mpaddr + 0x14, 0);
+}
+
 void nv50_graph_mpc_trap(struct drm_device *dev, int cid, int tp) {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	uint32_t staddr, status;
@@ -512,6 +538,14 @@ void nv50_graph_mpc_trap(struct drm_device *dev, int cid, int tp) {
 		// the faulting address / g[] index / MP id / anything is nowhere to be found.
 		NV_ERROR(dev, "PGRAPH_TRAP_MPC: ch %d TP %d GLOBAL_LIMIT\n", cid, tp);
 		status &= ~0x1000;
+	}
+	if (status & 0x10000) {
+		int i;
+		uint32_t units = nv_rd32(dev, 0x1540);
+		for (i = 0; i < 4; i++)
+			if (units & 1 << (i + 24))
+				nv50_graph_mp_trap(dev, cid, tp, i);
+		status &= ~0x10000;
 	}
 	if (status) {
 		NV_ERROR(dev, "PGRAPH_TRAP_MPC: ch %d TP %d status %08x\n", cid, tp, status);
