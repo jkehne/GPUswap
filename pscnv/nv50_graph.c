@@ -515,9 +515,29 @@ void nv50_graph_mp_trap(struct drm_device *dev, int cid, int tp, int mp) {
 	ophi = nv_rd32(dev, mpaddr + 0x74);
 	if (!status)
 		return;
+	if (status & 1) {
+		NV_ERROR(dev, "PGRAPH_TRAP_MP: ch %d TP %d MP %d STACK_UNDERFLOW at %06x warp %d op %08x %08x\n", cid, tp, mp, pc & 0xffffff, pc >> 24, oplo, ophi);
+		status &= ~1;
+	}
+	if (status & 2) {
+		NV_ERROR(dev, "PGRAPH_TRAP_MP: ch %d TP %d MP %d STACK_MISMATCH at %06x warp %d op %08x %08x\n", cid, tp, mp, pc & 0xffffff, pc >> 24, oplo, ophi);
+		status &= ~2;
+	}
+	if (status & 4) {
+		NV_ERROR(dev, "PGRAPH_TRAP_MP: ch %d TP %d MP %d QUADON_ACTIVE at %06x warp %d op %08x %08x\n", cid, tp, mp, pc & 0xffffff, pc >> 24, oplo, ophi);
+		status &= ~4;
+	}
+	if (status & 8) {
+		NV_ERROR(dev, "PGRAPH_TRAP_MP: ch %d TP %d MP %d TIMEOUT at %06x warp %d op %08x %08x\n", cid, tp, mp, pc & 0xffffff, pc >> 24, oplo, ophi);
+		status &= ~8;
+	}
 	if (status & 0x10) {
 		NV_ERROR(dev, "PGRAPH_TRAP_MP: ch %d TP %d MP %d INVALID_OPCODE at %06x warp %d op %08x %08x\n", cid, tp, mp, pc & 0xffffff, pc >> 24, oplo, ophi);
 		status &= ~0x10;
+	}
+	if (status & 0x40) {
+		NV_ERROR(dev, "PGRAPH_TRAP_MP: ch %d TP %d MP %d BREAKPOINT at %06x warp %d op %08x %08x\n", cid, tp, mp, pc & 0xffffff, pc >> 24, oplo, ophi);
+		status &= ~0x40;
 	}
 	if (status) {
 		NV_ERROR(dev, "PGRAPH_TRAP_MP: ch %d TP %d MP %d status %08x at %06x warp %d op %08x %08x\n", cid, tp, mp, status, pc & 0xffffff, pc >> 24, oplo, ophi);
@@ -534,18 +554,26 @@ void nv50_graph_mpc_trap(struct drm_device *dev, int cid, int tp) {
 	else
 		staddr = 0x40831c + tp * 0x800;
 	status = nv_rd32(dev, staddr) & 0x7fffffff;
+	if (status & 0x40) {
+		NV_ERROR(dev, "PGRAPH_TRAP_MPC: ch %d TP %d STACK_LIMIT\n", cid, tp);
+		status &= ~0x40;
+	}
 	if (status & 0x1000) {
 		// the faulting address / g[] index / MP id / anything is nowhere to be found.
 		NV_ERROR(dev, "PGRAPH_TRAP_MPC: ch %d TP %d GLOBAL_LIMIT\n", cid, tp);
 		status &= ~0x1000;
 	}
 	if (status & 0x10000) {
-		int i;
-		uint32_t units = nv_rd32(dev, 0x1540);
-		for (i = 0; i < 4; i++)
-			if (units & 1 << (i + 24))
-				nv50_graph_mp_trap(dev, cid, tp, i);
+		nv50_graph_mp_trap(dev, cid, tp, 0);
 		status &= ~0x10000;
+	}
+	if (status & 0x20000) {
+		nv50_graph_mp_trap(dev, cid, tp, 1);
+		status &= ~0x20000;
+	}
+	if (status & 0x4000000) {
+		nv50_graph_mp_trap(dev, cid, tp, 2);
+		status &= ~0x4000000;
 	}
 	if (status) {
 		NV_ERROR(dev, "PGRAPH_TRAP_MPC: ch %d TP %d status %08x\n", cid, tp, status);
