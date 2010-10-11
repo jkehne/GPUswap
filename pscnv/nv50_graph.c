@@ -554,13 +554,24 @@ void nv50_graph_mpc_trap(struct drm_device *dev, int cid, int tp) {
 	else
 		staddr = 0x40831c + tp * 0x800;
 	status = nv_rd32(dev, staddr) & 0x7fffffff;
+	if (status & 1) {
+		NV_ERROR(dev, "PGRAPH_TRAP_MPC: ch %d TP %d LOCAL_LIMIT_READ\n", cid, tp);
+		status &= ~1;
+	}
+	if (status & 0x10) {
+		NV_ERROR(dev, "PGRAPH_TRAP_MPC: ch %d TP %d LOCAL_LIMIT_WRITE\n", cid, tp);
+		status &= ~0x10;
+	}
 	if (status & 0x40) {
 		NV_ERROR(dev, "PGRAPH_TRAP_MPC: ch %d TP %d STACK_LIMIT\n", cid, tp);
 		status &= ~0x40;
 	}
+	if (status & 0x100) {
+		NV_ERROR(dev, "PGRAPH_TRAP_MPC: ch %d TP %d GLOBAL_LIMIT_READ\n", cid, tp);
+		status &= ~0x100;
+	}
 	if (status & 0x1000) {
-		// the faulting address / g[] index / MP id / anything is nowhere to be found.
-		NV_ERROR(dev, "PGRAPH_TRAP_MPC: ch %d TP %d GLOBAL_LIMIT\n", cid, tp);
+		NV_ERROR(dev, "PGRAPH_TRAP_MPC: ch %d TP %d GLOBAL_LIMIT_WRITE\n", cid, tp);
 		status &= ~0x1000;
 	}
 	if (status & 0x10000) {
