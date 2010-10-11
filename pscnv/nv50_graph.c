@@ -582,6 +582,14 @@ void nv50_graph_mpc_trap(struct drm_device *dev, int cid, int tp) {
 		nv50_graph_mp_trap(dev, cid, tp, 1);
 		status &= ~0x20000;
 	}
+	if (status & 0x40000) {
+		NV_ERROR(dev, "PGRAPH_TRAP_MPC: ch %d TP %d GLOBAL_LIMIT_RED\n", cid, tp);
+		status &= ~0x40000;
+	}
+	if (status & 0x400000) {
+		NV_ERROR(dev, "PGRAPH_TRAP_MPC: ch %d TP %d GLOBAL_LIMIT_ATOM\n", cid, tp);
+		status &= ~0x400000;
+	}
 	if (status & 0x4000000) {
 		nv50_graph_mp_trap(dev, cid, tp, 2);
 		status &= ~0x4000000;
