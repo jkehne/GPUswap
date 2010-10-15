@@ -418,6 +418,19 @@ static struct pscnv_enumval vm_pgraph_subunits[] = {
 	{ 0, 0, 0 },
 };
 
+static struct pscnv_enumval vm_crypt_subsubunits[] = {
+	{ 0, "CRCTX", 0 },
+	{ 1, "SRC", 0 },
+	{ 2, "DST", 0 },
+	{ 3, "QUERY", 0 },
+	{ 0, 0, 0 },
+};
+
+static struct pscnv_enumval vm_pcrypt_subunits[] = {
+	{ 0xe, "CRYPT", vm_crypt_subsubunits },
+	{ 0, 0, 0 },
+};
+
 static struct pscnv_enumval vm_pfifo_subsubunits[] = {
 	{ 0, "PUSHBUF", 0 },
 	{ 1, "SEMAPHORE", 0 },
@@ -462,7 +475,7 @@ static struct pscnv_enumval vm_units[] = {
 	/* 7 never seen */
 	{ 8, "PPPP", 0 },
 	{ 9, "PBSP", 0 },
-	{ 0xa, "PCRYPT", 0 },
+	{ 0xa, "PCRYPT", vm_pcrypt_subunits },
 	/* 0xb, 0xc never seen */
 	{ 0xd, "PCOPY", 0 },
 	{ 0xe, "PDAEMON", 0 },

@@ -279,6 +279,16 @@ nouveau_card_init(struct drm_device *dev)
 		default:
 			break;
 	}
+	switch (dev_priv->chipset) {
+		case 0x84:
+		case 0x86:
+		case 0x92:
+		case 0x94:
+		case 0x96:
+		case 0xa0:
+			nv84_crypt_init(dev);
+			break;
+	}
 
 	if (drm_core_check_feature(dev, DRIVER_MODESET)) {
 		ret = engine->display.create(dev);
