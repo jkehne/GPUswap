@@ -237,6 +237,12 @@ void nv84_crypt_irq_handler(struct drm_device *dev, int irq) {
 		status &= ~2;
 	}
 
+	if (status & 4) {
+		NV_ERROR(dev, "PCRYPT_ILLEGAL_CLASS: ch %d mthd %04x data %08x\n", cid, mthd, data);
+		nv_wr32(dev, 0x102130, 4);
+		status &= ~4;
+	}
+
 	if (status & 0x80) {
 		NV_ERROR(dev, "PCRYPT_QUERY: ch %d mthd %04x data %08x\n", cid, mthd, data);
 		nv_wr32(dev, 0x102130, 0x80);
