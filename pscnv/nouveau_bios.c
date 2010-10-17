@@ -4914,6 +4914,12 @@ int get_pll_limits(struct drm_device *dev, uint32_t limit_match, struct pll_lims
 				break;
 			}
 
+		if ((dev_priv->card_type >= NV_50) && (pllindex == 0)) {
+			NV_ERROR(dev, "Register 0x%08x not found in PLL "
+				 "limits table", pll_lim->reg);
+			return -ENOENT;
+		}
+
 		pll_rec = &bios->data[plloffs + recordlen * pllindex];
 
 		BIOSLOG(bios, "Loading PLL limits for reg 0x%08x\n",
@@ -6844,6 +6850,7 @@ static bool
 nouveau_bios_posted(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nvbios *bios = &dev_priv->vbios;
 	unsigned htotal;
 
 	if (dev_priv->chipset >= NV_50) {
@@ -6852,6 +6859,8 @@ nouveau_bios_posted(struct drm_device *dev)
 			return false;
 		return true;
 	}
+	if (nouveau_force_post)
+		bios->execute = true;
 
 	htotal  = NVReadVgaCrtc(dev, 0, 0x06);
 	htotal |= (NVReadVgaCrtc(dev, 0, 0x07) & 0x01) << 8;

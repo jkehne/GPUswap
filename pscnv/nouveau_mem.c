@@ -103,14 +103,14 @@ nouveau_mem_timing_init(struct drm_device *dev)
 		tUNK_19 = 1;
 		tUNK_20 = 0;
 		tUNK_21 = 0;
-		switch (recordlen) {
-		case 0x21:
+		switch (recordlen>22?22:recordlen) {
+		case 0x22:
 			tUNK_21 = entry[21];
-		case 0x20:
+		case 0x21:
 			tUNK_20 = entry[20];
-		case 0x19:
+		case 0x20:
 			tUNK_19 = entry[19];
-		case 0x18:
+		case 0x19:
 			tUNK_18 = entry[18];
 		default:
 			tUNK_0  = entry[0];

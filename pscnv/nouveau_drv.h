@@ -208,6 +208,7 @@ struct nouveau_pm_engine {
 	struct nouveau_pm_level *cur;
 
 	struct device *hwmon;
+	struct notifier_block acpi_nb;
 
 	int (*clock_get)(struct drm_device *, u32 id);
 	void *(*clock_pre)(struct drm_device *, struct nouveau_pm_level *,
@@ -255,13 +256,13 @@ enum nv04_fp_display_regs {
 };
 
 struct nv04_crtc_reg {
-	unsigned char MiscOutReg;     /* */
+	unsigned char MiscOutReg;
 	uint8_t CRTC[0xa0];
 	uint8_t CR58[0x10];
 	uint8_t Sequencer[5];
 	uint8_t Graphics[9];
 	uint8_t Attribute[21];
-	unsigned char DAC[768];       /* Internal Colorlookuptable */
+	unsigned char DAC[768];
 
 	/* PCRTC regs */
 	uint32_t fb_start;
@@ -309,43 +310,9 @@ struct nv04_output_reg {
 };
 
 struct nv04_mode_state {
-	uint32_t bpp;
-	uint32_t width;
-	uint32_t height;
-	uint32_t interlace;
-	uint32_t repaint0;
-	uint32_t repaint1;
-	uint32_t screen;
-	uint32_t scale;
-	uint32_t dither;
-	uint32_t extra;
-	uint32_t fifo;
-	uint32_t pixel;
-	uint32_t horiz;
-	int arbitration0;
-	int arbitration1;
-	uint32_t pll;
-	uint32_t pllB;
-	uint32_t vpll;
-	uint32_t vpll2;
-	uint32_t vpllB;
-	uint32_t vpll2B;
+	struct nv04_crtc_reg crtc_reg[2];
 	uint32_t pllsel;
 	uint32_t sel_clk;
-	uint32_t general;
-	uint32_t crtcOwner;
-	uint32_t head;
-	uint32_t head2;
-	uint32_t cursorConfig;
-	uint32_t cursor0;
-	uint32_t cursor1;
-	uint32_t cursor2;
-	uint32_t timingH;
-	uint32_t timingV;
-	uint32_t displayV;
-	uint32_t crtcSync;
-
-	struct nv04_crtc_reg crtc_reg[2];
 };
 
 enum nouveau_card_type {
@@ -489,6 +456,12 @@ struct drm_nouveau_private {
 	struct apertures_struct *apertures;
 };
 #if 0
+static inline struct drm_nouveau_private *
+nouveau_private(struct drm_device *dev)
+{
+	return dev->dev_private;
+}
+
 static inline struct drm_nouveau_private *
 nouveau_bdev(struct ttm_bo_device *bd)
 {
@@ -1208,6 +1181,7 @@ nv_match_device(struct drm_device *dev, unsigned device,
 #define NV_SW_SEMAPHORE_OFFSET                                       0x00000064
 #define NV_SW_SEMAPHORE_ACQUIRE                                      0x00000068
 #define NV_SW_SEMAPHORE_RELEASE                                      0x0000006c
+#define NV_SW_YIELD                                                  0x00000080
 #define NV_SW_DMA_VBLSEM                                             0x0000018c
 #define NV_SW_VBLSEM_OFFSET                                          0x00000400
 #define NV_SW_VBLSEM_RELEASE_VALUE                                   0x00000404
