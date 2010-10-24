@@ -380,7 +380,7 @@ nvc0_graph_takedown(struct pscnv_engine *eng)
 	nv_wr32(eng->dev, 0x40013c, 0); /* INTR_EN */
 }
 
-void nv50_graph_irq_handler(struct drm_device *dev, int irq);
+void nvc0_graph_irq_handler(struct drm_device *dev, int irq);
 
 int
 nvc0_graph_init(struct drm_device *dev)
@@ -482,7 +482,7 @@ nvc0_graph_init(struct drm_device *dev)
 	if (ret)
 		return ret;
 
-	nouveau_irq_register(dev, 12, nv50_graph_irq_handler); /* XXX */
+	nouveau_irq_register(dev, 12, nvc0_graph_irq_handler);
 
 	return 0;
 }
@@ -636,4 +636,281 @@ nvc0_graph_chan_free(struct pscnv_engine *eng, struct pscnv_chan *ch)
 	pscnv_mem_free(grch->grctx);
 	kfree(grch);
 	ch->engdata[PSCNV_ENGINE_GRAPH] = NULL;
+}
+
+/* IRQ Handler */
+
+struct pscnv_enum {
+	int value;
+	const char *name;
+	void *data;
+};
+
+static const struct pscnv_enum dispatch_errors[] = {
+	{ 3, "INVALID_QUERY_OR_TEXTURE", 0 },
+	{ 4, "INVALID_VALUE", 0 },
+	{ 5, "INVALID_ENUM", 0 },
+
+	{ 8, "INVALID_OBJECT", 0 },
+
+	{ 0xb, "INVALID_ADDRESS_ALIGNMENT", 0 },
+	{ 0xc, "INVALID_BITFIELD", 0 },
+
+	{ 0x10, "RT_DOUBLE_BIND", 0 },
+	{ 0x11, "RT_TYPES_MISMATCH", 0 },
+	{ 0x12, "RT_LINEAR_WITH_ZETA", 0 },
+
+	{ 0x1b, "SAMPLER_OVER_LIMIT", 0 },
+	{ 0x1c, "TEXTURE_OVER_LIMIT", 0 },
+
+	{ 0x21, "Z_OUT_OF_BOUNDS", 0 },
+
+	{ 0x23, "M2MF_OUT_OF_BOUNDS", 0 },
+
+	{ 0x27, "CP_MORE_PARAMS_THAN_SHARED", 0 },
+	{ 0x28, "CP_NO_REG_SPACE_STRIPED", 0 },
+	{ 0x29, "CP_NO_REG_SPACE_PACKED", 0 },
+	{ 0x2a, "CP_NOT_ENOUGH_WARPS", 0 },
+	{ 0x2b, "CP_BLOCK_SIZE_MISMATCH", 0 },
+	{ 0x2c, "CP_NOT_ENOUGH_LOCAL_WARPS", 0 },
+	{ 0x2d, "CP_NOT_ENOUGH_STACK_WARPS", 0 },
+	{ 0x2e, "CP_NO_BLOCKDIM_LATCH", 0 },
+
+	{ 0x31, "ENG2D_FORMAT_MISMATCH", 0 },
+
+	{ 0x47, "VP_CLIP_OVER_LIMIT", 0 },
+
+	{ 0, NULL, 0 },
+};
+
+static const struct pscnv_enum *
+pscnv_enum_find(const struct pscnv_enum *list, int val)
+{
+	for (; list->value != val && list->name; ++list);
+	return list->name ? list : NULL;
+}
+
+static void
+nvc0_graph_trap_dispatch(struct drm_device *dev, int cid)
+{
+	uint32_t grcl, mthd, subc, data;
+
+	if (!(nv_rd32(dev, 0x400808) & 0x80000000)) {
+		NV_ERROR(dev, "PGRAPH_TRAP_DISPATCH: no stuck command ?\n");
+		return;
+	}
+
+	grcl = nv_rd32(dev, 0x400814);
+	mthd = nv_rd32(dev, 0x400808) & 0x7ffc;
+	subc = (nv_rd32(dev, 0x400808) >> 16) & 0x7;
+	data = nv_rd32(dev, 0x40080c);
+
+	NV_ERROR(dev, "PGRAPH_TRAP_DISPATCH: ch %d sub %d "
+		 "[%04x] mthd %04x data %08x\n", cid, subc, grcl, mthd, data);
+
+	NV_INFO(dev, "PGRAPH_TRAP_DISPATCH: 400808: %08x\n",
+		nv_rd32(dev, 0x400808));
+	NV_INFO(dev, "PGRAPH_TRAP_DISPATCH: 400848: %08x\n",
+		nv_rd32(dev, 0x400848));
+
+	nv_wr32(dev, 0x400808, 0);
+}
+
+static void
+nvc0_graph_trap_handler(struct drm_device *dev, int cid)
+{
+	uint32_t status = nv_rd32(dev, 0x400108);
+	uint32_t ustatus;
+
+	if (status & 0x001) {
+		ustatus = nv_rd32(dev, 0x404000) & 0x7fffffff;
+		if (ustatus & 0x00000001) {
+			nv_wr32(dev, 0x400500, 0);
+			nvc0_graph_trap_dispatch(dev, cid);
+			nv_wr32(dev, 0x4008e8, nv_rd32(dev, 0x4008e8) & 3);
+			nv_wr32(dev, 0x400848, 0);
+		}
+		if (ustatus & 0x00000002) {
+			NV_ERROR(dev, "PGRAPH_TRAP_QUERY: ch %d\n", cid);
+		}
+		/* likely not on nvc0 */
+		if (ustatus & 0x00000004) {
+			NV_ERROR(dev, "PGRAPH_TRAP_GRCTX_MMIO: ch %d - "
+				 "This is a kernel bug.\n", cid);
+		}
+		if (ustatus & 0x00000008) {
+			NV_ERROR(dev, "PGRAPH_TRAP_GRCTX_XFER1: ch %d - "
+				 "This is a kernel bug.\n", cid);
+		}
+		if (ustatus & 0x00000010) {
+			NV_ERROR(dev, "PGRAPH_TRAP_GRCTX_XFER2: ch %d - "
+				 "This is a kernel bug.\n", cid);
+		}
+		ustatus &= ~0x0000001f;
+		if (ustatus)
+			NV_ERROR(dev, "PGRAPH_TRAP_DISPATCH: unknown ustatus "
+				 "%08x on ch %d\n", ustatus, cid);
+
+		nv_wr32(dev, 0x404000, 0xc0000000);
+		nv_wr32(dev, 0x400108, 0x001);
+		status &= ~0x001;
+	}
+
+	if (status & 0x002) {
+		ustatus = nv_rd32(dev, 0x404600) & 0x7fffffff;
+		if (ustatus & 1)
+			NV_ERROR(dev, "PGRAPH_TRAP_M2MF_NOTIFY: ch %d "
+				 "%08x %08x %08x %08x\n", cid,
+				 nv_rd32(dev, 0x404604),
+				 nv_rd32(dev, 0x404608),
+				 nv_rd32(dev, 0x40460c),
+				 nv_rd32(dev, 0x404610));
+		if (ustatus & 2)
+			NV_ERROR(dev, "PGRAPH_TRAP_M2MF_IN: ch %d "
+				 "%08x %08x %08x %08x\n", cid,
+				 nv_rd32(dev, 0x404604),
+				 nv_rd32(dev, 0x404608),
+				 nv_rd32(dev, 0x40460c),
+				 nv_rd32(dev, 0x404610));
+		if (ustatus & 4)
+			NV_ERROR(dev, "PGRAPH_TRAP_M2MF_OUT: ch %d "
+				 "%08x %08x %08x %08x\n", cid,
+				 nv_rd32(dev, 0x404604),
+				 nv_rd32(dev, 0x404608),
+				 nv_rd32(dev, 0x40460c),
+				 nv_rd32(dev, 0x404610));
+		ustatus &= ~0x00000007;
+		if (ustatus)
+			NV_ERROR(dev, "PGRAPH_TRAP_M2MF: unknown ustatus %08x "
+				 "on ch %d\n", cid, ustatus);
+		nv_wr32(dev, 0x400040, 2);
+		nv_wr32(dev, 0x400040, 0);
+		nv_wr32(dev, 0x404600, 0xc0000000);
+		nv_wr32(dev, 0x400108, 0x002);
+		status &= ~0x002;
+	}
+
+	if (status & 0x080) {
+		ustatus = nv_rd32(dev, 0x404490) & 0x7fffffff;
+		if (ustatus & 1) {
+			NV_ERROR(dev, "PGRAPH_TRAP_MACRO_MISSING_MACRO_DATA: %08x %08x\n",
+				 nv_rd32(dev, 0x404494));
+			ustatus &= ~1;
+		}
+		if (ustatus)
+			NV_ERROR(dev, "PGRAPH_TRAP_MACRO: unknown ustatus %08x\n", ustatus);
+		nv_wr32(dev, 0x404490, 0xc0000000);
+		nv_wr32(dev, 0x400108, 0x080);
+		status &= ~0x080;
+	}
+
+	if (status) {
+		NV_ERROR(dev,
+			 "PGRAPH: unknown trap %08x on ch %d\n", status, cid);
+		NV_INFO(dev,
+			"404000 = %08x\n"
+			"404600 = %08x\n"
+			"408030 = %08x\n"
+			"40601c = %08x\n"
+			"404490 = %08x\n"
+			"406018 = %08x\n"
+			"405840 = %08x\n",
+			nv_rd32(dev, 0x404000), nv_rd32(dev, 0x404600),
+			nv_rd32(dev, 0x408030), nv_rd32(dev, 0x40601c),
+			nv_rd32(dev, 0x404490), nv_rd32(dev, 0x406018),
+			nv_rd32(dev, 0x405840));
+
+		nv_wr32(dev, 0x400108, status);
+	}
+}
+
+#define PGRAPH_ERROR(name)						\
+	NV_ERROR(dev, "%s: ch %d sub %d [%04x] mthd %04x data %08x\n",	\
+		 name, cid, subc, grcl, mthd, data);
+
+void nvc0_graph_irq_handler(struct drm_device *dev, int irq)
+{
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nvc0_graph_engine *graph;
+	uint32_t status;
+	unsigned long flags;
+	uint32_t st, chnd, addr, data, datah, ecode, grcl, subc, mthd;
+	int cid;
+
+	graph = nvc0_graph(dev_priv->engines[PSCNV_ENGINE_GRAPH]);
+
+	spin_lock_irqsave(&graph->lock, flags);
+
+	status = nv_rd32(dev, 0x400100);
+	ecode = nv_rd32(dev, 0x400110);
+	st = nv_rd32(dev, 400700);
+	addr = nv_rd32(dev, 0x400704);
+	mthd = addr & 0x7ffc;
+	subc = (addr >> 16) & 0x7;
+	data = nv_rd32(dev, 0x400708);
+	datah = nv_rd32(dev, 0x40070c);
+	grcl = nv_rd32(dev, 0x400814) & 0xffff;
+	cid = -1;
+
+	if (status & 0x00000001) {
+		PGRAPH_ERROR("PGRAPH_NOTIFY");
+		nv_wr32(dev, 0x400100, 0x00000001);
+		status &= ~0x00000001;
+	}
+	if (status & 0x00000002) {
+		PGRAPH_ERROR("PGRAPH_QUERY");
+		nv_wr32(dev, 0x400100, 0x00000002);
+		status &= ~0x00000002;
+	}
+	if (status & 0x00000010) {
+		PGRAPH_ERROR("PGRAPH_ILLEGAL_MTHD");
+		nv_wr32(dev, 0x400100, 0x00000010);
+		status &= ~0x00000010;
+	}
+	if (status & 0x00000020) {
+		PGRAPH_ERROR("PGRAPH_ILLEGAL_CLASS");
+		nv_wr32(dev, 0x400100, 0x00000020);
+		status &= ~0x00000020;
+	}
+	if (status & 0x00000040) {
+		PGRAPH_ERROR("PGRAPH_DOUBLE_NOITFY");
+		nv_wr32(dev, 0x400100, 0x00000040);
+		status &= ~0x00000040;
+	}
+	if (status & 0x00010000) {
+		PGRAPH_ERROR("PGRAPH_BUFFER_NOTIFY");
+		nv_wr32(dev, 0x400100, 0x00010000);
+		status &= ~0x00010000;
+	}
+	if (status & 0x00100000) {
+		const struct pscnv_enum *ev;
+		ev = pscnv_enum_find(dispatch_errors, ecode);
+		if (ev) {
+			NV_ERROR(dev, "PGRAPH_DISPATCH_ERROR [%s]", ev->name);
+			PGRAPH_ERROR("");
+		} else {
+			NV_ERROR(dev, "PGRAPH_DISPATCH_ERROR [%x]", ecode);
+		}
+		nv_wr32(dev, 0x400100, 0x00100000);
+		status &= ~0x00100000;
+	}
+	if (status & 0x00200000) {
+		nvc0_graph_trap_handler(dev, cid);
+		nv_wr32(dev, 0x400100, 0x00200000);
+		status &= ~0x00200000;
+	}
+	if (status & 0x01000000) {
+		PGRAPH_ERROR("PGRAPH_SINGLE_STEP");
+		nv_wr32(dev, 0x400100, 0x01000000);
+		status &= ~0x01000000;
+	}
+	if (status) {
+		NV_ERROR(dev, "Unknown PGRAPH interrupt(s) %08x\n", status);
+		PGRAPH_ERROR("PGRAPH");
+		nv_wr32(dev, 0x400100, status);
+	}
+
+	nv_wr32(dev, 0x400500, (1 << 16) | 1);
+
+	spin_unlock_irqrestore(&graph->lock, flags);
 }
