@@ -17,6 +17,7 @@ struct pscnv_engine {
 
 int nv50_graph_init(struct drm_device *dev);
 int nv84_crypt_init(struct drm_device *dev);
+int nv98_crypt_init(struct drm_device *dev);
 
 #define PSCNV_ENGINE_GRAPH	1
 #define PSCNV_ENGINE_CRYPT	5

@@ -288,6 +288,11 @@ nouveau_card_init(struct drm_device *dev)
 		case 0xa0:
 			nv84_crypt_init(dev);
 			break;
+		case 0x98:
+		case 0xaa:
+		case 0xac:
+			nv98_crypt_init(dev);
+			break;
 	}
 
 	if (drm_core_check_feature(dev, DRIVER_MODESET)) {
