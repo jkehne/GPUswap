@@ -691,32 +691,6 @@ pscnv_enum_find(const struct pscnv_enum *list, int val)
 }
 
 static void
-nvc0_graph_trap_dispatch(struct drm_device *dev, int cid)
-{
-	uint32_t grcl, mthd, subc, data;
-
-	if (!(nv_rd32(dev, 0x400808) & 0x80000000)) {
-		NV_ERROR(dev, "PGRAPH_TRAP_DISPATCH: no stuck command ?\n");
-		return;
-	}
-
-	grcl = nv_rd32(dev, 0x400814);
-	mthd = nv_rd32(dev, 0x400808) & 0x7ffc;
-	subc = (nv_rd32(dev, 0x400808) >> 16) & 0x7;
-	data = nv_rd32(dev, 0x40080c);
-
-	NV_ERROR(dev, "PGRAPH_TRAP_DISPATCH: ch %d sub %d "
-		 "[%04x] mthd %04x data %08x\n", cid, subc, grcl, mthd, data);
-
-	NV_INFO(dev, "PGRAPH_TRAP_DISPATCH: 400808: %08x\n",
-		nv_rd32(dev, 0x400808));
-	NV_INFO(dev, "PGRAPH_TRAP_DISPATCH: 400848: %08x\n",
-		nv_rd32(dev, 0x400848));
-
-	nv_wr32(dev, 0x400808, 0);
-}
-
-static void
 nvc0_graph_trap_handler(struct drm_device *dev, int cid)
 {
 	uint32_t status = nv_rd32(dev, 0x400108);
@@ -725,28 +699,12 @@ nvc0_graph_trap_handler(struct drm_device *dev, int cid)
 	if (status & 0x001) {
 		ustatus = nv_rd32(dev, 0x404000) & 0x7fffffff;
 		if (ustatus & 0x00000001) {
-			nv_wr32(dev, 0x400500, 0);
-			nvc0_graph_trap_dispatch(dev, cid);
-			nv_wr32(dev, 0x4008e8, nv_rd32(dev, 0x4008e8) & 3);
-			nv_wr32(dev, 0x400848, 0);
+			NV_ERROR(dev, "PGRAPH_TRAP_DISPATCH: ch %d\n", cid);
 		}
 		if (ustatus & 0x00000002) {
 			NV_ERROR(dev, "PGRAPH_TRAP_QUERY: ch %d\n", cid);
 		}
-		/* likely not on nvc0 */
-		if (ustatus & 0x00000004) {
-			NV_ERROR(dev, "PGRAPH_TRAP_GRCTX_MMIO: ch %d - "
-				 "This is a kernel bug.\n", cid);
-		}
-		if (ustatus & 0x00000008) {
-			NV_ERROR(dev, "PGRAPH_TRAP_GRCTX_XFER1: ch %d - "
-				 "This is a kernel bug.\n", cid);
-		}
-		if (ustatus & 0x00000010) {
-			NV_ERROR(dev, "PGRAPH_TRAP_GRCTX_XFER2: ch %d - "
-				 "This is a kernel bug.\n", cid);
-		}
-		ustatus &= ~0x0000001f;
+		ustatus &= ~0x00000003;
 		if (ustatus)
 			NV_ERROR(dev, "PGRAPH_TRAP_DISPATCH: unknown ustatus "
 				 "%08x on ch %d\n", ustatus, cid);
@@ -783,8 +741,6 @@ nvc0_graph_trap_handler(struct drm_device *dev, int cid)
 		if (ustatus)
 			NV_ERROR(dev, "PGRAPH_TRAP_M2MF: unknown ustatus %08x "
 				 "on ch %d\n", cid, ustatus);
-		nv_wr32(dev, 0x400040, 2);
-		nv_wr32(dev, 0x400040, 0);
 		nv_wr32(dev, 0x404600, 0xc0000000);
 		nv_wr32(dev, 0x400108, 0x002);
 		status &= ~0x002;
@@ -843,13 +799,13 @@ void nvc0_graph_irq_handler(struct drm_device *dev, int irq)
 
 	status = nv_rd32(dev, 0x400100);
 	ecode = nv_rd32(dev, 0x400110);
-	st = nv_rd32(dev, 400700);
+	st = nv_rd32(dev, 0x400700);
 	addr = nv_rd32(dev, 0x400704);
 	mthd = addr & 0x7ffc;
 	subc = (addr >> 16) & 0x7;
 	data = nv_rd32(dev, 0x400708);
 	datah = nv_rd32(dev, 0x40070c);
-	grcl = nv_rd32(dev, 0x400814) & 0xffff;
+	grcl = nv_rd32(dev, 0x404010) & 0xffff;
 	cid = -1;
 
 	if (status & 0x00000001) {
