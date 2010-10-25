@@ -748,11 +748,19 @@ nvc0_graph_trap_handler(struct drm_device *dev, int cid)
 
 	if (status & 0x080) {
 		ustatus = nv_rd32(dev, 0x404490) & 0x7fffffff;
-		if (ustatus & 1) {
-			NV_ERROR(dev, "PGRAPH_TRAP_MACRO_MISSING_MACRO_DATA: %08x %08x\n",
-				 nv_rd32(dev, 0x404494));
-			ustatus &= ~1;
-		}
+		if (ustatus & 1)
+			NV_ERROR(dev, "PGRAPH_TRAP_MACRO: TOO_FEW_PARAMS %08x\n",
+				 nv_rd32(dev, 0x404424));
+		if (ustatus & 2)
+			NV_ERROR(dev, "PGRAPH_TRAP_MACRO: TOO_MANY_PARAMS %08x\n",
+				 nv_rd32(dev, 0x404424));
+		if (ustatus & 4)
+			NV_ERROR(dev, "PGRAPH_TRAP_MACRO: ILLEGAL_OPCODE %08x\n",
+				 nv_rd32(dev, 0x404424));
+		if (ustatus & 8)
+			NV_ERROR(dev, "PGRAPH_TRAP_MACRO: DOUBLE_BRANCH %08x\n",
+				 nv_rd32(dev, 0x404424));
+		ustatus &= ~0xf;
 		if (ustatus)
 			NV_ERROR(dev, "PGRAPH_TRAP_MACRO: unknown ustatus %08x\n", ustatus);
 		nv_wr32(dev, 0x404490, 0xc0000000);
