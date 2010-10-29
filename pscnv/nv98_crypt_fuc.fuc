@@ -91,6 +91,8 @@ crypt_dtable:
 .b16 crypt_cmac_finish_complete_prep crypt_do_in
 .b16 crypt_cmac_finish_partial_prep crypt_do_in
 
+.align 0x100
+
 
 .section nv98_pcrypt_code
 
@@ -693,3 +695,5 @@ crypt_do_inout:
 		cmpu b32 $r5 $r3
 	bra ne crypt_do_inout_loop
 	ret
+
+.align 0x100
