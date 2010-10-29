@@ -1,21 +1,21 @@
-.section .rodata
+.section nv98_pcrypt_data
 
 ctx_dma:
-ctx_dma_query:		.word 0
-ctx_dma_src:		.word 0
-ctx_dma_dst:		.word 0
-.equ dma_count, 3
-ctx_query_address_high:	.word 0
-ctx_query_address_low:	.word 0
-ctx_query_counter:	.word 0
-ctx_cond_address_high:	.word 0
-ctx_cond_address_low:	.word 0
-ctx_cond_off:		.word 0
-ctx_src_address_high:	.word 0
-ctx_src_address_low:	.word 0
-ctx_dst_address_high:	.word 0
-ctx_dst_address_low:	.word 0
-ctx_mode:		.word 0
+ctx_dma_query:		.b32 0
+ctx_dma_src:		.b32 0
+ctx_dma_dst:		.b32 0
+.equ dma_count 3
+ctx_query_address_high:	.b32 0
+ctx_query_address_low:	.b32 0
+ctx_query_counter:	.b32 0
+ctx_cond_address_high:	.b32 0
+ctx_cond_address_low:	.b32 0
+ctx_cond_off:		.b32 0
+ctx_src_address_high:	.b32 0
+ctx_src_address_low:	.b32 0
+ctx_dst_address_high:	.b32 0
+ctx_dst_address_low:	.b32 0
+ctx_mode:		.b32 0
 .align 16
 ctx_key:		.skip 16
 ctx_iv:			.skip 16
@@ -26,138 +26,137 @@ swap:
 
 .align 8
 common_cmd_dtable:
-.word ctx_query_address_high + 0x20000, ~0xff
-.word ctx_query_address_low + 0x20000, ~0xfffffff0
-.word ctx_query_counter + 0x20000, ~0xffffffff
-.word cmd_query_get - start + 0x00000, ~1
-.word ctx_cond_address_high + 0x20000, ~0xff
-.word ctx_cond_address_low + 0x20000, ~0xfffffff0
-.word cmd_cond_mode - start + 0x00000, ~7
-.word cmd_wrcache_flush - start + 0x00000, ~0
-.equ common_cmd_max, 0x88
+.b32 ctx_query_address_high + 0x20000 ~0xff
+.b32 ctx_query_address_low + 0x20000 ~0xfffffff0
+.b32 ctx_query_counter + 0x20000 ~0xffffffff
+.b32 cmd_query_get + 0x00000 ~1
+.b32 ctx_cond_address_high + 0x20000 ~0xff
+.b32 ctx_cond_address_low + 0x20000 ~0xfffffff0
+.b32 cmd_cond_mode + 0x00000 ~7
+.b32 cmd_wrcache_flush + 0x00000 ~0
+.equ common_cmd_max 0x88
 
 .align 8
 engine_cmd_dtable:
-.word ctx_key + 0x0 + 0x20000, ~0xffffffff
-.word ctx_key + 0x4 + 0x20000, ~0xffffffff
-.word ctx_key + 0x8 + 0x20000, ~0xffffffff
-.word ctx_key + 0xc + 0x20000, ~0xffffffff
-.word ctx_iv + 0x0 + 0x20000, ~0xffffffff
-.word ctx_iv + 0x4 + 0x20000, ~0xffffffff
-.word ctx_iv + 0x8 + 0x20000, ~0xffffffff
-.word ctx_iv + 0xc + 0x20000, ~0xffffffff
-.word ctx_src_address_high + 0x20000, ~0xff
-.word ctx_src_address_low + 0x20000, ~0xfffffff0
-.word ctx_dst_address_high + 0x20000, ~0xff
-.word ctx_dst_address_low + 0x20000, ~0xfffffff0
-.word crypt_cmd_mode - start + 0x00000, ~0xf
-.word crypt_cmd_length - start + 0x10000, ~0x0ffffff0
-.equ engine_cmd_max, 0xce
+.b32 ctx_key + 0x0 + 0x20000 ~0xffffffff
+.b32 ctx_key + 0x4 + 0x20000 ~0xffffffff
+.b32 ctx_key + 0x8 + 0x20000 ~0xffffffff
+.b32 ctx_key + 0xc + 0x20000 ~0xffffffff
+.b32 ctx_iv + 0x0 + 0x20000 ~0xffffffff
+.b32 ctx_iv + 0x4 + 0x20000 ~0xffffffff
+.b32 ctx_iv + 0x8 + 0x20000 ~0xffffffff
+.b32 ctx_iv + 0xc + 0x20000 ~0xffffffff
+.b32 ctx_src_address_high + 0x20000 ~0xff
+.b32 ctx_src_address_low + 0x20000 ~0xfffffff0
+.b32 ctx_dst_address_high + 0x20000 ~0xff
+.b32 ctx_dst_address_low + 0x20000 ~0xfffffff0
+.b32 crypt_cmd_mode + 0x00000 ~0xf
+.b32 crypt_cmd_length + 0x10000 ~0x0ffffff0
+.equ engine_cmd_max 0xce
 
 .align 4
 crypt_dtable:
-.short crypt_copy_prep, crypt_do_inout
-.short crypt_store_prep, crypt_do_out
-.short crypt_ecb_e_prep, crypt_do_inout
-.short crypt_ecb_d_prep, crypt_do_inout
-.short crypt_cbc_e_prep, crypt_do_inout
-.short crypt_cbc_d_prep, crypt_do_inout
-.short crypt_pcbc_e_prep, crypt_do_inout
-.short crypt_pcbc_d_prep, crypt_do_inout
-.short crypt_cfb_e_prep, crypt_do_inout
-.short crypt_cfb_d_prep, crypt_do_inout
-.short crypt_ofb_prep, crypt_do_inout
-.short crypt_ctr_prep, crypt_do_inout
-.short crypt_cbc_mac_prep, crypt_do_in
-.short crypt_cmac_finish_complete_prep, crypt_do_in
-.short crypt_cmac_finish_partial_prep, crypt_do_in
+.b16 crypt_copy_prep crypt_do_inout
+.b16 crypt_store_prep crypt_do_out
+.b16 crypt_ecb_e_prep crypt_do_inout
+.b16 crypt_ecb_d_prep crypt_do_inout
+.b16 crypt_cbc_e_prep crypt_do_inout
+.b16 crypt_cbc_d_prep crypt_do_inout
+.b16 crypt_pcbc_e_prep crypt_do_inout
+.b16 crypt_pcbc_d_prep crypt_do_inout
+.b16 crypt_cfb_e_prep crypt_do_inout
+.b16 crypt_cfb_d_prep crypt_do_inout
+.b16 crypt_ofb_prep crypt_do_inout
+.b16 crypt_ctr_prep crypt_do_inout
+.b16 crypt_cbc_mac_prep crypt_do_in
+.b16 crypt_cmac_finish_complete_prep crypt_do_in
+.b16 crypt_cmac_finish_partial_prep crypt_do_in
 
 
-.align 0x10000
+.section nv98_pcrypt_code
 
-start:
-	# $r0 is always set to 0 in our code - this allows some space savings.
+	// $r0 is always set to 0 in our code - this allows some space savings.
 	clear b32 $r0
 
-	# set up the interrupt handler
+	// set up the interrupt handler
 	mov $r1 ih
-	mov iv0 $r1
+	mov $iv0 $r1
 
-	# init stack pointer
-	mov sp $r0
+	// init stack pointer
+	mov $sp $r0
 
-	# set interrupt dispatch - route timer, fifo, ctxswitch to i0, others to host
-	mov $r1 0xfff0
+	// set interrupt dispatch - route timer, fifo, ctxswitch to i0, others to host
+	movw $r1 0xfff0
 	sethi $r1 0
 	mov $r2 0x400
 	iowr I[$r2 + 0x300] $r1
 
-	# enable the interrupts
+	// enable the interrupts
 	or $r1 0xc
 	iowr I[$r2] $r1
 
-	# enable fifo access and context switching
+	// enable fifo access and context switching
 	mov $r1 3
 	mov $r2 0x1200
 	iowr I[$r2] $r1
 
-	# enable i0 delivery
-	bset flags ie0
+	// enable i0 delivery
+	bset $flags ie0
 
-	# sleep forver, waking only for interrupts.
-	bset flags $p0
+	// sleep forver, waking only for interrupts.
+	bset $flags $p0
 	spin:
 	sleep $p0
 	bra spin
 
 
-# i0 handler
+// i0 handler
 ih:
-	# see which interrupts we got
+	// see which interrupts we got
 	iord $r1 I[$r0 + 0x200]
 
 	and $r2 $r1 0x8
 	cmpu b32 $r2 0
 	bra e noctx
 
-		# context switch... prepare the regs for xfer
+		// context switch... prepare the regs for xfer
 		mov $r2 0x7700
-		mov xtargets $r2
-		mov xdbase $r0
-		# 128-byte context.
+		mov $xtargets $r2
+		mov $xdbase $r0
+		// 128-byte context.
 		mov $r2 0
 		sethi $r2 0x50000
 
-		# read current channel
+		// read current channel
 		mov $r3 0x1400
 		iord $r4 I[$r3]
-		# if bit 30 set, it's active, so we have to unload it first.
+		// if bit 30 set, it's active, so we have to unload it first.
 		shl b32 $r5 $r4 1
 		cmps b32 $r5 0
 		bra nc ctxload
 
-			# unload the current channel - save the context
+			// unload the current channel - save the context
 			xdst $r0 $r2
 			xdwait
-			# and clear bit 30, then write back
+			// and clear bit 30, then write back
 			bclr $r4 0x1e
 			iowr I[$r3] $r4
-			# tell PFIFO we unloaded
+			// tell PFIFO we unloaded
 			mov $r4 1
 			iowr I[$r3 + 0x200] $r4
 
 		bra noctx
 
 		ctxload:
-			# no channel loaded - perhaps we're requested to load one
+			// no channel loaded - perhaps we're requested to load one
 			iord $r4 I[$r3 + 0x100]
 			shl b32 $r15 $r4 1
 			cmps b32 $r15 0
-			# if bit 30 of next channel not set, probably PFIFO is just
-			# killing a context. do a faux load, without the active bit.
+			// if bit 30 of next channel not set, probably PFIFO is just
+			// killing a context. do a faux load, without the active bit.
 			bra nc dummyload
 
-				# ok, do a real context load.
+				// ok, do a real context load.
 				xdld $r0 $r2
 				xdwait
 				mov $r5 ctx_dma
@@ -171,7 +170,7 @@ ih:
 				bra nc ctxload_dma_loop
 
 			dummyload:
-			# tell PFIFO we're done
+			// tell PFIFO we're done
 			mov $r5 2
 			iowr I[$r3 + 0x200] $r5
 
@@ -180,16 +179,16 @@ ih:
 	cmpu b32 $r2 0
 	bra e nocmd
 
-		# incoming fifo command.
+		// incoming fifo command.
 		mov $r3 0x1900
 		iord $r2 I[$r3 + 0x100]
 		iord $r3 I[$r3]
-		# extract the method
+		// extract the method
 		and $r4 $r2 0x7ff
-		# shift the addr to proper position if we need to interrupt later
+		// shift the addr to proper position if we need to interrupt later
 		shl b32 $r2 0x10
 
-		# mthd 0 and 0x100 [NAME, NOP]: ignore
+		// mthd 0 and 0x100 [NAME, NOP]: ignore
 		and $r5 $r4 0x7bf
 		cmpu b32 $r5 0
 		bra e cmddone
@@ -207,7 +206,7 @@ ih:
 		cmpu b32 $r4 0x50
 		bra ne illegal_mthd
 
-			# mthd 0x140: PM_TRIGGER
+			// mthd 0x140: PM_TRIGGER
 			mov $r2 0x2200
 			clear b32 $r3
 			sethi $r3 0x20000
@@ -215,11 +214,11 @@ ih:
 			bra cmddone
 
 		dma_cmd:
-			# mthd 0x180...: DMA_*
+			// mthd 0x180...: DMA_*
 			cmpu b32 $r4 0x60+dma_count
 			bra nc illegal_mthd
 			shl b32 $r5 $r4 2
-			add b32 $r5 ctx_dma - 0x60 * 4
+			add b32 $r5 (ctx_dma - 0x60 * 4) & 0xffff
 			st b32 D[$r5] $r3
 			add b32 $r4 0x180 - 0x60
 			shl b32 $r4 8
@@ -270,23 +269,23 @@ ih:
 			bra ne im_loop
 
 		cmddone:
-		# remove the command from FIFO
+		// remove the command from FIFO
 		mov $r3 0x1d00
 		mov $r4 1
 		iowr I[$r3] $r4
 
 	nocmd:
-	# ack the processed interrupts
+	// ack the processed interrupts
 	and $r1 $r1 0xc
 	iowr I[$r0 + 0x100] $r1
 iret
 
 cmd_query_get:
-	# if bit 0 of param set, trigger interrupt afterwards.
+	// if bit 0 of param set, trigger interrupt afterwards.
 	setp $p1 $r3
 	or $r2 3
 
-	# read PTIMER, beware of races...
+	// read PTIMER, beware of races...
 	mov $r4 0xb00
 	ptimer_retry:
 		iord $r6 I[$r4 + 0x100]
@@ -295,19 +294,19 @@ cmd_query_get:
 		cmpu b32 $r6 $r7
 	bra ne ptimer_retry
 
-	# prepare the query structure
+	// prepare the query structure
 	ld b32 $r4 D[$r0 + ctx_query_counter]
 	st b32 D[$r0 + swap + 0x0] $r4
 	st b32 D[$r0 + swap + 0x4] $r0
 	st b32 D[$r0 + swap + 0x8] $r5
 	st b32 D[$r0 + swap + 0xc] $r6
 
-	# will use target 0, DMA_QUERY.
-	mov xtargets $r0
+	// will use target 0, DMA_QUERY.
+	mov $xtargets $r0
 
 	ld b32 $r4 D[$r0 + ctx_query_address_high]
 	shl b32 $r4 0x18
-	mov xdbase $r4
+	mov $xdbase $r4
 
 	ld b32 $r4 D[$r0 + ctx_query_address_low]
 	mov $r5 swap
@@ -318,16 +317,16 @@ cmd_query_get:
 	ret
 
 cmd_cond_mode:
-	# if >= 5, INVALID_ENUM
-	bset flags $p1
+	// if >= 5, INVALID_ENUM
+	bset $flags $p1
 	or $r2 2
 	cmpu b32 $r3 5
 	bra nc return
 
-	# otherwise, no error.
-	bclr flags $p1
+	// otherwise, no error.
+	bclr $flags $p1
 
-	# if < 2, no QUERY object is involved
+	// if < 2, no QUERY object is involved
 	cmpu b32 $r3 2
 	bra nc cmd_cond_mode_queryful
 
@@ -337,22 +336,22 @@ cmd_cond_mode:
 		ret
 
 	cmd_cond_mode_queryful:
-	# ok, will need to pull a QUERY object, prepare offsets
+	// ok, will need to pull a QUERY object, prepare offsets
 	ld b32 $r4 D[$r0 + ctx_cond_address_high]
 	ld b32 $r5 D[$r0 + ctx_cond_address_low]
 	and $r6 $r5 0xff
 	shr b32 $r5 8
 	shl b32 $r4 0x18
 	or $r4 $r5
-	mov xdbase $r4
-	mov xtargets $r0
+	mov $xdbase $r4
+	mov $xtargets $r0
 
-	# pull the first one
+	// pull the first one
 	mov $r5 swap
 	sethi $r5 0x20000
 	xdld $r6 $r5
 	
-	# if == 2, only a single QUERY is involved...
+	// if == 2, only a single QUERY is involved...
 	cmpu b32 $r3 2
 	bra ne cmd_cond_mode_double
 	
@@ -363,27 +362,27 @@ cmd_cond_mode:
 		st b32 D[$r0 + ctx_cond_off] $r4
 		ret
 	
-	# ok, we'll need to pull second one too
+	// ok, we'll need to pull second one too
 	cmd_cond_mode_double:
 	add b32 $r6 0x10
 	add b32 $r5 0x10
 	xdld $r6 $r5
 	xdwait
 
-	# compare COUNTERs
+	// compare COUNTERs
 	ld b32 $r5 D[$r0 + swap + 0x00]
 	ld b32 $r6 D[$r0 + swap + 0x10]
 	cmpu b32 $r5 $r6
 	set $r4 z
 
-	# compare RESen
+	// compare RESen
 	ld b32 $r5 D[$r0 + swap + 0x04]
 	ld b32 $r6 D[$r0 + swap + 0x14]
 	cmpu b32 $r5 $r6
 	set $r5 z
 	and $r4 $r5
 
-	# and negate or not, depending on mode
+	// and negate or not, depending on mode
 	cmpu b32 $r3 3
 	set $r5 z
 	xor $r4 $r5
@@ -391,7 +390,7 @@ cmd_cond_mode:
 	ret
 
 cmd_wrcache_flush:
-	bclr flags $p1
+	bclr $flags $p1
 	mov $r2 0x2200
 	clear b32 $r3
 	sethi $r3 0x10000
@@ -399,24 +398,24 @@ cmd_wrcache_flush:
 	ret
 
 crypt_cmd_mode:
-	# if >= 0xf, INVALID_ENUM
-	bset flags $p1
+	// if >= 0xf, INVALID_ENUM
+	bset $flags $p1
 	or $r2 2
 	cmpu b32 $r3 0xf
 	bra nc crypt_cmd_mode_return
 
-		bclr flags $p1
+		bclr $flags $p1
 		st b32 D[$r0 + ctx_mode] $r3
 
 	crypt_cmd_mode_return:
 	ret
 
 crypt_cmd_length:
-	# nop if length == 0
-	cmpu $r3 0
+	// nop if length == 0
+	cmpu b32 $r3 0
 	bra e crypt_cmd_mode_return
 
-	# init key, IV
+	// init key, IV
 	cxset 3
 	mov $r4 ctx_key
 	sethi $r4 0x70000
@@ -427,11 +426,11 @@ crypt_cmd_length:
 	xdwait
 	ckeyreg $c7
 
-	# prepare the targets
+	// prepare the targets
 	mov $r4 0x2100
-	mov xtargets $r4
+	mov $xtargets $r4
 
-	# prepare src address
+	// prepare src address
 	ld b32 $r4 D[$r0 + ctx_src_address_high]
 	ld b32 $r5 D[$r0 + ctx_src_address_low]
 	shr b32 $r8 $r5 8
@@ -439,7 +438,7 @@ crypt_cmd_length:
 	or $r4 $r8
 	and $r5 $r5 0xff
 
-	# prepare dst address
+	// prepare dst address
 	ld b32 $r6 D[$r0 + ctx_dst_address_high]
 	ld b32 $r7 D[$r0 + ctx_dst_address_low]
 	shr b32 $r8 $r7 8
@@ -447,15 +446,15 @@ crypt_cmd_length:
 	or $r6 $r8
 	and $r7 $r7 0xff
 
-	# find the proper prep & do functions
+	// find the proper prep & do functions
 	ld b32 $r8 D[$r0 + ctx_mode]
 	shl b32 $r8 2
 
-	# run prep
+	// run prep
 	ld b16 $r9 D[$r8 + crypt_dtable]
 	call $r9
 
-	# do it
+	// do it
 	ld b16 $r9 D[$r8 + crypt_dtable + 2]
 	call $r9
 	cxset 1
@@ -464,7 +463,7 @@ crypt_cmd_length:
 	xdwait
 	xdwait
 
-	# update src address
+	// update src address
 	shr b32 $r8 $r4 0x18
 	shl b32 $r9 $r4 8
 	add b32 $r9 $r5
@@ -472,7 +471,7 @@ crypt_cmd_length:
 	st b32 D[$r0 + ctx_src_address_high] $r8
 	st b32 D[$r0 + ctx_src_address_low] $r9
 
-	# update dst address
+	// update dst address
 	shr b32 $r8 $r6 0x18
 	shl b32 $r9 $r6 8
 	add b32 $r9 $r7
@@ -480,7 +479,7 @@ crypt_cmd_length:
 	st b32 D[$r0 + ctx_dst_address_high] $r8
 	st b32 D[$r0 + ctx_dst_address_low] $r9
 
-	# pull updated IV
+	// pull updated IV
 	cxset 2
 	mov $r4 ctx_iv
 	sethi $r4 0x60000
@@ -616,10 +615,10 @@ crypt_cmac_finish_partial_prep:
 		cenc $c6 $c6
 	ret
 
-# TODO
+// TODO
 crypt_do_in:
 	add b32 $r3 $r5
-	mov xdbase $r4
+	mov $xdbase $r4
 	mov $r9 swap
 	sethi $r9 0x20000
 	crypt_do_in_loop:
@@ -638,7 +637,7 @@ crypt_do_in:
 
 crypt_do_out:
 	add b32 $r3 $r7
-	mov xdbase $r6
+	mov $xdbase $r6
 	mov $r9 swap
 	sethi $r9 0x20000
 	crypt_do_out_loop:
@@ -658,14 +657,14 @@ crypt_do_inout:
 	mov $r9 swap
 	sethi $r9 0x20000
 	crypt_do_inout_loop:
-		mov xdbase $r4
+		mov $xdbase $r4
 		xdld $r5 $r9
 		xdwait
 		cxset 0x21
 		xdst $r0 $r9
 		cs0exec 1
 		cxset 0x61
-		mov xdbase $r6
+		mov $xdbase $r6
 		xdld $r7 $r9
 		xdst $r7 $r9
 		cxset 1
@@ -675,5 +674,3 @@ crypt_do_inout:
 		cmpu b32 $r5 $r3
 	bra ne crypt_do_inout_loop
 	ret
-
-.align 0x10000

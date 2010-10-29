@@ -27,11 +27,14 @@ EXTRA_CFLAGS = -Iinclude/drm
 
 SYSSRC = /lib/modules/$(shell uname -r)/build
 
-all: pscnv_kapi.h
+all: pscnv_kapi.h nv98_crypt_fuc.h
 	+make -C $(SYSSRC) M=$(PWD) modules
 
 clean:
 	+make -C $(SYSSRC) M=$(PWD) clean
+
+nv98_crypt_fuc.h: nv98_crypt_fuc.fuc
+	envyas -m fuc -a < nv98_crypt_fuc.fuc > nv98_crypt_fuc.h
 
 pscnv_kapi.h: kapitest.sh
 	./kapitest.sh $(SYSSRC) > pscnv_kapi.h
