@@ -1,5 +1,6 @@
 #include "pscnv_mm.h"
 #include "nouveau_drv.h"
+#include <asm/div64.h>
 
 #undef PSCNV_RB_AUGMENT
 
@@ -8,15 +9,17 @@
 #define LTMASK 1
 
 static inline uint64_t
-pscnv_roundup (uint64_t x, uint32_t y)
+pscnv_rounddown (uint64_t x, uint32_t y)
 {
-	return (x + y - 1) / y * y;
+	do_div(x, y);
+	x *= y;
+	return x;
 }
 
 static inline uint64_t
-pscnv_rounddown (uint64_t x, uint32_t y)
+pscnv_roundup (uint64_t x, uint32_t y)
 {
-	return x / y * y;
+	return pscnv_rounddown(x + y - 1, y);
 }
 
 static void PSCNV_RB_AUGMENT(struct pscnv_mm_node *node) {
