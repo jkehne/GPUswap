@@ -89,7 +89,7 @@ nvc0_graph_init_units(struct drm_device *dev)
 	nv_wr32(dev, 0x404600, 0xc0000000); /* M2MF */
 	nv_wr32(dev, 0x408030, 0xc0000000);
 	nv_wr32(dev, 0x40601c, 0xc0000000);
-	nv_wr32(dev, 0x404490, 0xc0000000);
+	nv_wr32(dev, 0x404490, 0xc0000000); /* MACRO */
 	nv_wr32(dev, 0x406018, 0xc0000000);
 	nv_wr32(dev, 0x405840, 0xc0000000); /* SHADERS */
 
@@ -744,6 +744,26 @@ nvc0_graph_trap_handler(struct drm_device *dev, int cid)
 		nv_wr32(dev, 0x404600, 0xc0000000);
 		nv_wr32(dev, 0x400108, 0x002);
 		status &= ~0x002;
+	}
+
+	if (status & 0x010) {
+		ustatus = nv_rd32(dev, 0x405840);
+		if (ustatus & (1 << 24))
+			NV_ERROR(dev, "PGRAPH_TRAP_SHADERS: VPA fail\n");
+		if (ustatus & (1 << 25))
+			NV_ERROR(dev, "PGRAPH_TRAP_SHADERS: VPB fail\n");
+		if (ustatus & (1 << 26))
+			NV_ERROR(dev, "PGRAPH_TRAP_SHADERS: TCP fail\n");
+		if (ustatus & (1 << 27))
+			NV_ERROR(dev, "PGRAPH_TRAP_SHADERS: TEP fail\n");
+		if (ustatus & (1 << 28))
+			NV_ERROR(dev, "PGRAPH_TRAP_SHADERS: GP fail\n");
+		if (ustatus & (1 << 29))
+			NV_ERROR(dev, "PGRAPH_TRAP_SHADERS: FP fail\n");
+		NV_ERROR(dev, "PGRAPH_TRAP_SHDERS: ustatus = %08x\n", ustatus);
+		nv_wr32(dev, 0x405840, 0xc0000000);
+		nv_wr32(dev, 0x400108, 0x010);
+		status &= ~0x010;
 	}
 
 	if (status & 0x080) {
