@@ -34,7 +34,7 @@ clean:
 	+make -C $(SYSSRC) M=$(PWD) clean
 
 nv98_crypt_fuc.h: nv98_crypt_fuc.fuc
-	envyas -m fuc -a < nv98_crypt_fuc.fuc > nv98_crypt_fuc.h
+	envyas -m fuc -a nv98_crypt_fuc.fuc -o nv98_crypt_fuc.h
 
 pscnv_kapi.h: kapitest.sh
 	./kapitest.sh $(SYSSRC) > pscnv_kapi.h
