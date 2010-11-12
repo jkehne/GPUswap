@@ -283,6 +283,8 @@ nouveau_fbcon_create(struct nouveau_fbdev *nfbdev,
 	info->pixmap.access_align = 32;
 	info->pixmap.flags = FB_PIXMAP_SYSTEM;
 	info->pixmap.scan_align = 1;
+
+	mutex_unlock(&dev->struct_mutex);
 #if 0
 	if (dev_priv->channel && !nouveau_nofbaccel) {
 		switch (dev_priv->card_type) {
