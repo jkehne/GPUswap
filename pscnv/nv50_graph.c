@@ -878,12 +878,12 @@ void nv50_graph_irq_handler(struct drm_device *dev, int irq) {
 	}
 
 	if (status & 0x00000001) {
-		NV_ERROR(dev, "PGRAPH_NOTIFY: ch %d sub %d [%04x] mthd %04x data %08x\n", cid, subc, class, mthd, data);
+		NV_ERROR(dev, "PGRAPH_NOTIFY: ch %d\n", cid);
 		nv_wr32(dev, 0x400100, 0x00000001);
 		status &= ~0x00000001;
 	}
 	if (status & 0x00000002) {
-		NV_ERROR(dev, "PGRAPH_QUERY: ch %d sub %d [%04x] mthd %04x data %08x\n", cid, subc, class, mthd, data);
+		NV_ERROR(dev, "PGRAPH_QUERY: ch %d\n", cid);
 		nv_wr32(dev, 0x400100, 0x00000002);
 		status &= ~0x00000002;
 	}
