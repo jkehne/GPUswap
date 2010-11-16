@@ -887,6 +887,11 @@ void nv50_graph_irq_handler(struct drm_device *dev, int irq) {
 		nv_wr32(dev, 0x400100, 0x00000002);
 		status &= ~0x00000002;
 	}
+	if (status & 0x00000004) {
+		NV_ERROR(dev, "PGRAPH_SYNC: ch %d\n", cid);
+		nv_wr32(dev, 0x400100, 0x00000004);
+		status &= ~0x00000004;
+	}
 	if (status & 0x00000010) {
 		NV_ERROR(dev, "PGRAPH_ILLEGAL_MTHD: ch %d sub %d [%04x] mthd %04x data %08x\n", cid, subc, class, mthd, data);
 		nv_wr32(dev, 0x400100, 0x00000010);
