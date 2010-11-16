@@ -379,7 +379,7 @@ cmd_cond_mode:
 		xdwait
 		ld b32 $r4 D[$r0 + swap + 4]
 		cmpu b32 $r4 0
-		set $r4 $flags z
+		xbit $r4 $flags z
 		st b32 D[$r0 + ctx_cond_off] $r4
 		ret
 	
@@ -394,18 +394,18 @@ cmd_cond_mode:
 	ld b32 $r5 D[$r0 + swap + 0x00]
 	ld b32 $r6 D[$r0 + swap + 0x10]
 	cmpu b32 $r5 $r6
-	set $r4 $flags z
+	xbit $r4 $flags z
 
 	// compare RESen
 	ld b32 $r5 D[$r0 + swap + 0x04]
 	ld b32 $r6 D[$r0 + swap + 0x14]
 	cmpu b32 $r5 $r6
-	set $r5 $flags z
+	xbit $r5 $flags z
 	and $r4 $r5
 
 	// and negate or not, depending on mode
 	cmpu b32 $r3 3
-	set $r5 $flags z
+	xbit $r5 $flags z
 	xor $r4 $r5
 	st b32 D[$r0 + ctx_cond_off] $r4
 	ret
