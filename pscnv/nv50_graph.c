@@ -452,6 +452,8 @@ static struct pscnv_enumval dispatch_errors[] = {
 
 	{ 0x31, "ENG2D_FORMAT_MISMATCH", 0 },
 
+	{ 0x3f, "PRIMITIVE_ID_NEEDS_GP", 0 },
+
 	{ 0x47, "VP_CLIP_OVER_LIMIT", 0 },
 
 	{ 0, 0, 0 },
