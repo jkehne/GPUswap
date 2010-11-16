@@ -930,6 +930,10 @@ void nv50_graph_irq_handler(struct drm_device *dev, int irq) {
 	}
 
 	if (status & 0x01000000) {
+		addr = nv_rd32(dev, 0x400808);
+		subc = addr >> 16 & 7;
+		mthd = addr & 0x1ffc;
+		data = nv_rd32(dev, 0x40080c);
 		NV_ERROR(dev, "PGRAPH_SINGLE_STEP: ch %d sub %d [%04x] mthd %04x data %08x\n", cid, subc, class, mthd, data);
 		nv_wr32(dev, 0x400100, 0x01000000);
 		status &= ~0x01000000;
