@@ -2162,7 +2162,7 @@ peek_fb(struct drm_device *dev, struct io_mapping *fb,
 	uint32_t val = 0;
 
 	if (off < pci_resource_len(dev->pdev, 1)) {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,36)
+#ifdef PSCNV_KAPI_IO_MAPPING_3
 		uint8_t __iomem *p =
 			io_mapping_map_atomic_wc(fb, off & PAGE_MASK, KM_USER0);
 #else
@@ -2172,7 +2172,7 @@ peek_fb(struct drm_device *dev, struct io_mapping *fb,
 
 		val = ioread32(p + (off & ~PAGE_MASK));
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,36)
+#ifdef PSCNV_KAPI_IO_MAPPING_3
 		io_mapping_unmap_atomic(p, KM_USER0);
 #else
 		io_mapping_unmap_atomic(p);
@@ -2188,7 +2188,7 @@ poke_fb(struct drm_device *dev, struct io_mapping *fb,
 	uint32_t off, uint32_t val)
 {
 	if (off < pci_resource_len(dev->pdev, 1)) {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,36)
+#ifdef PSCNV_KAPI_IO_MAPPING_3
 		uint8_t __iomem *p =
 			io_mapping_map_atomic_wc(fb, off & PAGE_MASK, KM_USER0);
 #else
@@ -2199,7 +2199,7 @@ poke_fb(struct drm_device *dev, struct io_mapping *fb,
 		iowrite32(val, p + (off & ~PAGE_MASK));
 		wmb();
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,36)
+#ifdef PSCNV_KAPI_IO_MAPPING_3
 		io_mapping_unmap_atomic(p, KM_USER0);
 #else
 		io_mapping_unmap_atomic(p);
