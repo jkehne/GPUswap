@@ -88,9 +88,6 @@ int nv50_fifo_init(struct drm_device *dev) {
 	/* reset interrupts */
 	nv_wr32(dev, 0x2100, -1);
 
-	/* XXX: wtf? */
-	nv_wr32(dev, 0x250c, 0x6f3cfc34);
-
 	/* put PFIFO onto unused channel 0. */
 	nv_wr32(dev, 0x3204, 0);
 
@@ -152,36 +149,32 @@ void nv50_fifo_chan_kill(struct pscnv_chan *ch) {
 	struct drm_device *dev = ch->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct nv50_fifo_engine *fifo = nv50_fifo(dev_priv->fifo);
+	uint64_t start;
 	unsigned long flags;
 	spin_lock_irqsave(&fifo->lock, flags);
 	nv_wr32(dev, 0x2600 + ch->cid * 4, nv_rd32(dev, 0x2600 + ch->cid * 4) & 0x3fffffff);
 	nv50_fifo_playlist_update(dev);
-	nv_wr32(dev, 0x2504, 1);
-	if (!nouveau_wait_until(dev, 2000000000ULL, 0x2504, 0x10, 0x10)) {
-		NV_ERROR(dev, "PFIFO freeze fail!\n");
-	}
+	start = nv04_timer_read(dev);
+	nv_wr32(dev, 0x2500, 0);
 	if ((nv_rd32(dev, 0x3204) & 0x7f) == ch->cid) {
 		NV_INFO(dev, "Kicking channel %d off PFIFO.\n", ch->cid);
-		nv_wr32(dev, 0x3204, 0);
+		nv_wr32(dev, 0x204c, 0x20000);
+	}
+	nv_wr32(dev, 0x2500, 1);
 
-		/* put PFIFO onto unused channel 0. */
-		nv_wr32(dev, 0x3204, 0);
-
-		/* clear GET, PUT */
-		nv_wr32(dev, 0x3210, 0);
-		nv_wr32(dev, 0x3270, 0);
-
-		/* enable everything. */
-		nv_wr32(dev, 0x3250, 1);
-		nv_wr32(dev, 0x3220, 1);
-		nv_wr32(dev, 0x3200, 1);
-		nv_wr32(dev, 0x2500, 1);
-
-		/* XXX: what if there were some errors on the channel?
-		 * is the above enough to clean up any potential mess? */
+	while ((nv_rd32(dev, 0x3204) & 0x7f) == ch->cid) {
+		uint32_t intr = nv_rd32(dev, 0x2100);
+		if (intr & 0x40011001 && (nv_rd32(dev, 0x3204) & 0x7f) == ch->cid) {
+			nv_wr32(dev, 0x2100, 0x40011001);
+			nv_wr32(dev, 0x3220, 1);
+			nv_wr32(dev, 0x3250, 1);
+		}
+		if (nv04_timer_read(dev) - start >= 2000000000) {
+			NV_ERROR(dev, "PFIFO kickoff wait fail!\n");
+			break;
+		}
 	}
 	nv_wr32(dev, 0x2600 + ch->cid * 4, 0);
-	nv_wr32(dev, 0x2504, 0);
 	spin_unlock_irqrestore(&fifo->lock, flags);
 }
 
