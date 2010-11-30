@@ -365,7 +365,8 @@ static struct pscnv_enumval vm_trap_reasons[] = {
 	{ 4, "PAGE_READ_ONLY", 0 },
 	/* 5 never seen */
 	{ 6, "NULL_DMAOBJ", 0 },
-	/* 7-0xa never seen */
+	{ 7, "WRONG_MEMTYPE", 0 },
+	/* 8-0xa never seen */
 	{ 0xb, "VRAM_LIMIT", 0 },
 	/* 0xc-0xe never seen */
 	{ 0xf, "DMAOBJ_LIMIT", 0 },
