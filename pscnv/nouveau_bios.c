@@ -32,6 +32,7 @@
 #include "nouveau_hw.h"
 #include "nouveau_encoder.h"
 #include "nouveau_reg.h"
+#include "pscnv_kapi.h"
 
 #include <linux/io-mapping.h>
 
