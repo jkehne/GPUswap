@@ -491,9 +491,17 @@ void nv50_graph_tex_trap(struct drm_device *dev, int cid, int tp) {
 		NV_ERROR(dev, "PGRAPH_TRAP_TEXTURE: ch %d TP %d FAULT at %llx\n", cid, tp, addr);
 		status &= ~2;
 	}
-	if (status & 8) {
+	if (status & 4) {
 		NV_ERROR(dev, "PGRAPH_TRAP_TEXTURE: ch %d TP %d STORAGE_TYPE_MISMATCH type %02x\n", cid, tp, e10 >> 5 & 0x7f);
+		status &= ~4;
+	}
+	if (status & 8) {
+		NV_ERROR(dev, "PGRAPH_TRAP_TEXTURE: ch %d TP %d LINEAR_MISMATCH type %02x\n", cid, tp, e10 >> 5 & 0x7f);
 		status &= ~8;
+	}
+	if (status & 0x20) {
+		NV_ERROR(dev, "PGRAPH_TRAP_TEXTURE: ch %d TP %d WRONG_MEMTYPE type %02x\n", cid, tp, e10 >> 5 & 0x7f);
+		status &= ~0x20;
 	}
 	if (status) {
 		NV_ERROR(dev, "PGRAPH_TRAP_TEXTURE: ch %d TP %d status %08x\n", cid, tp, status);
@@ -653,7 +661,7 @@ void nv50_graph_tprop_trap(struct drm_device *dev, int cid, int tp) {
 		status &= ~0x80;
 	}
 	if (status & 0x800) {
-		NV_ERROR(dev, "PGRAPH_TRAP_TPROP: ch %d TP %d surf %s STORAGE_TYPE_MISMATCH type %02x\n", cid, tp, tprop_tnames[surf], e24 & 0x7f);
+		NV_ERROR(dev, "PGRAPH_TRAP_TPROP: ch %d TP %d surf %s LINEAR_MISMATCH type %02x\n", cid, tp, tprop_tnames[surf], e24 & 0x7f);
 		status &= ~0x800;
 	}
 	if (status) {
