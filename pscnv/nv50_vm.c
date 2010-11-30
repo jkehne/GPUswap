@@ -128,6 +128,7 @@ nv50_vspace_do_map (struct pscnv_vspace *vs, struct pscnv_bo *bo, uint64_t offse
 		case PSCNV_GEM_SYSRAM_NOSNOOP:
 			for (i = 0; i < (bo->size >> PAGE_SHIFT); i++) {
 				uint64_t pte = bo->dmapages[i];
+				pte |= (uint64_t)bo->tile_flags << 40;
 				pte |= 1;
 				if ((bo->flags & PSCNV_GEM_MEMTYPE_MASK) == PSCNV_GEM_SYSRAM_SNOOP)
 					pte |= 0x20;

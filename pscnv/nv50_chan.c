@@ -134,7 +134,7 @@ nv50_chan_dmaobj_new(struct pscnv_chan *ch, uint32_t type, uint64_t start, uint6
 	nv_wv32(ch->bo, res + 0x08, start);
 	nv_wv32(ch->bo, res + 0x0c, (end >> 32) << 24 | (start >> 32));
 	nv_wv32(ch->bo, res + 0x10, 0);
-	nv_wv32(ch->bo, res + 0x14, 0);
+	nv_wv32(ch->bo, res + 0x14, 0x80000);
 	dev_priv->vm->bar_flush(dev);
 
 	return res;
