@@ -652,6 +652,10 @@ void nv50_graph_tprop_trap(struct drm_device *dev, int cid, int tp) {
 		NV_ERROR(dev, "PGRAPH_TRAP_TPROP: ch %d TP %d surf %s DST2D_FAULT at %llx\n", cid, tp, tprop_tnames[surf], addr);
 		status &= ~0x10;
 	}
+	if (status & 0x20) {
+		NV_ERROR(dev, "PGRAPH_TRAP_TPROP: ch %d TP %d surf %s ZETA_FAULT at %llx\n", cid, tp, tprop_tnames[surf], addr);
+		status &= ~0x20;
+	}
 	if (status & 0x40) {
 		NV_ERROR(dev, "PGRAPH_TRAP_TPROP: ch %d TP %d surf %s RT_FAULT at %llx\n", cid, tp, tprop_tnames[surf], addr);
 		status &= ~0x40;
@@ -660,9 +664,25 @@ void nv50_graph_tprop_trap(struct drm_device *dev, int cid, int tp) {
 		NV_ERROR(dev, "PGRAPH_TRAP_TPROP: ch %d TP %d surf %s CUDA_FAULT at %llx\n", cid, tp, tprop_tnames[surf], addr);
 		status &= ~0x80;
 	}
+	if (status & 0x100) {
+		NV_ERROR(dev, "PGRAPH_TRAP_TPROP: ch %d TP %d surf %s DST2D_STORAGE_TYPE_MISMATCH type %02x\n", cid, tp, tprop_tnames[surf], e24 & 0x7f);
+		status &= ~0x100;
+	}
+	if (status & 0x200) {
+		NV_ERROR(dev, "PGRAPH_TRAP_TPROP: ch %d TP %d surf %s ZETA_STORAGE_TYPE_MISMATCH type %02x\n", cid, tp, tprop_tnames[surf], e24 & 0x7f);
+		status &= ~0x200;
+	}
+	if (status & 0x400) {
+		NV_ERROR(dev, "PGRAPH_TRAP_TPROP: ch %d TP %d surf %s RT_STORAGE_TYPE_MISMATCH type %02x\n", cid, tp, tprop_tnames[surf], e24 & 0x7f);
+		status &= ~0x400;
+	}
 	if (status & 0x800) {
-		NV_ERROR(dev, "PGRAPH_TRAP_TPROP: ch %d TP %d surf %s LINEAR_MISMATCH type %02x\n", cid, tp, tprop_tnames[surf], e24 & 0x7f);
+		NV_ERROR(dev, "PGRAPH_TRAP_TPROP: ch %d TP %d surf %s DST2D_LINEAR_MISMATCH type %02x\n", cid, tp, tprop_tnames[surf], e24 & 0x7f);
 		status &= ~0x800;
+	}
+	if (status & 0x1000) {
+		NV_ERROR(dev, "PGRAPH_TRAP_TPROP: ch %d TP %d surf %s RT_LINEAR_MISMATCH type %02x\n", cid, tp, tprop_tnames[surf], e24 & 0x7f);
+		status &= ~0x1000;
 	}
 	if (status) {
 		NV_ERROR(dev, "PGRAPH_TRAP_TPROP: ch %d TP %d surf %s status %08x\n", cid, tp, tprop_tnames[surf], status);
