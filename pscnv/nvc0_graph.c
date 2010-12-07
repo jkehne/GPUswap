@@ -236,7 +236,6 @@ nvc0_graph_init_ctxctl(struct drm_device *dev, struct nvc0_graph_engine *graph)
 
 	/* read stuff I don't know what it is */
 
-	nv_rd32(dev, 0x409604); /* 60004 */
 	cx_num = nv_rd32(dev, 0x409880);
 
 	for (i = 0; i < cx_num; ++i) {
@@ -454,8 +453,8 @@ nvc0_graph_init(struct drm_device *dev)
 
 	nvc0_graph_init_reset(dev);
 
-	res->tp_count = nv_rd32(dev, TP_REG(0, 0x2608)) >> 16;
-	res->ropc_count = nv_rd32(dev, 0x121c74);
+	res->tp_count = nv_rd32(dev, 0x409604) & 0x1f;
+	res->ropc_count = nv_rd32(dev, 0x409604) >> 16;
 
 	nv_wr32(dev, 0x418880, 0);
 	nv_wr32(dev, 0x4188a4, 0);
