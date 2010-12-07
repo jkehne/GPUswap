@@ -51,6 +51,7 @@ int nvc0_fifo_init(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct nvc0_fifo_engine *res = kzalloc(sizeof *res, GFP_KERNEL);
+	int i;
 
 	if (!res) {
 		NV_ERROR(dev, "PFIFO: Couldn't allocate engine!\n");
@@ -111,24 +112,26 @@ int nvc0_fifo_init(struct drm_device *dev)
 	nv_wr32(dev, 0x2100, 0xffffffff); /* PFIFO_INTR */
 
 	nv_wr32(dev, 0x204, 0);
-	nv_wr32(dev, 0x204, 7);
+	nv_wr32(dev, 0x204, 7); /* PMC.SUBFIFO_ENABLE */
 
-	nv_wr32(dev, 0x2204, 7);
+	nv_wr32(dev, 0x2204, 7); /* PFIFO.SUBFIFO_ENABLE */
 
-        nv_wr32(dev, 0x2208, 0xfffffffe);
-        nv_wr32(dev, 0x220c, 0xfffffffd);
-        nv_wr32(dev, 0x2210, 0xfffffffd);
-        nv_wr32(dev, 0x2214, 0xfffffffd);
-        nv_wr32(dev, 0x2218, 0xfffffffb);
-        nv_wr32(dev, 0x221c, 0xfffffffd);
+	/* PFIFO.ENG_SUBFIFO_MASK[0 .. 5] */
+	nv_wr32(dev, 0x2208, 0xfffffffe); /* PGRAPH on subfifo 0 */
+	nv_wr32(dev, 0x220c, 0xfffffffd); /* PVP, PPP, PBSP on subfifo 1 */
+	nv_wr32(dev, 0x2210, 0xfffffffd);
+	nv_wr32(dev, 0x2214, 0xfffffffd);
+	nv_wr32(dev, 0x2218, 0xfffffffb); /* PCOPY0 on subfifo 2 */
+	nv_wr32(dev, 0x221c, 0xfffffffd); /* PCOPY1 on subfifo 1 */
 
-	nv_wr32(dev, 0x4010c, 0xffffffff);
-	nv_wr32(dev, 0x4210c, 0xffffffff);
-	nv_wr32(dev, 0x4410c, 0xffffffff);
+	for (i = 0; i < 3; ++i) { /* PSUBFIFO[i] */
+		nv_wr32(dev, 0x40108 + i * 0x2000, 0xffffffff); /* INTR */
+		nv_wr32(dev, 0x4010c + i * 0x2000, 0xffffffff); /* INTR_EN */
+	}
 
-	nv_wr32(dev, 0x2200, 1);
+	nv_wr32(dev, 0x2200, 1); /* PFIFO.ENABLE */
 
-	nv_wr32(dev, 0x2254,
+	nv_wr32(dev, 0x2254, /* PFIFO.POLL_AREA */
 		(1 << 28) | (res->ctrl_bo->map1->start >> 12));
 
 	dev_priv->fifo = &res->base;
