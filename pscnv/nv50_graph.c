@@ -434,8 +434,14 @@ static struct pscnv_enumval dispatch_errors[] = {
 	{ 0x11, "RT_TYPES_MISMATCH", 0 },
 	{ 0x12, "RT_LINEAR_WITH_ZETA", 0 },
 
+	{ 0x16, "ZETA_FORMAT_CSAA_MISMATCH", 0 },
+	{ 0x17, "RT_LINEAR_WITH_MSAA", 0 },
+
+	{ 0x1a, "RT_INVALID_ALIGNMENT", 0 },
 	{ 0x1b, "SAMPLER_OVER_LIMIT", 0 },
 	{ 0x1c, "TEXTURE_OVER_LIMIT", 0 },
+
+	{ 0x1f, "RT_BPP128_WITH_MS8", 0 },
 
 	{ 0x21, "Z_OUT_OF_BOUNDS", 0 },
 
@@ -648,6 +654,14 @@ void nv50_graph_tprop_trap(struct drm_device *dev, int cid, int tp) {
 	addr = e10 | (uint64_t)e14 << 32;
 	if (surf > 13)
 		surf = 13;
+	if (status & 0x4) {
+		NV_ERROR(dev, "PGRAPH_TRAP_TPROP: ch %d TP %d surf %s SURF_WIDTH_OVERRUN\n", cid, tp, tprop_tnames[surf]);
+		status &= ~0x4;
+	}
+	if (status & 0x8) {
+		NV_ERROR(dev, "PGRAPH_TRAP_TPROP: ch %d TP %d surf %s SURF_HEIGHT_OVERRUN\n", cid, tp, tprop_tnames[surf]);
+		status &= ~0x8;
+	}
 	if (status & 0x10) {
 		NV_ERROR(dev, "PGRAPH_TRAP_TPROP: ch %d TP %d surf %s DST2D_FAULT at %llx\n", cid, tp, tprop_tnames[surf], addr);
 		status &= ~0x10;
