@@ -423,7 +423,7 @@ nvc0_graph_init(struct drm_device *dev)
 	}
 	dev_priv->vm->bar_flush(dev);
 
-	vo = pscnv_mem_alloc(dev, 0x1000, PSCNV_GEM_CONTIG | PSCNV_GEM_NOUSER,
+	vo = pscnv_mem_alloc(dev, 0x2000, PSCNV_GEM_CONTIG | PSCNV_GEM_NOUSER,
 			      0, 0x408004);
 	if (!vo)
 		return -ENOMEM;
@@ -432,7 +432,7 @@ nvc0_graph_init(struct drm_device *dev)
 		return ret;
 	res->obj08004 = vo;
 
-	vo = pscnv_mem_alloc(dev, 0x1000, PSCNV_GEM_CONTIG | PSCNV_GEM_NOUSER,
+	vo = pscnv_mem_alloc(dev, 0x8000, PSCNV_GEM_CONTIG | PSCNV_GEM_NOUSER,
 			      0, 0x40800c);
 	if (!vo)
 		return -ENOMEM;
@@ -510,23 +510,35 @@ nvc0_graph_init_obj14(struct pscnv_vspace *vs)
 		return ret;
 
 	i = -4;
+	nv_wv32(vo, i += 4, 0x408004);
+	nv_wv32(vo, i += 4, nvc0_vs(vs)->obj08004->start >> 8);
+
+	nv_wv32(vo, i += 4, 0x408008);
+	nv_wv32(vo, i += 4, 0x80000018);
+
+	nv_wv32(vo, i += 4, 0x40800c);
+	nv_wv32(vo, i += 4, nvc0_vs(vs)->obj0800c->start >> 8);
+
+	nv_wv32(vo, i += 4, 0x408010);
+	nv_wv32(vo, i += 4, 0x80000000);
+
 	nv_wv32(vo, i += 4, 0x418810);
 	nv_wv32(vo, i += 4, (8 << 28) | (nvc0_vs(vs)->obj19848->start >> 12));
 
 	nv_wv32(vo, i += 4, 0x419848);
 	nv_wv32(vo, i += 4, (1 << 28) | (nvc0_vs(vs)->obj19848->start >> 12));
 
-	nv_wv32(vo, i += 4, 0x408004);
-	nv_wv32(vo, i += 4, nvc0_vs(vs)->obj08004->start >> 8);
-
-	nv_wv32(vo, i += 4, 0x40800c);
-	nv_wv32(vo, i += 4, nvc0_vs(vs)->obj0800c->start >> 8);
-
 	nv_wv32(vo, i += 4, 0x419004);
 	nv_wv32(vo, i += 4, nvc0_vs(vs)->obj0800c->start >> 8);
 
+	nv_wv32(vo, i += 4, 0x419008);
+	nv_wv32(vo, i += 4, 0);
+
 	nv_wv32(vo, i += 4, 0x418808);
 	nv_wv32(vo, i += 4, nvc0_vs(vs)->obj08004->start >> 8);
+
+	nv_wv32(vo, i += 4, 0x41880c);
+	nv_wv32(vo, i += 4, 0x80000018);
 
 	return 0;
 }
@@ -608,7 +620,7 @@ nvc0_graph_chan_alloc(struct pscnv_engine *eng, struct pscnv_chan *chan)
 
 	nv_wv32(grch->grctx, 0xf4, 0);
 	nv_wv32(grch->grctx, 0xf8, 0);
-	nv_wv32(grch->grctx, 0x10, 6); /* mmio list size */
+	nv_wv32(grch->grctx, 0x10, 10); /* mmio list size */
 	nv_wv32(grch->grctx, 0x14, nvc0_vs(chan->vspace)->mmio_vm->start);
 	nv_wv32(grch->grctx, 0x18, nvc0_vs(chan->vspace)->mmio_vm->start >> 32);
 	nv_wv32(grch->grctx, 0x1c, 1);
