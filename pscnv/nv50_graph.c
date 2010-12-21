@@ -442,7 +442,7 @@ static struct pscnv_enumval dispatch_errors[] = {
 	{ 0x1b, "SAMPLER_OVER_LIMIT", 0 },
 	{ 0x1c, "TEXTURE_OVER_LIMIT", 0 },
 
-	{ 0x1f, "GP_TOO_MANY_OUTPUTS", 0 },
+	{ 0x1e, "GP_TOO_MANY_OUTPUTS", 0 },
 	{ 0x1f, "RT_BPP128_WITH_MS8", 0 },
 
 	{ 0x21, "Z_OUT_OF_BOUNDS", 0 },
