@@ -434,6 +434,7 @@ static struct pscnv_enumval dispatch_errors[] = {
 	{ 0x11, "RT_TYPES_MISMATCH", 0 },
 	{ 0x12, "RT_LINEAR_WITH_ZETA", 0 },
 
+	{ 0x15, "FP_TOO_FEW_REGS", 0 },
 	{ 0x16, "ZETA_FORMAT_CSAA_MISMATCH", 0 },
 	{ 0x17, "RT_LINEAR_WITH_MSAA", 0 },
 
@@ -441,6 +442,7 @@ static struct pscnv_enumval dispatch_errors[] = {
 	{ 0x1b, "SAMPLER_OVER_LIMIT", 0 },
 	{ 0x1c, "TEXTURE_OVER_LIMIT", 0 },
 
+	{ 0x1f, "GP_TOO_MANY_OUTPUTS", 0 },
 	{ 0x1f, "RT_BPP128_WITH_MS8", 0 },
 
 	{ 0x21, "Z_OUT_OF_BOUNDS", 0 },
