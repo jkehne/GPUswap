@@ -419,7 +419,7 @@ struct pscnv_enumval {
 };
 
 static struct pscnv_enumval dispatch_errors[] = {
-	{ 3, "INVALID_QUERY_OR_TEXTURE", 0 },
+	{ 3, "INVALID_OPERATION", 0 },
 	{ 4, "INVALID_VALUE", 0 },
 	{ 5, "INVALID_ENUM", 0 },
 
@@ -429,7 +429,8 @@ static struct pscnv_enumval dispatch_errors[] = {
 	{ 0xb, "INVALID_ADDRESS_ALIGNMENT", 0 },
 	{ 0xc, "INVALID_BITFIELD", 0 },
 	{ 0xd, "BEGIN_END_ACTIVE", 0 },
-
+	{ 0xe, "SEMANTIC_COLOR_BACK_OVER_LIMIT", 0 },
+	{ 0xf, "VIEWPORT_ID_NEEDS_GP", 0 },
 	{ 0x10, "RT_DOUBLE_BIND", 0 },
 	{ 0x11, "RT_TYPES_MISMATCH", 0 },
 	{ 0x12, "RT_LINEAR_WITH_ZETA", 0 },
@@ -437,7 +438,8 @@ static struct pscnv_enumval dispatch_errors[] = {
 	{ 0x15, "FP_TOO_FEW_REGS", 0 },
 	{ 0x16, "ZETA_FORMAT_CSAA_MISMATCH", 0 },
 	{ 0x17, "RT_LINEAR_WITH_MSAA", 0 },
-
+	{ 0x18, "FP_INTERPOLANT_START_OVER_LIMIT", 0 },
+	{ 0x19, "SEMANTIC_LAYER_OVER_LIMIT", 0 },
 	{ 0x1a, "RT_INVALID_ALIGNMENT", 0 },
 	{ 0x1b, "SAMPLER_OVER_LIMIT", 0 },
 	{ 0x1c, "TEXTURE_OVER_LIMIT", 0 },
@@ -462,7 +464,11 @@ static struct pscnv_enumval dispatch_errors[] = {
 
 	{ 0x3f, "PRIMITIVE_ID_NEEDS_GP", 0 },
 
-	{ 0x47, "VP_CLIP_OVER_LIMIT", 0 },
+	{ 0x44, "SEMANTIC_VIEWPORT_OVER_LIMIT", 0 },
+	{ 0x45, "SEMANTIC_COLOR_FRONT_OVER_LIMIT", 0 },
+	{ 0x46, "LAYER_ID_NEEDS_GP", 0 },
+	{ 0x47, "SEMANTIC_CLIP_OVER_LIMIT", 0 },
+	{ 0x48, "SEMANTIC_PTSZ_OVER_LIMIT", 0 },
 
 	{ 0, 0, 0 },
 };
