@@ -1630,6 +1630,7 @@ nvc0_grctx_init_tp(struct drm_device *dev)
 	do {								\
 		if (data != (d))					\
 			nv_wr32(dev, 0x40448c, (d));			\
+		data = (d);						\
 		nv_wr32(dev, 0x404488, (1 << 31) | ((m) << 14) | (c));	\
 	} while(0)
 
