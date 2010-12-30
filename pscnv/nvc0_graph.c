@@ -122,7 +122,7 @@ nvc0_graph_gpc_init(struct drm_device *dev, struct nvc0_graph_engine *graph)
 	nv_wr32(dev, 0x419bd4, 0x92493);
 	nv_wr32(dev, 0x4188ac, graph->ropc_count);
 
-	for (i = 0; i < graph->tp_count; ++i) {
+	for (i = 0; i < graph->gpc_count; ++i) {
 		int mp_count = nv_rd32(dev, GPC_REG(i, 0x2608)) & 0xffff;
 
 		NV_INFO(dev, "init TP%i (%i MPs)\n", i, mp_count);
