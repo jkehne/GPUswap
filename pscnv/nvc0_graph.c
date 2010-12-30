@@ -30,20 +30,9 @@
 #include "pscnv_engine.h"
 #include "pscnv_chan.h"
 #include "nvc0_vm.h"
+#include "nvc0_graph.h"
 
-struct nvc0_graph_engine {
-	struct pscnv_engine base;
-	spinlock_t lock;
-	uint32_t grctx_size;
-	uint32_t *grctx_initvals;
-	int ropc_count;
-	int tp_count;
-	struct pscnv_bo *obj188b4;
-	struct pscnv_bo *obj188b8;
-	struct pscnv_bo *obj08004;
-	struct pscnv_bo *obj0800c;
-	struct pscnv_bo *obj19848;
-};
+#include "nvc0_pgraph.xml.h"
 
 struct nvc0_graph_chan {
 	struct pscnv_bo *grctx;
@@ -69,41 +58,43 @@ nvc0_graph_init_reset(struct drm_device *dev)
 static void
 nvc0_graph_init_intr(struct drm_device *dev)
 {
-	nv_wr32(dev, 0x400108, 0xffffffff); /* PGRAPH_TRAP */
-	nv_wr32(dev, 0x400138, 0xffffffff); /* PGRAPH_TRAP_EN */
+	nv_wr32(dev, NVC0_PGRAPH_TRAP, 0xffffffff);
+	nv_wr32(dev, NVC0_PGRAPH_TRAP_EN, 0xffffffff);
 
-	nv_wr32(dev, 0x400118, 0xffffffff);
-	nv_wr32(dev, 0x400130, 0xffffffff);
-	nv_wr32(dev, 0x40011c, 0xffffffff);
-	nv_wr32(dev, 0x400134, 0xffffffff);
+	nv_wr32(dev, NVC0_PGRAPH_TRAP_GPCS, 0xffffffff);
+	nv_wr32(dev, NVC0_PGRAPH_TRAP_GPCS_EN, 0xffffffff);
+	nv_wr32(dev, NVC0_PGRAPH_TRAP_ROPCS, 0xffffffff);
+	nv_wr32(dev, NVC0_PGRAPH_TRAP_ROPCS_EN, 0xffffffff);
 
 	nv_wr32(dev, 0x400054, 0x34ce3464);
 }
 
+#define TP_BROADCAST(n) NVC0_PGRAPH_GPC_BROADCAST_TP_BROADCAST_##n
+
 static void
 nvc0_graph_init_units(struct drm_device *dev)
 {
-	nv_wr32(dev, 0x409c24, 0xf0000);
+	nv_wr32(dev, NVC0_PGRAPH_CTXCTL_INTR_UP_ENABLE, 0xf0000);
 
-	nv_wr32(dev, 0x404000, 0xc0000000); /* DISPATCH */
-	nv_wr32(dev, 0x404600, 0xc0000000); /* M2MF */
-	nv_wr32(dev, 0x408030, 0xc0000000);
+	nv_wr32(dev, NVC0_PGRAPH_DISPATCH_TRAP, 0xc0000000);
+	nv_wr32(dev, NVC0_PGRAPH_M2MF_TRAP, 0xc0000000); /* M2MF */
+	nv_wr32(dev, NVC0_PGRAPH_CCACHE_TRAP, 0xc0000000);
 	nv_wr32(dev, 0x40601c, 0xc0000000);
-	nv_wr32(dev, 0x404490, 0xc0000000); /* MACRO */
+	nv_wr32(dev, NVC0_PGRAPH_MACRO_TRAP, 0xc0000000);
 	nv_wr32(dev, 0x406018, 0xc0000000);
 	nv_wr32(dev, 0x405840, 0xc0000000); /* SHADERS */
 
 	nv_wr32(dev, 0x405844, 0x00ffffff);
 
-	nv_wr32(dev, 0x419cc0, nv_rd32(dev, 0x419cc0) | 8);
-        nv_wr32(dev, 0x419eb4, nv_rd32(dev, 0x419eb4) | 0x1000);
+	nv_mask(dev, TP_BROADCAST(L1) + 0xc0, 0, 8);
+	nv_mask(dev, TP_BROADCAST(MP) + 0xb4, 0, 0x1000);
 }
 
-#define TP_REG(i, r) ((0x500000 + (i) * 0x8000) + (r))
-#define MP_REG(i, j, r) ((0x504000 + (i) * 0x8000 + (j) * 0x800) + (r))
+#define GPC_REG(i, r) (NVC0_PGRAPH_GPC(i) + (r))
+#define TP_REG(i, j, r) (NVC0_PGRAPH_GPC_TP(i, j) + (r))
 
 static void
-nvc0_graph_tp_init(struct drm_device *dev, struct nvc0_graph_engine *graph)
+nvc0_graph_gpc_init(struct drm_device *dev, struct nvc0_graph_engine *graph)
 {
 	int i, j;
 
@@ -115,43 +106,48 @@ nvc0_graph_tp_init(struct drm_device *dev, struct nvc0_graph_engine *graph)
 	nv_wr32(dev, 0x41898c, 0);
 #endif
 
-	for (i = 0; i < graph->tp_count; ++i) {
-		int mp_count = nv_rd32(dev, TP_REG(i, 0x2608)) & 0xffff;
+	for (i = 0; i < graph->gpc_count; ++i) {
+		graph->gpc_tp_count[i] =
+			nv_rd32(dev, GPC_REG(i, 0x2608)) & 0xffff;
+		graph->tp_count += graph->gpc_tp_count[i];
+	}
 
-		nv_wr32(dev, TP_REG(i, 0x0914),
-			(graph->ropc_count << 8) | mp_count);
-		nv_wr32(dev, TP_REG(i, 0x0910), 0x4000e); /* 4000f */
-		nv_wr32(dev, TP_REG(i, 0x0918), 0x92493); /* 88889 */
+	for (i = 0; i < graph->gpc_count; ++i) {
+		nv_wr32(dev, GPC_REG(i, 0x0914),
+			(graph->ropc_count << 8) | graph->gpc_tp_count[i]);
+		nv_wr32(dev, GPC_REG(i, 0x0910),
+			(graph->gpc_count << 16) | graph->tp_count);
+		nv_wr32(dev, GPC_REG(i, 0x0918), 0x92493); /* 88889 */
 	}
 	nv_wr32(dev, 0x419bd4, 0x92493);
 	nv_wr32(dev, 0x4188ac, graph->ropc_count);
 
 	for (i = 0; i < graph->tp_count; ++i) {
-		int mp_count = nv_rd32(dev, TP_REG(i, 0x2608)) & 0xffff;
+		int mp_count = nv_rd32(dev, GPC_REG(i, 0x2608)) & 0xffff;
 
 		NV_INFO(dev, "init TP%i (%i MPs)\n", i, mp_count);
 	
-		nv_wr32(dev, TP_REG(i, 0x0420), 0xc0000000);
-                nv_wr32(dev, TP_REG(i, 0x0900), 0xc0000000);
-                nv_wr32(dev, TP_REG(i, 0x1028), 0xc0000000);
-                nv_wr32(dev, TP_REG(i, 0x0824), 0xc0000000);
+		nv_wr32(dev, GPC_REG(i, 0x0420), 0xc0000000);
+		nv_wr32(dev, GPC_REG(i, 0x0900), 0xc0000000);
+		nv_wr32(dev, GPC_REG(i, 0x1028), 0xc0000000);
+		nv_wr32(dev, GPC_REG(i, 0x0824), 0xc0000000);
 
 		for (j = 0; j < mp_count; ++j) {
-			nv_wr32(dev, MP_REG(i, j, 0x508), 0xffffffff);
-			nv_wr32(dev, MP_REG(i, j, 0x50c), 0xffffffff);
-			nv_wr32(dev, MP_REG(i, j, 0x224), 0xc0000000);
-			nv_wr32(dev, MP_REG(i, j, 0x48c), 0xc0000000);
-			nv_wr32(dev, MP_REG(i, j, 0x084), 0xc0000000);
-			nv_wr32(dev, MP_REG(i, j, 0x644), 0x1ffffe);
-			nv_wr32(dev, MP_REG(i, j, 0x64c), 0xf);
+			nv_wr32(dev, TP_REG(i, j, 0x508), 0xffffffff);
+			nv_wr32(dev, TP_REG(i, j, 0x50c), 0xffffffff);
+			nv_wr32(dev, TP_REG(i, j, 0x224), 0xc0000000);
+			nv_wr32(dev, TP_REG(i, j, 0x48c), 0xc0000000);
+			nv_wr32(dev, TP_REG(i, j, 0x084), 0xc0000000);
+			nv_wr32(dev, TP_REG(i, j, 0x644), 0x1ffffe);
+			nv_wr32(dev, TP_REG(i, j, 0x64c), 0xf);
 		}
 
-		nv_wr32(dev, TP_REG(i, 0x2c90), 0xffffffff); /* CTXCTL */
-		nv_wr32(dev, TP_REG(i, 0x2c94), 0xffffffff); /* CTXCTL */
+		nv_wr32(dev, GPC_REG(i, 0x2c90), 0xffffffff); /* CTXCTL */
+		nv_wr32(dev, GPC_REG(i, 0x2c94), 0xffffffff); /* CTXCTL */
         }
 }
 
-#define ROPC_REG(i, r) ((0x410000 + (i) * 0x400) + (r))
+#define ROPC_REG(i, r) (NVC0_PGRAPH_ROPC(i) + (r))
 
 static void
 nvc0_graph_ropc_init(struct drm_device *dev, struct nvc0_graph_engine *graph)
@@ -161,8 +157,8 @@ nvc0_graph_ropc_init(struct drm_device *dev, struct nvc0_graph_engine *graph)
 	for (i = 0; i < graph->ropc_count; ++i) {
 		nv_wr32(dev, ROPC_REG(i, 0x144), 0xc0000000);
 		nv_wr32(dev, ROPC_REG(i, 0x070), 0xc0000000);
-		nv_wr32(dev, ROPC_REG(i, 0x204), 0xffffffff);
-		nv_wr32(dev, ROPC_REG(i, 0x208), 0xffffffff);
+		nv_wr32(dev, NVC0_PGRAPH_ROPC_TRAP(i), 0xffffffff);
+		nv_wr32(dev, NVC0_PGRAPH_ROPC_TRAP_EN(i), 0xffffffff);
 	}
 }
 
@@ -176,13 +172,13 @@ nvc0_graph_init_regs(struct drm_device *dev)
 	nv_wr32(dev, 0x40008c, 0x00000000);
 	nv_wr32(dev, 0x400090, 0x00000030);
         
-	nv_wr32(dev, 0x40013c, 0x013901f7); /* INTR_EN */
-	nv_wr32(dev, 0x400140, 0x00000100);
-	nv_wr32(dev, 0x400144, 0x00000000);
-	nv_wr32(dev, 0x400148, 0x00000110);
-	nv_wr32(dev, 0x400138, 0x00000000); /* TRAP_EN */
-	nv_wr32(dev, 0x400130, 0x00000000);
-	nv_wr32(dev, 0x400134, 0x00000000);
+	nv_wr32(dev, NVC0_PGRAPH_INTR_EN, 0x013901f7);
+	nv_wr32(dev, NVC0_PGRAPH_INTR_DISPATCH_CTXCTL_DOWN, 0x00000100);
+	nv_wr32(dev, NVC0_PGRAPH_INTR_CTXCTL_DOWN, 0x00000000);
+	nv_wr32(dev, NVC0_PGRAPH_INTR_EN_CTXCTL_DOWN, 0x00000110);
+	nv_wr32(dev, NVC0_PGRAPH_TRAP_EN, 0x00000000);
+	nv_wr32(dev, NVC0_PGRAPH_TRAP_GPCS_EN, 0x00000000);
+	nv_wr32(dev, NVC0_PGRAPH_TRAP_ROPCS_EN, 0x00000000);
 	nv_wr32(dev, 0x400124, 0x00000002);
 
 	nv_wr32(dev, 0x4188ac, 0x00000005);
@@ -192,7 +188,7 @@ static int
 nvc0_graph_init_ctxctl(struct drm_device *dev, struct nvc0_graph_engine *graph)
 {
 	uint32_t wait[3];
-	int i, j, tp_num, cx_num;
+	int i, j, cx_num;
 
 	NV_DEBUG(dev, "%s\n", __FUNCTION__);
 
@@ -243,13 +239,13 @@ nvc0_graph_init_ctxctl(struct drm_device *dev, struct nvc0_graph_engine *graph)
 		nv_rd32(dev, 0x409910);
 	}
 
-	tp_num = nv_rd32(dev, TP_REG(0, 0x2608)) >> 16;
-	cx_num = nv_rd32(dev, TP_REG(0, 0x2880));
+	cx_num = nv_rd32(dev, GPC_REG(0, 0x2880));
 
-	for (i = 0; i < tp_num; ++i) {
+	for (i = 0; i < graph->gpc_count; ++i) {
 		for (j = 0; j < cx_num; ++j) {
-			nv_wr32(dev, TP_REG(i, 0x2ffc), j);
-			nv_rd32(dev, TP_REG(i, 0x2910));
+			nv_wr32(dev, NVC0_PGRAPH_GPC_CTXCTL_HOST_IO_INDEX(i),
+				j);
+			nv_rd32(dev, NVC0_PGRAPH_GPC_CTXCTL_STRAND_SIZE(i));
 		}
 	}
 
@@ -271,10 +267,10 @@ nvc0_graph_load_ctx(struct drm_device *dev, struct pscnv_bo *vo)
 	NV_INFO(dev, "002640 = 0x%08x / 0x80001000\n", nv_rd32(dev, 0x002640));
 	NV_INFO(dev, "40060c = 0x%08x / 0x00000000\n", nv_rd32(dev, 0x40060c));
 
-	nv_wr32(dev, 0x409614, 0x070);
+	nv_wr32(dev, NVC0_PGRAPH_CTXCTL_RED_SWITCH, 0x070);
 	NV_INFO(dev, "409614 = 0x%08x / 0x070\n", nv_rd32(dev, 0x409614));
 
-	nv_wr32(dev, 0x409614, 0x770);
+	nv_wr32(dev, NVC0_PGRAPH_CTXCTL_RED_SWITCH, 0x770);
 	NV_INFO(dev, "409614 = 0x%08x / 0x770\n", nv_rd32(dev, 0x409614));
 
 	nv_wr32(dev, 0x40802c, 1);
@@ -312,9 +308,6 @@ nvc0_graph_store_ctx(struct drm_device *dev)
 	return 0;
 }
 
-void
-nvc0_grctx_construct(struct drm_device *dev, struct pscnv_chan *chan);
-
 static int
 nvc0_grctx_generate(struct drm_device *dev, struct nvc0_graph_engine *graph,
 		    struct pscnv_chan *chan)
@@ -341,7 +334,7 @@ nvc0_grctx_generate(struct drm_device *dev, struct nvc0_graph_engine *graph,
 	nv_wv32(grch->grctx, 0x2c, 0);
 	dev_priv->vm->bar_flush(dev);
 
-	nvc0_grctx_construct(dev, chan);
+	nvc0_grctx_construct(dev, graph, chan);
 
 	ret = nvc0_graph_store_ctx(dev);
 	if (ret)
@@ -375,8 +368,8 @@ nvc0_grctx_generate(struct drm_device *dev, struct nvc0_graph_engine *graph,
 void
 nvc0_graph_takedown(struct pscnv_engine *eng)
 {
-	nv_wr32(eng->dev, 0x400138, 0); /* TRAP_EN */
-	nv_wr32(eng->dev, 0x40013c, 0); /* INTR_EN */
+	nv_wr32(eng->dev, NVC0_PGRAPH_TRAP_EN, 0);
+	nv_wr32(eng->dev, NVC0_PGRAPH_INTR_EN, 0);
 }
 
 void nvc0_graph_irq_handler(struct drm_device *dev, int irq);
@@ -453,7 +446,7 @@ nvc0_graph_init(struct drm_device *dev)
 
 	nvc0_graph_init_reset(dev);
 
-	res->tp_count = nv_rd32(dev, 0x409604) & 0x1f;
+	res->gpc_count = nv_rd32(dev, 0x409604) & 0x1f;
 	res->ropc_count = nv_rd32(dev, 0x409604) >> 16;
 
 	nv_wr32(dev, 0x418880, 0);
@@ -472,7 +465,7 @@ nvc0_graph_init(struct drm_device *dev)
 	nv_wr32(dev, 0x40013c, 0xffffffff);
 
 	nvc0_graph_init_units(dev);
-	nvc0_graph_tp_init(dev, res);
+	nvc0_graph_gpc_init(dev, res);
 	nvc0_graph_ropc_init(dev, res);
 
 	nvc0_graph_init_intr(dev);

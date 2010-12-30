@@ -6,6 +6,9 @@
 
 #include "nvc0_vm.h"
 #include "nvc0_ctxctl.h"
+#include "nvc0_graph.h"
+
+#include "nvc0_pgraph.xml.h"
 
 #define NVC0_CTXCTL_1A_DATA_INDEX 0x41a1c0
 #define NVC0_CTXCTL_1A_DATA_DATA  0x41a1c4
@@ -23,9 +26,8 @@
 
 #define NVC0_CTXCTL_WRITE_AUTOINCR (1 << 24)
 
-#define NVC0_PGRAPH_TP_REG(i, r)  ((0x500000 + (i) * 0x8000) + (r))
-#define NVC0_PGRAPH_MP_REG(i, j, r) \
-	((0x504000 + (i) * 0x8000 + (j) * 0x800) + (r))
+#define GPC_REG(i, r) (NVC0_PGRAPH_GPC(i) + (r))
+#define TP_REG(i, j, r) (NVC0_PGRAPH_GPC_TP(i, j) + (r))
 
 void
 nvc0_ctxctl_load_fuc(struct drm_device *dev)
@@ -112,23 +114,19 @@ static void nvc0_grctx_init_9039(struct drm_device *dev);
 static void nvc0_grctx_init_90c0(struct drm_device *dev);
 
 void
-nvc0_grctx_construct(struct drm_device *dev, struct pscnv_chan *chan)
+nvc0_grctx_construct(struct drm_device *dev,
+		     struct nvc0_graph_engine *graph,
+		     struct pscnv_chan *chan)
 {
 	struct pscnv_vspace *vspace = chan->vspace;
 	struct nvc0_vspace *vs = nvc0_vs(vspace);
-	int tp_count;
-	int mp_count[32];
-	int mp_count_max = 0;
+	int tp_count_max = 0;
 	int i, j, k;
-	uint32_t val260, val520, mp_bitfield;
+	uint32_t val260, val520, tp_bitfield;
 
-	tp_count = nv_rd32(dev, NVC0_PGRAPH_TP_REG(0, 0x2608)) >> 16;
-
-	for (i = 0; i < tp_count; ++i) {
-		mp_count[i] =
-			nv_rd32(dev, NVC0_PGRAPH_TP_REG(i, 0x2608)) & 0xffff;
-		if (mp_count_max < mp_count[i])
-			mp_count_max = mp_count[i];
+	for (i = 0; i < graph->gpc_count; ++i) {
+		if (tp_count_max < graph->gpc_tp_count[i])
+			tp_count_max = graph->gpc_tp_count[i];
 	}
 
 	val260 = nv_rd32(dev, 0x260);
@@ -168,39 +166,34 @@ nvc0_grctx_construct(struct drm_device *dev, struct pscnv_chan *chan)
 
 	val520 = 0x02180000;
 
-	for (i = 0; i < tp_count; ++i)
-		for (j = 0; j < mp_count[i]; ++j, val520 += 0x2fc)
-			nv_wr32(dev, NVC0_PGRAPH_MP_REG(i, j, 0x520), val520);
+	for (i = 0; i < graph->gpc_count; ++i)
+		for (j = 0; j < graph->gpc_tp_count[i]; ++j, val520 += 0x2fc)
+			nv_wr32(dev, TP_REG(i, j, 0x520), val520);
 
-	for (i = 0, k = 0; i < mp_count_max; ++i) {
-		for (j = 0; j < tp_count; ++j) {
-			uint32_t addr1 = NVC0_PGRAPH_MP_REG(j, i, 0x698);
-			uint32_t addr2 = NVC0_PGRAPH_MP_REG(j, i, 0x4e8);
-			uint32_t addr3 = NVC0_PGRAPH_TP_REG(j, 0x0c10);
-			uint32_t addr4 = NVC0_PGRAPH_MP_REG(j, i, 0x088);
-			uint32_t addr5 = NVC0_PGRAPH_TP_REG(j, 0x0c08);
-			uint32_t addr6 = NVC0_PGRAPH_TP_REG(j, 0x0c8c);
-
-			if (mp_count[j] > i) {
-				nv_wr32(dev, addr1, k);
-				nv_wr32(dev, addr2, k);
-				nv_wr32(dev, addr3, k);
-				nv_wr32(dev, addr4, k);
+	for (i = 0, k = 0; i < tp_count_max; ++i) {
+		for (j = 0; j < graph->gpc_count; ++j) {
+			if (graph->gpc_tp_count[j] > i) {
+				nv_wr32(dev, TP_REG(j, i, 0x698), k);
+				nv_wr32(dev, TP_REG(j, i, 0x4e8), k);
+				nv_wr32(dev, GPC_REG(j, 0x0c10), k);
+				nv_wr32(dev, TP_REG(j, i, 0x088), k);
 
 				k++;
 			}
-			nv_wr32(dev, addr5, mp_count[j]);
-			nv_wr32(dev, addr6, mp_count[j]);
+			nv_wr32(dev, GPC_REG(j, 0x0c08),
+				graph->gpc_tp_count[j]);
+			nv_wr32(dev, GPC_REG(j, 0x0c8c),
+				graph->gpc_tp_count[j]);
 		}
 	}
 
-	mp_bitfield = 0;
+	tp_bitfield = 0;
 
-	for (i = 1; i < tp_count; ++i)
-		mp_bitfield |= mp_count[i] << (i * 4);
+	for (i = 1; i < graph->gpc_count; ++i)
+		tp_bitfield |= graph->gpc_tp_count[i] << (i * 4);
 
-	nv_wr32(dev, 0x406028, mp_bitfield);
-	nv_wr32(dev, 0x405870, mp_bitfield);
+	nv_wr32(dev, 0x406028, tp_bitfield);
+	nv_wr32(dev, 0x405870, tp_bitfield);
 
 	nv_wr32(dev, 0x40602c, 0x00000000);
 	nv_wr32(dev, 0x405874, 0x00000000);
