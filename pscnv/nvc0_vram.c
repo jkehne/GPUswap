@@ -79,15 +79,9 @@ nvc0_vram_alloc(struct pscnv_bo *bo)
 	struct drm_device *dev = bo->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	int flags, ret;
-	switch (bo->tile_flags) {
-	case 0x00:
-	case 0xdb:
-	case 0xfe:
-		flags = 0;
-		break;
-	default:
+	if (bo->tile_flags & 0xffffff00)
 		return -EINVAL;
-	}
+	flags = 0;
 	bo->size = roundup(bo->size, 0x1000);
 	if ((bo->flags & PSCNV_GEM_MEMTYPE_MASK) == PSCNV_GEM_VRAM_LARGE) {
 		flags |= PSCNV_MM_LP;
