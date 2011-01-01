@@ -10,22 +10,6 @@
 
 #include "nvc0_pgraph.xml.h"
 
-#define NVC0_CTXCTL_1A_DATA_INDEX 0x41a1c0
-#define NVC0_CTXCTL_1A_DATA_DATA  0x41a1c4
-
-#define NVC0_CTXCTL_09_DATA_INDEX 0x4091c0
-#define NVC0_CTXCTL_09_DATA_DATA  0x4091c4
-
-#define NVC0_CTXCTL_1A_CODE_INDEX 0x41a180
-#define NVC0_CTXCTL_1A_CODE_DATA  0x41a184
-#define NVC0_CTXCTL_1A_CODE_SECTION 0x41a188
-
-#define NVC0_CTXCTL_09_CODE_INDEX 0x409180
-#define NVC0_CTXCTL_09_CODE_DATA  0x409184
-#define NVC0_CTXCTL_09_CODE_SECTION 0x409188
-
-#define NVC0_CTXCTL_WRITE_AUTOINCR (1 << 24)
-
 #define GPC_REG(i, r) (NVC0_PGRAPH_GPC(i) + (r))
 #define TP_REG(i, j, r) (NVC0_PGRAPH_GPC_TP(i, j) + (r))
 
@@ -39,53 +23,43 @@ nvc0_ctxctl_load_fuc(struct drm_device *dev)
 	nv_wr32(dev, 0x260, val260 & ~1);
 
 	/* DATA 1A */
-
 	data = (const uint32_t *)nvc0_ctxctl_data_1a;
-
-	nv_wr32(dev, NVC0_CTXCTL_1A_DATA_INDEX, 0x01000000);
-
+	nv_wr32(dev, NVC0_PGRAPH_GPC_BROADCAST_CTXCTL_DATA_INDEX,
+		NVC0_PGRAPH_CTXCTL_DATA_INDEX_WRITE_AUTOINCR);
 	for (i = 0; i < sizeof(nvc0_ctxctl_data_1a) / 4; ++i)
-		nv_wr32(dev, NVC0_CTXCTL_1A_DATA_DATA, data[i]);
+		nv_wr32(dev, NVC0_PGRAPH_GPC_BROADCAST_CTXCTL_DATA, data[i]);
 
 	/* DATA 09 */
-
 	data = (const uint32_t *)nvc0_ctxctl_data_09;
-
-	nv_wr32(dev, NVC0_CTXCTL_09_DATA_INDEX, 0x01000000);
-
+	nv_wr32(dev, NVC0_PGRAPH_CTXCTL_DATA_INDEX,
+		NVC0_PGRAPH_CTXCTL_DATA_INDEX_WRITE_AUTOINCR);
 	for (i = 0; i < sizeof(nvc0_ctxctl_data_09) / 4; ++i)
-		nv_wr32(dev, NVC0_CTXCTL_09_DATA_DATA, data[i]);
+		nv_wr32(dev, NVC0_PGRAPH_CTXCTL_DATA, data[i]);
 
 	NV_INFO(dev, "409620 = 0x%08x expect 0x1040\n", nv_rd32(dev, 0x409620));
 	NV_INFO(dev, "502620 = 0x%08x expect 0x0820\n", nv_rd32(dev, 0x502620));
 
 	/* CODE 1A */
-
 	data = (const uint32_t *)nvc0_ctxctl_code_1a;
-
-	nv_wr32(dev, NVC0_CTXCTL_1A_CODE_INDEX, 0x01000000);
-
+	nv_wr32(dev, NVC0_PGRAPH_GPC_BROADCAST_CTXCTL_CODE_INDEX,
+		NVC0_PGRAPH_CTXCTL_CODE_INDEX_WRITE_AUTOINCR);
 	i = 0;
 	while ((i * 64) < (sizeof(nvc0_ctxctl_code_1a) / 4)) {
-		nv_wr32(dev, NVC0_CTXCTL_1A_CODE_SECTION, i);
-
+		nv_wr32(dev, NVC0_PGRAPH_GPC_BROADCAST_CTXCTL_CODE_VIRT_ADDR, i);
 		for (j = i * 64; j < (i + 1) * 64; ++j)
-			nv_wr32(dev, NVC0_CTXCTL_1A_CODE_DATA, data[j]);
+			nv_wr32(dev, NVC0_PGRAPH_GPC_BROADCAST_CTXCTL_CODE, data[j]);
 		++i;
 	}
 
 	/* CODE 09 */
-
 	data = (const uint32_t *)nvc0_ctxctl_code_09;
-
-	nv_wr32(dev, NVC0_CTXCTL_09_CODE_INDEX, 0x01000000);
-
+	nv_wr32(dev, NVC0_PGRAPH_CTXCTL_CODE_INDEX,
+		NVC0_PGRAPH_CTXCTL_CODE_INDEX_WRITE_AUTOINCR);
 	i = 0;
 	while ((i * 64) < (sizeof(nvc0_ctxctl_code_09) / 4)) {
-		nv_wr32(dev, NVC0_CTXCTL_09_CODE_SECTION, i);
-
+		nv_wr32(dev, NVC0_PGRAPH_CTXCTL_CODE_VIRT_ADDR, i);
 		for (j = i * 64; j < (i + 1) * 64; ++j)
-			nv_wr32(dev, NVC0_CTXCTL_09_CODE_DATA, data[j]);
+			nv_wr32(dev, NVC0_PGRAPH_CTXCTL_CODE, data[j]);
 		++i;
 	}
 
@@ -120,13 +94,23 @@ nvc0_grctx_construct(struct drm_device *dev,
 {
 	struct pscnv_vspace *vspace = chan->vspace;
 	struct nvc0_vspace *vs = nvc0_vs(vspace);
-	int tp_count_max = 0;
-	int i, j, k;
+	int gpc_tp_count_max = 0;
+	int i, j, k, l;
 	uint32_t val260, val520, tp_bitfield;
+	uint32_t unk418bb8_low8;
+	uint32_t tp_count_mask = 0;
+	uint32_t addr, val;
+	int nshift = 0;
+	int ntp_count;
+	int ntp_count_mods[7];
 
 	for (i = 0; i < graph->gpc_count; ++i) {
-		if (tp_count_max < graph->gpc_tp_count[i])
-			tp_count_max = graph->gpc_tp_count[i];
+		if (gpc_tp_count_max < graph->gpc_tp_count[i])
+			gpc_tp_count_max = graph->gpc_tp_count[i];
+		/* examples: GTX470=0x0f0f0707 and GTX480=0x0f0f0f07. */
+		for (j = 0; j < graph->gpc_tp_count[i]; ++j) {
+			tp_count_mask |= 0x1 << (j + i * 8);
+		}
 	}
 
 	val260 = nv_rd32(dev, 0x260);
@@ -170,7 +154,7 @@ nvc0_grctx_construct(struct drm_device *dev,
 		for (j = 0; j < graph->gpc_tp_count[i]; ++j, val520 += 0x2fc)
 			nv_wr32(dev, TP_REG(i, j, 0x520), val520);
 
-	for (i = 0, k = 0; i < tp_count_max; ++i) {
+	for (i = 0, k = 0; i < gpc_tp_count_max; ++i) {
 		for (j = 0; j < graph->gpc_count; ++j) {
 			if (graph->gpc_tp_count[j] > i) {
 				nv_wr32(dev, TP_REG(j, i, 0x698), k);
@@ -202,96 +186,203 @@ nvc0_grctx_construct(struct drm_device *dev,
 	nv_wr32(dev, 0x406034, 0x00000000);
 	nv_wr32(dev, 0x40587c, 0x00000000);
 
-	nv_wr32(dev, 0x4060a8, 0x03020100);
-	nv_wr32(dev, 0x4060ac, 0x03020100);
-	nv_wr32(dev, 0x4060b0, 0x03020100);
-	nv_wr32(dev, 0x4060b4, 0x1f1f0302);
-	nv_wr32(dev, 0x418bb8, 0x00000e05);
-	nv_wr32(dev, 0x418b08, 0x06208062);
-	nv_wr32(dev, 0x418b0c, 0x04118820);
-	nv_wr32(dev, 0x418b10, 0x0e739c03);
-	nv_wr32(dev, 0x418b14, 0x0e739ce7);
-	nv_wr32(dev, 0x418b18, 0x0e739ce7);
-	nv_wr32(dev, 0x418b1c, 0x000000e7);
-	nv_wr32(dev, 0x419bd0, 0x043c0e05);
-	nv_wr32(dev, 0x419be4, 0x09041208);
-	nv_wr32(dev, 0x419b00, 0x06208062);
-	nv_wr32(dev, 0x419b04, 0x04118820);
-	nv_wr32(dev, 0x419b08, 0x0e739c03);
-	nv_wr32(dev, 0x419b0c, 0x0e739ce7);
-	nv_wr32(dev, 0x419b10, 0x0e739ce7);
-	nv_wr32(dev, 0x419b14, 0x000000e7);
-	nv_wr32(dev, 0x4078bc, 0x00000e05);
-	nv_wr32(dev, 0x40780c, 0x06208062);
-	nv_wr32(dev, 0x407810, 0x04118820);
-	nv_wr32(dev, 0x407814, 0x0e739c03);
-	nv_wr32(dev, 0x407818, 0x0e739ce7);
-	nv_wr32(dev, 0x40781c, 0x0e739ce7);
-	nv_wr32(dev, 0x407820, 0x000000e7);
-	nv_wr32(dev, 0x406800, 0x00000001);
-	nv_wr32(dev, 0x406c00, 0x0f0f0706);
-	nv_wr32(dev, 0x406820, 0x00000001);
-	nv_wr32(dev, 0x406c20, 0x0f0f0706);
-	nv_wr32(dev, 0x406840, 0x00000101);
-	nv_wr32(dev, 0x406c40, 0x0f0f0606);
-	nv_wr32(dev, 0x406860, 0x00000101);
-	nv_wr32(dev, 0x406c60, 0x0f0f0606);
-	nv_wr32(dev, 0x406880, 0x00010101);
-	nv_wr32(dev, 0x406c80, 0x0f0e0606);
-	nv_wr32(dev, 0x4068a0, 0x00010101);
-	nv_wr32(dev, 0x406ca0, 0x0f0e0606);
-	nv_wr32(dev, 0x4068c0, 0x00010101);
-	nv_wr32(dev, 0x406cc0, 0x0f0e0606);
-	nv_wr32(dev, 0x4068e0, 0x01010101);
-	nv_wr32(dev, 0x406ce0, 0x0e0e0606);
-	nv_wr32(dev, 0x406900, 0x01010101);
-	nv_wr32(dev, 0x406d00, 0x0e0e0606);
-	nv_wr32(dev, 0x406920, 0x01010101);
-	nv_wr32(dev, 0x406d20, 0x0e0e0606);
-	nv_wr32(dev, 0x406940, 0x01010103);
-	nv_wr32(dev, 0x406d40, 0x0e0e0604);
-	nv_wr32(dev, 0x406960, 0x01010103);
-	nv_wr32(dev, 0x406d60, 0x0e0e0604);
-	nv_wr32(dev, 0x406980, 0x01010303);
-	nv_wr32(dev, 0x406d80, 0x0e0e0404);
-	nv_wr32(dev, 0x4069a0, 0x01010303);
-	nv_wr32(dev, 0x406da0, 0x0e0e0404);
-	nv_wr32(dev, 0x4069c0, 0x01010303);
-	nv_wr32(dev, 0x406dc0, 0x0e0e0404);
-	nv_wr32(dev, 0x4069e0, 0x01030303);
-	nv_wr32(dev, 0x406de0, 0x0e0c0404);
-	nv_wr32(dev, 0x406a00, 0x01030303);
-	nv_wr32(dev, 0x406e00, 0x0e0c0404);
-	nv_wr32(dev, 0x406a20, 0x03030303);
-	nv_wr32(dev, 0x406e20, 0x0c0c0404);
-	nv_wr32(dev, 0x406a40, 0x03030303);
-	nv_wr32(dev, 0x406e40, 0x0c0c0404);
-	nv_wr32(dev, 0x406a60, 0x03030303);
-	nv_wr32(dev, 0x406e60, 0x0c0c0404);
-	nv_wr32(dev, 0x406a80, 0x03030307);
-	nv_wr32(dev, 0x406e80, 0x0c0c0400);
-	nv_wr32(dev, 0x406aa0, 0x03030307);
-	nv_wr32(dev, 0x406ea0, 0x0c0c0400);
-	nv_wr32(dev, 0x406ac0, 0x03030707);
-	nv_wr32(dev, 0x406ec0, 0x0c0c0000);
-	nv_wr32(dev, 0x406ae0, 0x03030707);
-	nv_wr32(dev, 0x406ee0, 0x0c0c0000);
-	nv_wr32(dev, 0x406b00, 0x03030707);
-	nv_wr32(dev, 0x406f00, 0x0c0c0000);
-	nv_wr32(dev, 0x406b20, 0x03070707);
-	nv_wr32(dev, 0x406f20, 0x0c080000);
-	nv_wr32(dev, 0x406b40, 0x03070707);
-	nv_wr32(dev, 0x406f40, 0x0c080000);
-	nv_wr32(dev, 0x406b60, 0x03070707);
-	nv_wr32(dev, 0x406f60, 0x0c080000);
-	nv_wr32(dev, 0x406b80, 0x07070707);
-	nv_wr32(dev, 0x406f80, 0x08080000);
-	nv_wr32(dev, 0x406ba0, 0x07070707);
-	nv_wr32(dev, 0x406fa0, 0x08080000);
-	nv_wr32(dev, 0x406bc0, 0x070f0707);
-	nv_wr32(dev, 0x406fc0, 0x08000000);
-	nv_wr32(dev, 0x406be0, 0x070f0707);
-	nv_wr32(dev, 0x406fe0, 0x08000000);
+	/* every 8-bit word shows a TP number and the presence of the TP. */
+	for (i = 0; i < gpc_tp_count_max; ++i) {
+		addr = 0x4060a8 + i*4;
+		val = 0x1f1f1f1f;
+		for (j = 0, k = 0; j < graph->gpc_count; ++j) {
+			if (i < graph->gpc_tp_count[j]) {
+				val ^= 0x1f << k*8;
+				val |= j << k*8;
+				k++;
+			}
+		}
+		nv_wr32(dev, addr, val);
+	}
+
+	/******* TP broadcast section starts. ******/
+	// FIXME: what the lower 8 bits of 418bb8 mean?
+	switch (graph->tp_count) {
+		case 15: /* GTX 480 */
+			unk418bb8_low8 = 6;
+			break;
+		case 14: /* GTX 470 */
+			unk418bb8_low8 = 5;
+			break;
+		case 11: /* GTX 465*/
+			unk418bb8_low8 = 7;
+			break;
+		case 7: /* GTS 460 */
+			unk418bb8_low8 = 1;
+			break;
+		case 4: /* GTS 450 */
+			unk418bb8_low8 = 3;
+			break;
+		default:
+			unk418bb8_low8 = 0;
+	}
+	nv_wr32(dev, 0x418bb8, graph->tp_count << 8 | unk418bb8_low8);
+	
+	/* some initial assignment of TPs at 0x418b08 + x.
+	   Example:
+	   GTX470 has 2 TP0's, 4 TP1's, 4 TP2's, and 4 TP3's.
+	   GTX480 has 3 TP0's, 4 TP1's, 4 TP2's, and 4 TP3's.
+	   in other words, TP0/TP1 in GTX470 and TP0 in GTX480 don't have TP0.
+	   therefore we set 2,3,0,1,2,3,0,1,2,3,0,1,2,3 for GTX470,
+	   and 1,2,3,0,1,2,3,0,1,2,3,0,1,2,3 for GTX480.
+	   the remaining fields are filled with 7.
+	   one mystery: the blob sets 2,3,0,1,2,3,0,1,2,3,1,2,3,0 for GTX470.
+	 */
+	k = 0;
+	val = 0;
+	addr = 0x418b08;
+	for (i = 0; i < gpc_tp_count_max; i++) {
+		for (j = 0; j < graph->gpc_count; j++) {
+			uint32_t tp_presence_bits =
+			  (0xf << (gpc_tp_count_max - graph->gpc_tp_count[j])) & 0xf;
+			if ((tp_presence_bits >> i) & 0x1) {
+				val |= j << 5 * k++;
+				/* each word accomodates up to 6 sets. */
+				if (k == 6) {
+					nv_wr32(dev, addr, val);
+					k = 0;
+					val = 0;
+					addr += 4;
+				}
+			}
+		}
+	}
+
+	for (i = graph->tp_count; i < 0x20; i++) {
+		val |= 0x7 << 5 * k++;
+		if (k == 6) {
+			nv_wr32(dev, addr, val);
+			k = 0;
+			val = 0;
+			addr += 4;
+		}
+	}
+	if (k > 0) {
+		nv_wr32(dev, addr, val);
+	}
+
+	/* the following are how to determine 419bd0 and 419be0.
+	   let's define nshift, ntp_count, and ntp_count_mods[] as follows.
+	   nshift is a shift amount that makes bit 4 of (tp_count << nshift)
+	   gets equal to 1.
+	   ntp_count is a normalized tp_count: ntp_count = tp_count << nshift.
+	   ntp_count_mods[i] = (1 << (5 + i)) % ntp_count.
+	   now, you can derive:
+	   419bd0: 0-7 ???, 8-15 tp_count, 16-20 ntp_count, 21-23 nshift, and
+	   24-28 ntp_count_mods[0].
+	   419be4: 0-4 ntp_count_mods[1], 5-9 ntp_count_mods[2],
+	   10-14 ntp_count_mods[3], 15-19 ntp_count_mods[4],
+	   20-24 ntp_count_mods[5], and 25-29 ntp_count_mods[6]. */
+	while (!((graph->tp_count << nshift) >> 4)) {
+		nshift++;
+	}
+	ntp_count = graph->tp_count << nshift;
+	for (i = 0; i < 7; i++) {
+		ntp_count_mods[i] = (1 << (5 + i)) % ntp_count;
+	}
+	nv_wr32(dev, 0x419bd0,
+		ntp_count_mods[0] << 24 | nshift << 21 | ntp_count << 16 |
+		graph->tp_count << 8 | unk418bb8_low8);
+	nv_wr32(dev, 0x419be4,
+		ntp_count_mods[6] << 25 | ntp_count_mods[5] << 20 |
+		ntp_count_mods[4] << 15 | ntp_count_mods[3] << 10 |
+		ntp_count_mods[2] << 5 | ntp_count_mods[1]);
+
+	/* some initial assignment of TPs at 0x419b00 + x.
+	   the same rule as above. */
+	k = 0;
+	val = 0;
+	addr = 0x419b00;
+	for (i = 0; i < gpc_tp_count_max; i++) {
+		for (j = 0; j < graph->gpc_count; j++) {
+			uint32_t tp_presence_bits =
+			  (0xf << (gpc_tp_count_max - graph->gpc_tp_count[j])) & 0xf;
+			if ((tp_presence_bits >> i) & 0x1) {
+				val |= j << 5 * k++;
+				if (k == 6) {
+					nv_wr32(dev, addr, val);
+					k = 0;
+					val = 0;
+					addr += 4;
+				}
+			}
+		}
+	}
+
+	for (i = graph->tp_count; i < 0x20; i++) {
+		val |= 0x7 << 5 * k++;
+		if (k == 6) {
+			nv_wr32(dev, addr, val);
+			k = 0;
+			val = 0;
+			addr += 4;
+		}
+	}
+	if (k > 0) {
+		nv_wr32(dev, addr, val);
+	}
+
+	nv_wr32(dev, 0x4078bc, graph->tp_count << 8 | unk418bb8_low8);
+				
+	/* some initial assignment of TPs at 0x40780c + x.
+	   the same rule as above. */
+	k = 0;
+	val = 0;
+	addr = 0x40780c;
+	for (i = 0; i < gpc_tp_count_max; i++) {
+		for (j = 0; j < graph->gpc_count; j++) {
+			uint32_t tp_presence_bits =
+			  (0xf << (gpc_tp_count_max - graph->gpc_tp_count[j])) & 0xf;
+			if ((tp_presence_bits >> i) & 0x1) {
+				val |= j << 5 * k++;
+				if (k == 6) {
+					nv_wr32(dev, addr, val);
+					k = 0;
+					val = 0;
+					addr += 4;
+				}
+			}
+		}
+	}
+
+	for (i = graph->tp_count; i < 0x20; i++) {
+		val |= 0x7 << 5 * k++;
+		if (k == 6) {
+			nv_wr32(dev, addr, val);
+			k = 0;
+			val = 0;
+			addr += 4;
+		}
+	}
+	if (k > 0) {
+		nv_wr32(dev, addr, val);
+	}
+
+	/* Enabling progressively TPs. */
+	addr = 0x406800;
+	val = 0; /* bitmask */
+	k = 0;
+	l = 0;
+	for (i = 0; i < gpc_tp_count_max; i++) {
+		for (j = 0; j < graph->gpc_count; j++) {
+			if (i < graph->gpc_tp_count[j] && 
+			    k++ < graph->tp_count - 1) {
+				val |= 0x1 << (j * 8 + i);
+				while (l < k * 32 / (graph->tp_count - 1)) {
+					nv_wr32(dev, addr, val);
+					nv_wr32(dev, addr + 0x400, 
+						val ^ tp_count_mask);
+					addr += 0x20;
+					l++;
+				}
+			}
+		}
+	}
 
 	/* phase 2 */
 
