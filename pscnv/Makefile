@@ -12,6 +12,8 @@ pscnv-y := nouveau_drv.o nouveau_state.o \
 	     pscnv_mm.o pscnv_mem.o pscnv_vm.o pscnv_gem.o pscnv_ioctl.o \
 	     pscnv_ramht.o pscnv_chan.o pscnv_sysram.o \
 	     nv50_vram.o nv50_vm.o nv50_chan.o nv50_fifo.o nv50_graph.o \
+	     nv84_crypt.o \
+	     nv98_crypt.o \
 	     nvc0_vram.o nvc0_vm.o nvc0_chan.o nvc0_fifo.o nvc0_graph.o \
 	     nvc0_grctx.o
 
@@ -26,11 +28,14 @@ EXTRA_CFLAGS = -Iinclude/drm
 
 SYSSRC = /lib/modules/$(shell uname -r)/build
 
-all: pscnv_kapi.h
+all: pscnv_kapi.h nv98_crypt_fuc.h
 	+make -C $(SYSSRC) M=$(PWD) modules
 
 clean:
 	+make -C $(SYSSRC) M=$(PWD) clean
+
+nv98_crypt_fuc.h: nv98_crypt_fuc.fuc
+	envyas -m fuc -a nv98_crypt_fuc.fuc -o nv98_crypt_fuc.h
 
 pscnv_kapi.h: kapitest.sh
 	./kapitest.sh $(SYSSRC) > pscnv_kapi.h

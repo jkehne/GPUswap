@@ -419,21 +419,33 @@ struct pscnv_enumval {
 };
 
 static struct pscnv_enumval dispatch_errors[] = {
-	{ 3, "INVALID_QUERY_OR_TEXTURE", 0 },
+	{ 3, "INVALID_OPERATION", 0 },
 	{ 4, "INVALID_VALUE", 0 },
 	{ 5, "INVALID_ENUM", 0 },
 
 	{ 8, "INVALID_OBJECT", 0 },
-
+	{ 9, "READ_ONLY_OBJECT", 0 },
+	{ 0xa, "SUPERVISOR_OBJECT", 0 },
 	{ 0xb, "INVALID_ADDRESS_ALIGNMENT", 0 },
 	{ 0xc, "INVALID_BITFIELD", 0 },
-
+	{ 0xd, "BEGIN_END_ACTIVE", 0 },
+	{ 0xe, "SEMANTIC_COLOR_BACK_OVER_LIMIT", 0 },
+	{ 0xf, "VIEWPORT_ID_NEEDS_GP", 0 },
 	{ 0x10, "RT_DOUBLE_BIND", 0 },
 	{ 0x11, "RT_TYPES_MISMATCH", 0 },
 	{ 0x12, "RT_LINEAR_WITH_ZETA", 0 },
 
+	{ 0x15, "FP_TOO_FEW_REGS", 0 },
+	{ 0x16, "ZETA_FORMAT_CSAA_MISMATCH", 0 },
+	{ 0x17, "RT_LINEAR_WITH_MSAA", 0 },
+	{ 0x18, "FP_INTERPOLANT_START_OVER_LIMIT", 0 },
+	{ 0x19, "SEMANTIC_LAYER_OVER_LIMIT", 0 },
+	{ 0x1a, "RT_INVALID_ALIGNMENT", 0 },
 	{ 0x1b, "SAMPLER_OVER_LIMIT", 0 },
 	{ 0x1c, "TEXTURE_OVER_LIMIT", 0 },
+
+	{ 0x1e, "GP_TOO_MANY_OUTPUTS", 0 },
+	{ 0x1f, "RT_BPP128_WITH_MS8", 0 },
 
 	{ 0x21, "Z_OUT_OF_BOUNDS", 0 },
 
@@ -450,7 +462,13 @@ static struct pscnv_enumval dispatch_errors[] = {
 
 	{ 0x31, "ENG2D_FORMAT_MISMATCH", 0 },
 
-	{ 0x47, "VP_CLIP_OVER_LIMIT", 0 },
+	{ 0x3f, "PRIMITIVE_ID_NEEDS_GP", 0 },
+
+	{ 0x44, "SEMANTIC_VIEWPORT_OVER_LIMIT", 0 },
+	{ 0x45, "SEMANTIC_COLOR_FRONT_OVER_LIMIT", 0 },
+	{ 0x46, "LAYER_ID_NEEDS_GP", 0 },
+	{ 0x47, "SEMANTIC_CLIP_OVER_LIMIT", 0 },
+	{ 0x48, "SEMANTIC_PTSZ_OVER_LIMIT", 0 },
 
 	{ 0, 0, 0 },
 };
@@ -464,9 +482,244 @@ static struct pscnv_enumval *pscnv_enum_find (struct pscnv_enumval *list, int va
 		return 0;
 }
 
+void nv50_graph_tex_trap(struct drm_device *dev, int cid, int tp) {
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	uint32_t staddr, status;
+	uint32_t e04, e08, e0c, e10;
+	uint64_t addr;
+	if (dev_priv->chipset < 0xa0)
+		staddr = 0x408900 + tp * 0x1000;
+	else
+		staddr = 0x408600 + tp * 0x800;
+	status = nv_rd32(dev, staddr) & 0x7fffffff;
+	e04 = nv_rd32(dev, staddr + 4);
+	e08 = nv_rd32(dev, staddr + 8);
+	e0c = nv_rd32(dev, staddr + 0xc);
+	e10 = nv_rd32(dev, staddr + 0x10);
+	addr = (uint64_t)e08 << 8;
+	if (!(status & 1)) { // seems always set...
+		NV_ERROR(dev, "PGRAPH_TRAP_TEXTURE: ch %d TP %d status %08x [no 1!]\n", cid, tp, status);
+	}
+	status &= ~1;
+	if (status & 2) {
+		NV_ERROR(dev, "PGRAPH_TRAP_TEXTURE: ch %d TP %d FAULT at %llx\n", cid, tp, addr);
+		status &= ~2;
+	}
+	if (status & 4) {
+		NV_ERROR(dev, "PGRAPH_TRAP_TEXTURE: ch %d TP %d STORAGE_TYPE_MISMATCH type %02x\n", cid, tp, e10 >> 5 & 0x7f);
+		status &= ~4;
+	}
+	if (status & 8) {
+		NV_ERROR(dev, "PGRAPH_TRAP_TEXTURE: ch %d TP %d LINEAR_MISMATCH type %02x\n", cid, tp, e10 >> 5 & 0x7f);
+		status &= ~8;
+	}
+	if (status & 0x20) {
+		NV_ERROR(dev, "PGRAPH_TRAP_TEXTURE: ch %d TP %d WRONG_MEMTYPE type %02x\n", cid, tp, e10 >> 5 & 0x7f);
+		status &= ~0x20;
+	}
+	if (status) {
+		NV_ERROR(dev, "PGRAPH_TRAP_TEXTURE: ch %d TP %d status %08x\n", cid, tp, status);
+	}
+	NV_ERROR(dev, "magic: %08x %08x %08x %08x\n", e04, e08, e0c, e10);
+	nv_wr32(dev, staddr, 0xc0000000);
+}
+
+void nv50_graph_mp_trap(struct drm_device *dev, int cid, int tp, int mp) {
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	uint32_t mpaddr, mp10, status, pc, oplo, ophi;
+	if (dev_priv->chipset < 0xa0)
+		mpaddr = 0x408200 + tp * 0x1000 + mp * 0x80;
+	else
+		mpaddr = 0x408100 + tp * 0x800 + mp * 0x80;
+	mp10 = nv_rd32(dev, mpaddr + 0x10);
+	status = nv_rd32(dev, mpaddr + 0x14);
+	nv_rd32(dev, mpaddr + 0x20);
+	pc = nv_rd32(dev, mpaddr + 0x24);
+	oplo = nv_rd32(dev, mpaddr + 0x70);
+	ophi = nv_rd32(dev, mpaddr + 0x74);
+	if (!status)
+		return;
+	if (status & 1) {
+		NV_ERROR(dev, "PGRAPH_TRAP_MP: ch %d TP %d MP %d STACK_UNDERFLOW at %06x warp %d op %08x %08x\n", cid, tp, mp, pc & 0xffffff, pc >> 24, oplo, ophi);
+		status &= ~1;
+	}
+	if (status & 2) {
+		NV_ERROR(dev, "PGRAPH_TRAP_MP: ch %d TP %d MP %d STACK_MISMATCH at %06x warp %d op %08x %08x\n", cid, tp, mp, pc & 0xffffff, pc >> 24, oplo, ophi);
+		status &= ~2;
+	}
+	if (status & 4) {
+		NV_ERROR(dev, "PGRAPH_TRAP_MP: ch %d TP %d MP %d QUADON_ACTIVE at %06x warp %d op %08x %08x\n", cid, tp, mp, pc & 0xffffff, pc >> 24, oplo, ophi);
+		status &= ~4;
+	}
+	if (status & 8) {
+		NV_ERROR(dev, "PGRAPH_TRAP_MP: ch %d TP %d MP %d TIMEOUT at %06x warp %d op %08x %08x\n", cid, tp, mp, pc & 0xffffff, pc >> 24, oplo, ophi);
+		status &= ~8;
+	}
+	if (status & 0x10) {
+		NV_ERROR(dev, "PGRAPH_TRAP_MP: ch %d TP %d MP %d INVALID_OPCODE at %06x warp %d op %08x %08x\n", cid, tp, mp, pc & 0xffffff, pc >> 24, oplo, ophi);
+		status &= ~0x10;
+	}
+	if (status & 0x40) {
+		NV_ERROR(dev, "PGRAPH_TRAP_MP: ch %d TP %d MP %d BREAKPOINT at %06x warp %d op %08x %08x\n", cid, tp, mp, pc & 0xffffff, pc >> 24, oplo, ophi);
+		status &= ~0x40;
+	}
+	if (status) {
+		NV_ERROR(dev, "PGRAPH_TRAP_MP: ch %d TP %d MP %d status %08x at %06x warp %d op %08x %08x\n", cid, tp, mp, status, pc & 0xffffff, pc >> 24, oplo, ophi);
+	}
+	nv_wr32(dev, mpaddr + 0x10, mp10);
+	nv_wr32(dev, mpaddr + 0x14, 0);
+}
+
+void nv50_graph_mpc_trap(struct drm_device *dev, int cid, int tp) {
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	uint32_t staddr, status;
+	if (dev_priv->chipset < 0xa0)
+		staddr = 0x408314 + tp * 0x1000;
+	else
+		staddr = 0x40831c + tp * 0x800;
+	status = nv_rd32(dev, staddr) & 0x7fffffff;
+	if (status & 1) {
+		NV_ERROR(dev, "PGRAPH_TRAP_MPC: ch %d TP %d LOCAL_LIMIT_READ\n", cid, tp);
+		status &= ~1;
+	}
+	if (status & 0x10) {
+		NV_ERROR(dev, "PGRAPH_TRAP_MPC: ch %d TP %d LOCAL_LIMIT_WRITE\n", cid, tp);
+		status &= ~0x10;
+	}
+	if (status & 0x40) {
+		NV_ERROR(dev, "PGRAPH_TRAP_MPC: ch %d TP %d STACK_LIMIT\n", cid, tp);
+		status &= ~0x40;
+	}
+	if (status & 0x100) {
+		NV_ERROR(dev, "PGRAPH_TRAP_MPC: ch %d TP %d GLOBAL_LIMIT_READ\n", cid, tp);
+		status &= ~0x100;
+	}
+	if (status & 0x1000) {
+		NV_ERROR(dev, "PGRAPH_TRAP_MPC: ch %d TP %d GLOBAL_LIMIT_WRITE\n", cid, tp);
+		status &= ~0x1000;
+	}
+	if (status & 0x10000) {
+		nv50_graph_mp_trap(dev, cid, tp, 0);
+		status &= ~0x10000;
+	}
+	if (status & 0x20000) {
+		nv50_graph_mp_trap(dev, cid, tp, 1);
+		status &= ~0x20000;
+	}
+	if (status & 0x40000) {
+		NV_ERROR(dev, "PGRAPH_TRAP_MPC: ch %d TP %d GLOBAL_LIMIT_RED\n", cid, tp);
+		status &= ~0x40000;
+	}
+	if (status & 0x400000) {
+		NV_ERROR(dev, "PGRAPH_TRAP_MPC: ch %d TP %d GLOBAL_LIMIT_ATOM\n", cid, tp);
+		status &= ~0x400000;
+	}
+	if (status & 0x4000000) {
+		nv50_graph_mp_trap(dev, cid, tp, 2);
+		status &= ~0x4000000;
+	}
+	if (status) {
+		NV_ERROR(dev, "PGRAPH_TRAP_MPC: ch %d TP %d status %08x\n", cid, tp, status);
+	}
+	nv_wr32(dev, staddr, 0xc0000000);
+}
+
+void nv50_graph_tprop_trap(struct drm_device *dev, int cid, int tp) {
+	static const char *const tprop_tnames[14] = {
+		"RT0",
+		"RT1",
+		"RT2",
+		"RT3",
+		"RT4",
+		"RT5",
+		"RT6",
+		"RT7",
+		"ZETA",
+		"LOCAL",
+		"GLOBAL",
+		"STACK",
+		"DST2D",
+		"???",
+	};
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	uint32_t staddr, status;
+	uint32_t e0c, e10, e14, e18, e1c, e20, e24;
+	int surf;
+	uint64_t addr;
+	if (dev_priv->chipset < 0xa0)
+		staddr = 0x408e08 + tp * 0x1000;
+	else
+		staddr = 0x408708 + tp * 0x800;
+	status = nv_rd32(dev, staddr) & 0x7fffffff;
+	e0c = nv_rd32(dev, staddr + 4);
+	e10 = nv_rd32(dev, staddr + 8);
+	e14 = nv_rd32(dev, staddr + 0xc);
+	e18 = nv_rd32(dev, staddr + 0x10);
+	e1c = nv_rd32(dev, staddr + 0x14);
+	e20 = nv_rd32(dev, staddr + 0x18);
+	e24 = nv_rd32(dev, staddr + 0x1c);
+	surf = e24 >> 0x18 & 0xf;
+	addr = e10 | (uint64_t)e14 << 32;
+	if (surf > 13)
+		surf = 13;
+	if (status & 0x4) {
+		NV_ERROR(dev, "PGRAPH_TRAP_TPROP: ch %d TP %d surf %s SURF_WIDTH_OVERRUN\n", cid, tp, tprop_tnames[surf]);
+		status &= ~0x4;
+	}
+	if (status & 0x8) {
+		NV_ERROR(dev, "PGRAPH_TRAP_TPROP: ch %d TP %d surf %s SURF_HEIGHT_OVERRUN\n", cid, tp, tprop_tnames[surf]);
+		status &= ~0x8;
+	}
+	if (status & 0x10) {
+		NV_ERROR(dev, "PGRAPH_TRAP_TPROP: ch %d TP %d surf %s DST2D_FAULT at %llx\n", cid, tp, tprop_tnames[surf], addr);
+		status &= ~0x10;
+	}
+	if (status & 0x20) {
+		NV_ERROR(dev, "PGRAPH_TRAP_TPROP: ch %d TP %d surf %s ZETA_FAULT at %llx\n", cid, tp, tprop_tnames[surf], addr);
+		status &= ~0x20;
+	}
+	if (status & 0x40) {
+		NV_ERROR(dev, "PGRAPH_TRAP_TPROP: ch %d TP %d surf %s RT_FAULT at %llx\n", cid, tp, tprop_tnames[surf], addr);
+		status &= ~0x40;
+	}
+	if (status & 0x80) {
+		NV_ERROR(dev, "PGRAPH_TRAP_TPROP: ch %d TP %d surf %s CUDA_FAULT at %llx\n", cid, tp, tprop_tnames[surf], addr);
+		status &= ~0x80;
+	}
+	if (status & 0x100) {
+		NV_ERROR(dev, "PGRAPH_TRAP_TPROP: ch %d TP %d surf %s DST2D_STORAGE_TYPE_MISMATCH type %02x\n", cid, tp, tprop_tnames[surf], e24 & 0x7f);
+		status &= ~0x100;
+	}
+	if (status & 0x200) {
+		NV_ERROR(dev, "PGRAPH_TRAP_TPROP: ch %d TP %d surf %s ZETA_STORAGE_TYPE_MISMATCH type %02x\n", cid, tp, tprop_tnames[surf], e24 & 0x7f);
+		status &= ~0x200;
+	}
+	if (status & 0x400) {
+		NV_ERROR(dev, "PGRAPH_TRAP_TPROP: ch %d TP %d surf %s RT_STORAGE_TYPE_MISMATCH type %02x\n", cid, tp, tprop_tnames[surf], e24 & 0x7f);
+		status &= ~0x400;
+	}
+	if (status & 0x800) {
+		NV_ERROR(dev, "PGRAPH_TRAP_TPROP: ch %d TP %d surf %s DST2D_LINEAR_MISMATCH type %02x\n", cid, tp, tprop_tnames[surf], e24 & 0x7f);
+		status &= ~0x800;
+	}
+	if (status & 0x1000) {
+		NV_ERROR(dev, "PGRAPH_TRAP_TPROP: ch %d TP %d surf %s RT_LINEAR_MISMATCH type %02x\n", cid, tp, tprop_tnames[surf], e24 & 0x7f);
+		status &= ~0x1000;
+	}
+	if (status) {
+		NV_ERROR(dev, "PGRAPH_TRAP_TPROP: ch %d TP %d surf %s status %08x\n", cid, tp, tprop_tnames[surf], status);
+	}
+	NV_ERROR(dev, "magic: %08x %08x %08x %08x %08x %08x %08x\n",
+			e0c, e10, e14, e18, e1c, e20, e24);
+	nv_wr32(dev, staddr, 0xc0000000);
+}
+
 void nv50_graph_trap_handler(struct drm_device *dev, int cid) {
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	uint32_t status = nv_rd32(dev, 0x400108);
 	uint32_t ustatus;
+	uint32_t units = nv_rd32(dev, 0x1540);
+	int i;
 
 	if (status & 0x001) {
 		ustatus = nv_rd32(dev, 0x400804) & 0x7fffffff;
@@ -601,6 +854,48 @@ void nv50_graph_trap_handler(struct drm_device *dev, int cid) {
 		status &= ~0x020;
 	}
 
+	if (status & 0x040) {
+		for (i = 0; i < 16; i++)
+			if (units & 1 << i) {
+				if (dev_priv->chipset < 0xa0)
+					ustatus = nv_rd32(dev, 0x408900 + i * 0x1000);
+				else
+					ustatus = nv_rd32(dev, 0x408600 + i * 0x800);
+				if (ustatus & 0x7fffffff)
+					nv50_graph_tex_trap(dev, cid, i);
+			}
+		nv_wr32(dev, 0x400108, 0x040);
+		status &= ~0x040;
+	}
+
+	if (status & 0x080) {
+		for (i = 0; i < 16; i++)
+			if (units & 1 << i) {
+				if (dev_priv->chipset < 0xa0)
+					ustatus = nv_rd32(dev, 0x408314 + i * 0x1000);
+				else
+					ustatus = nv_rd32(dev, 0x40831c + i * 0x800);
+				if (ustatus & 0x7fffffff)
+					nv50_graph_mpc_trap(dev, cid, i);
+			}
+		nv_wr32(dev, 0x400108, 0x080);
+		status &= ~0x080;
+	}
+
+	if (status & 0x100) {
+		for (i = 0; i < 16; i++)
+			if (units & 1 << i) {
+				if (dev_priv->chipset < 0xa0)
+					ustatus = nv_rd32(dev, 0x408e08 + i * 0x1000);
+				else
+					ustatus = nv_rd32(dev, 0x408708 + i * 0x800);
+				if (ustatus & 0x7fffffff)
+					nv50_graph_tprop_trap(dev, cid, i);
+			}
+		nv_wr32(dev, 0x400108, 0x100);
+		status &= ~0x100;
+	}
+
 	/* XXX: per-TP traps. */
 
 	if (status) {
@@ -633,14 +928,19 @@ void nv50_graph_irq_handler(struct drm_device *dev, int irq) {
 	}
 
 	if (status & 0x00000001) {
-		NV_ERROR(dev, "PGRAPH_NOTIFY: ch %d sub %d [%04x] mthd %04x data %08x\n", cid, subc, class, mthd, data);
+		NV_ERROR(dev, "PGRAPH_NOTIFY: ch %d\n", cid);
 		nv_wr32(dev, 0x400100, 0x00000001);
 		status &= ~0x00000001;
 	}
 	if (status & 0x00000002) {
-		NV_ERROR(dev, "PGRAPH_QUERY: ch %d sub %d [%04x] mthd %04x data %08x\n", cid, subc, class, mthd, data);
+		NV_ERROR(dev, "PGRAPH_QUERY: ch %d\n", cid);
 		nv_wr32(dev, 0x400100, 0x00000002);
 		status &= ~0x00000002;
+	}
+	if (status & 0x00000004) {
+		NV_ERROR(dev, "PGRAPH_SYNC: ch %d\n", cid);
+		nv_wr32(dev, 0x400100, 0x00000004);
+		status &= ~0x00000004;
 	}
 	if (status & 0x00000010) {
 		NV_ERROR(dev, "PGRAPH_ILLEGAL_MTHD: ch %d sub %d [%04x] mthd %04x data %08x\n", cid, subc, class, mthd, data);
@@ -685,6 +985,10 @@ void nv50_graph_irq_handler(struct drm_device *dev, int irq) {
 	}
 
 	if (status & 0x01000000) {
+		addr = nv_rd32(dev, 0x400808);
+		subc = addr >> 16 & 7;
+		mthd = addr & 0x1ffc;
+		data = nv_rd32(dev, 0x40080c);
 		NV_ERROR(dev, "PGRAPH_SINGLE_STEP: ch %d sub %d [%04x] mthd %04x data %08x\n", cid, subc, class, mthd, data);
 		nv_wr32(dev, 0x400100, 0x01000000);
 		status &= ~0x01000000;

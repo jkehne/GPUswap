@@ -51,7 +51,10 @@ nv50_pm_clock_get(struct drm_device *dev, u32 id)
 	N = (reg1 & 0x0000ff00) >> 8;
 	M = (reg1 & 0x000000ff);
 
-	return ((pll.refclk * N / M) >> P);
+	if (M > 0)
+		return ((pll.refclk * N / M) >> P);
+	else
+		return -EINVAL;
 }
 
 void *

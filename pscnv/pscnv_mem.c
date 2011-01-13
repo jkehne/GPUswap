@@ -127,7 +127,10 @@ pscnv_mem_alloc(struct drm_device *dev,
 			break;
 		case PSCNV_GEM_SYSRAM_SNOOP:
 		case PSCNV_GEM_SYSRAM_NOSNOOP:
-			ret = pscnv_sysram_alloc(res);
+			if (dev_priv->vram->sysram_tiling_ok(res))
+				ret = pscnv_sysram_alloc(res);
+			else
+				ret = -EINVAL;
 			break;
 		default:
 			ret = -ENOSYS;

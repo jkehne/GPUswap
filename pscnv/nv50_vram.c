@@ -30,6 +30,7 @@
 #include "pscnv_mem.h"
 
 int nv50_vram_alloc(struct pscnv_bo *bo);
+int nv50_sysram_tiling_ok(struct pscnv_bo *bo);
 
 int
 nv50_vram_init(struct drm_device *dev)
@@ -50,6 +51,7 @@ nv50_vram_init(struct drm_device *dev)
 	dev_priv->vram->alloc = nv50_vram_alloc;
 	dev_priv->vram->free = pscnv_vram_free;
 	dev_priv->vram->takedown = pscnv_vram_takedown;
+	dev_priv->vram->sysram_tiling_ok = nv50_sysram_tiling_ok;
 
 	if (dev_priv->chipset == 0xaa || dev_priv->chipset == 0xac || dev_priv->chipset == 0xaf) {
 		rc = nv_rd32(dev, 0x10020c);
@@ -109,6 +111,80 @@ nv50_vram_init(struct drm_device *dev)
 	}
 
 	return 0;
+}
+
+int
+nv50_sysram_tiling_ok(struct pscnv_bo *bo) {
+	switch (bo->tile_flags) {
+		case 0:
+		case 0x10:
+		case 0x11:
+		case 0x12:
+		case 0x13:
+		case 0x20:
+		case 0x21:
+		case 0x22:
+		case 0x23:
+		case 0x24:
+		case 0x25:
+		case 0x26:
+		case 0x40:
+		case 0x41:
+		case 0x42:
+		case 0x43:
+		case 0x44:
+		case 0x45:
+		case 0x46:
+		case 0x54:
+		case 0x55:
+		case 0x56:
+		case 0x60:
+		case 0x61:
+		case 0x62:
+		case 0x63:
+		case 0x64:
+		case 0x65:
+		case 0x66:
+		case 0x68:
+		case 0x69:
+		case 0x6a:
+		case 0x6b:
+		case 0x70:
+		case 0x74:
+		case 0x78:
+		case 0x79:
+		case 0x7c:
+		case 0x7d:
+		case 0x18:
+		case 0x19:
+		case 0x1a:
+		case 0x1b:
+		case 0x28:
+		case 0x29:
+		case 0x2a:
+		case 0x2b:
+		case 0x2c:
+		case 0x2d:
+		case 0x2e:
+		case 0x47:
+		case 0x48:
+		case 0x49:
+		case 0x4a:
+		case 0x4b:
+		case 0x4c:
+		case 0x4d:
+		case 0x6c:
+		case 0x6d:
+		case 0x6e:
+		case 0x6f:
+		case 0x72:
+		case 0x76:
+		case 0x7a:
+		case 0x7b:
+			return 1;
+		default:
+			return 0;
+	}
 }
 
 int

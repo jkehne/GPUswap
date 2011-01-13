@@ -72,6 +72,7 @@ enum {
 	NvGdiRect	= 0x8000000c,
 	NvImageBlit	= 0x8000000d,
 	NvSw		= 0x8000000e,
+	NvSema		= 0x8000000f,
 #endif
 
 	/* G80+ display objects */

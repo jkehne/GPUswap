@@ -50,6 +50,7 @@
 #include "pscnv_gem.h"
 #include "pscnv_vm.h"
 
+
 static int
 nouveau_fbcon_sync(struct fb_info *info)
 {
@@ -60,12 +61,17 @@ nouveau_fbcon_sync(struct fb_info *info)
 	struct nouveau_channel *chan = dev_priv->channel;
 	int ret, i;
 
-	if (!chan || !chan->accel_done ||
+	if (!chan || !chan->accel_done || in_interrupt() ||
 	    info->state != FBINFO_STATE_RUNNING ||
 	    info->flags & FBINFO_HWACCEL_DISABLED)
 		return 0;
 
-	if (RING_SPACE(chan, 4)) {
+	if (!mutex_trylock(&chan->mutex))
+		return 0;
+
+	ret = RING_SPACE(chan, 4);
+	if (ret) {
+		mutex_unlock(&chan->mutex);
 		nouveau_fbcon_gpu_lockup(info);
 		return 0;
 	}
@@ -76,6 +82,7 @@ nouveau_fbcon_sync(struct fb_info *info)
 	OUT_RING(chan, 0);
 	nouveau_bo_wr32(chan->notifier_bo, chan->m2mf_ntfy + 3, 0xffffffff);
 	FIRE_RING(chan);
+	mutex_unlock(&chan->mutex);
 
 	ret = -EBUSY;
 	for (i = 0; i < 100000; i++) {
@@ -276,6 +283,8 @@ nouveau_fbcon_create(struct nouveau_fbdev *nfbdev,
 	info->pixmap.access_align = 32;
 	info->pixmap.flags = FB_PIXMAP_SYSTEM;
 	info->pixmap.scan_align = 1;
+
+	mutex_unlock(&dev->struct_mutex);
 #if 0
 	if (dev_priv->channel && !nouveau_nofbaccel) {
 		switch (dev_priv->card_type) {
@@ -298,7 +307,6 @@ nouveau_fbcon_create(struct nouveau_fbdev *nfbdev,
 						nouveau_fb->base.height,
 						nvbo->start, nvbo->map1->start, nvbo);
 
-	mutex_unlock(&dev->struct_mutex);
 	vga_switcheroo_client_fb_set(dev->pdev, info);
 	return 0;
 

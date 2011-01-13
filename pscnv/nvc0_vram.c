@@ -33,6 +33,7 @@
 #define NVC0_MEM_CTRLR_RAM_AMOUNT                                    0x0010f20c
 
 int nvc0_vram_alloc(struct pscnv_bo *bo);
+int nvc0_sysram_tiling_ok(struct pscnv_bo *bo);
 
 int
 nvc0_vram_init(struct drm_device *dev)
@@ -50,6 +51,7 @@ nvc0_vram_init(struct drm_device *dev)
 	dev_priv->vram->alloc = nvc0_vram_alloc;
 	dev_priv->vram->free = pscnv_vram_free;
 	dev_priv->vram->takedown = pscnv_vram_takedown;
+	dev_priv->vram->sysram_tiling_ok = nvc0_sysram_tiling_ok;
 
 	ctrlr_num = nv_rd32(dev, NVC0_MEM_CTRLR_COUNT);
 	ctrlr_amt = nv_rd32(dev, NVC0_MEM_CTRLR_RAM_AMOUNT);
@@ -71,6 +73,18 @@ nvc0_vram_init(struct drm_device *dev)
 	}
 
 	return 0;
+}
+
+int
+nvc0_sysram_tiling_ok(struct pscnv_bo *bo) {
+	switch (bo->tile_flags) {
+		case 0:
+		case 0xdb:
+		case 0xfe:
+			return 1;
+		default:
+			return 0;
+	}
 }
 
 int

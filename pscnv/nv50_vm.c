@@ -128,6 +128,7 @@ nv50_vspace_do_map (struct pscnv_vspace *vs, struct pscnv_bo *bo, uint64_t offse
 		case PSCNV_GEM_SYSRAM_NOSNOOP:
 			for (i = 0; i < (bo->size >> PAGE_SHIFT); i++) {
 				uint64_t pte = bo->dmapages[i];
+				pte |= (uint64_t)bo->tile_flags << 40;
 				pte |= 1;
 				if ((bo->flags & PSCNV_GEM_MEMTYPE_MASK) == PSCNV_GEM_SYSRAM_SNOOP)
 					pte |= 0x20;
@@ -361,11 +362,12 @@ static struct pscnv_enumval vm_trap_reasons[] = {
 	{ 0, "PT_NOT_PRESENT", 0},
 	{ 1, "PT_TOO_SHORT", 0 },
 	{ 2, "PAGE_NOT_PRESENT", 0 },
-	/* 3 is magic flag 0x40 set in PTE */
+	{ 3, "PAGE_SYSTEM_ONLY", 0 },
 	{ 4, "PAGE_READ_ONLY", 0 },
 	/* 5 never seen */
 	{ 6, "NULL_DMAOBJ", 0 },
-	/* 7-0xa never seen */
+	{ 7, "WRONG_MEMTYPE", 0 },
+	/* 8-0xa never seen */
 	{ 0xb, "VRAM_LIMIT", 0 },
 	/* 0xc-0xe never seen */
 	{ 0xf, "DMAOBJ_LIMIT", 0 },
@@ -418,6 +420,19 @@ static struct pscnv_enumval vm_pgraph_subunits[] = {
 	{ 0, 0, 0 },
 };
 
+static struct pscnv_enumval vm_crypt_subsubunits[] = {
+	{ 0, "CRCTX", 0 },
+	{ 1, "SRC", 0 },
+	{ 2, "DST", 0 },
+	{ 3, "QUERY", 0 },
+	{ 0, 0, 0 },
+};
+
+static struct pscnv_enumval vm_pcrypt_subunits[] = {
+	{ 0xe, "CRYPT", vm_crypt_subsubunits },
+	{ 0, 0, 0 },
+};
+
 static struct pscnv_enumval vm_pfifo_subsubunits[] = {
 	{ 0, "PUSHBUF", 0 },
 	{ 1, "SEMAPHORE", 0 },
@@ -462,7 +477,7 @@ static struct pscnv_enumval vm_units[] = {
 	/* 7 never seen */
 	{ 8, "PPPP", 0 },
 	{ 9, "PBSP", 0 },
-	{ 0xa, "PCRYPT", 0 },
+	{ 0xa, "PCRYPT", vm_pcrypt_subunits },
 	/* 0xb, 0xc never seen */
 	{ 0xd, "PCOPY", 0 },
 	{ 0xe, "PDAEMON", 0 },

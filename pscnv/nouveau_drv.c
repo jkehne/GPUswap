@@ -224,9 +224,8 @@ nouveau_pci_suspend(struct pci_dev *pdev, pm_message_t pm_state)
 	for (i = 0; i < pfifo->channels; i++) {
 		struct nouveau_fence *fence = NULL;
 
-		chan = dev_priv->fifos[i];
-		if (!chan || (dev_priv->card_type >= NV_50 &&
-			      chan == dev_priv->fifos[0]))
+		chan = dev_priv->channels.ptr[i];
+		if (!chan || !chan->pushbuf_bo)
 			continue;
 
 		ret = nouveau_fence_new(chan, &fence, true);
@@ -341,7 +340,7 @@ nouveau_pci_resume(struct pci_dev *pdev)
 		int j;
 
 		for (i = 0; i < dev_priv->engine.fifo.channels; i++) {
-			chan = dev_priv->fifos[i];
+			chan = dev_priv->channels.ptr[i];
 			if (!chan || !chan->pushbuf_bo)
 				continue;
 
@@ -427,8 +426,10 @@ static struct drm_driver driver = {
 	.irq_uninstall = nouveau_irq_uninstall,
 	.irq_handler = nouveau_irq_handler,
 	.reclaim_buffers = drm_core_reclaim_buffers,
+#ifdef PSCNV_KAPI_MAP_OFS
 	.get_map_ofs = drm_core_get_map_ofs,
 	.get_reg_ofs = drm_core_get_reg_ofs,
+#endif
 	.ioctls = nouveau_ioctls,
 	.fops = {
 		.owner = THIS_MODULE,

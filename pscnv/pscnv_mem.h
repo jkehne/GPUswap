@@ -63,6 +63,7 @@ struct pscnv_vram_engine {
 	void (*takedown) (struct drm_device *);
 	int (*alloc) (struct pscnv_bo *);
 	int (*free) (struct pscnv_bo *);
+	int (*sysram_tiling_ok) (struct pscnv_bo *);
 };
 
 extern int pscnv_mem_init(struct drm_device *);

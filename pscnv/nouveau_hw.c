@@ -305,7 +305,7 @@ setPLL_double_lowregs(struct drm_device *dev, uint32_t NMNMreg,
 	bool mpll = Preg == 0x4020;
 	uint32_t oldPval = nvReadMC(dev, Preg);
 	uint32_t NMNM = pv->NM2 << 16 | pv->NM1;
-	uint32_t Pval = (oldPval & (mpll ? ~(0x11 << 16) : ~(1 << 16))) |
+	uint32_t Pval = (oldPval & (mpll ? ~(0x77 << 16) : ~(7 << 16))) |
 			0xc << 28 | pv->log2P << 16;
 	uint32_t saved4600 = 0;
 	/* some cards have different maskc040s */
@@ -519,11 +519,11 @@ nouveau_hw_fix_bad_vpll(struct drm_device *dev, int head)
 
 	struct pll_lims pll_lim;
 	struct nouveau_pll_vals pv;
-	uint32_t pllreg = head ? NV_RAMDAC_VPLL2 : NV_PRAMDAC_VPLL_COEFF;
+	enum pll_types pll = head ? PLL_VPLL1 : PLL_VPLL0;
 
-	if (get_pll_limits(dev, pllreg, &pll_lim))
+	if (get_pll_limits(dev, pll, &pll_lim))
 		return;
-	nouveau_hw_get_pllvals(dev, pllreg, &pv);
+	nouveau_hw_get_pllvals(dev, pll, &pv);
 
 	if (pv.M1 >= pll_lim.vco1.min_m && pv.M1 <= pll_lim.vco1.max_m &&
 	    pv.N1 >= pll_lim.vco1.min_n && pv.N1 <= pll_lim.vco1.max_n &&
@@ -536,7 +536,7 @@ nouveau_hw_fix_bad_vpll(struct drm_device *dev, int head)
 	pv.M1 = pll_lim.vco1.max_m;
 	pv.N1 = pll_lim.vco1.min_n;
 	pv.log2P = pll_lim.max_usable_log2p;
-	nouveau_hw_setpll(dev, pllreg, &pv);
+	nouveau_hw_setpll(dev, pll_lim.reg, &pv);
 }
 
 /*

@@ -32,6 +32,7 @@
 #include "nouveau_hw.h"
 #include "nouveau_encoder.h"
 #include "nouveau_reg.h"
+#include "pscnv_kapi.h"
 
 #include <linux/io-mapping.h>
 
@@ -2162,7 +2163,7 @@ peek_fb(struct drm_device *dev, struct io_mapping *fb,
 	uint32_t val = 0;
 
 	if (off < pci_resource_len(dev->pdev, 1)) {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,36)
+#ifdef PSCNV_KAPI_IO_MAPPING_3
 		uint8_t __iomem *p =
 			io_mapping_map_atomic_wc(fb, off & PAGE_MASK, KM_USER0);
 #else
@@ -2172,7 +2173,7 @@ peek_fb(struct drm_device *dev, struct io_mapping *fb,
 
 		val = ioread32(p + (off & ~PAGE_MASK));
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,36)
+#ifdef PSCNV_KAPI_IO_MAPPING_3
 		io_mapping_unmap_atomic(p, KM_USER0);
 #else
 		io_mapping_unmap_atomic(p);
@@ -2188,7 +2189,7 @@ poke_fb(struct drm_device *dev, struct io_mapping *fb,
 	uint32_t off, uint32_t val)
 {
 	if (off < pci_resource_len(dev->pdev, 1)) {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,36)
+#ifdef PSCNV_KAPI_IO_MAPPING_3
 		uint8_t __iomem *p =
 			io_mapping_map_atomic_wc(fb, off & PAGE_MASK, KM_USER0);
 #else
@@ -2199,7 +2200,7 @@ poke_fb(struct drm_device *dev, struct io_mapping *fb,
 		iowrite32(val, p + (off & ~PAGE_MASK));
 		wmb();
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,36)
+#ifdef PSCNV_KAPI_IO_MAPPING_3
 		io_mapping_unmap_atomic(p, KM_USER0);
 #else
 		io_mapping_unmap_atomic(p);
@@ -4914,6 +4915,12 @@ int get_pll_limits(struct drm_device *dev, uint32_t limit_match, struct pll_lims
 				break;
 			}
 
+		if ((dev_priv->card_type >= NV_50) && (pllindex == 0)) {
+			NV_ERROR(dev, "Register 0x%08x not found in PLL "
+				 "limits table", pll_lim->reg);
+			return -ENOENT;
+		}
+
 		pll_rec = &bios->data[plloffs + recordlen * pllindex];
 
 		BIOSLOG(bios, "Loading PLL limits for reg 0x%08x\n",
@@ -6844,6 +6851,7 @@ static bool
 nouveau_bios_posted(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nvbios *bios = &dev_priv->vbios;
 	unsigned htotal;
 
 	if (dev_priv->chipset >= NV_50) {
@@ -6852,6 +6860,8 @@ nouveau_bios_posted(struct drm_device *dev)
 			return false;
 		return true;
 	}
+	if (nouveau_force_post)
+		bios->execute = true;
 
 	htotal  = NVReadVgaCrtc(dev, 0, 0x06);
 	htotal |= (NVReadVgaCrtc(dev, 0, 0x07) & 0x01) << 8;

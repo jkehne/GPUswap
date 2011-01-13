@@ -43,6 +43,13 @@
 #include "pscnv_engine.h"
 #include "pscnv_fifo.h"
 
+static DEFINE_RATELIMIT_STATE(nouveau_ratelimit_state, 3 * HZ, 20);
+
+static int nouveau_ratelimit(void)
+{
+	return __ratelimit(&nouveau_ratelimit_state);
+}
+
 void
 nouveau_irq_preinstall(struct drm_device *dev)
 {
@@ -507,13 +514,6 @@ nouveau_pgraph_intr_notify(struct drm_device *dev, uint32_t nsource)
 
 	if (unhandled)
 		nouveau_graph_dump_trap_info(dev, "PGRAPH_NOTIFY", &trap);
-}
-
-static DEFINE_RATELIMIT_STATE(nouveau_ratelimit_state, 3 * HZ, 20);
-
-static int nouveau_ratelimit(void)
-{
-	return __ratelimit(&nouveau_ratelimit_state);
 }
 
 
