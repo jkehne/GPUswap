@@ -17,13 +17,13 @@
  *  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-.section nv98_pcrypt_data
+.section #nv98_pcrypt_data
 
 ctx_dma:
 ctx_dma_query:		.b32 0
 ctx_dma_src:		.b32 0
 ctx_dma_dst:		.b32 0
-.equ dma_count 3
+.equ #dma_count 3
 ctx_query_address_high:	.b32 0
 ctx_query_address_low:	.b32 0
 ctx_query_counter:	.b32 0
@@ -45,62 +45,62 @@ swap:
 
 .align 8
 common_cmd_dtable:
-.b32 ctx_query_address_high + 0x20000 ~0xff
-.b32 ctx_query_address_low + 0x20000 ~0xfffffff0
-.b32 ctx_query_counter + 0x20000 ~0xffffffff
-.b32 cmd_query_get + 0x00000 ~1
-.b32 ctx_cond_address_high + 0x20000 ~0xff
-.b32 ctx_cond_address_low + 0x20000 ~0xfffffff0
-.b32 cmd_cond_mode + 0x00000 ~7
-.b32 cmd_wrcache_flush + 0x00000 ~0
-.equ common_cmd_max 0x88
+.b32 #ctx_query_address_high + 0x20000 ~0xff
+.b32 #ctx_query_address_low + 0x20000 ~0xfffffff0
+.b32 #ctx_query_counter + 0x20000 ~0xffffffff
+.b32 #cmd_query_get + 0x00000 ~1
+.b32 #ctx_cond_address_high + 0x20000 ~0xff
+.b32 #ctx_cond_address_low + 0x20000 ~0xfffffff0
+.b32 #cmd_cond_mode + 0x00000 ~7
+.b32 #cmd_wrcache_flush + 0x00000 ~0
+.equ #common_cmd_max 0x88
+
 
 .align 8
 engine_cmd_dtable:
-.b32 ctx_key + 0x0 + 0x20000 ~0xffffffff
-.b32 ctx_key + 0x4 + 0x20000 ~0xffffffff
-.b32 ctx_key + 0x8 + 0x20000 ~0xffffffff
-.b32 ctx_key + 0xc + 0x20000 ~0xffffffff
-.b32 ctx_iv + 0x0 + 0x20000 ~0xffffffff
-.b32 ctx_iv + 0x4 + 0x20000 ~0xffffffff
-.b32 ctx_iv + 0x8 + 0x20000 ~0xffffffff
-.b32 ctx_iv + 0xc + 0x20000 ~0xffffffff
-.b32 ctx_src_address_high + 0x20000 ~0xff
-.b32 ctx_src_address_low + 0x20000 ~0xfffffff0
-.b32 ctx_dst_address_high + 0x20000 ~0xff
-.b32 ctx_dst_address_low + 0x20000 ~0xfffffff0
-.b32 crypt_cmd_mode + 0x00000 ~0xf
-.b32 crypt_cmd_length + 0x10000 ~0x0ffffff0
-.equ engine_cmd_max 0xce
+.b32 #ctx_key + 0x0 + 0x20000 ~0xffffffff
+.b32 #ctx_key + 0x4 + 0x20000 ~0xffffffff
+.b32 #ctx_key + 0x8 + 0x20000 ~0xffffffff
+.b32 #ctx_key + 0xc + 0x20000 ~0xffffffff
+.b32 #ctx_iv + 0x0 + 0x20000 ~0xffffffff
+.b32 #ctx_iv + 0x4 + 0x20000 ~0xffffffff
+.b32 #ctx_iv + 0x8 + 0x20000 ~0xffffffff
+.b32 #ctx_iv + 0xc + 0x20000 ~0xffffffff
+.b32 #ctx_src_address_high + 0x20000 ~0xff
+.b32 #ctx_src_address_low + 0x20000 ~0xfffffff0
+.b32 #ctx_dst_address_high + 0x20000 ~0xff
+.b32 #ctx_dst_address_low + 0x20000 ~0xfffffff0
+.b32 #crypt_cmd_mode + 0x00000 ~0xf
+.b32 #crypt_cmd_length + 0x10000 ~0x0ffffff0
+.equ #engine_cmd_max 0xce
 
 .align 4
 crypt_dtable:
-.b16 crypt_copy_prep crypt_do_inout
-.b16 crypt_store_prep crypt_do_out
-.b16 crypt_ecb_e_prep crypt_do_inout
-.b16 crypt_ecb_d_prep crypt_do_inout
-.b16 crypt_cbc_e_prep crypt_do_inout
-.b16 crypt_cbc_d_prep crypt_do_inout
-.b16 crypt_pcbc_e_prep crypt_do_inout
-.b16 crypt_pcbc_d_prep crypt_do_inout
-.b16 crypt_cfb_e_prep crypt_do_inout
-.b16 crypt_cfb_d_prep crypt_do_inout
-.b16 crypt_ofb_prep crypt_do_inout
-.b16 crypt_ctr_prep crypt_do_inout
-.b16 crypt_cbc_mac_prep crypt_do_in
-.b16 crypt_cmac_finish_complete_prep crypt_do_in
-.b16 crypt_cmac_finish_partial_prep crypt_do_in
+.b16 #crypt_copy_prep #crypt_do_inout
+.b16 #crypt_store_prep #crypt_do_out
+.b16 #crypt_ecb_e_prep #crypt_do_inout
+.b16 #crypt_ecb_d_prep #crypt_do_inout
+.b16 #crypt_cbc_e_prep #crypt_do_inout
+.b16 #crypt_cbc_d_prep #crypt_do_inout
+.b16 #crypt_pcbc_e_prep #crypt_do_inout
+.b16 #crypt_pcbc_d_prep #crypt_do_inout
+.b16 #crypt_cfb_e_prep #crypt_do_inout
+.b16 #crypt_cfb_d_prep #crypt_do_inout
+.b16 #crypt_ofb_prep #crypt_do_inout
+.b16 #crypt_ctr_prep #crypt_do_inout
+.b16 #crypt_cbc_mac_prep #crypt_do_in
+.b16 #crypt_cmac_finish_complete_prep #crypt_do_in
+.b16 #crypt_cmac_finish_partial_prep #crypt_do_in
 
 .align 0x100
 
-
-.section nv98_pcrypt_code
+.section #nv98_pcrypt_code
 
 	// $r0 is always set to 0 in our code - this allows some space savings.
 	clear b32 $r0
 
 	// set up the interrupt handler
-	mov $r1 ih
+	mov $r1 #ih
 	mov $iv0 $r1
 
 	// init stack pointer
@@ -128,8 +128,7 @@ crypt_dtable:
 	bset $flags $p0
 	spin:
 	sleep $p0
-	bra spin
-
+	bra #spin
 
 // i0 handler
 ih:
@@ -138,7 +137,7 @@ ih:
 
 	and $r2 $r1 0x8
 	cmpu b32 $r2 0
-	bra e noctx
+	bra e #noctx
 
 		// context switch... prepare the regs for xfer
 		mov $r2 0x7700
@@ -154,7 +153,7 @@ ih:
 		// if bit 30 set, it's active, so we have to unload it first.
 		shl b32 $r5 $r4 1
 		cmps b32 $r5 0
-		bra nc ctxload
+		bra nc #ctxload
 
 			// unload the current channel - save the context
 			xdst $r0 $r2
@@ -166,7 +165,7 @@ ih:
 			mov $r4 1
 			iowr I[$r3 + 0x200] $r4
 
-		bra noctx
+		bra #noctx
 
 		ctxload:
 			// no channel loaded - perhaps we're requested to load one
@@ -175,20 +174,20 @@ ih:
 			cmps b32 $r15 0
 			// if bit 30 of next channel not set, probably PFIFO is just
 			// killing a context. do a faux load, without the active bit.
-			bra nc dummyload
+			bra nc #dummyload
 
 				// ok, do a real context load.
 				xdld $r0 $r2
 				xdwait
-				mov $r5 ctx_dma
-				mov $r6 dma_count - 1
+				mov $r5 #ctx_dma
+				mov $r6 #dma_count - 1
 				ctxload_dma_loop:
 					ld b32 $r7 D[$r5 + $r6 * 4]
 					add b32 $r8 $r6 0x180
 					shl b32 $r8 8
 					iowr I[$r8] $r7
 					sub b32 $r6 1
-				bra nc ctxload_dma_loop
+				bra nc #ctxload_dma_loop
 
 			dummyload:
 			// tell PFIFO we're done
@@ -198,7 +197,7 @@ ih:
 	noctx:
 	and $r2 $r1 0x4
 	cmpu b32 $r2 0
-	bra e nocmd
+	bra e #nocmd
 
 		// incoming fifo command.
 		mov $r3 0x1900
@@ -212,65 +211,65 @@ ih:
 		// mthd 0 and 0x100 [NAME, NOP]: ignore
 		and $r5 $r4 0x7bf
 		cmpu b32 $r5 0
-		bra e cmddone
+		bra e #cmddone
 
-		mov $r5 engine_cmd_dtable - 0xc0 * 8
-		mov $r6 engine_cmd_max
+		mov $r5 #engine_cmd_dtable - 0xc0 * 8
+		mov $r6 #engine_cmd_max
 		cmpu b32 $r4 0xc0
-		bra nc dtable_cmd
-		mov $r5 common_cmd_dtable - 0x80 * 8
-		mov $r6 common_cmd_max
+		bra nc #dtable_cmd
+		mov $r5 #common_cmd_dtable - 0x80 * 8
+		mov $r6 #common_cmd_max
 		cmpu b32 $r4 0x80
-		bra nc dtable_cmd
+		bra nc #dtable_cmd
 		cmpu b32 $r4 0x60
-		bra nc dma_cmd
+		bra nc #dma_cmd
 		cmpu b32 $r4 0x50
-		bra ne illegal_mthd
+		bra ne #illegal_mthd
 
 			// mthd 0x140: PM_TRIGGER
 			mov $r2 0x2200
 			clear b32 $r3
 			sethi $r3 0x20000
 			iowr I[$r2] $r3
-			bra cmddone
+			bra #cmddone
 
 		dma_cmd:
 			// mthd 0x180...: DMA_*
-			cmpu b32 $r4 0x60+dma_count
-			bra nc illegal_mthd
+			cmpu b32 $r4 0x60+#dma_count
+			bra nc #illegal_mthd
 			shl b32 $r5 $r4 2
-			add b32 $r5 (ctx_dma - 0x60 * 4) & 0xffff
+			add b32 $r5 (#ctx_dma - 0x60 * 4) & 0xffff
 			st b32 D[$r5] $r3
 			add b32 $r4 0x180 - 0x60
 			shl b32 $r4 8
 			bset $r3 0x1e
 			iowr I[$r4] $r3
-			bra cmddone
+			bra #cmddone
 
 		dtable_cmd:
 			cmpu b32 $r4 $r6
-			bra nc illegal_mthd
+			bra nc #illegal_mthd
 			shl b32 $r4 3
 			add b32 $r4 $r5
 			ld b32 $r5 D[$r4 + 4]
 			and $r5 $r3
 			cmpu b32 $r5 0
-			bra ne invalid_bitfield
+			bra ne #invalid_bitfield
 			ld b16 $r5 D[$r4]
 			ld b16 $r6 D[$r4 + 2]
 			cmpu b32 $r6 2
-			bra e cmd_setctx
-			ld b32 $r7 D[$r0 + ctx_cond_off]
+			bra e #cmd_setctx
+			ld b32 $r7 D[$r0 + #ctx_cond_off]
 			and $r6 $r7
 			cmpu b32 $r6 1
-			bra e cmddone
+			bra e #cmddone
 			call $r5
-			bra $p1 dispatch_error 
-			bra cmddone
+			bra $p1 #dispatch_error 
+			bra #cmddone
 
 		cmd_setctx:
 			st b32 D[$r5] $r3
-			bra cmddone
+			bra #cmddone
 
 
 		invalid_bitfield:
@@ -287,7 +286,7 @@ ih:
 				iord $r4 I[$r0 + 0x200]
 				and $r4 0x40
 				cmpu b32 $r4 0
-			bra ne im_loop
+			bra ne #im_loop
 
 		cmddone:
 		// remove the command from FIFO
@@ -313,24 +312,24 @@ cmd_query_get:
 		iord $r5 I[$r4]
 		iord $r7 I[$r4 + 0x100]
 		cmpu b32 $r6 $r7
-	bra ne ptimer_retry
+	bra ne #ptimer_retry
 
 	// prepare the query structure
-	ld b32 $r4 D[$r0 + ctx_query_counter]
-	st b32 D[$r0 + swap + 0x0] $r4
-	st b32 D[$r0 + swap + 0x4] $r0
-	st b32 D[$r0 + swap + 0x8] $r5
-	st b32 D[$r0 + swap + 0xc] $r6
+	ld b32 $r4 D[$r0 + #ctx_query_counter]
+	st b32 D[$r0 + #swap + 0x0] $r4
+	st b32 D[$r0 + #swap + 0x4] $r0
+	st b32 D[$r0 + #swap + 0x8] $r5
+	st b32 D[$r0 + #swap + 0xc] $r6
 
 	// will use target 0, DMA_QUERY.
 	mov $xtargets $r0
 
-	ld b32 $r4 D[$r0 + ctx_query_address_high]
+	ld b32 $r4 D[$r0 + #ctx_query_address_high]
 	shl b32 $r4 0x18
 	mov $xdbase $r4
 
-	ld b32 $r4 D[$r0 + ctx_query_address_low]
-	mov $r5 swap
+	ld b32 $r4 D[$r0 + #ctx_query_address_low]
+	mov $r5 #swap
 	sethi $r5 0x20000
 	xdst $r4 $r5
 	xdwait
@@ -342,24 +341,24 @@ cmd_cond_mode:
 	bset $flags $p1
 	or $r2 2
 	cmpu b32 $r3 5
-	bra nc return
+	bra nc #return
 
 	// otherwise, no error.
 	bclr $flags $p1
 
 	// if < 2, no QUERY object is involved
 	cmpu b32 $r3 2
-	bra nc cmd_cond_mode_queryful
+	bra nc #cmd_cond_mode_queryful
 
 		xor $r3 1
-		st b32 D[$r0 + ctx_cond_off] $r3
+		st b32 D[$r0 + #ctx_cond_off] $r3
 	return:
 		ret
 
 	cmd_cond_mode_queryful:
 	// ok, will need to pull a QUERY object, prepare offsets
-	ld b32 $r4 D[$r0 + ctx_cond_address_high]
-	ld b32 $r5 D[$r0 + ctx_cond_address_low]
+	ld b32 $r4 D[$r0 + #ctx_cond_address_high]
+	ld b32 $r5 D[$r0 + #ctx_cond_address_low]
 	and $r6 $r5 0xff
 	shr b32 $r5 8
 	shl b32 $r4 0x18
@@ -368,19 +367,19 @@ cmd_cond_mode:
 	mov $xtargets $r0
 
 	// pull the first one
-	mov $r5 swap
+	mov $r5 #swap
 	sethi $r5 0x20000
 	xdld $r6 $r5
 	
 	// if == 2, only a single QUERY is involved...
 	cmpu b32 $r3 2
-	bra ne cmd_cond_mode_double
+	bra ne #cmd_cond_mode_double
 	
 		xdwait
-		ld b32 $r4 D[$r0 + swap + 4]
+		ld b32 $r4 D[$r0 + #swap + 4]
 		cmpu b32 $r4 0
 		xbit $r4 $flags z
-		st b32 D[$r0 + ctx_cond_off] $r4
+		st b32 D[$r0 + #ctx_cond_off] $r4
 		ret
 	
 	// ok, we'll need to pull second one too
@@ -391,14 +390,14 @@ cmd_cond_mode:
 	xdwait
 
 	// compare COUNTERs
-	ld b32 $r5 D[$r0 + swap + 0x00]
-	ld b32 $r6 D[$r0 + swap + 0x10]
+	ld b32 $r5 D[$r0 + #swap + 0x00]
+	ld b32 $r6 D[$r0 + #swap + 0x10]
 	cmpu b32 $r5 $r6
 	xbit $r4 $flags z
 
 	// compare RESen
-	ld b32 $r5 D[$r0 + swap + 0x04]
-	ld b32 $r6 D[$r0 + swap + 0x14]
+	ld b32 $r5 D[$r0 + #swap + 0x04]
+	ld b32 $r6 D[$r0 + #swap + 0x14]
 	cmpu b32 $r5 $r6
 	xbit $r5 $flags z
 	and $r4 $r5
@@ -407,7 +406,7 @@ cmd_cond_mode:
 	cmpu b32 $r3 3
 	xbit $r5 $flags z
 	xor $r4 $r5
-	st b32 D[$r0 + ctx_cond_off] $r4
+	st b32 D[$r0 + #ctx_cond_off] $r4
 	ret
 
 cmd_wrcache_flush:
@@ -423,10 +422,10 @@ crypt_cmd_mode:
 	bset $flags $p1
 	or $r2 2
 	cmpu b32 $r3 0xf
-	bra nc crypt_cmd_mode_return
+	bra nc #crypt_cmd_mode_return
 
 		bclr $flags $p1
-		st b32 D[$r0 + ctx_mode] $r3
+		st b32 D[$r0 + #ctx_mode] $r3
 
 	crypt_cmd_mode_return:
 	ret
@@ -434,14 +433,14 @@ crypt_cmd_mode:
 crypt_cmd_length:
 	// nop if length == 0
 	cmpu b32 $r3 0
-	bra e crypt_cmd_mode_return
+	bra e #crypt_cmd_mode_return
 
 	// init key, IV
 	cxset 3
-	mov $r4 ctx_key
+	mov $r4 #ctx_key
 	sethi $r4 0x70000
 	xdst $r0 $r4
-	mov $r4 ctx_iv
+	mov $r4 #ctx_iv
 	sethi $r4 0x60000
 	xdst $r0 $r4
 	xdwait
@@ -452,31 +451,31 @@ crypt_cmd_length:
 	mov $xtargets $r4
 
 	// prepare src address
-	ld b32 $r4 D[$r0 + ctx_src_address_high]
-	ld b32 $r5 D[$r0 + ctx_src_address_low]
+	ld b32 $r4 D[$r0 + #ctx_src_address_high]
+	ld b32 $r5 D[$r0 + #ctx_src_address_low]
 	shr b32 $r8 $r5 8
 	shl b32 $r4 0x18
 	or $r4 $r8
 	and $r5 $r5 0xff
 
 	// prepare dst address
-	ld b32 $r6 D[$r0 + ctx_dst_address_high]
-	ld b32 $r7 D[$r0 + ctx_dst_address_low]
+	ld b32 $r6 D[$r0 + #ctx_dst_address_high]
+	ld b32 $r7 D[$r0 + #ctx_dst_address_low]
 	shr b32 $r8 $r7 8
 	shl b32 $r6 0x18
 	or $r6 $r8
 	and $r7 $r7 0xff
 
 	// find the proper prep & do functions
-	ld b32 $r8 D[$r0 + ctx_mode]
+	ld b32 $r8 D[$r0 + #ctx_mode]
 	shl b32 $r8 2
 
 	// run prep
-	ld b16 $r9 D[$r8 + crypt_dtable]
+	ld b16 $r9 D[$r8 + #crypt_dtable]
 	call $r9
 
 	// do it
-	ld b16 $r9 D[$r8 + crypt_dtable + 2]
+	ld b16 $r9 D[$r8 + #crypt_dtable + 2]
 	call $r9
 	cxset 1
 	xdwait
@@ -489,20 +488,20 @@ crypt_cmd_length:
 	shl b32 $r9 $r4 8
 	add b32 $r9 $r5
 	adc b32 $r8 0
-	st b32 D[$r0 + ctx_src_address_high] $r8
-	st b32 D[$r0 + ctx_src_address_low] $r9
+	st b32 D[$r0 + #ctx_src_address_high] $r8
+	st b32 D[$r0 + #ctx_src_address_low] $r9
 
 	// update dst address
 	shr b32 $r8 $r6 0x18
 	shl b32 $r9 $r6 8
 	add b32 $r9 $r7
 	adc b32 $r8 0
-	st b32 D[$r0 + ctx_dst_address_high] $r8
-	st b32 D[$r0 + ctx_dst_address_low] $r9
+	st b32 D[$r0 + #ctx_dst_address_high] $r8
+	st b32 D[$r0 + #ctx_dst_address_low] $r9
 
 	// pull updated IV
 	cxset 2
-	mov $r4 ctx_iv
+	mov $r4 #ctx_iv
 	sethi $r4 0x60000
 	xdld $r0 $r4
 	xdwait
@@ -640,7 +639,7 @@ crypt_cmac_finish_partial_prep:
 crypt_do_in:
 	add b32 $r3 $r5
 	mov $xdbase $r4
-	mov $r9 swap
+	mov $r9 #swap
 	sethi $r9 0x20000
 	crypt_do_in_loop:
 		xdld $r5 $r9
@@ -651,7 +650,7 @@ crypt_do_in:
 		xdwait
 		add b32 $r5 0x10
 		cmpu b32 $r5 $r3
-	bra ne crypt_do_in_loop
+	bra ne #crypt_do_in_loop
 	cxset 1
 	xdwait
 	ret
@@ -659,7 +658,7 @@ crypt_do_in:
 crypt_do_out:
 	add b32 $r3 $r7
 	mov $xdbase $r6
-	mov $r9 swap
+	mov $r9 #swap
 	sethi $r9 0x20000
 	crypt_do_out_loop:
 		cs0exec 1
@@ -670,12 +669,12 @@ crypt_do_out:
 		xdwait
 		add b32 $r7 0x10
 		cmpu b32 $r7 $r3
-	bra ne crypt_do_out_loop
+	bra ne #crypt_do_out_loop
 	ret
 
 crypt_do_inout:
 	add b32 $r3 $r5
-	mov $r9 swap
+	mov $r9 #swap
 	sethi $r9 0x20000
 	crypt_do_inout_loop:
 		mov $xdbase $r4
@@ -693,7 +692,8 @@ crypt_do_inout:
 		add b32 $r5 0x10
 		add b32 $r7 0x10
 		cmpu b32 $r5 $r3
-	bra ne crypt_do_inout_loop
+	bra ne #crypt_do_inout_loop
 	ret
 
 .align 0x100
+
