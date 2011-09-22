@@ -10,6 +10,14 @@
 #include "nv50_chan.h"
 #include "pscnv_kapi.h"
 
+#ifdef PSCNV_KAPI_GETPARAM_BUS_TYPE
+#define DEVICE_IS_AGP(dev) drm_device_is_agp(dev)
+#define DEVICE_IS_PCIE(dev) drm_device_is_pcie(dev)
+#else
+#define DEVICE_IS_AGP(dev) drm_pci_device_is_agp(dev)
+#define DEVICE_IS_PCIE(dev) pci_is_pcie(dev->pdev)
+#endif
+
 int pscnv_ioctl_getparam(struct drm_device *dev, void *data,
 						struct drm_file *file_priv)
 {
@@ -29,9 +37,9 @@ int pscnv_ioctl_getparam(struct drm_device *dev, void *data,
 		getparam->value = dev->pci_device;
 		break;
 	case PSCNV_GETPARAM_BUS_TYPE:
-		if (drm_device_is_agp(dev))
+		if (DEVICE_IS_AGP(dev))
 			getparam->value = NV_AGP;
-		else if (drm_device_is_pcie(dev))
+		else if (DEVICE_IS_PCIE(dev))
 			getparam->value = NV_PCIE;
 		else
 			getparam->value = NV_PCI;

@@ -3,7 +3,11 @@ kapitest-y := fail.o \
 	drm_ioctl_def.o drm_ioctl_def_drv.o \
 	drm_connector_detect_1.o drm_connector_detect_2.o \
 	map_ofs.o \
-	io_mapping_2.o io_mapping_3.o
+	io_mapping_2.o io_mapping_3.o \
+	i2c_id.o \
+	pci_driver.o \
+	switcheroo_reprobe.o \
+	getparam_bus_type.o
 
 obj-m := kapitest.o
 

@@ -443,6 +443,8 @@ static struct drm_driver driver = {
 		.compat_ioctl = nouveau_compat_ioctl,
 #endif
 	},
+
+#ifdef PSCNV_KAPI_PCI_DRIVER
 	.pci_driver = {
 		.name = DRIVER_NAME,
 		.id_table = pciidlist,
@@ -451,6 +453,7 @@ static struct drm_driver driver = {
 		.suspend = nouveau_pci_suspend,
 		.resume = nouveau_pci_resume
 	},
+#endif
 
 	.gem_free_object = pscnv_gem_free_object,
 
@@ -464,6 +467,15 @@ static struct drm_driver driver = {
 	.major = DRIVER_MAJOR,
 	.minor = DRIVER_MINOR,
 	.patchlevel = DRIVER_PATCHLEVEL,
+};
+
+static struct pci_driver nouveau_pci_driver = {
+	.name = DRIVER_NAME,
+	.id_table = pciidlist,
+	.probe = nouveau_pci_probe,
+	.remove = nouveau_pci_remove,
+	.suspend = nouveau_pci_suspend,
+	.resume = nouveau_pci_resume
 };
 
 static int __init nouveau_init(void)
@@ -489,12 +501,20 @@ static int __init nouveau_init(void)
 		nouveau_register_dsm_handler();
 	}
 
+#ifdef PSCNV_KAPI_PCI_DRIVER
 	return drm_init(&driver);
+#else
+	return drm_pci_init(&driver, &nouveau_pci_driver);
+#endif
 }
 
 static void __exit nouveau_exit(void)
 {
+#ifdef PSCNV_KAPI_PCI_DRIVER
 	drm_exit(&driver);
+#else
+	drm_pci_exit(&driver, &nouveau_pci_driver);
+#endif
 	nouveau_unregister_dsm_handler();
 }
 

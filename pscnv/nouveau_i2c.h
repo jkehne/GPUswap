@@ -24,7 +24,11 @@
 #define __NOUVEAU_I2C_H__
 
 #include <linux/i2c.h>
+#ifdef PSCNV_KAPI_I2C_ID
 #include <linux/i2c-id.h>
+#else
+#include <linux/i2c-dev.h>
+#endif
 #include <linux/i2c-algo-bit.h>
 #include "drm_dp_helper.h"
 
