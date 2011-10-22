@@ -24,20 +24,17 @@ nvc0_ctxctl_load_fuc(struct drm_device *dev)
 
 	/* DATA 1A */
 	data = (const uint32_t *)nvc0_ctxctl_data_1a;
-	nv_wr32(dev, NVC0_PGRAPH_GPC_BROADCAST_CTXCTL_DATA_INDEX,
+	nv_wr32(dev, NVC0_PGRAPH_GPC_BROADCAST_CTXCTL_DATA_INDEX(0),
 		NVC0_PGRAPH_CTXCTL_DATA_INDEX_WRITE_AUTOINCR);
 	for (i = 0; i < sizeof(nvc0_ctxctl_data_1a) / 4; ++i)
-		nv_wr32(dev, NVC0_PGRAPH_GPC_BROADCAST_CTXCTL_DATA, data[i]);
+		nv_wr32(dev, NVC0_PGRAPH_GPC_BROADCAST_CTXCTL_DATA(0), data[i]);
 
 	/* DATA 09 */
 	data = (const uint32_t *)nvc0_ctxctl_data_09;
-	nv_wr32(dev, NVC0_PGRAPH_CTXCTL_DATA_INDEX,
+	nv_wr32(dev, NVC0_PGRAPH_CTXCTL_DATA_INDEX(0),
 		NVC0_PGRAPH_CTXCTL_DATA_INDEX_WRITE_AUTOINCR);
 	for (i = 0; i < sizeof(nvc0_ctxctl_data_09) / 4; ++i)
-		nv_wr32(dev, NVC0_PGRAPH_CTXCTL_DATA, data[i]);
-
-	NV_INFO(dev, "409620 = 0x%08x expect 0x1040\n", nv_rd32(dev, 0x409620));
-	NV_INFO(dev, "502620 = 0x%08x expect 0x0820\n", nv_rd32(dev, 0x502620));
+		nv_wr32(dev, NVC0_PGRAPH_CTXCTL_DATA(0), data[i]);
 
 	/* CODE 1A */
 	data = (const uint32_t *)nvc0_ctxctl_code_1a;
