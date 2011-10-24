@@ -27,28 +27,52 @@
 #ifndef __NVC0_GRAPH_H__
 #define __NVC0_GRAPH_H__
 
-#define NVC0_GPC_COUNT_MAX 32
+#define NVC0_TP_MAX 32
+#define NVC0_GPC_MAX 4
 
 struct nvc0_graph_engine {
 	struct pscnv_engine base;
 	spinlock_t lock;
 	uint32_t grctx_size;
 	uint32_t *grctx_initvals;
-	int ropc_count;
-	int gpc_count;
-	int tp_count;
-	int gpc_tp_count[NVC0_GPC_COUNT_MAX];
-	int gpc_cx_count[NVC0_GPC_COUNT_MAX];
+	uint8_t ropc_count;
+	uint8_t gpc_count;
+	uint8_t tp_count;
+	uint8_t gpc_tp_count[NVC0_GPC_MAX];
+	uint8_t gpc_cx_count[NVC0_GPC_MAX];
 	struct pscnv_bo *obj188b4;
 	struct pscnv_bo *obj188b8;
 	struct pscnv_bo *obj08004;
 	struct pscnv_bo *obj0800c;
 	struct pscnv_bo *obj19848;
+	uint32_t magic_val; /* XXX */
 };
 
-extern void nvc0_grctx_construct(struct drm_device *dev,
-				 struct nvc0_graph_engine *graph,
-				 struct pscnv_chan *chan);
+/* nvc0_graph.c uses this also to determine supported chipsets */
+static inline u32
+nvc0_graph_class(struct drm_device *dev)
+{
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+
+	switch (dev_priv->chipset) {
+	case 0xc0:
+	case 0xc3:
+	case 0xc4:
+	case 0xce: /* guess, mmio trace shows only 0x9097 state */
+	case 0xcf: /* guess, mmio trace shows only 0x9097 state */
+		return 0x9097;
+	case 0xc1:
+		return 0x9197;
+	case 0xc8:
+		return 0x9297;
+	default:
+		return 0;
+	}
+}
+
+extern int nvc0_grctx_construct(struct drm_device *dev,
+								struct nvc0_graph_engine *graph,
+								struct pscnv_chan *chan);
 
 #define nvc0_graph(x) container_of(x, struct nvc0_graph_engine, base)
 

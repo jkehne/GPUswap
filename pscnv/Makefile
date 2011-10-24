@@ -28,11 +28,17 @@ EXTRA_CFLAGS = -Iinclude/drm
 
 SYSSRC = /lib/modules/$(shell uname -r)/build
 
-all: pscnv_kapi.h nv98_crypt_fuc.h
+all: pscnv_kapi.h nv98_crypt_fuc.h nvc0_grgpc.fuc.h nvc0_grhub.fuc.h
 	+make -C $(SYSSRC) M=$(PWD) modules
 
 clean:
 	+make -C $(SYSSRC) M=$(PWD) clean
+
+nvc0_grhub.fuc.h: nvc0_grhub.fuc
+	m4 nvc0_grhub.fuc | envyas -a -w -m fuc -V nva3 -o nvc0_grhub.fuc.h
+
+nvc0_grgpc.fuc.h: nvc0_grgpc.fuc
+	m4 nvc0_grgpc.fuc | envyas -a -w -m fuc -V nva3 -o nvc0_grgpc.fuc.h
 
 nv98_crypt_fuc.h: nv98_crypt_fuc.fuc
 	envyas -m fuc -a nv98_crypt_fuc.fuc -o nv98_crypt_fuc.h
