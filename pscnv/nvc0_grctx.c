@@ -5,7 +5,6 @@
 #include "pscnv_chan.h"
 
 #include "nvc0_vm.h"
-#include "nvc0_ctxctl.h"
 #include "nvc0_graph.h"
 
 #include "nvc0_pgraph.xml.h"
