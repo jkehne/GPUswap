@@ -1,5 +1,5 @@
 #!/bin/sh
-TESTS="gamma_set_5 gamma_set_6 drm_ioctl_def drm_ioctl_def_drv drm_connector_detect_1 drm_connector_detect_2 map_ofs io_mapping_2 io_mapping_3 i2c_id pci_driver switcheroo_reprobe getparam_bus_type"
+TESTS="gamma_set_5 gamma_set_6 drm_ioctl_def drm_ioctl_def_drv drm_connector_detect_1 drm_connector_detect_2 map_ofs io_mapping_2 io_mapping_3 i2c_id pci_driver switcheroo_reprobe getparam_bus_type drm_gem_object_handle_count"
 
 make -k -C $1 M=$PWD/kapitest clean >&2
 make -k -C $1 M=$PWD/kapitest modules >&2

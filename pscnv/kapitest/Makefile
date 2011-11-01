@@ -7,7 +7,8 @@ kapitest-y := fail.o \
 	i2c_id.o \
 	pci_driver.o \
 	switcheroo_reprobe.o \
-	getparam_bus_type.o
+	getparam_bus_type.o \
+	drm_gem_object_handle_count.o 
 
 obj-m := kapitest.o
 

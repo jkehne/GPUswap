@@ -33,6 +33,9 @@
 
 void pscnv_gem_free_object (struct drm_gem_object *obj) {
 	struct pscnv_bo *vo = obj->driver_private;
+#ifndef PSCNV_KAPI_DRM_GEM_OBJECT_HANDLE_COUNT
+	atomic_dec(&obj->handle_count);
+#endif
 	pscnv_mem_free(vo);
 	drm_gem_object_release(obj);
 	kfree(obj);
@@ -54,6 +57,9 @@ struct drm_gem_object *pscnv_gem_new(struct drm_device *dev, uint64_t size, uint
 		pscnv_mem_free(vo);
 		return 0;
 	}
+#ifndef PSCNV_KAPI_DRM_GEM_OBJECT_HANDLE_COUNT
+	atomic_inc(&obj->handle_count);
+#endif
 	obj->driver_private = vo;
 	vo->gem = obj;
 
