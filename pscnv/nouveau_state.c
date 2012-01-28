@@ -158,6 +158,12 @@ static void nouveau_switcheroo_set_state(struct pci_dev *pdev,
 	}
 }
 
+static void nouveau_switcheroo_reprobe(struct pci_dev *pdev)
+{
+	struct drm_device *dev = pci_get_drvdata(pdev);
+	nouveau_fbcon_output_poll_changed(dev);
+}
+
 static bool nouveau_switcheroo_can_switch(struct pci_dev *pdev)
 {
 	struct drm_device *dev = pci_get_drvdata(pdev);
@@ -185,8 +191,14 @@ nouveau_card_init(struct drm_device *dev)
 	NV_INFO(dev, "Initializing card...\n");
 
 	vga_client_register(dev->pdev, dev, NULL, nouveau_vga_set_decode);
+#ifdef PSCNV_KAPI_SWITCHEROO_REPROBE
 	vga_switcheroo_register_client(dev->pdev, nouveau_switcheroo_set_state,
-				       nouveau_switcheroo_can_switch);
+								   nouveau_switcheroo_can_switch);
+#else
+	vga_switcheroo_register_client(dev->pdev, nouveau_switcheroo_set_state,
+								   nouveau_switcheroo_reprobe,
+								   nouveau_switcheroo_can_switch);
+#endif
 
 	dev_priv->init_state = NOUVEAU_CARD_INIT_FAILED;
 
@@ -274,7 +286,11 @@ nouveau_card_init(struct drm_device *dev)
 			break;
 		case NV_C0:
 			/* PFIFO */
-			nvc0_fifo_init(dev);
+			ret = nvc0_fifo_init(dev);
+			if (!ret) {
+				/* PGRAPH */
+				nvc0_graph_init(dev);
+			}
 			break;
 		default:
 			break;
@@ -679,6 +695,20 @@ bool nouveau_wait_until(struct drm_device *dev, uint64_t timeout,
 
 	do {
 		if ((nv_rd32(dev, reg) & mask) == val)
+			return true;
+	} while (nv04_timer_read(dev) - start < timeout);
+
+	return false;
+}
+
+/* Wait until (value(reg) & mask) != val, up until timeout has hit. */
+bool nouveau_wait_until_neq(struct drm_device *dev, uint64_t timeout,
+			    uint32_t reg, uint32_t mask, uint32_t val)
+{
+	uint64_t start = nv04_timer_read(dev);
+
+	do {
+		if ((nv_rd32(dev, reg) & mask) != val)
 			return true;
 	} while (nv04_timer_read(dev) - start < timeout);
 

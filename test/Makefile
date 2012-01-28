@@ -1,4 +1,4 @@
-PROGS = get_param gem map m2mf loop subc0 ib mem_test
+PROGS = get_param gem map m2mf loop subc0 ib mem_test 902d
 
 all: $(PROGS)
 

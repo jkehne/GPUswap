@@ -46,6 +46,12 @@ struct nvc0_vm_engine {
 struct nvc0_vspace {
 	struct pscnv_bo *pd;
 	struct list_head ptht[NVC0_PDE_HT_SIZE];
+	struct pscnv_mm_node *obj19848;
+	struct pscnv_mm_node *obj08004;
+	struct pscnv_mm_node *obj0800c;
+	struct pscnv_bo *mmio_bo;
+	struct pscnv_mm_node *mmio_vm;
+	uint32_t mmio_count;
 };
 
 #endif /* __NVC0_VM_H__ */

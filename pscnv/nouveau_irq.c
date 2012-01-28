@@ -1206,19 +1206,34 @@ nouveau_crtc_irq_handler(struct drm_device *dev, int crtc)
 
 static void
 nouveau_pbus_irq_handler(struct drm_device *dev) {
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	uint32_t status = nv_rd32(dev, 0x1100);
-	if (status & 8) {
+	uint32_t mask = (dev_priv->chipset >= 0xc0) ? 0xf : 0x8;
+
+	if (status & mask) {
 		uint32_t addr = nv_rd32(dev, 0x9084);
 		uint32_t data = nv_rd32(dev, 0x9088);
-		if (!(addr&1)) {
+
+		if (!(addr & 1)) {
 			NV_ERROR(dev, "PBUS: Unknown MMIO problem %06x %08x\n", addr, data);
 		} else if (addr & 0x2) {
 			NV_ERROR(dev, "PBUS: MMIO write fault, addr %06x data %08x\n", addr & ~3, data);
 		} else {
 			NV_ERROR(dev, "PBUS: MMIO read fault, addr %06x\n", addr & ~3);
 		}
-		nv_wr32(dev, 0x1100, 8);
-		status &= ~8;
+		if (status & 1)
+			NV_ERROR(dev, "PBUS: accessed disabled PSUBFIFO\n");
+		if (status & 2)
+			NV_ERROR(dev, "PBUS: accessed wrong address inside unit\n");
+		if (status & 4)
+			NV_ERROR(dev, "PBUS: accessed address is outside unit\n");
+
+		if (dev_priv->chipset >= 0xc0) {
+			nv_wr32(dev, 0x9084, 0);
+			nv_wr32(dev, 0x9088, 0);
+		}
+		nv_wr32(dev, 0x1100, status & mask);
+		status &= ~mask;
 	}
 
 	if (status) {

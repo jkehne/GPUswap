@@ -5,10 +5,12 @@
 #include "pscnv_chan.h"
 #include "nvc0_vm.h"
 
-int nvc0_chan_new (struct pscnv_chan *ch) {
+int nvc0_chan_new (struct pscnv_chan *ch)
+{
 	struct pscnv_vspace *vs = ch->vspace;
 	struct drm_nouveau_private *dev_priv = ch->dev->dev_private;
 	unsigned long flags;
+
 	ch->bo = pscnv_mem_alloc(ch->dev, 0x1000, PSCNV_GEM_CONTIG,
 			0, (ch->cid < 0 ? 0xc5a2ba7 : 0xc5a2f1f0));
 	if (!ch->bo)
@@ -36,7 +38,8 @@ int nvc0_chan_new (struct pscnv_chan *ch) {
 	return 0;
 }
 
-void nvc0_chan_free(struct pscnv_chan *ch) {
+void nvc0_chan_free(struct pscnv_chan *ch)
+{
 	struct drm_nouveau_private *dev_priv = ch->dev->dev_private;
 	unsigned long flags;
 	spin_lock_irqsave(&dev_priv->chan->ch_lock, flags);
@@ -46,14 +49,16 @@ void nvc0_chan_free(struct pscnv_chan *ch) {
 }
 
 void
-nvc0_chan_takedown(struct drm_device *dev) {
+nvc0_chan_takedown(struct drm_device *dev)
+{
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct nvc0_chan_engine *che = nvc0_ch(dev_priv->chan);
 	kfree(che);
 }
 
 int
-nvc0_chan_init(struct drm_device *dev) {
+nvc0_chan_init(struct drm_device *dev)
+{
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct nvc0_chan_engine *che = kzalloc(sizeof *che, GFP_KERNEL);
 	if (!che) {
