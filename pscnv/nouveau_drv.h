@@ -135,42 +135,122 @@ struct nouveau_gpio_engine {
 	void (*irq_enable)(struct drm_device *, enum dcb_gpio_tag, bool on);
 };
 
+
 struct nouveau_pm_voltage_level {
-	u8 voltage;
-	u8 vid;
+	u32 voltage; /* microvolts */
+	u8  vid;
 };
 
 struct nouveau_pm_voltage {
 	bool supported;
+	u8 version;
 	u8 vid_mask;
 
 	struct nouveau_pm_voltage_level *level;
 	int nr_level;
 };
 
+/* Exclusive upper limits */
+#define NV_MEM_CL_DDR2_MAX 8
+#define NV_MEM_WR_DDR2_MAX 9
+#define NV_MEM_CL_DDR3_MAX 17
+#define NV_MEM_WR_DDR3_MAX 17
+#define NV_MEM_CL_GDDR3_MAX 16
+#define NV_MEM_WR_GDDR3_MAX 18
+#define NV_MEM_CL_GDDR5_MAX 21
+#define NV_MEM_WR_GDDR5_MAX 20
+
+struct nouveau_pm_memtiming {
+	int id;
+
+	u32 reg[9];
+	u32 mr[9];
+
+	u8 tCWL;
+
+	u8 odt;
+	u8 drive_strength;
+};
+
+struct nouveau_pm_tbl_header {
+	u8 version;
+	u8 header_len;
+	u8 entry_cnt;
+	u8 entry_len;
+};
+
+struct nouveau_pm_tbl_entry {
+	u8 tWR;
+	u8 tWTR;
+	u8 tCL;
+	u8 tRC;
+	u8 empty_4;
+	u8 tRFC;	/* Byte 5 */
+	u8 empty_6;
+	u8 tRAS;	/* Byte 7 */
+	u8 empty_8;
+	u8 tRP;		/* Byte 9 */
+	u8 tRCDRD;
+	u8 tRCDWR;
+	u8 tRRD;
+	u8 tUNK_13;
+	u8 RAM_FT1;		/* 14, a bitmask of random RAM features */
+	u8 empty_15;
+	u8 tUNK_16;
+	u8 empty_17;
+	u8 tUNK_18;
+	u8 tCWL;
+	u8 tUNK_20, tUNK_21;
+};
+
+struct nouveau_pm_profile;
+struct nouveau_pm_profile_func {
+	void (*destroy)(struct nouveau_pm_profile *);
+	void (*init)(struct nouveau_pm_profile *);
+	void (*fini)(struct nouveau_pm_profile *);
+	struct nouveau_pm_level *(*select)(struct nouveau_pm_profile *);
+};
+
+struct nouveau_pm_profile {
+	const struct nouveau_pm_profile_func *func;
+	struct list_head head;
+	char name[8];
+};
+
 #define NOUVEAU_PM_MAX_LEVEL 8
 struct nouveau_pm_level {
+	struct nouveau_pm_profile profile;
 	struct device_attribute dev_attr;
 	char name[32];
 	int id;
 
-	u32 core;
+	struct nouveau_pm_memtiming timing;
 	u32 memory;
-	u32 shader;
-	u32 unk05;
-
-	u8 voltage;
-	u8 fanspeed;
-
 	u16 memscript;
+
+	u32 core;
+	u32 shader;
+	u32 rop;
+	u32 copy;
+	u32 daemon;
+	u32 vdec;
+	u32 dom6;
+	u32 unka0;	/* nva3:nvc0 */
+	u32 hub01;	/* nvc0- */
+	u32 hub06;	/* nvc0- */
+	u32 hub07;	/* nvc0- */
+
+	u32 volt_min; /* microvolts */
+	u32 volt_max;
+	u8  fanspeed;
 };
 
 struct nouveau_pm_temp_sensor_constants {
 	u16 offset_constant;
 	s16 offset_mult;
-	u16 offset_div;
-	u16 slope_mult;
-	u16 slope_div;
+	s16 offset_div;
+	s16 slope_mult;
+	s16 slope_div;
 };
 
 struct nouveau_pm_threshold_temp {
@@ -179,30 +259,62 @@ struct nouveau_pm_threshold_temp {
 	s16 fan_boost;
 };
 
-struct nouveau_pm_memtiming {
-	u32 reg_100220;
-	u32 reg_100224;
-	u32 reg_100228;
-	u32 reg_10022c;
-	u32 reg_100230;
-	u32 reg_100234;
-	u32 reg_100238;
-	u32 reg_10023c;
+struct nouveau_pm_fan {
+	u32 percent;
+	u32 min_duty;
+	u32 max_duty;
+	u32 pwm_freq;
+	u32 pwm_divisor;
 };
 
-struct nouveau_pm_memtimings {
-	bool supported;
-	struct nouveau_pm_memtiming *timing;
-	int nr_timing;
+enum nouveau_counter_signal {
+	NONE = 0,
+	PGRAPH_IDLE,
+	PGRAPH_INTR_PENDING,
+	CTXPROG_ACTIVE,
+};
+
+struct nouveau_pm_counter {
+	bool periodic_polling;
+	struct timer_list readout_timer;
+	spinlock_t counter_lock;
+
+	/* the 8 sets * 4 counters */
+	enum nouveau_counter_signal signals[8][4];
+	struct {
+		u32 cycles;
+		u32 signals[4];
+	} sets[8];
+
+	int  (*init)(struct drm_device *);
+	void (*takedown)(struct drm_device *);
+	int  (*watch)(struct drm_device *,
+				enum nouveau_counter_signal signal);
+	int  (*unwatch)(struct drm_device *,
+				enum nouveau_counter_signal signal);
+	int  (*signal_value)(struct drm_device *,
+				enum nouveau_counter_signal signal,
+				u32 *val, u32 *count);
+	void (*poll)(struct drm_device *);
+	void (*start)(struct drm_device *);
+	void (*stop)(struct drm_device *);
+	void (*on_update)(struct drm_device *);
 };
 
 struct nouveau_pm_engine {
 	struct nouveau_pm_voltage voltage;
 	struct nouveau_pm_level perflvl[NOUVEAU_PM_MAX_LEVEL];
 	int nr_perflvl;
-	struct nouveau_pm_memtimings memtimings;
 	struct nouveau_pm_temp_sensor_constants sensor_constants;
 	struct nouveau_pm_threshold_temp threshold_temp;
+	struct nouveau_pm_fan fan;
+	struct nouveau_pm_counter counter;
+	spinlock_t reclock_lock;
+
+	struct nouveau_pm_profile *profile_ac;
+	struct nouveau_pm_profile *profile_dc;
+	struct nouveau_pm_profile *profile;
+	struct list_head profiles;
 
 	struct nouveau_pm_level boot;
 	struct nouveau_pm_level *cur;
@@ -210,16 +322,18 @@ struct nouveau_pm_engine {
 	struct device *hwmon;
 	struct notifier_block acpi_nb;
 
-	int (*clock_get)(struct drm_device *, u32 id);
-	void *(*clock_pre)(struct drm_device *, struct nouveau_pm_level *,
-			   u32 id, int khz);
-	void (*clock_set)(struct drm_device *, void *);
+	int  (*clocks_get)(struct drm_device *, struct nouveau_pm_level *);
+	void *(*clocks_pre)(struct drm_device *, struct nouveau_pm_level *);
+	int (*clocks_set)(struct drm_device *, void *);
+
 	int (*voltage_get)(struct drm_device *);
 	int (*voltage_set)(struct drm_device *, int voltage);
-	int (*fanspeed_get)(struct drm_device *);
-	int (*fanspeed_set)(struct drm_device *, int fanspeed);
+	int (*pwm_get)(struct drm_device *, int line, u32*, u32*);
+	int (*pwm_set)(struct drm_device *, int line, u32, u32);
 	int (*temp_get)(struct drm_device *);
 };
+
+#include "nouveau_pm.h"
 
 struct nouveau_engine {
 	struct nouveau_display_engine display;
@@ -364,7 +478,7 @@ struct drm_nouveau_private {
 	struct nouveau_channel *channel;
 #endif
 
-	spinlock_t irq_lock;
+	spinlock_t context_switch_lock;
 	nouveau_irqhandler_t irq_handler[32];
 
 #if 0 /* relevant only for pre-NV50 */
@@ -402,8 +516,23 @@ struct drm_nouveau_private {
 #endif
 
 	/* VRAM/fb configuration */
+	enum {
+		NV_MEM_TYPE_UNKNOWN = 0,
+		NV_MEM_TYPE_STOLEN,
+		NV_MEM_TYPE_SGRAM,
+		NV_MEM_TYPE_SDRAM,
+		NV_MEM_TYPE_DDR1,
+		NV_MEM_TYPE_DDR2,
+		NV_MEM_TYPE_DDR3,
+		NV_MEM_TYPE_GDDR2,
+		NV_MEM_TYPE_GDDR3,
+		NV_MEM_TYPE_GDDR4,
+		NV_MEM_TYPE_GDDR5
+	} vram_type;
 	uint64_t vram_size;
 	uint64_t vram_sys_base;
+	bool vram_rank_B;
+	uint32_t crystal;
 
 	uint64_t fb_size;
 	uint64_t fb_phys;
@@ -537,12 +666,18 @@ extern bool nouveau_wait_until(struct drm_device *, uint64_t timeout,
 			       uint32_t reg, uint32_t mask, uint32_t val);
 extern bool nouveau_wait_until_neq(struct drm_device *, uint64_t timeout,
 				   uint32_t reg, uint32_t mask, uint32_t val);
+extern bool nouveau_wait_cb(struct drm_device *, uint64_t timeout,
+			    bool (*cond)(void *), void *);
 //extern bool nouveau_wait_for_idle(struct drm_device *);
 extern int  nouveau_card_init(struct drm_device *);
 
-# if 0
-
 /* nouveau_mem.c */
+extern int  nouveau_mem_timing_calc(struct drm_device *, u32 freq,
+				    struct nouveau_pm_memtiming *);
+extern void nouveau_mem_timing_read(struct drm_device *,
+				    struct nouveau_pm_memtiming *);
+extern int nouveau_mem_vbios_type(struct drm_device *);
+# if 0
 extern int  nouveau_mem_init_heap(struct mem_block **, uint64_t start,
 				 uint64_t size);
 extern struct mem_block *nouveau_mem_alloc_block(struct mem_block *,
@@ -1004,7 +1139,7 @@ void nv50_gpio_irq_enable(struct drm_device *, enum dcb_gpio_tag, bool on);
 /* nv50_calc. */
 int nv50_calc_pll(struct drm_device *, struct pll_lims *, int clk,
 		  int *N1, int *M1, int *N2, int *M2, int *P);
-int nv50_calc_pll2(struct drm_device *, struct pll_lims *,
+int nva3_calc_pll(struct drm_device *, struct pll_lims *,
 		   int clk, int *N, int *fN, int *M, int *P);
 
 #ifndef ioread32_native
@@ -1072,6 +1207,8 @@ static inline void nv_wr08(struct drm_device *dev, unsigned reg, u8 val)
 
 #define nv_wait_neq(dev, reg, mask, val) \
 	nouveau_wait_until_neq(dev, 2000000000ULL, (reg), (mask), (val))
+#define nv_wait_cb(dev, func, data) \
+	nouveau_wait_cb(dev, 2000000000ULL, (func), (data))
 
 #if 0 /* not removing yet - may be useful for pre-NV50 one day */
 /* PRAMIN access */

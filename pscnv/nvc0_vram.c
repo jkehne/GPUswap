@@ -27,6 +27,7 @@
 #include "drmP.h"
 #include "drm.h"
 #include "nouveau_drv.h"
+#include "nouveau_pm.h"
 #include "pscnv_mem.h"
 
 #define NVC0_MEM_CTRLR_COUNT                                         0x00121c74
@@ -48,6 +49,7 @@ nvc0_vram_init(struct drm_device *dev)
 		return -ENOMEM;
 	}
 
+	dev_priv->vram_type = nouveau_mem_vbios_type(dev);
 	dev_priv->vram->alloc = nvc0_vram_alloc;
 	dev_priv->vram->free = pscnv_vram_free;
 	dev_priv->vram->takedown = pscnv_vram_takedown;

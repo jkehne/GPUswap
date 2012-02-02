@@ -57,18 +57,18 @@ static int nouveau_init_engine_ptrs(struct drm_device *dev)
 		engine->gpio.get		= NULL;
 		engine->gpio.set		= NULL;
 		engine->gpio.irq_enable		= NULL;
-		engine->pm.clock_get		= nv04_pm_clock_get;
-		engine->pm.clock_pre		= nv04_pm_clock_pre;
-		engine->pm.clock_set		= nv04_pm_clock_set;
+		engine->pm.clocks_get		= nv04_pm_clocks_get;
+		engine->pm.clocks_pre		= nv04_pm_clocks_pre;
+		engine->pm.clocks_set		= nv04_pm_clocks_set;
 	} else if (dev_priv->chipset < 0x50 || (dev_priv->chipset & 0xf0) == 0x60) {
 		engine->gpio.init		= nouveau_stub_init;
 		engine->gpio.takedown		= nouveau_stub_takedown;
 		engine->gpio.get		= nv10_gpio_get;
 		engine->gpio.set		= nv10_gpio_set;
 		engine->gpio.irq_enable		= NULL;
-		engine->pm.clock_get		= nv04_pm_clock_get;
-		engine->pm.clock_pre		= nv04_pm_clock_pre;
-		engine->pm.clock_set		= nv04_pm_clock_set;
+		engine->pm.clocks_get		= nv04_pm_clocks_get;
+		engine->pm.clocks_pre		= nv04_pm_clocks_pre;
+		engine->pm.clocks_set		= nv04_pm_clocks_set;
 	} else {
 		engine->gpio.init		= nv50_gpio_init;
 		engine->gpio.takedown		= nouveau_stub_takedown;
@@ -80,16 +80,16 @@ static int nouveau_init_engine_ptrs(struct drm_device *dev)
 		case 0xa5:
 		case 0xa8:
 		case 0xaf:
-			engine->pm.clock_get	= nva3_pm_clock_get;
-			engine->pm.clock_pre	= nva3_pm_clock_pre;
-			engine->pm.clock_set	= nva3_pm_clock_set;
+			engine->pm.clocks_get	= nva3_pm_clocks_get;
+			engine->pm.clocks_pre	= nva3_pm_clocks_pre;
+			engine->pm.clocks_set	= nva3_pm_clocks_set;
 			break;
 		case 0xc0:
 			break;
 		default:
-			engine->pm.clock_get	= nv50_pm_clock_get;
-			engine->pm.clock_pre	= nv50_pm_clock_pre;
-			engine->pm.clock_set	= nv50_pm_clock_set;
+			engine->pm.clocks_get	= nv50_pm_clocks_get;
+			engine->pm.clocks_pre	= nv50_pm_clocks_pre;
+			engine->pm.clocks_set	= nv50_pm_clocks_set;
 			break;
 		}
 	}
@@ -207,7 +207,7 @@ nouveau_card_init(struct drm_device *dev)
 	if (ret)
 		goto out;
 	engine = &dev_priv->engine;
-	spin_lock_init(&dev_priv->irq_lock);
+	spin_lock_init(&dev_priv->context_switch_lock);
 
 	/* Make the CRTCs and I2C buses accessible */
 	if (drm_core_check_feature(dev, DRIVER_MODESET)) {
@@ -511,7 +511,7 @@ static int nouveau_remove_conflicting_drivers(struct drm_device *dev)
 int nouveau_load(struct drm_device *dev, unsigned long flags)
 {
 	struct drm_nouveau_private *dev_priv;
-	uint32_t reg0;
+	uint32_t reg0, strap;
 	resource_size_t mmio_start_offs;
 
 	dev_priv = kzalloc(sizeof(*dev_priv), GFP_KERNEL);
@@ -605,6 +605,23 @@ int nouveau_load(struct drm_device *dev, unsigned long flags)
 
 	NV_INFO(dev, "Detected an NV%02x generation card (0x%08x)\n",
 		dev_priv->card_type, reg0);
+
+	/* determine frequency of timing crystal */
+	strap = nv_rd32(dev, 0x101000);
+	if ( dev_priv->chipset < 0x17 ||
+	    (dev_priv->chipset >= 0x20 && dev_priv->chipset <= 0x25))
+		strap &= 0x00000040;
+	else
+		strap &= 0x00400040;
+
+	switch (strap) {
+	case 0x00000000: dev_priv->crystal = 13500; break;
+	case 0x00000040: dev_priv->crystal = 14318; break;
+	case 0x00400000: dev_priv->crystal = 27000; break;
+	case 0x00400040: dev_priv->crystal = 25000; break;
+	}
+
+	NV_DEBUG(dev, "crystal freq: %dKHz\n", dev_priv->crystal);
 
 	dev_priv->fb_size = pci_resource_len(dev->pdev, 1);
 	dev_priv->fb_phys = pci_resource_start(dev->pdev, 1);
@@ -709,6 +726,20 @@ bool nouveau_wait_until_neq(struct drm_device *dev, uint64_t timeout,
 
 	do {
 		if ((nv_rd32(dev, reg) & mask) != val)
+			return true;
+	} while (nv04_timer_read(dev) - start < timeout);
+
+	return false;
+}
+
+bool
+nouveau_wait_cb(struct drm_device *dev, uint64_t timeout,
+		bool (*cond)(void *), void *data)
+{
+	uint64_t start = nv04_timer_read(dev);
+
+	do {
+		if (cond(data) == true)
 			return true;
 	} while (nv04_timer_read(dev) - start < timeout);
 

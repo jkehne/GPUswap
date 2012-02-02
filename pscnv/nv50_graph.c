@@ -35,7 +35,6 @@
 
 struct nv50_graph_engine {
 	struct pscnv_engine base;
-	spinlock_t lock;
 	uint32_t grctx_size;
 };
 
@@ -183,7 +182,6 @@ int nv50_graph_init(struct drm_device *dev) {
 	res->base.chan_kill = nv50_graph_chan_kill;
 	res->base.chan_free = nv50_graph_chan_free;
 	res->base.chan_obj_new = nv50_graph_chan_obj_new;
-	spin_lock_init(&res->lock);
 
 	/* reset everything */
 	nv_wr32(dev, 0x200, 0xffffefff);
@@ -325,15 +323,15 @@ int nv50_graph_tlb_flush(struct pscnv_engine *eng, struct pscnv_vspace *vs) {
 int nv86_graph_tlb_flush(struct pscnv_engine *eng, struct pscnv_vspace *vs) {
 	/* NV86 TLB fuckup special workaround. */
 	struct drm_device *dev = eng->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	uint64_t start;
 	/* initial guess... */
 	uint32_t mask380 = 0xffffffff;
 	uint32_t mask384 = 0xffffffff;
 	uint32_t mask388 = 0xffffffff;
-	struct nv50_graph_engine *graph = nv50_graph(eng);
 	int ret;
 	unsigned long flags;
-	spin_lock_irqsave(&graph->lock, flags);
+	spin_lock_irqsave(&dev_priv->context_switch_lock, flags);
 	nv_wr32(dev, 0x400500, 0);
 	start = nv04_timer_read(dev);
 	while ((nv_rd32(dev, 0x400380) & mask380) || (nv_rd32(dev, 0x400384) & mask384) || (nv_rd32(dev, 0x400388) & mask388)) {
@@ -345,16 +343,16 @@ int nv86_graph_tlb_flush(struct pscnv_engine *eng, struct pscnv_vspace *vs) {
 	}
 	ret = nv50_vm_flush(dev, 0);
 	nv_wr32(dev, 0x400500, 0x10001);
-	spin_unlock_irqrestore(&graph->lock, flags);
+	spin_unlock_irqrestore(&dev_priv->context_switch_lock, flags);
 	return ret;
 }
 
 void nv50_graph_chan_kill(struct pscnv_engine *eng, struct pscnv_chan *ch) {
 	struct drm_device *dev = eng->dev;
-	struct nv50_graph_engine *graph = nv50_graph(eng);
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	uint64_t start;
 	unsigned long flags;
-	spin_lock_irqsave(&graph->lock, flags);
+	spin_lock_irqsave(&dev_priv->context_switch_lock, flags);
 	start = nv04_timer_read(dev);
 	/* disable PFIFO access */
 	nv_wr32(dev, 0x400500, 0);
@@ -388,7 +386,7 @@ void nv50_graph_chan_kill(struct pscnv_engine *eng, struct pscnv_chan *ch) {
 	/* back to normal state. */
 	nv_wr32(dev, 0x400830, 0);
 	nv_wr32(dev, 0x400500, 0x10001);
-	spin_unlock_irqrestore(&graph->lock, flags);
+	spin_unlock_irqrestore(&dev_priv->context_switch_lock, flags);
 }
 
 void nv50_graph_chan_free(struct pscnv_engine *eng, struct pscnv_chan *ch) {
@@ -906,12 +904,9 @@ void nv50_graph_trap_handler(struct drm_device *dev, int cid) {
 
 void nv50_graph_irq_handler(struct drm_device *dev, int irq) {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nv50_graph_engine *graph = nv50_graph(dev_priv->engines[PSCNV_ENGINE_GRAPH]);
 	uint32_t status;
-	unsigned long flags;
 	uint32_t st, chandle, addr, data, datah, ecode, class, subc, mthd;
 	int cid;
-	spin_lock_irqsave(&graph->lock, flags);
 	status = nv_rd32(dev, 0x400100);
 	ecode = nv_rd32(dev, 0x400110);
 	st = nv_rd32(dev, 0x400700);
@@ -1001,5 +996,4 @@ void nv50_graph_irq_handler(struct drm_device *dev, int irq) {
 	}
 	nv50_vm_trap(dev);
 	nv_wr32(dev, 0x400500, 0x10001);
-	spin_unlock_irqrestore(&graph->lock, flags);
 }

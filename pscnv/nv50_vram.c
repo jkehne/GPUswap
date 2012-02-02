@@ -27,6 +27,7 @@
 #include "drmP.h"
 #include "drm.h"
 #include "nouveau_drv.h"
+#include "nouveau_pm.h"
 #include "pscnv_mem.h"
 
 int nv50_vram_alloc(struct pscnv_bo *bo);
@@ -41,6 +42,23 @@ nv50_vram_init(struct drm_device *dev)
 	uint64_t rowsize, predicted;
 	uint32_t rblock_size;
 	int ret;
+	u32 pfb714 = nv_rd32(dev, 0x100714);
+
+	switch (pfb714 & 0x00000007) {
+	case 0: dev_priv->vram_type = NV_MEM_TYPE_DDR1; break;
+	case 1:
+		if (nouveau_mem_vbios_type(dev) == NV_MEM_TYPE_DDR3)
+			dev_priv->vram_type = NV_MEM_TYPE_DDR3;
+		else
+			dev_priv->vram_type = NV_MEM_TYPE_DDR2;
+		break;
+	case 2: dev_priv->vram_type = NV_MEM_TYPE_GDDR3; break;
+	case 3: dev_priv->vram_type = NV_MEM_TYPE_GDDR4; break;
+	case 4: dev_priv->vram_type = NV_MEM_TYPE_GDDR5; break;
+	default:
+		break;
+	}
+	dev_priv->vram_rank_B = !!(nv_rd32(dev, 0x100200) & 0x4);
 
 	dev_priv->vram = kzalloc (sizeof *dev_priv->vram, GFP_KERNEL);
 	if (!dev_priv->vram) {

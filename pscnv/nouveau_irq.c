@@ -1245,19 +1245,19 @@ nouveau_pbus_irq_handler(struct drm_device *dev) {
 void nouveau_irq_register(struct drm_device *dev, int irq, nouveau_irqhandler_t handler) {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	unsigned long flags;
-	spin_lock_irqsave(&dev_priv->irq_lock, flags);
+	spin_lock_irqsave(&dev_priv->context_switch_lock, flags);
 	BUG_ON(dev_priv->irq_handler[irq]);
 	dev_priv->irq_handler[irq] = handler;
-	spin_unlock_irqrestore(&dev_priv->irq_lock, flags);
+	spin_unlock_irqrestore(&dev_priv->context_switch_lock, flags);
 }
 
 void nouveau_irq_unregister(struct drm_device *dev, int irq) {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	unsigned long flags;
-	spin_lock_irqsave(&dev_priv->irq_lock, flags);
+	spin_lock_irqsave(&dev_priv->context_switch_lock, flags);
 	BUG_ON(!dev_priv->irq_handler[irq]);
 	dev_priv->irq_handler[irq] = 0;
-	spin_unlock_irqrestore(&dev_priv->irq_lock, flags);
+	spin_unlock_irqrestore(&dev_priv->context_switch_lock, flags);
 }
 
 irqreturn_t
@@ -1275,7 +1275,7 @@ nouveau_irq_handler(DRM_IRQ_ARGS)
 	status = nv_rd32(dev, NV03_PMC_INTR_0);
 	if (!status)
 		return IRQ_NONE;
-	spin_lock_irqsave(&dev_priv->irq_lock, flags);
+	spin_lock_irqsave(&dev_priv->context_switch_lock, flags);
 
 	if (status & 0x80000000) {
 		NV_ERROR(dev, "Got a SOFTWARE interrupt for no good reason.\n");
@@ -1324,7 +1324,7 @@ nouveau_irq_handler(DRM_IRQ_ARGS)
 		dev_priv->fbdev_info->flags = fbdev_flags;
 #endif
 
-	spin_unlock_irqrestore(&dev_priv->irq_lock, flags);
+	spin_unlock_irqrestore(&dev_priv->context_switch_lock, flags);
 
 	return IRQ_HANDLED;
 }

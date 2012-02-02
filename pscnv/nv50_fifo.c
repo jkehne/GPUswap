@@ -33,7 +33,6 @@
 
 struct nv50_fifo_engine {
 	struct pscnv_fifo_engine base;
-	spinlock_t lock;
 	struct pscnv_bo *playlist[2];
 	int cur_playlist;
 };
@@ -60,7 +59,6 @@ int nv50_fifo_init(struct drm_device *dev) {
 	res->base.chan_kill = nv50_fifo_chan_kill;
 	res->base.chan_init_dma = nv50_fifo_chan_init_dma;
 	res->base.chan_init_ib = nv50_fifo_chan_init_ib;
-	spin_lock_init(&res->lock);
 
 	res->playlist[0] = pscnv_mem_alloc(dev, 0x1000, PSCNV_GEM_CONTIG, 0, 0x91a71157);
 	res->playlist[1] = pscnv_mem_alloc(dev, 0x1000, PSCNV_GEM_CONTIG, 0, 0x91a71157);
@@ -148,10 +146,9 @@ void nv50_fifo_playlist_update (struct drm_device *dev) {
 void nv50_fifo_chan_kill(struct pscnv_chan *ch) {
 	struct drm_device *dev = ch->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nv50_fifo_engine *fifo = nv50_fifo(dev_priv->fifo);
 	uint64_t start;
 	unsigned long flags;
-	spin_lock_irqsave(&fifo->lock, flags);
+	spin_lock_irqsave(&dev_priv->context_switch_lock, flags);
 	nv_wr32(dev, 0x2600 + ch->cid * 4, nv_rd32(dev, 0x2600 + ch->cid * 4) & 0x3fffffff);
 	nv50_fifo_playlist_update(dev);
 	start = nv04_timer_read(dev);
@@ -175,13 +172,12 @@ void nv50_fifo_chan_kill(struct pscnv_chan *ch) {
 		}
 	}
 	nv_wr32(dev, 0x2600 + ch->cid * 4, 0);
-	spin_unlock_irqrestore(&fifo->lock, flags);
+	spin_unlock_irqrestore(&dev_priv->context_switch_lock, flags);
 }
 
 int nv50_fifo_chan_init_dma (struct pscnv_chan *ch, uint32_t pb_handle, uint32_t flags, uint32_t slimask, uint64_t pb_start) {
 	struct drm_device *dev = ch->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nv50_fifo_engine *fifo = nv50_fifo(dev_priv->fifo);
 	unsigned long irqflags;
 	uint32_t pb_inst;
 
@@ -191,7 +187,7 @@ int nv50_fifo_chan_init_dma (struct pscnv_chan *ch, uint32_t pb_handle, uint32_t
 		return -ENOENT;
 	}
 
-	spin_lock_irqsave(&fifo->lock, irqflags);
+	spin_lock_irqsave(&dev_priv->context_switch_lock, irqflags);
 
 	/* init RAMFC. */
 	nv_wv32(ch->bo, ch->ramfc + 0x00, 0);
@@ -242,7 +238,7 @@ int nv50_fifo_chan_init_dma (struct pscnv_chan *ch, uint32_t pb_handle, uint32_t
 	}
 
 	nv50_fifo_playlist_update(dev);
-	spin_unlock_irqrestore(&fifo->lock, irqflags);
+	spin_unlock_irqrestore(&dev_priv->context_switch_lock, irqflags);
 
 	return 0;
 }
@@ -250,7 +246,6 @@ int nv50_fifo_chan_init_dma (struct pscnv_chan *ch, uint32_t pb_handle, uint32_t
 int nv50_fifo_chan_init_ib (struct pscnv_chan *ch, uint32_t pb_handle, uint32_t flags, uint32_t slimask, uint64_t ib_start, uint32_t ib_order) {
 	struct drm_device *dev = ch->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nv50_fifo_engine *fifo = nv50_fifo(dev_priv->fifo);
 	unsigned long irqflags;
 	uint32_t pb_inst;
 
@@ -261,7 +256,7 @@ int nv50_fifo_chan_init_ib (struct pscnv_chan *ch, uint32_t pb_handle, uint32_t 
 		return -ENOENT;
 	}
 
-	spin_lock_irqsave(&fifo->lock, irqflags);
+	spin_lock_irqsave(&dev_priv->context_switch_lock, irqflags);
 
 	/* init RAMFC. */
 	nv_wv32(ch->bo, ch->ramfc + 0x00, 0);
@@ -312,7 +307,7 @@ int nv50_fifo_chan_init_ib (struct pscnv_chan *ch, uint32_t pb_handle, uint32_t 
 	}
 
 	nv50_fifo_playlist_update(dev);
-	spin_unlock_irqrestore(&fifo->lock, irqflags);
+	spin_unlock_irqrestore(&dev_priv->context_switch_lock, irqflags);
 
 	pscnv_chan_unref(ch);
 	return 0;
@@ -355,11 +350,9 @@ static struct pscnv_enumval *pscnv_enum_find (struct pscnv_enumval *list, int va
 
 void nv50_fifo_irq_handler(struct drm_device *dev, int irq) {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nv50_fifo_engine *fifo = nv50_fifo(dev_priv->fifo);
 	uint32_t status;
 	int ch;
-	unsigned long flags;
-	spin_lock_irqsave(&fifo->lock, flags);
+
 	status = nv_rd32(dev, 0x2100);
 	ch = nv_rd32(dev, 0x3204) & 0x7f;
 	if (status & 0x00000001) {
@@ -456,5 +449,4 @@ void nv50_fifo_irq_handler(struct drm_device *dev, int irq) {
 		nv_wr32(dev, 0x2100, status);
 	}
 	nv50_vm_trap(dev);
-	spin_unlock_irqrestore(&fifo->lock, flags);
 }
