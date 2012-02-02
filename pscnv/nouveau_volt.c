@@ -79,7 +79,7 @@ nouveau_volt_vid_lookup(struct drm_device *dev, int voltage)
 	int i;
 
 	for (i = 0; i < volt->nr_level; i++) {
-		if (volt->level[i].voltage == voltage)
+		if (volt->level[i].voltage == voltage || (volt->level[i].voltage == voltage + 500))
 			return volt->level[i].vid;
 	}
 

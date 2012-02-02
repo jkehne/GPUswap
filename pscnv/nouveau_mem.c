@@ -190,9 +190,9 @@ nvc0_mem_timing_calc(struct drm_device *dev, u32 freq,
 	t->reg[4] = (boot->reg[4] & 0xfff00fff) |
 		    (e->tRRD&0x1f) << 15;
 
-	NV_WARN(dev, "Entry %d: 290: %08x %08x %08x %08x\n", t->id,
+	NV_DEBUG(dev, "Entry %d: 290: %08x %08x %08x %08x\n", t->id,
 		 t->reg[0], t->reg[1], t->reg[2], t->reg[3]);
-	NV_WARN(dev, "         2a0: %08x\n", t->reg[4]);
+	NV_DEBUG(dev, "         2a0: %08x\n", t->reg[4]);
 	return 0;
 }
 
