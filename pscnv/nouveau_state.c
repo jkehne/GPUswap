@@ -234,13 +234,13 @@ nouveau_card_init(struct drm_device *dev)
 		ret = nouveau_bios_init(dev);
 		if (ret)
 			goto out_display_early;
-
-		nouveau_pm_init(dev);
 	}
 
 	ret = pscnv_mem_init(dev);
 	if (ret)
 		goto out_bios;
+
+	nouveau_pm_init(dev);
 
 	switch (dev_priv->card_type) {
 		case NV_50:
