@@ -77,6 +77,14 @@ static int nouveau_init_engine_ptrs(struct drm_device *dev)
 		engine->gpio.irq_enable		= nv50_gpio_irq_enable;
 		engine->pm.pwm_get		= nv50_pm_pwm_get;
 		engine->pm.pwm_set		= nv50_pm_pwm_set;
+		engine->pm.counter.init		= nv40_counter_init;
+		engine->pm.counter.takedown	= nv40_counter_fini;
+		engine->pm.counter.watch	= nv40_counter_watch_signal;
+		engine->pm.counter.unwatch	= nv40_counter_unwatch_signal;
+		engine->pm.counter.poll		= nv40_counter_poll;
+		engine->pm.counter.start	= nv40_counter_start;
+		engine->pm.counter.stop		= nv40_counter_stop;
+		engine->pm.counter.signal_value	= nv40_counter_value;
 		switch (dev_priv->chipset) {
 		case 0xa3:
 		case 0xa5:
