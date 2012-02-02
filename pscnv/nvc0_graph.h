@@ -32,7 +32,6 @@
 
 struct nvc0_graph_engine {
 	struct pscnv_engine base;
-	spinlock_t lock;
 	uint32_t grctx_size;
 	uint32_t *grctx_initvals;
 	uint8_t ropc_count;

@@ -33,7 +33,6 @@
 
 struct nvc0_fifo_engine {
 	struct pscnv_fifo_engine base;
-	spinlock_t lock;
 	struct pscnv_bo *playlist[2];
 	int cur_playlist;
 	struct pscnv_bo *ctrl_bo;
@@ -61,7 +60,6 @@ int nvc0_fifo_init(struct drm_device *dev)
 	res->base.takedown = nvc0_fifo_takedown;
 	res->base.chan_kill = nvc0_fifo_chan_kill;
 	res->base.chan_init_ib = nvc0_fifo_chan_init_ib;
-	spin_lock_init(&res->lock);
 
 	res->ctrl_bo = pscnv_mem_alloc(dev, 128 * 0x1000,
 					     PSCNV_GEM_CONTIG, 0, 0xf1f03e95);
@@ -185,12 +183,15 @@ void nvc0_fifo_playlist_update(struct drm_device *dev)
 void nvc0_fifo_chan_kill(struct pscnv_chan *ch)
 {
 	struct drm_device *dev = ch->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	/* bit 28: active,
 	 * bit 12: loaded,
 	 * bit  0: enabled
 	 */
 	uint32_t status;
+	unsigned long flags;
 
+	spin_lock_irqsave(&dev_priv->context_switch_lock, flags);
 	status = nv_rd32(dev, 0x3004 + ch->cid * 8);
 	nv_wr32(dev, 0x3004 + ch->cid * 8, status & ~1);
 	nv_wr32(dev, 0x2634, ch->cid);
@@ -202,6 +203,7 @@ void nvc0_fifo_chan_kill(struct pscnv_chan *ch)
 	if (nv_rd32(dev, 0x3004 + ch->cid * 8) & 0x1110) {
 		NV_WARN(dev, "WARNING: PFIFO kickoff fail :(\n");
 	}
+	spin_unlock_irqrestore(&dev_priv->context_switch_lock, flags);
 }
 
 #define nvchan_wr32(chan, ofst, val)					\
@@ -219,7 +221,7 @@ int nvc0_fifo_chan_init_ib (struct pscnv_chan *ch, uint32_t pb_handle, uint32_t 
 	if (ib_order > 29)
 		return -EINVAL;
 
-	spin_lock_irqsave(&fifo->lock, irqflags);
+	spin_lock_irqsave(&dev_priv->context_switch_lock, irqflags);
 
 	for (i = 0x40; i <= 0x50; i += 4)
 		nvchan_wr32(ch, i, 0);
@@ -258,7 +260,7 @@ int nvc0_fifo_chan_init_ib (struct pscnv_chan *ch, uint32_t pb_handle, uint32_t 
 
 	nvc0_fifo_playlist_update(dev);
 
-	spin_unlock_irqrestore(&fifo->lock, irqflags);
+	spin_unlock_irqrestore(&dev_priv->context_switch_lock, irqflags);
 
 	dev_priv->engines[PSCNV_ENGINE_GRAPH]->
 		chan_alloc(dev_priv->engines[PSCNV_ENGINE_GRAPH], ch);
@@ -340,12 +342,8 @@ void nvc0_pfifo_subfifo_fault(struct drm_device *dev, int unit)
 
 void nvc0_fifo_irq_handler(struct drm_device *dev, int irq)
 {
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nvc0_fifo_engine *fifo = nvc0_fifo(dev_priv->fifo);
 	uint32_t status;
-	unsigned long flags;
 
-	spin_lock_irqsave(&fifo->lock, flags);
 	status = nv_rd32(dev, 0x2100) & nv_rd32(dev, 0x2140);
 
 	if (status & 1) {
@@ -396,8 +394,6 @@ void nvc0_fifo_irq_handler(struct drm_device *dev, int irq)
 		/* disable interrupts */
 		nv_wr32(dev, 0x2140, nv_rd32(dev, 0x2140) & ~status);
 	}
-
-	spin_unlock_irqrestore(&fifo->lock, flags);
 }
 
 uint64_t nvc0_fifo_ctrl_offs(struct drm_device *dev, int cid) {

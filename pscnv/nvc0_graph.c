@@ -519,7 +519,6 @@ nvc0_graph_init(struct drm_device *dev)
 	res->base.chan_alloc = nvc0_graph_chan_alloc;
 	res->base.chan_kill = nvc0_graph_chan_kill;
 	res->base.chan_free = nvc0_graph_chan_free;
-	spin_lock_init(&res->lock);
 
 	vo = pscnv_mem_alloc(dev, 0x1000, PSCNV_GEM_CONTIG, 0, 
 						 NVC0_PGRAPH_GPC_BROADCAST_FFB_UNK34_ADDR);
@@ -1008,7 +1007,6 @@ void nvc0_graph_irq_handler(struct drm_device *dev, int irq)
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct nvc0_graph_engine *graph;
 	uint32_t status;
-	unsigned long flags;
 	uint32_t pgraph, addr, datal, datah, ecode, grcl, subc, mthd;
 	int cid;
 #define PGRAPH_ERROR(name)												\
@@ -1016,8 +1014,6 @@ void nvc0_graph_irq_handler(struct drm_device *dev, int irq)
 			 name, pgraph, cid, subc, grcl, mthd, datah, datal);
 
 	graph = NVC0_GRAPH(dev_priv->engines[PSCNV_ENGINE_GRAPH]);
-
-	spin_lock_irqsave(&graph->lock, flags);
 
 	status = nv_rd32(dev, NVC0_PGRAPH_INTR);
 	ecode = nv_rd32(dev, NVC0_PGRAPH_DATA_ERROR);
@@ -1110,6 +1106,4 @@ void nvc0_graph_irq_handler(struct drm_device *dev, int irq)
 	}
 
 	nv_wr32(dev, NVC0_PGRAPH_FIFO_CONTROL, (1 << 16) | 1);
-
-	spin_unlock_irqrestore(&graph->lock, flags);
 }
