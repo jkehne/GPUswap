@@ -75,6 +75,8 @@ static int nouveau_init_engine_ptrs(struct drm_device *dev)
 		engine->gpio.get		= nv50_gpio_get;
 		engine->gpio.set		= nv50_gpio_set;
 		engine->gpio.irq_enable		= nv50_gpio_irq_enable;
+		engine->pm.pwm_get		= nv50_pm_pwm_get;
+		engine->pm.pwm_set		= nv50_pm_pwm_set;
 		switch (dev_priv->chipset) {
 		case 0xa3:
 		case 0xa5:

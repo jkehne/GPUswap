@@ -43,24 +43,24 @@ nouveau_pwmfan_get(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct nouveau_pm_engine *pm = &dev_priv->engine.pm;
-	struct gpio_func gpio;
+	struct dcb_gpio_entry *gpio;
 	u32 divs, duty;
 	int ret;
 
 	if (!pm->pwm_get)
 		return -ENODEV;
 
-	ret = nouveau_gpio_find(dev, 0, DCB_GPIO_PWM_FAN, 0xff, &gpio);
-	if (ret == 0) {
-		ret = pm->pwm_get(dev, gpio.line, &divs, &duty);
+	gpio = nouveau_bios_gpio_entry(dev, DCB_GPIO_PWM_FAN);
+	if (gpio) {
+		ret = pm->pwm_get(dev, gpio->line, &divs, &duty);
 		if (ret == 0 && divs) {
 			divs = max(divs, duty);
-			if (dev_priv->card_type <= NV_40 || (gpio.log[0] & 1))
+			if (dev_priv->card_type <= NV_40 || (gpio->state[0] & 1))
 				duty = divs - duty;
 			return (duty * 100) / divs;
 		}
 
-		return nouveau_gpio_func_get(dev, gpio.func) * 100;
+		return dev_priv->engine.gpio.get(dev, DCB_GPIO_PWM_FAN) * 100;
 	}
 	return -ENODEV;
 }
@@ -70,15 +70,15 @@ nouveau_pwmfan_set(struct drm_device *dev, int percent)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct nouveau_pm_engine *pm = &dev_priv->engine.pm;
-	struct gpio_func gpio;
+	struct dcb_gpio_entry *gpio;
 	u32 divs, duty;
 	int ret;
 
 	if (!pm->pwm_set)
 		return -ENODEV;
 
-	ret = nouveau_gpio_find(dev, 0, DCB_GPIO_PWM_FAN, 0xff, &gpio);
-	if (ret == 0) {
+	gpio = nouveau_bios_gpio_entry(dev, DCB_GPIO_PWM_FAN);
+	if (gpio) {
 		divs = pm->fan.pwm_divisor;
 		if (pm->fan.pwm_freq) {
 			/*XXX: PNVIO clock more than likely... */
@@ -88,10 +88,10 @@ nouveau_pwmfan_set(struct drm_device *dev, int percent)
 		}
 
 		duty = ((divs * percent) + 99) / 100;
-		if (dev_priv->card_type <= NV_40 || (gpio.log[0] & 1))
+		if (dev_priv->card_type <= NV_40 || (gpio->state[0] & 1))
 			duty = divs - duty;
 
-		ret = pm->pwm_set(dev, gpio.line, divs, duty);
+		ret = pm->pwm_set(dev, gpio->line, divs, duty);
 		if (!ret)
 			pm->fan.percent = percent;
 		return ret;
@@ -657,24 +657,23 @@ nouveau_hwmon_show_fan0_input(struct device *d, struct device_attribute *attr,
 {
 	struct drm_device *dev = dev_get_drvdata(d);
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct gpio_func gpio;
+	struct dcb_gpio_entry *gpio;
 	u32 cycles, cur, prev;
 	u64 start;
-	int ret;
 
-	ret = nouveau_gpio_find(dev, 0, DCB_GPIO_FAN_SENSE, 0xff, &gpio);
-	if (ret)
-		return ret;
+	gpio = nouveau_bios_gpio_entry(dev, DCB_GPIO_PWM_FAN);
+	if (!gpio)
+		return -ENODEV;
 
 	/* Monitor the GPIO input 0x3b for 250ms.
 	 * When the fan spins, it changes the value of GPIO FAN_SENSE.
 	 * We get 4 changes (0 -> 1 -> 0 -> 1 -> [...]) per complete rotation.
 	 */
 	start = nv04_timer_read(dev);
-	prev = nouveau_gpio_sense(dev, 0, gpio.line);
+	prev = dev_priv->engine.gpio.get(dev, DCB_GPIO_PWM_FAN);
 	cycles = 0;
 	do {
-		cur = nouveau_gpio_sense(dev, 0, gpio.line);
+		cur = dev_priv->engine.gpio.get(dev, DCB_GPIO_PWM_FAN);
 		if (prev != cur) {
 			cycles++;
 			prev = cur;
@@ -886,7 +885,7 @@ nouveau_hwmon_init(struct drm_device *dev)
 	}
 
 	/* if the card can read the fan rpm */
-	if (nouveau_gpio_func_valid(dev, DCB_GPIO_FAN_SENSE)) {
+	if (nouveau_bios_gpio_entry(dev, DCB_GPIO_FAN_SENSE)) {
 		ret = sysfs_create_group(&dev->pdev->dev.kobj,
 					 &hwmon_fan_rpm_attrgroup);
 		if (ret)

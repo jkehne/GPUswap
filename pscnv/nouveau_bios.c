@@ -5882,7 +5882,7 @@ parse_dcb_gpio_table(struct nvbios *bios)
 
 			e->line = (e->entry & 0x001f);
 			e->invert = ((e->entry & 0xf800) >> 11) != 4;
-		} else {
+		} else if (gpio[0] < 0x41) {
 			e->entry = ROM32(entry[0]);
 			e->tag = (e->entry & 0x0000ff00) >> 8;
 			if (e->tag == 0xff) {
@@ -5894,6 +5894,18 @@ parse_dcb_gpio_table(struct nvbios *bios)
 			e->state_default = (e->entry & 0x01000000) >> 24;
 			e->state[0] = (e->entry & 0x18000000) >> 27;
 			e->state[1] = (e->entry & 0x60000000) >> 29;
+		} else {
+			e->entry = ROM32(entry[0]);
+			e->tag = (e->entry & 0x0000ff00) >> 8;
+			if (e->tag == 0xff) {
+				bios->dcb.gpio.entries--;
+				continue;
+			}
+
+			e->line = (e->entry & 0x0000003f) >> 0;
+			e->state_default = (e->entry & 0x01000000) >> 24;
+			e->state[0] = (e->entry & 0x30000000) >> 28;
+			e->state[1] = (e->entry & 0xc0000000) >> 30;
 		}
 	}
 
