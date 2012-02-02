@@ -87,6 +87,9 @@ static int nouveau_init_engine_ptrs(struct drm_device *dev)
 			engine->pm.clocks_set	= nva3_pm_clocks_set;
 			break;
 		case 0xc0:
+			engine->pm.clocks_get		= nvc0_pm_clocks_get;
+			engine->pm.clocks_pre		= nvc0_pm_clocks_pre;
+			engine->pm.clocks_set		= nvc0_pm_clocks_set;
 			break;
 		default:
 			engine->pm.clocks_get	= nv50_pm_clocks_get;
