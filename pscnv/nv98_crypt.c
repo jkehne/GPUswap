@@ -31,7 +31,7 @@
 #include "pscnv_chan.h"
 #include "nv50_chan.h"
 #include "nv50_vm.h"
-#include "nv98_crypt_fuc.h"
+#include "nv98_crypt.fuc.h"
 
 struct nv98_crypt_engine {
 	struct pscnv_engine base;

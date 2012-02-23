@@ -302,7 +302,13 @@ nouveau_card_init(struct drm_device *dev)
 			ret = nvc0_fifo_init(dev);
 			if (!ret) {
 				/* PGRAPH */
-				nvc0_graph_init(dev);
+				ret = nvc0_graph_init(dev);
+				if (!ret) {
+					/* PCOPY0 */
+					nvc0_copy_init(dev, 0);
+					/* PCOPY1 */
+					nvc0_copy_init(dev, 1);
+				}
 			}
 			break;
 		default:

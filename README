@@ -1,0 +1,37 @@
+#
+# pscnv - PathScale NVIDIA graphics driver
+#
+
+pscnv is an open-source NVIDIA graphics driver developed by PathScale.
+It is available either for graphics or compute (general-purpose computations
+on GPUs, a.k.a., GPGPU) applications.
+To build the driver, you will need envytools, a rich set of useful tools and
+documentations for NVIDIA graphics cards - follow the instructions below. 
+
+1. Make a working directory
+
+mkdir $(YOUR_FAVORITE_PLACE)
+
+2. Build envytools
+
+cd $(YOUR_FAVORITE_PLACE)
+git clone git://0x04.net/envytools.git
+cd envytools
+mkdir build
+cd build
+cmake .. # may require you to install some more packages
+make
+sudo make install # will install the tools to /usr/local/{bin,lib}
+
+3. Build pscnv
+
+cd $(YOUR_FAVORITE_PLACE)
+git clone git://github.com/pathscale/pscnv.git
+cd pscnv
+mkdir build
+cd build
+cmake ..
+make
+cd pscnv
+sudo insmod pscnv.ko # or modprobe
+

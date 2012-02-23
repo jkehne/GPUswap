@@ -162,10 +162,10 @@ static struct drm_driver driver;
 static int __devinit
 nouveau_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,36)
-		return drm_get_pci_dev(pdev, ent, &driver);
-#else
+#ifdef PSCNV_KAPI_DRM_GET_DEV
 		return drm_get_dev(pdev, ent, &driver);
+#else
+		return drm_get_pci_dev(pdev, ent, &driver);
 #endif
 }
 
@@ -470,6 +470,7 @@ static struct drm_driver driver = {
 	.patchlevel = DRIVER_PATCHLEVEL,
 };
 
+#if !defined(PSCNV_KAPI_PCI_DRIVER) && !defined(PSCNV_KAPI_DRM_PCI_INIT)
 static struct pci_driver nouveau_pci_driver = {
 	.name = DRIVER_NAME,
 	.id_table = pciidlist,
@@ -478,6 +479,7 @@ static struct pci_driver nouveau_pci_driver = {
 	.suspend = nouveau_pci_suspend,
 	.resume = nouveau_pci_resume
 };
+#endif
 
 static int __init nouveau_init(void)
 {
@@ -502,7 +504,7 @@ static int __init nouveau_init(void)
 		nouveau_register_dsm_handler();
 	}
 
-#ifdef PSCNV_KAPI_PCI_DRIVER
+#if defined(PSCNV_KAPI_PCI_DRIVER) || defined(PSCNV_KAPI_DRM_PCI_INIT)
 	return drm_init(&driver);
 #else
 	return drm_pci_init(&driver, &nouveau_pci_driver);
@@ -511,7 +513,7 @@ static int __init nouveau_init(void)
 
 static void __exit nouveau_exit(void)
 {
-#ifdef PSCNV_KAPI_PCI_DRIVER
+#if defined(PSCNV_KAPI_PCI_DRIVER) || defined(PSCNV_KAPI_DRM_PCI_INIT)
 	drm_exit(&driver);
 #else
 	drm_pci_exit(&driver, &nouveau_pci_driver);

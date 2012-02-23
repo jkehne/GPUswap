@@ -45,7 +45,7 @@
 
 static DEFINE_RATELIMIT_STATE(nouveau_ratelimit_state, 3 * HZ, 20);
 
-static int nouveau_ratelimit(void)
+static inline int nouveau_ratelimit(void)
 {
 	return __ratelimit(&nouveau_ratelimit_state);
 }

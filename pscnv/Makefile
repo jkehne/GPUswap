@@ -14,8 +14,8 @@ pscnv-y := nouveau_drv.o nouveau_state.o \
 	     nv50_vram.o nv50_vm.o nv50_chan.o nv50_fifo.o nv50_graph.o \
 	     nv84_crypt.o \
 	     nv98_crypt.o \
-	     nvc0_vram.o nvc0_vm.o nvc0_chan.o nvc0_fifo.o nvc0_graph.o \
-	     nvc0_grctx.o \
+	     nvc0_vram.o nvc0_vm.o nvc0_chan.o nvc0_copy.o nvc0_fifo.o \
+	     nvc0_graph.o nvc0_grctx.o \
 	     nv40_counter.o
 
 pscnv-$(CONFIG_DRM_NOUVEAU_DEBUG) += nouveau_debugfs.o
@@ -29,25 +29,12 @@ EXTRA_CFLAGS = -Iinclude/drm
 
 SYSSRC = /lib/modules/$(shell uname -r)/build
 
-all: pscnv_kapi.h nv98_crypt_fuc.h nvc0_grgpc.fuc.h nvc0_grhub.fuc.h
+all:
 	+make -C $(SYSSRC) M=$(PWD) modules
 
 clean:
 	+make -C $(SYSSRC) M=$(PWD) clean
 
-nvc0_grhub.fuc.h: nvc0_grhub.fuc
-	m4 nvc0_grhub.fuc | envyas -a -w -m fuc -V nva3 -o nvc0_grhub.fuc.h
-
-nvc0_grgpc.fuc.h: nvc0_grgpc.fuc
-	m4 nvc0_grgpc.fuc | envyas -a -w -m fuc -V nva3 -o nvc0_grgpc.fuc.h
-
-nv98_crypt_fuc.h: nv98_crypt_fuc.fuc
-	envyas -m fuc -a nv98_crypt_fuc.fuc -o nv98_crypt_fuc.h
-
-pscnv_kapi.h: kapitest.sh
-	./kapitest.sh $(SYSSRC) > pscnv_kapi.h
-
-.PHONY: kapitest
-
-kapitest:
-	./kapitest.sh $(SYSSRC) > pscnv_kapi.h
+distclean:
+	+make -C $(SYSSRC) M=$(PWD) clean
+	rm -f pscnv_kapi.h *.fuc.h *~

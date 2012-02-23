@@ -271,12 +271,14 @@ nouveau_fbcon_create(struct nouveau_fbdev *nfbdev,
 	info->fix.mmio_start = pci_resource_start(pdev, 1);
 	info->fix.mmio_len = pci_resource_len(pdev, 1);
 
+#ifndef PSCNV_KAPI_FB_INFO_APERTURES
 	/* Set aperture base/size for vesafb takeover */
 	info->apertures = dev_priv->apertures;
 	if (!info->apertures) {
 		ret = -ENOMEM;
 		goto out_unref;
 	}
+#endif
 
 	info->pixmap.size = 64*1024;
 	info->pixmap.buf_align = 8;
