@@ -234,6 +234,14 @@ nouveau_card_init(struct drm_device *dev)
 		ret = nouveau_bios_init(dev);
 		if (ret)
 			goto out_display_early;
+
+		/* workaround an odd issue on nvc1 by disabling the device's
+		 * nosnoop capability.  hopefully won't cause issues until a
+		 * better fix is found - assuming there is one...
+		 */
+		if (dev_priv->chipset == 0xc1) {
+			nv_mask(dev, 0x00088080, 0x00000800, 0x00000000);
+		}
 	}
 
 	ret = pscnv_mem_init(dev);

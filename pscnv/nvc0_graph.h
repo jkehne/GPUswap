@@ -30,6 +30,8 @@
 #define NVC0_TP_MAX 32
 #define NVC0_GPC_MAX 4
 
+#define NVC0_GRAPH(x) container_of(x, struct nvc0_graph_engine, base)
+
 struct nvc0_graph_engine {
 	struct pscnv_engine base;
 	uint32_t grctx_size;
@@ -72,15 +74,5 @@ nvc0_graph_class(struct drm_device *dev)
 extern int nvc0_grctx_construct(struct drm_device *dev,
 								struct nvc0_graph_engine *graph,
 								struct pscnv_chan *chan);
-
-#define nvc0_graph(x) container_of(x, struct nvc0_graph_engine, base)
-
-/* for unknown pgraph CTXCTL regs. */
-#define NVC0_PGRAPH_GPC_REG(gpc, r) ((0x500000 + (gpc) * 0x8000) + (r))
-#define NVC0_PGRAPH_TP_REG(gpc, tp, r) \
-	((0x504000 + (gpc) * 0x8000 + (tp) * 0x800) + (r))
-
-/* for unknown ROPC regs*/
-#define NVC0_PGRAPH_ROPC_REG(i, r) ((0x410000 + (i) * 0x400) + (r))
 
 #endif
