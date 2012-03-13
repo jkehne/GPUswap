@@ -8,6 +8,7 @@
 #include "pscnv_fifo.h"
 #include "pscnv_gem.h"
 #include "nv50_chan.h"
+#include "nvc0_graph.h"
 #include "pscnv_kapi.h"
 
 #ifdef PSCNV_KAPI_GETPARAM_BUS_TYPE
@@ -23,10 +24,17 @@ int pscnv_ioctl_getparam(struct drm_device *dev, void *data,
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct drm_pscnv_getparam *getparam = data;
+	struct nvc0_graph_engine *nvc0_graph;
 
 	NOUVEAU_CHECK_INITIALISED_WITH_RETURN;
 
 	switch (getparam->param) {
+	case PSCNV_GETPARAM_MP_COUNT:
+		if (dev_priv->chipset < 0xc0)
+			goto fail;
+		nvc0_graph = NVC0_GRAPH(dev_priv->engines[PSCNV_ENGINE_GRAPH]);
+		getparam->value = nvc0_graph->tp_count; /* MPs == TPs */
+		break;
 	case PSCNV_GETPARAM_CHIPSET_ID:
 		getparam->value = dev_priv->chipset;
 		break;
@@ -60,11 +68,13 @@ int pscnv_ioctl_getparam(struct drm_device *dev, void *data,
 		}
 		/* FALLTHRU */
 	default:
-		NV_ERROR(dev, "unknown parameter %lld\n", getparam->param);
-		return -EINVAL;
+		goto fail;
 	}
 
 	return 0;
+fail:
+	NV_ERROR(dev, "unknown parameter %lld\n", getparam->param);
+	return -EINVAL;
 }
 
 int pscnv_ioctl_gem_new(struct drm_device *dev, void *data,

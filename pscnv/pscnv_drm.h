@@ -33,9 +33,12 @@
 #define PSCNV_GETPARAM_PCI_DEVICE      4
 #define PSCNV_GETPARAM_BUS_TYPE        5
 #define PSCNV_GETPARAM_FB_SIZE         8
+#define PSCNV_GETPARAM_AGP_SIZE        9
 #define PSCNV_GETPARAM_CHIPSET_ID      11
+#define PSCNV_GETPARAM_VM_VRAM_BASE    12
 #define PSCNV_GETPARAM_GRAPH_UNITS     13
 #define PSCNV_GETPARAM_PTIMER_TIME     14
+#define PSCNV_GETPARAM_MP_COUNT        100
 struct drm_pscnv_getparam {
 	uint64_t param;		/* < */
 	uint64_t value;		/* > */

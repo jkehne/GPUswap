@@ -1073,6 +1073,7 @@ void nvc0_graph_irq_handler(struct drm_device *dev, int irq)
 	cid = -1;
 
 	if (status & NVC0_PGRAPH_INTR_NOTIFY) {
+		PGRAPH_ERROR("PGRAPH_NOTIFY");
 		nv_wr32(dev, NVC0_PGRAPH_INTR, NVC0_PGRAPH_INTR_NOTIFY);
 		status &= ~NVC0_PGRAPH_INTR_NOTIFY;
 	}

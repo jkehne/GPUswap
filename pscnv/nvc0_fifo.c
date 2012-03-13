@@ -412,8 +412,16 @@ void nvc0_fifo_irq_handler(struct drm_device *dev, int irq)
 	}
 }
 
-uint64_t nvc0_fifo_ctrl_offs(struct drm_device *dev, int cid) {
+uint64_t nvc0_fifo_ctrl_offs(struct drm_device *dev, int cid)
+{
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct nvc0_fifo_engine *fifo = nvc0_fifo(dev_priv->fifo);
 	return fifo->ctrl_bo->map1->start + cid * 0x1000;
+}
+
+volatile uint32_t *nvc0_fifo_ctrl_ptr(struct drm_device *dev, struct pscnv_chan *chan) 
+{
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nvc0_fifo_engine *fifo = nvc0_fifo(dev_priv->fifo);
+	return &fifo->fifo_ctl[chan->cid * 0x1000 / 4];
 }
