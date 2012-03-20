@@ -376,7 +376,7 @@ nouveau_perf_init(struct drm_device *dev)
 		/* make sure vid is valid */
 		nouveau_perf_voltage(dev, perflvl);
 		if (pm->voltage.supported && perflvl->volt_min) {
-			vid = nouveau_volt_vid_lookup(dev, perflvl->volt_min);
+			vid = nouveau_volt_vid_lookup_range(dev, perflvl->volt_min, perflvl->volt_max);
 			if (vid < 0) {
 				NV_DEBUG(dev, "perflvl %d, bad vid\n", i);
 				continue;

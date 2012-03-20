@@ -50,14 +50,14 @@ nouveau_voltage_gpio_get(struct drm_device *dev)
 }
 
 int
-nouveau_voltage_gpio_set(struct drm_device *dev, int voltage)
+nouveau_voltage_gpio_set_range(struct drm_device *dev, int volt_min, int volt_max)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct nouveau_pm_voltage *volt = &dev_priv->engine.pm.voltage;
 	struct nouveau_gpio_engine *gpio = &dev_priv->engine.gpio;
 	int vid, i;
 
-	vid = nouveau_volt_vid_lookup(dev, voltage);
+	vid = nouveau_volt_vid_lookup_range(dev, volt_min, volt_max);
 	if (vid < 0)
 		return vid;
 
@@ -72,17 +72,25 @@ nouveau_voltage_gpio_set(struct drm_device *dev, int voltage)
 }
 
 int
-nouveau_volt_vid_lookup(struct drm_device *dev, int voltage)
+nouveau_volt_vid_lookup_range(struct drm_device *dev, int volt_min, int volt_max)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct nouveau_pm_voltage *volt = &dev_priv->engine.pm.voltage;
-	int i;
-
-	for (i = 0; i < volt->nr_level; i++) {
-		if (voltage + 500 >= volt->level[i].voltage && voltage <= volt->level[i].voltage)
-			return volt->level[i].vid;
+	int i, best = -1;
+	if (volt_max < volt_min) {
+		NV_WARN(dev, "volt_max %d < volt_min %d\n", volt_min, volt_max);
+		volt_max = volt_min;
 	}
-
+	for (i = 0; i < volt->nr_level; i++) {
+		if (volt->level[i].voltage < volt_min ||
+		    volt->level[i].voltage > volt_max)
+			continue;
+		if (best < 0 ||
+		    volt->level[i].voltage < volt->level[best].voltage)
+			best = i;
+	}
+	if (best >= 0)
+		return volt->level[best].vid;
 	return -ENOENT;
 }
 

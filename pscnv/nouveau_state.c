@@ -116,7 +116,7 @@ static int nouveau_init_engine_ptrs(struct drm_device *dev)
 
 	if (dev_priv->chipset >= 0x30 && dev_priv->chipset < 0xc0) {
 		engine->pm.voltage_get		= nouveau_voltage_gpio_get;
-		engine->pm.voltage_set		= nouveau_voltage_gpio_set;
+		engine->pm.voltage_set_range	= nouveau_voltage_gpio_set_range;
 	}
 
 	if (dev_priv->chipset < 0x50 || (dev_priv->chipset & 0xf0) == 0x60) {

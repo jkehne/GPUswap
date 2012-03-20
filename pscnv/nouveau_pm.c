@@ -119,9 +119,9 @@ nouveau_pm_perflvl_aux(struct drm_device *dev, struct nouveau_pm_level *perflvl,
 		}
 	}
 
-	if (pm->voltage.supported && pm->voltage_set) {
+	if (pm->voltage.supported && pm->voltage_set_range) {
 		if (perflvl->volt_min && b->volt_min > a->volt_min) {
-			ret = pm->voltage_set(dev, perflvl->volt_min);
+			ret = pm->voltage_set_range(dev, perflvl->volt_min, perflvl->volt_max);
 			if (ret) {
 				NV_ERROR(dev, "voltage set failed: %d\n", ret);
 				return ret;

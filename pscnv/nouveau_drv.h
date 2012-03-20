@@ -327,7 +327,7 @@ struct nouveau_pm_engine {
 	int (*clocks_set)(struct drm_device *, void *);
 
 	int (*voltage_get)(struct drm_device *);
-	int (*voltage_set)(struct drm_device *, int voltage);
+	int (*voltage_set_range)(struct drm_device *, int vol_min, int volt_max);
 	int (*pwm_get)(struct drm_device *, int line, u32*, u32*);
 	int (*pwm_set)(struct drm_device *, int line, u32, u32);
 	int (*temp_get)(struct drm_device *);
