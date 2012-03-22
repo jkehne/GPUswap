@@ -255,10 +255,10 @@ nouveau_perf_voltage(struct drm_device *dev, struct nouveau_pm_level *perflvl)
 	id = perflvl->volt_min;
 	perflvl->volt_min = 0;
 
-	/* boards using voltage table version <0x40 store the voltage
-	 * level directly in the perflvl entry as a multiple of 10mV
+	/* some boards store the voltage level directly
+	 * in the perflvl entry as a multiple of 10mV
 	 */
-	if (dev_priv->engine.pm.voltage.version < 0x40) {
+	if (id >= dev_priv->engine.pm.voltage.nr_level) {
 		perflvl->volt_min = id * 10000;
 		perflvl->volt_max = perflvl->volt_min;
 		return;
