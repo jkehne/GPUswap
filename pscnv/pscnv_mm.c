@@ -49,6 +49,89 @@ static int nodecmp(struct pscnv_mm_node *a, struct pscnv_mm_node *b) {
 
 PSCNV_RB_GENERATE_STATIC(pscnv_mm_head, pscnv_mm_node, entry, nodecmp)
 
+static unsigned pscnv_mm_validate_node(struct pscnv_mm_node *head, const char *msg)
+{
+	unsigned dl, dr, ret;
+	struct pscnv_mm_node *left, *right;
+	if (!head)
+		return 1;
+	left = head->entry.rbe_left;
+	right = head->entry.rbe_right;
+	dl = pscnv_mm_validate_node(left, msg);
+	dr = pscnv_mm_validate_node(right, msg);
+	if (dl == ~0 || dr == ~0)
+		return ~0;
+	ret = dl + (head->entry.rbe_color == PSCNV_RB_BLACK);
+	if (dl != dr) {
+		if (left && right)
+			NV_ERROR(head->mm->dev, "MM: RB Tree violation %s, %llx..%llx left child %llx..%llx (depth %u) has depth differing with right child %llx..%llx (depth %u)\n",
+				 msg, head->start, head->start + head->size, left->start, left->start + left->size, dl, right->start, right->start + right->size, dr);
+		else if (left)
+			NV_ERROR(head->mm->dev, "MM: RB Tree violation %s, %llx..%llx left child %llx..%llx (depth %u) has depth differing with right child NULL (depth 1)\n",
+				 msg, head->start, head->start + head->size, left->start, left->start + left->size, dl);
+		else if (right)
+			NV_ERROR(head->mm->dev, "MM: RB Tree violation %s, %llx..%llx left child NULL (depth 1) has depth differing with right child %llx..%llx (depth %u)\n",
+				 msg, head->start, head->start + head->size, right->start, right->start + right->size, dr);
+		else
+			NV_ERROR(head->mm->dev, "MM: RB Tree violation %s, %llx..%llx with no childs, amazing..\n",
+				 msg, head->start, head->start + head->size);
+		ret = ~0;
+	} else if (head->entry.rbe_color == PSCNV_RB_RED) {
+		if (left && left->entry.rbe_color == PSCNV_RB_RED) {
+			NV_ERROR(head->mm->dev, "MM: RED RED Tree violation %s, %llx..%llx has left node %llx..%llx in same color!\n",
+				 msg, head->start, head->start + head->size, left->start, left->start + left->size);
+			ret = ~0;
+		}
+		if (right && right->entry.rbe_color == PSCNV_RB_RED) {
+			NV_ERROR(head->mm->dev, "MM: RED RED Tree violation %s, %llx..%llx has right node %llx..%llx in same color!\n",
+				 msg, head->start, head->start + head->size, right->start, right->start + right->size);
+			ret = ~0;
+		}
+	}
+	if (left && nodecmp(head, left) != 1) {
+		NV_ERROR(head->mm->dev, "MM: Binary Tree violation %s, %llx..%llx has left node %llx..%llx!\n",
+			 msg, head->start, head->start + head->size, left->start, left->start + left->size);
+		ret = ~0;
+	}
+	if (right && nodecmp(head, right) != -1) {
+		NV_ERROR(head->mm->dev, "MM: Binary Tree violation %s, %llx..%llx has right node %llx..%llx!\n",
+			 msg, head->start, head->start + head->size, right->start, right->start + right->size);
+		ret = ~0;
+	}
+	return ret;
+}
+
+static void pscnv_mm_dump(struct pscnv_mm_node *head)
+{
+	struct pscnv_mm_node *left, *right;
+	if (!head)
+		return;
+	left = head->entry.rbe_left;
+	right = head->entry.rbe_right;
+	pscnv_mm_dump(left);
+	if (left && right)
+		NV_ERROR(head->mm->dev, "MM: node %llx..%llx left child %llx..%llx and right child %llx..%llx\n",
+			 head->start, head->start + head->size, left->start, left->start + left->size, right->start, right->start + right->size);
+	else if (left)
+		NV_ERROR(head->mm->dev, "MM: node %llx..%llx left child %llx..%llx and right child NULL\n",
+			 head->start, head->start + head->size, left->start, left->start + left->size);
+	else if (right)
+		NV_ERROR(head->mm->dev, "MM: node %llx..%llx left child NULL and right child %llx..%llx\n",
+			 head->start, head->start + head->size, right->start, right->start + right->size);
+	else
+		NV_ERROR(head->mm->dev, "MM: node %llx..%llx left child NULL and right child NULL\n",
+			 head->start, head->start + head->size);
+	pscnv_mm_dump(right);
+}
+
+static void pscnv_mm_validate(struct pscnv_mm *mm, const char *msg)
+{
+	if (pscnv_mm_debug < 1)
+		return;
+	if (pscnv_mm_validate_node(PSCNV_RB_ROOT(&mm->head), msg) == ~0)
+		pscnv_mm_dump(PSCNV_RB_ROOT(&mm->head));
+}
+
 static void pscnv_mm_getfree(struct pscnv_mm_node *node, int type, uint64_t *start, uint64_t *end) {
 	uint64_t s = node->start, e = node->start + node->size;
 	struct pscnv_mm_node *prev = PSCNV_RB_PREV(pscnv_mm_head, entry, node);
@@ -82,23 +165,40 @@ static void pscnv_mm_free_node(struct pscnv_mm_node *node) {
 	int i;
 	if (pscnv_mm_debug >= 2)
 		NV_INFO(node->mm->dev, "MM: Freeing node %llx..%llx of type %d\n", node->start, node->start + node->size, node->type);
+	if (node->next) {
+		node->next->prev = NULL;
+		node->next = NULL;
+	}
+	if (pscnv_mm_debug >= 1)
+		NV_ERROR(node->mm->dev, "A node that's about to be freed should not have a valid prev pointer!\n");
+	node->prev = NULL;
 	node->type = PSCNV_MM_TYPE_FREE;
 	if (prev->type == PSCNV_MM_TYPE_FREE) {
 		if (pscnv_mm_debug >= 2)
 			NV_INFO(node->mm->dev, "MM: Merging left with node %llx..%llx\n", prev->start, prev->start + prev->size);
-		BUG_ON(prev->start + prev->size != node->start);
-		node->start = prev->start;
-		node->size += prev->size;
-		PSCNV_RB_REMOVE(pscnv_mm_head, &node->mm->head, prev);
-		kfree(prev);
+		if (prev->start + prev->size != node->start) {
+			NV_ERROR(node->mm->dev, "MM: node %llx..%llx not contiguous with prev %llx..%llx\n",
+				 node->start, node->start + node->size, prev->start, prev->start + prev->size);
+			pscnv_mm_dump(PSCNV_RB_ROOT(&node->mm->head));
+		} else {
+			node->start = prev->start;
+			node->size += prev->size;
+			PSCNV_RB_REMOVE(pscnv_mm_head, &node->mm->head, prev);
+			kfree(prev);
+		}
 	}
 	if (next->type == PSCNV_MM_TYPE_FREE) {
 		if (pscnv_mm_debug >= 2)
 			NV_INFO(node->mm->dev, "MM: Merging right with node %llx..%llx\n", next->start, next->start + next->size);
-		BUG_ON(node->start + node->size != next->start);
-		node->size += next->size;
-		PSCNV_RB_REMOVE(pscnv_mm_head, &node->mm->head, next);
-		kfree(next);
+		if (node->start + node->size != next->start) {
+			NV_ERROR(node->mm->dev, "MM: node %llx..%llx not contiguous with next %llx..%llx\n",
+				 node->start, node->start + node->size, next->start, next->start + next->size);
+			pscnv_mm_dump(PSCNV_RB_ROOT(&node->mm->head));
+		} else {
+			node->size += next->size;
+			PSCNV_RB_REMOVE(pscnv_mm_head, &node->mm->head, next);
+			kfree(next);
+		}
 	}
 	for (i = 0; i < GTYPES; i++) {
 		uint64_t s, e;
@@ -109,6 +209,12 @@ static void pscnv_mm_free_node(struct pscnv_mm_node *node) {
 }
 
 void pscnv_mm_free(struct pscnv_mm_node *node) {
+	struct pscnv_mm *mm = node->mm;
+	pscnv_mm_validate(mm, "before free");
+	if (node->type == PSCNV_MM_TYPE_FREE) {
+		NV_ERROR(node->mm->dev, "Freeing already freed node %llx\n", node->start);
+		return;
+	}
 	while (node->prev)
 		node = node->prev;
 	while (node) {
@@ -116,6 +222,7 @@ void pscnv_mm_free(struct pscnv_mm_node *node) {
 		pscnv_mm_free_node(node);
 		node = next;
 	}
+	pscnv_mm_validate(mm, "after free");
 }
 
 int pscnv_mm_init(struct drm_device *dev, uint64_t start, uint64_t end, uint32_t spsize, uint32_t lpsize, uint32_t tssize, struct pscnv_mm **res) {
@@ -154,12 +261,14 @@ int pscnv_mm_init(struct drm_device *dev, uint64_t start, uint64_t end, uint32_t
 	PSCNV_RB_INSERT(pscnv_mm_head, &mm->head, node);
 	PSCNV_RB_INSERT(pscnv_mm_head, &mm->head, se);
 	pscnv_mm_free_node(node);
+	pscnv_mm_validate(mm, "after pscnv_mm_init");
 	*res = mm;
 	return 0;
 }
 
 void pscnv_mm_takedown(struct pscnv_mm *mm, void (*free_callback)(struct pscnv_mm_node *)) {
 	struct pscnv_mm_node *cur;
+	pscnv_mm_validate(mm, "before mm_takedown");
 restart:
 	cur = PSCNV_RB_MIN(pscnv_mm_head, &mm->head);
 	cur = PSCNV_RB_NEXT(pscnv_mm_head, entry, cur);
@@ -281,6 +390,7 @@ int pscnv_mm_alloc(struct pscnv_mm *mm, uint64_t size, uint32_t flags, uint64_t 
 		return -EINVAL;
 	if (pscnv_mm_debug >= 1)
 		NV_INFO(mm->dev, "MM: Allocation size %llx at %llx..%llx flags %d\n", size, start, end, flags);
+	pscnv_mm_validate(mm, "before mm_alloc");
 	while (size) {
 		struct pscnv_mm_node *cur;
 		ret = pscnv_mm_alloc_single(PSCNV_RB_ROOT(&mm->head), size, flags, start, end, &cur);
@@ -304,6 +414,7 @@ int pscnv_mm_alloc(struct pscnv_mm *mm, uint64_t size, uint32_t flags, uint64_t 
 	}
 	if (last)
 		last->next = 0;
+	pscnv_mm_validate(mm, "after mm_alloc");
 	return 0;
 }
 
