@@ -368,7 +368,9 @@ nouveau_mem_gddr5_mr(struct drm_device *dev, u32 freq,
 		t->odt = 0;
 	}
 
-	if(t->odt)
+	if (len >= 23)
+		add_term = (e->RAM_FT2 >> 2) & 3;
+	else if(t->odt)
 		add_term = t->odt;
 	else
 		add_term = 3;
@@ -380,8 +382,20 @@ nouveau_mem_gddr5_mr(struct drm_device *dev, u32 freq,
 		   t->drive_strength |
 		   (t->odt << 2) |
 		   (add_term << 4);
+	t->mr[2] = boot->mr[2];
+	if (len >= 23)
+		t->mr[3] = (boot->mr[3] & ~0x20) | (e->RAM_FT2 & 2 ? 0x20 : 0);
+	else
+		t->mr[3] = boot->mr[3];
 
-	NV_DEBUG(dev, "(%u) MR: %08x %08x", t->id, t->mr[0], t->mr[1]);
+	/* I suspect the remainder is in ramcfg rather than memtiming */
+	t->mr[4] = boot->mr[4]; /* Error detection, probably never touched */
+	t->mr[5] = boot->mr[5] & ~6; /* Figure out when LP3/LP2 is set */
+	t->mr[6] = boot->mr[6]; /* Figure out when changed? WCK PIN */
+	t->mr[7] = boot->mr[7]; /* Half VREFD and LF mode are important here */
+	t->mr[8] = boot->mr[8]; /* seems to always be untouched */
+
+	NV_DEBUG(dev, "(%u) MR: %08x %08x %08x", t->id, t->mr[0], t->mr[1], t->mr[3]);
 	return 0;
 }
 
@@ -506,15 +520,14 @@ nouveau_mem_timing_read(struct drm_device *dev, struct nouveau_pm_memtiming *t)
 	}
 
 	t->mr[0] = nv_rd32(dev, mr_base);
-	if(dev_priv->vram_type == NV_MEM_TYPE_GDDR5 &&
-		dev_priv->card_type >= 0xC0) {
-		for(i = 0; i < 8; i++) {
-			t->mr[i+1] = nv_rd32(dev, mr_base + 0x30 + (i * 4));
-		}
-	} else {
+	if (dev_priv->card_type < NV_C0) {
 		t->mr[1] = nv_rd32(dev, mr_base + 0x04);
 		t->mr[2] = nv_rd32(dev, mr_base + 0x20);
 		t->mr[3] = nv_rd32(dev, mr_base + 0x24);
+	} else {
+		int i, mr = dev_priv->vram_type = NV_MEM_TYPE_GDDR5 ? 9 : 4;
+		for (i = 1; i < mr; ++i)
+			t->mr[i] = nv_rd32(dev, mr_base + 0x2c + i * 4);
 	}
 
 	t->odt = 0;
@@ -560,6 +573,10 @@ nouveau_mem_exec(struct nouveau_mem_exec_func *exec,
 		tDLLK = 40000;
 		mr1_dlloff = 0x00000040;
 		break;
+	case NV_MEM_TYPE_GDDR5:
+		mr1_dlloff = 0;
+		tCKSRE = 1000;
+		break;
 	default:
 		NV_ERROR(exec->dev, "cannot reclock unsupported memtype\n");
 		return -ENODEV;
@@ -567,6 +584,7 @@ nouveau_mem_exec(struct nouveau_mem_exec_func *exec,
 
 	/* fetch current MRs */
 	switch (dev_priv->vram_type) {
+	case NV_MEM_TYPE_GDDR5:
 	case NV_MEM_TYPE_GDDR3:
 	case NV_MEM_TYPE_DDR3:
 		mr[2] = exec->mrg(exec, 2);
@@ -632,7 +650,8 @@ nouveau_mem_exec(struct nouveau_mem_exec_func *exec,
 		exec->mrs (exec, 0, info->mr[0] | 0x00000000);
 		exec->wait(exec, tMRD);
 		exec->wait(exec, tDLLK);
-		if (dev_priv->vram_type == NV_MEM_TYPE_GDDR3)
+		if (dev_priv->vram_type == NV_MEM_TYPE_GDDR3 ||
+		    dev_priv->vram_type == NV_MEM_TYPE_GDDR5)
 			exec->precharge(exec);
 	}
 

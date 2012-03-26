@@ -201,6 +201,9 @@ struct nouveau_pm_tbl_entry {
 	u8 tUNK_18;
 	u8 tCWL;
 	u8 tUNK_20, tUNK_21;
+	u8 RAM_FT2; /* 22, not completely understood yet */
+	u8 empty_23;
+	u8 tUNK_24;
 };
 
 struct nouveau_pm_profile;
