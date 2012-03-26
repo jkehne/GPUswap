@@ -280,6 +280,10 @@ int nvc0_fifo_chan_init_ib (struct pscnv_chan *ch, uint32_t pb_handle, uint32_t 
 
 	dev_priv->engines[PSCNV_ENGINE_GRAPH]->
 		chan_alloc(dev_priv->engines[PSCNV_ENGINE_GRAPH], ch);
+	dev_priv->engines[PSCNV_ENGINE_COPY0]->
+		chan_alloc(dev_priv->engines[PSCNV_ENGINE_COPY0], ch);
+	dev_priv->engines[PSCNV_ENGINE_COPY1]->
+		chan_alloc(dev_priv->engines[PSCNV_ENGINE_COPY1], ch);
 
 	return 0;
 }

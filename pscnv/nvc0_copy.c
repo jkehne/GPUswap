@@ -245,7 +245,7 @@ nvc0_copy_init(struct drm_device *dev, int engine)
 		nv_wr32(dev, pcopy->fuc + 0x184, nvc0_pcopy_code[i]);
 	}
 
-	nv_wr32(dev, pcopy->fuc + 0x084, engine - PSCNV_ENGINE_COPY);
+	nv_wr32(dev, pcopy->fuc + 0x084, engine);
 	nv_wr32(dev, pcopy->fuc + 0x10c, 0x00000000);
 	nv_wr32(dev, pcopy->fuc + 0x104, 0x00000000); /* ENTRY */
 	nv_wr32(dev, pcopy->fuc + 0x100, 0x00000002); /* TRIGGER */
