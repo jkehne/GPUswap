@@ -38,6 +38,9 @@
 #define PSCNV_GETPARAM_VM_VRAM_BASE    12
 #define PSCNV_GETPARAM_GRAPH_UNITS     13
 #define PSCNV_GETPARAM_PTIMER_TIME     14
+#define PSCNV_GETPARAM_GPC_COUNT       15
+#define PSCNV_GETPARAM_TP_COUNT_IDX    16
+#define PSCNV_GETPARAM_BAR0_ADDR       17
 #define PSCNV_GETPARAM_MP_COUNT        100
 struct drm_pscnv_getparam {
 	uint64_t param;		/* < */

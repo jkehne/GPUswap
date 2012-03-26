@@ -11,6 +11,8 @@
 #include "nvc0_graph.h"
 #include "pscnv_kapi.h"
 
+#include "nvc0_pgraph.xml.h"
+
 #ifdef PSCNV_KAPI_GETPARAM_BUS_TYPE
 #define DEVICE_IS_AGP(dev) drm_device_is_agp(dev)
 #define DEVICE_IS_PCIE(dev) drm_device_is_pcie(dev)
@@ -28,7 +30,7 @@ int pscnv_ioctl_getparam(struct drm_device *dev, void *data,
 
 	NOUVEAU_CHECK_INITIALISED_WITH_RETURN;
 
-	switch (getparam->param) {
+	switch ((u32)getparam->param) {
 	case PSCNV_GETPARAM_MP_COUNT:
 		if (dev_priv->chipset < 0xc0)
 			goto fail;
@@ -57,6 +59,28 @@ int pscnv_ioctl_getparam(struct drm_device *dev, void *data,
 		break;
 	case PSCNV_GETPARAM_FB_SIZE:
 		getparam->value = dev_priv->vram_size;
+		break;
+	case PSCNV_GETPARAM_GPC_COUNT:
+		if (dev_priv->card_type < NV_C0)
+			goto fail;
+		getparam->value = nv_rd32(dev, NVC0_PGRAPH_CTXCTL_UNITS);
+		getparam->value &= NVC0_PGRAPH_CTXCTL_UNITS_GPC_COUNT__MASK;
+		break;
+	case PSCNV_GETPARAM_TP_COUNT_IDX: {
+		u32 i, units;
+		if (dev_priv->card_type < NV_C0)
+			goto fail;
+		units = nv_rd32(dev, NVC0_PGRAPH_CTXCTL_UNITS);
+		units &= NVC0_PGRAPH_CTXCTL_UNITS_GPC_COUNT__MASK;
+		i = getparam->param >> 32ULL;
+		if (i >= units)
+			goto fail;
+		getparam->value = nv_rd32(dev, NVC0_PGRAPH_GPC_CTXCTL_UNITS(i));
+		getparam->value &= NVC0_PGRAPH_GPC_CTXCTL_UNITS_TP_COUNT__MASK;
+		break;
+	}
+	case PSCNV_GETPARAM_BAR0_ADDR:
+		getparam->value = pci_resource_start(dev->pdev, 0);
 		break;
 	case PSCNV_GETPARAM_GRAPH_UNITS:
 		/* NV40 and NV50 versions are quite different, but register
