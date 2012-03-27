@@ -859,15 +859,6 @@ void
 nvc0_graph_chan_free(struct pscnv_engine *eng, struct pscnv_chan *ch)
 {
 	struct nvc0_graph_chan *grch = ch->engdata[PSCNV_ENGINE_GRAPH];
-	struct pscnv_vspace *vs = ch->vspace;
-
-	/* don't free memory for obj19848/0800c/08004 here. */
-	pscnv_vspace_unmap_node(nvc0_vs(vs)->obj19848);
-	pscnv_vspace_unmap_node(nvc0_vs(vs)->obj0800c);
-	pscnv_vspace_unmap_node(nvc0_vs(vs)->obj08004);
-
-	pscnv_vspace_unmap_node(nvc0_vs(vs)->mmio_vm);
-	pscnv_mem_free(nvc0_vs(vs)->mmio_bo);
 	pscnv_vspace_unmap_node(grch->grctx_vm);
 	pscnv_mem_free(grch->grctx);
 
