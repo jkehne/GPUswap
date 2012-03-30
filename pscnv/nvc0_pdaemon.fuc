@@ -1,0 +1,243 @@
+/* envyas -a -w -m fuc -V nva3 -o out.fuc.h */
+section #nvc0_pdaemon_pointers
+b32 #done
+b32 #mmwrs
+b32 #mmwr
+b32 #mmrd
+b32 #wait_mask_ext
+b32 #wait_mask_iord
+b32 #sleep
+b32 #enter_lock
+b32 #leave_lock
+
+section #nvc0_pdaemon_code
+init:
+   bclr $flags ie0
+   bclr $flags ie1
+   mov $r0 -1
+   clear b32 $r1
+   sethi $r1 0x80000000
+   mov $r2 0x800
+   mov $r3 0x5600
+   mov $sp $r3
+   st b32 D[$r3] $r0
+   add b32 $r3 $r3 4
+   bra #main
+
+done:
+   st b32 D[$r3] $r0
+   add b32 $r3 $r3 4
+   st b32 D[$r3] $r3
+   add b32 $r3 $r3 4
+   movw $r0 0xdead
+   sethi $r0 0xdead0000
+   push $r0
+   st b32 D[$r3] $r0
+   exit
+
+mmsync:
+   mov $r9 0
+   mmloop_:
+      push $r9
+      pop $r9
+      movw $r15 0xeb00
+      sethi $r15 0x10000
+      iord $r15 I[$r15]
+      add b32 $r9 $r9 1
+      extr $r15 $r15 12:14
+      bra nz #mmloop_
+   ret
+
+mmwrs:
+   push $r10
+   call #mmsync
+   movw $r15 0xe800
+   sethi $r15 0x10000
+   iowr I[$r15] $r10
+   add b32 $r15 0x100
+   iowr I[$r15] $r11
+   add b32 $r15 0x200
+   mov $r11 0xf2
+   sethi $r11 0x10000
+   iowr I[$r15] $r11
+   iord $r11 I[$r15]
+   call #mmsync
+   pop $r10
+   ret
+
+mmwr:
+   push $r10
+   call #mmsync
+   movw $r15 0xe800
+   sethi $r15 0x10000
+   iowr I[$r15] $r10
+   add b32 $r15 0x100
+   iowr I[$r15] $r11
+   add b32 $r15 0x200
+   mov $r11 0xf2
+   sethi $r11 0x10000
+   iowr I[$r15] $r11
+   iord $r11 I[$r15]
+   pop $r10
+   ret
+
+mmrd:
+   push $r10
+   call #mmsync
+   movw $r15 0xe800
+   sethi $r15 0x10000
+   iowr I[$r15] $r10
+   add b32 $r15 0x300
+   mov $r11 0xf1
+   sethi $r11 0x10000
+   iowr I[$r15] $r11
+   iord $r11 I[$r15]
+   call #mmsync
+   movw $r15 0xe900
+   sethi $r15 0x10000
+   pop $r10
+   iord $r10 I[$r15]
+   ret
+
+wait_mask_ext:
+   mov b32 $r6 $r10
+   mov b32 $r7 $r11
+   mov b32 $r8 $r12
+   mov b32 $r5 $r13
+   mov $r9 0xb00
+   iord $r4 I[$r9]
+   repeat_ext:
+      mov b32 $r10 $r6
+      call #mmrd
+      and $r12 $r10 $r7
+      mov $r10 0x1111
+      cmp b32 $r12 $r8
+      bra e #success_ext
+      mov $r9 0xb00
+      iord $r10 I[$r9]
+      sub b32 $r10 $r10 $r4
+      cmp b32 $r10 $r5
+      bra l #repeat_ext
+   mov $r10 0x999
+   success_ext:
+   ret
+
+wait_mask_iord:
+   movw $r9 0xb00
+   iord $r14 I[$r9]
+   repeat_iord:
+      iord $r15 I[$r10]
+      and $r15 $r15 $r11
+      cmp b32 $r15 $r12
+      bra e #success_iord
+      iord $r15 I[$r9]
+      sub b32 $r15 $r15 $r14
+      cmp b32 $r15 $r13
+      bra l #repeat_iord
+   mov $r10 0x4999
+   ret
+   success_iord:
+   mov $r10 0x4111
+   ret
+
+sleep:
+   mov $r11 0xb00
+   iord $r15 I[$r11]
+   add b32 $r15 $r10
+   sleeploop:
+      iord $r10 I[$r11]
+      sub b32 $r12 $r10 $r15
+      bra l #sleeploop
+   ret
+
+enter_lock:
+   mov $r10 0x1620
+   call #mmrd
+   mov b32 $r4 $r10
+   mov $r9 -0xaa3
+   and $r11 $r10 $r9
+   mov $r10 0x1620
+   call #mmwrs
+   mov $r10 0x1620
+   call #mmrd
+   bclr $r10 0
+   mov b32 $r11 $r10
+   mov $r10 0x1620
+   call #mmwrs
+
+   mov $r10 0x26f0
+   call #mmrd
+   mov b32 $r11 $r10
+   bclr $r11 0
+   mov $r10 0x26f0
+   call #mmwrs
+   movw $r10 0xf800
+   sethi $r10 0x10000
+
+   mov $r11 4
+   iowr I[$r10] $r11
+   iord $r11 I[$r10]
+   sub b32 $r10 $r10 0x700
+   enterloop:
+      iord $r11 I[$r10]
+      and $r11 4
+      bra z #enterloop
+   ret
+
+leave_lock:
+   movw $r10 0xf900
+   sethi $r10 0x10000
+   mov $r11 4
+   iowr I[$r10] $r11
+   iord $r11 I[$r10]
+   sub b32 $r10 $r10 0x800
+   leaveloop:
+      iord $r11 I[$r10]
+      and $r11 4
+      bra nz #leaveloop
+
+   mov $r10 0x26f0
+   call #mmrd
+   mov b32 $r10 $r11
+   bset $r11 0
+   mov $r10 0x26f0
+   call #mmwrs
+
+   mov $r10 0x1620
+   call #mmrd
+   bset $r10 0
+   mov b32 $r11 $r10
+   mov $r10 0x1620
+   call #mmwrs
+   mov $r10 0x1620
+   call #mmrd
+   mov $r12 0xaa2
+   or $r11 $r10 $r12
+   mov $r10 0x1620
+   call #mmwrs
+   ret
+
+main:
+   ld b32 $r9 D[$r2]
+   ld b32 $r15 D[$r2 + 4]
+   ld b32 $r10 D[$r2 + 8]
+   ld b32 $r11 D[$r2 + 0xc]
+   ld b32 $r12 D[$r2 + 0x10]
+   ld b32 $r13 D[$r2 + 0x14]
+   and $r0 $r9 $r1
+   add b32 $r2 $r2 $r9
+
+   st b32 D[$r3] $r2
+   st b32 D[$r3+4] $r15
+   st b32 D[$r3+8] $r10
+   add b32 $r3 0xc
+
+   call $r15
+
+   cmp b32 $r0 $r1
+   bra ne #main
+   st b32 D[$r3] $r10
+   add b32 $r3 4
+   bra #main
+align 256
+

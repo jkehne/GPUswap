@@ -557,8 +557,9 @@ nouveau_mem_exec(struct nouveau_mem_exec_func *exec,
 	struct drm_nouveau_private *dev_priv = exec->dev->dev_private;
 	struct nouveau_pm_memtiming *info = &perflvl->timing;
 	u32 tMRD = 1000, tCKSRE = 0, tCKSRX = 0, tXS = 0, tDLLK = 0;
-	u32 mr[3] = { info->mr[0], info->mr[1], info->mr[2] };
+	u32 mr[9] = { info->mr[0], info->mr[1], info->mr[2] };
 	u32 mr1_dlloff;
+	int i;
 
 	switch (dev_priv->vram_type) {
 	case NV_MEM_TYPE_DDR2:
@@ -585,6 +586,9 @@ nouveau_mem_exec(struct nouveau_mem_exec_func *exec,
 	/* fetch current MRs */
 	switch (dev_priv->vram_type) {
 	case NV_MEM_TYPE_GDDR5:
+		mr[8] = exec->mrg(exec, 15);
+		for (i = 7; i >= 3; --i)
+			mr[i] = exec->mrg(exec, i);
 	case NV_MEM_TYPE_GDDR3:
 	case NV_MEM_TYPE_DDR3:
 		mr[2] = exec->mrg(exec, 2);
@@ -594,17 +598,24 @@ nouveau_mem_exec(struct nouveau_mem_exec_func *exec,
 		break;
 	}
 
-	/* DLL 'on' -> DLL 'off' mode, disable before entering self-refresh  */
-	if (!(mr[1] & mr1_dlloff) && (info->mr[1] & mr1_dlloff)) {
+	if (dev_priv->vram_type < NV_MEM_TYPE_GDDR5) {
+		/* DLL 'on' -> DLL 'off' mode, disable before entering self-refresh  */
+		if (!(mr[1] & mr1_dlloff) && (info->mr[1] & mr1_dlloff)) {
+			exec->precharge(exec);
+			exec->mrs (exec, 1, mr[1] | mr1_dlloff);
+			exec->wait(exec, tMRD);
+		}
+		/* enter self-refresh mode */
 		exec->precharge(exec);
-		exec->mrs (exec, 1, mr[1] | mr1_dlloff);
-		exec->wait(exec, tMRD);
+		exec->refresh(exec);
+		exec->refresh(exec);
+	} else if (dev_priv->vram_type == NV_MEM_TYPE_GDDR5) {
+		u32 dtold = mr[1] & 0xc, dtnew = info->mr[1] & 0xc;
+		if (dtold < dtnew) {
+			exec->mrs(exec, 1, info->mr[1]);
+			mr[1] = info->mr[1];
+		}
 	}
-
-	/* enter self-refresh mode */
-	exec->precharge(exec);
-	exec->refresh(exec);
-	exec->refresh(exec);
 	exec->refresh_auto(exec, false);
 	exec->refresh_self(exec, true);
 	exec->wait(exec, tCKSRE);
@@ -640,7 +651,13 @@ nouveau_mem_exec(struct nouveau_mem_exec_func *exec,
 	exec->timing_set(exec);
 
 	/* DLL (enable + ) reset */
-	if (!(info->mr[1] & mr1_dlloff)) {
+	if (dev_priv->vram_type == NV_MEM_TYPE_GDDR5) {
+		for (i = 3; i < 8; ++i)
+			if (mr[i] != info->mr[i])
+				exec->mrs(exec, i, info->mr[i]);
+		if (mr[8] != info->mr[8])
+			exec->mrs(exec, 15, info->mr[8]);
+	} else if (!(info->mr[1] & mr1_dlloff)) {
 		if (mr[1] & mr1_dlloff) {
 			exec->mrs (exec, 1, info->mr[1]);
 			exec->wait(exec, tMRD);
@@ -650,8 +667,7 @@ nouveau_mem_exec(struct nouveau_mem_exec_func *exec,
 		exec->mrs (exec, 0, info->mr[0] | 0x00000000);
 		exec->wait(exec, tMRD);
 		exec->wait(exec, tDLLK);
-		if (dev_priv->vram_type == NV_MEM_TYPE_GDDR3 ||
-		    dev_priv->vram_type == NV_MEM_TYPE_GDDR5)
+		if (dev_priv->vram_type == NV_MEM_TYPE_GDDR3)
 			exec->precharge(exec);
 	}
 

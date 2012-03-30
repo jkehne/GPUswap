@@ -27,6 +27,21 @@
 #include "nouveau_bios.h"
 #include "nouveau_pm.h"
 
+#include "nvc0_pdaemon.fuc.h"
+
+/* this should match nvc0_pdaemon_pointers section in nvc0_pdaemon.fuc */
+enum fuc_ops {
+   fuc_ops_done = 0,
+   fuc_ops_mmwrs,
+   fuc_ops_mmwr,
+   fuc_ops_mmrd,
+   fuc_ops_wait_mask_ext,
+   fuc_ops_wait_mask_iord,
+   fuc_ops_sleep,
+   fuc_ops_enter_lock,
+   fuc_ops_leave_lock
+};
+
 static u32 read_div(struct drm_device *, int, u32, u32);
 static u32 read_pll(struct drm_device *, u32);
 
@@ -164,7 +179,12 @@ struct nvc0_pm_clock {
 };
 
 struct nvc0_pm_state {
+	struct drm_device *dev;
+	struct nouveau_pm_level *perflvl;
 	struct nvc0_pm_clock eng[16];
+	struct nvc0_pm_clock mem;
+	u32 mem_out[0x400];
+	u32 mem_pos;
 };
 
 static u32
@@ -303,6 +323,131 @@ calc_clk(struct drm_device *dev, int clk, struct nvc0_pm_clock *info, u32 freq)
 	return 0;
 }
 
+
+static u32 link_magic[48] = {
+	0x00000000, 0xffffffff, 0x55555555, 0xaaaaaaaa, 0x33333333, 0xcccccccc,
+	0xf0f0f0f0, 0x0f0f0f0f, 0x00ff00ff, 0xff00ff00, 0x0000ffff, 0xffff0000,
+	0x00000000, 0xffffffff, 0x55555555, 0xaaaaaaaa, 0x33333333, 0xcccccccc,
+	0xf0f0f0f0, 0x0f0f0f0f, 0x00ff00ff, 0xff00ff00, 0x0000ffff, 0xffff0000,
+	0x00000000, 0xffffffff, 0x55555555, 0xaaaaaaaa, 0x33333333, 0xcccccccc,
+	0xf0f0f0f0, 0x0f0f0f0f, 0x00ff00ff, 0xff00ff00, 0x0000ffff, 0xffff0000,
+	0x00000000, 0xffffffff, 0x55555555, 0xaaaaaaaa, 0x33333333, 0xcccccccc,
+	0xf0f0f0f0, 0x0f0f0f0f, 0x00ff00ff, 0xff00ff00, 0x0000ffff, 0xffff0000
+};
+
+static void init_mem(struct drm_device *dev)
+{
+	int i;
+	/* Hammer in the magic values once */
+	for (i = 0; i < sizeof(link_magic)/sizeof(*link_magic); ++i) {
+		u32 p = link_magic[i] & 0xf;
+		p |= p << 8;
+		nv_wr32(dev, 0x10f968, i<<8);
+		nv_wr32(dev, 0x10f96c, i<<8);
+		nv_wr32(dev, 0x10f920, p | 0x100);
+		nv_wr32(dev, 0x10f924, p | 0x100);
+		nv_wr32(dev, 0x10f918, link_magic[i]);
+		nv_wr32(dev, 0x10f91c, link_magic[i]);
+		nv_wr32(dev, 0x10f920, p);
+		nv_wr32(dev, 0x10f924, p);
+		nv_wr32(dev, 0x10f918, link_magic[i]);
+		nv_wr32(dev, 0x10f91c, link_magic[i]);
+	}
+
+	/* Overwrite PDAEMON with our script, but make sure it's dead first..
+	 * This is unsafe if using PWM to drive fan speed
+	 */
+	nv_mask(dev, 0x200, 0x2000, 0);
+	nv_mask(dev, 0x200, 0x2000, 0x2000);
+
+	nv_wr32(dev, 0x10a180, 0x01000000);
+	for (i = 0; i < sizeof(nvc0_pdaemon_code)/sizeof(*nvc0_pdaemon_code); ++i) {
+		if (i % 64 == 0)
+			nv_wr32(dev, 0x10a188, i >> 6);
+		nv_wr32(dev, 0x10a184, nvc0_pdaemon_code[i]);
+	}
+}
+
+static int run_mem(struct drm_device *dev, struct nvc0_pm_state *state)
+{
+	int i;
+	/* Upload our script to D[0x800] onward */
+	nv_wr32(dev, 0x10a1c0, 0x01000800);
+	for (i = 0; i < state->mem_pos; ++i)
+		nv_wr32(dev, 0x10a1c4, state->mem_out[i]);
+
+	/* Clear area around stack pointer (used for debug mode mostly) */
+	nv_wr32(dev, 0x10a1c0, 0x010055c0);
+	for (i = 0; i < 0x440; i += 4)
+		nv_wr32(dev, 0x10a1c4, 0);
+
+	/* Fire! */
+	nv_wr32(dev, 0x10a104, 0);
+	nv_wr32(dev, 0x10a10c, 0);
+	nv_wr32(dev, 0x10a100, 2);
+
+	if (!nv_wait(dev, 0x10a100, 0x10, 0x10)) {
+		NV_ERROR(dev, "Reclocking failed! Card may be unstable or gone off the bus entirely!\n");
+		return -EINVAL;
+	}
+	return 0;
+}
+
+static int
+calc_mem(struct drm_device *dev, struct nvc0_pm_clock *info, u32 freq)
+{
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct pll_lims pll;
+	int N, M, P, ret;
+	u32 ctrl;
+
+	if (dev_priv->engine.pm.cur == &dev_priv->engine.pm.boot)
+		init_mem(dev);
+
+	/* mclk pll input freq comes from another pll, make sure it's on */
+	ctrl = nv_rd32(dev, 0x132020);
+	if (!(ctrl & 0x00000001)) {
+		/* if not, program it to 567MHz.  nfi where this value comes
+		 * from - it looks like it's in the pll limits table for
+		 * 132000 but the binary driver ignores all my attempts to
+		 * change this value.
+		 */
+		nv_wr32(dev, 0x137320, 0x00000103);
+		nv_wr32(dev, 0x137330, 0x81200606);
+		nv_wait(dev, 0x132020, 0x00010000, 0x00010000);
+		nv_wr32(dev, 0x132024, 0x0001160f);
+		nv_mask(dev, 0x132020, 0x00000001, 0x00000001);
+		nv_wait(dev, 0x137390, 0x00020000, 0x00020000);
+		nv_mask(dev, 0x132020, 0x00000004, 0x00000004);
+	}
+
+	/* for the moment, until the clock tree is better understood, use
+	 * pll mode for all clock frequencies
+	 */
+	ret = get_pll_limits(dev, 0x132000, &pll);
+	if (ret == 0) {
+		pll.refclk = read_pll(dev, 0x132020);
+		if (pll.refclk) {
+			ret = nva3_calc_pll(dev, &pll, freq, &N, NULL, &M, &P);
+			if (ret > 0) {
+				info->coef = (P << 16) | (N << 8) | M;
+				info->freq = ret;
+				info->ddiv = nv_rd32(dev, 0x137310) | 0x08000000;
+				info->ddiv = (info->ddiv & ~0x3f) | ((info->ddiv & 0x3f00)>>8);
+				NV_WARN(dev, "freq %u, 132004: %x 137310: %x", ret, info->coef, info->ddiv);
+				return 0;
+			} else {
+				info->freq = calc_src(dev, 0, freq, &info->dsrc, &info->ddiv);
+				info->ddiv |= nv_rd32(dev, 0x137310) & 0xf7ffff00;
+				NV_WARN(dev, "freq %u 137310: %08x\n", freq, info->ddiv);
+				return 0;
+			}
+		}
+	}
+
+	return -EINVAL;
+}
+
 void *
 nvc0_pm_clocks_pre(struct drm_device *dev, struct nouveau_pm_level *perflvl)
 {
@@ -334,7 +479,16 @@ nvc0_pm_clocks_pre(struct drm_device *dev, struct nouveau_pm_level *perflvl)
 		kfree(info);
 		return ERR_PTR(ret);
 	}
+	if (perflvl->memory && dev_priv->engine.pm.cur->memory != perflvl->memory && dev_priv->vram_type == NV_MEM_TYPE_GDDR5) {
+		ret = calc_mem(dev, &info->mem, perflvl->memory);
+		if (ret) {
+			kfree(info);
+			return ERR_PTR(ret);
+		}
+	}
 
+	info->perflvl = perflvl;
+	info->dev = dev;
 	return info;
 }
 
@@ -375,11 +529,268 @@ prog_clk(struct drm_device *dev, int clk, struct nvc0_pm_clock *info)
 	nv_mask(dev, 0x137250 + (clk * 0x04), 0x00003f3f, info->mdiv);
 }
 
+static void fuc_emit(struct nvc0_pm_state *info, enum fuc_ops func, u32 len_args, u32 args[], u32 saveret)
+{
+	u32 j;
+	info->mem_out[info->mem_pos++] = (8 + 4 * len_args) | (saveret << 31);
+	info->mem_out[info->mem_pos++] = nvc0_pdaemon_pointers[func];
+	for (j = 0; j < len_args; ++j)
+		info->mem_out[info->mem_pos++] = args[j];
+
+	switch (func) {
+		case fuc_ops_mmwrs:
+			NV_INFO(info->dev, "mmwrs(%#x, %#x)\n", args[0], args[1]);
+			break;
+		case fuc_ops_mmwr:
+			NV_INFO(info->dev, "mmwr(%#x, %#x)\n", args[0], args[1]);
+			break;
+		case fuc_ops_mmrd:
+			NV_INFO(info->dev, "mmrd(%#x)\n", args[0]);
+			break;
+		case fuc_ops_wait_mask_ext:
+			NV_INFO(info->dev, "wait(%#x, %#x, %#x, %u)\n", args[0], args[1], args[2], args[3]);
+			break;
+		case fuc_ops_wait_mask_iord:
+			NV_INFO(info->dev, "wait(I[%#x], %#x, %#x, %u)\n", args[0], args[1], args[2], args[3]);
+			break;
+		case fuc_ops_sleep:
+			NV_INFO(info->dev, "nsleep(%u)\n", args[0]);
+			break;
+		case fuc_ops_enter_lock:
+			NV_INFO(info->dev, "enter_lock()\n");
+			break;
+		case fuc_ops_leave_lock:
+			NV_INFO(info->dev, "leave_lock()\n");
+			break;
+		case fuc_ops_done:
+			NV_INFO(info->dev, "exit()\n");
+			break;
+		default:
+			NV_ERROR(info->dev, "unknown op %i\n", func);
+			break;
+	}
+}
+
+static void fuc_wr32(struct nvc0_pm_state *info, u32 dst, u32 val)
+{
+	u32 args[2] = { dst, val };
+	fuc_emit(info, fuc_ops_mmwr, 2, args, 0);
+}
+
+static void fuc_sleep(struct nvc0_pm_state *info, u32 duration)
+{
+	u32 args[2];
+	if (!duration)
+		return;
+	if (duration < 1000) {
+		args[0] = 0x13d974; // XXX: nvc4 uses a different one what about d9?
+		args[1] = 0;
+		fuc_emit(info, fuc_ops_mmwr, 2, args, 0);
+	} else {
+		args[0] = 0;
+		args[1] = 0;
+		fuc_emit(info, fuc_ops_mmrd, 2, args, 1);
+	}
+	args[0] = duration;
+	fuc_emit(info, fuc_ops_sleep, 1, args, 0);
+}
+
+static void fuc_wait(struct nvc0_pm_state *info, u32 reg, u32 mask, u32 val, u32 duration)
+{
+	u32 args[4] = { reg, mask, val, duration };
+	fuc_emit(info, fuc_ops_wait_mask_ext, 4, args, 1);
+}
+
+static void fuc_enter_lock(struct nvc0_pm_state *info)
+{
+	struct drm_nouveau_private *dev_priv = info->dev->dev_private;
+	u32 args[4] = { 0x1f100, 4, 0, 50000000 };
+	fuc_emit(info, fuc_ops_wait_mask_iord, 4, args, 1);
+	args[2] = args[1];
+	fuc_emit(info, fuc_ops_wait_mask_iord, 4, args, 1);
+
+	if (dev_priv->chipset < 0xd0)
+		fuc_wr32(info, 0x611200, 0x00003300);
+	else
+		fuc_wr32(info, 0x62c000, 0x03030000);
+	fuc_emit(info, fuc_ops_enter_lock, 0, 0, 0);
+}
+
+static void fuc_leave_lock(struct nvc0_pm_state *info)
+{
+	struct drm_nouveau_private *dev_priv = info->dev->dev_private;
+	if (dev_priv->chipset < 0xd0)
+		fuc_wr32(info, 0x611200, 0x00003300);
+	else
+		fuc_wr32(info, 0x62c000, 0x03030300);
+}
+
+static void
+mclk_precharge(struct nouveau_mem_exec_func *exec)
+{
+	fuc_wr32(exec->priv, 0x10f314, 1);
+}
+
+static void
+mclk_refresh(struct nouveau_mem_exec_func *exec)
+{
+	fuc_wr32(exec->priv, 0x10f310, 1);
+}
+
+static void
+mclk_refresh_auto(struct nouveau_mem_exec_func *exec, bool enable)
+{
+	fuc_wr32(exec->priv, 0x10f210, enable ? 0x80000000 : 0x00000000);
+}
+
+static void
+mclk_refresh_self(struct nouveau_mem_exec_func *exec, bool enable)
+{
+}
+
+static void
+mclk_wait(struct nouveau_mem_exec_func *exec, u32 nsec)
+{
+	fuc_sleep(exec->priv, nsec);
+}
+
+static u32
+mclk_mrg(struct nouveau_mem_exec_func *exec, int mr)
+{
+	struct drm_device *dev = exec->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	if (dev_priv->vram_type != NV_MEM_TYPE_GDDR5) {
+		if (mr <= 1)
+			return nv_rd32(dev, 0x10f300 + ((mr - 0) * 4));
+		return nv_rd32(dev, 0x10f320 + ((mr - 2) * 4));
+	} else {
+		if (mr == 0)
+			return nv_rd32(dev, 0x10f300 + (mr * 4));
+		else
+		if (mr <= 7)
+			return nv_rd32(dev, 0x10f32c + (mr * 4));
+		return nv_rd32(dev, 0x10f34c);
+	}
+}
+
+static void
+mclk_mrs(struct nouveau_mem_exec_func *exec, int mr, u32 data)
+{
+	struct drm_device *dev = exec->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	if (dev_priv->vram_type != NV_MEM_TYPE_GDDR5) {
+		if (mr <= 1) {
+			fuc_wr32(exec->priv, 0x10f300 + ((mr - 0) * 4), data);
+			if (dev_priv->vram_rank_B)
+				fuc_wr32(exec->priv, 0x10f308 + ((mr - 0) * 4), data);
+		} else
+		if (mr <= 3) {
+			fuc_wr32(exec->priv, 0x10f320 + ((mr - 2) * 4), data);
+			if (dev_priv->vram_rank_B)
+				fuc_wr32(exec->priv, 0x10f328 + ((mr - 2) * 4), data);
+		}
+	} else {
+		if      (mr ==  0) fuc_wr32(exec->priv, 0x10f300 + (mr * 4), data);
+		else if (mr <=  7) fuc_wr32(exec->priv, 0x10f32c + (mr * 4), data);
+		else if (mr == 15) fuc_wr32(exec->priv, 0x10f34c, data);
+	}
+}
+
+static void
+mclk_clock_set(struct nouveau_mem_exec_func *exec)
+{
+#if 0
+	struct nvc0_pm_state *info = exec->priv;
+	struct drm_device *dev = exec->dev;
+	u32 ctrl = nv_rd32(dev, 0x132000);
+
+	nv_wr32(dev, 0x137360, 0x00000001);
+	nv_wr32(dev, 0x137370, 0x00000000);
+	nv_wr32(dev, 0x137380, 0x00000000);
+	if (ctrl & 0x00000001)
+		nv_wr32(dev, 0x132000, (ctrl &= ~0x00000001));
+
+	nv_wr32(dev, 0x132004, info->mem.coef);
+	nv_wr32(dev, 0x132000, (ctrl |= 0x00000001));
+	nv_wait(dev, 0x137390, 0x00000002, 0x00000002);
+	nv_wr32(dev, 0x132018, 0x00005000);
+
+	nv_wr32(dev, 0x137370, 0x00000001);
+	nv_wr32(dev, 0x137380, 0x00000001);
+	nv_wr32(dev, 0x137360, 0x00000000);
+#endif
+}
+
+static void
+mclk_timing_set(struct nouveau_mem_exec_func *exec)
+{
+	struct nvc0_pm_state *info = exec->priv;
+	struct nouveau_pm_level *perflvl = info->perflvl;
+	int i;
+	int pll = info->mem.coef;
+
+	for (i = 0; i < 5; i++) {
+		u32 val = perflvl->timing.reg[i];
+		if (i == 3 && pll)
+			val &= ~0xff;
+		fuc_wr32(exec->priv, 0x10f290 + (i * 4), val);
+	}
+}
+
+static void
+prog_mem(struct drm_device *dev, struct nvc0_pm_state *info)
+{
+	struct nouveau_mem_exec_func exec = {
+		.dev = dev,
+		.precharge = mclk_precharge,
+		.refresh = mclk_refresh,
+		.refresh_auto = mclk_refresh_auto,
+		.refresh_self = mclk_refresh_self,
+		.wait = mclk_wait,
+		.mrg = mclk_mrg,
+		.mrs = mclk_mrs,
+		.clock_set = mclk_clock_set,
+		.timing_set = mclk_timing_set,
+		.priv = info
+	};
+	int i, pll = info->mem.coef, mcs = nv_rd32(dev, 0x121c74);
+
+	return; /* Not yet.. */
+	if (pll) {
+		
+	}
+
+	fuc_enter_lock(info);
+	nouveau_mem_exec(&exec, info->perflvl);
+	if (pll) {
+		fuc_wr32(info, 0x10f910, 0x800e1008);
+		fuc_wr32(info, 0x10f914, 0x800e1008);
+		for (i = 0; i < mcs; ++i)
+			fuc_wait(info, 0x110974 + i * 0x1000, 0xf, 0, 500000);
+	} else {
+		fuc_wr32(info, 0x10f910, 0x80021001);
+		fuc_wr32(info, 0x10f914, 0x80021001);
+		for (i = 0; i < mcs; ++i)
+			fuc_wait(info, 0x110974 + i * 0x1000, 0xf, 0, 500000);
+		fuc_wr32(info, 0x10f910, 0x80081001);
+		fuc_wr32(info, 0x10f914, 0x80081001);
+		for (i = 0; i < mcs; ++i)
+			fuc_wait(info, 0x110974 + i * 0x1000, 0xf, 0, 500000);
+	}
+	fuc_leave_lock(info);
+
+	run_mem(dev, info);
+}
+
 int
 nvc0_pm_clocks_set(struct drm_device *dev, void *data)
 {
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct nvc0_pm_state *info = data;
 	int i;
+
+	if (info->mem.freq && dev_priv->vram_type == NV_MEM_TYPE_GDDR5)
+		prog_mem(dev, info);
 
 	for (i = 0; i < 16; i++) {
 		if (!info->eng[i].freq)

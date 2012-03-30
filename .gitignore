@@ -1,8 +1,8 @@
 .hg/*
 *.cmd
 *.o
-*.fuc.h
-nv98_crypt_fuc.h
+pscnv/*.fuc.h
+pscnv/nv98_crypt_fuc.h
 pscnv/.tmp_versions
 pscnv/Module.symvers
 pscnv/modules.order
