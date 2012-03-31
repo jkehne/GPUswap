@@ -756,10 +756,25 @@ prog_mem(struct drm_device *dev, struct nvc0_pm_state *info)
 	int i, pll = info->mem.coef, mcs = nv_rd32(dev, 0x121c74);
 
 	return; /* Not yet.. */
+	fuc_emit(info, fuc_ops_done, 0, 0, 0);
+
 	if (pll) {
-		
+		fuc_wr32(info, 0x10fb04, 0x55550000);
+		fuc_wr32(info, 0x10fb08, 0x55550000);
+		// Why do you look like a PLL so much?
+		fuc_wr32(info, 0x10f988, 0x2004ff00);
+		fuc_wr32(info, 0x10f98c, 0x3fc040);
+		fuc_wr32(info, 0x10f990, 0x20012001);
+		fuc_wr32(info, 0x10f998, 0x11a00);
+		fuc_sleep(info, 1000);
+	} else {
+		fuc_wr32(info, 0x10f988, 0x20010000);
+		fuc_wr32(info, 0x10f98c, 0);
+		fuc_wr32(info, 0x10f990, 0x20012001);
+		fuc_wr32(info, 0x10f998, 0x11a00);
 	}
 
+	fuc_wr32(info, 0x100b0c, (nv_rd32(dev, 0x100b0c) & ~0xff) | 0x12);
 	fuc_enter_lock(info);
 	nouveau_mem_exec(&exec, info->perflvl);
 	if (pll) {
@@ -778,8 +793,17 @@ prog_mem(struct drm_device *dev, struct nvc0_pm_state *info)
 			fuc_wait(info, 0x110974 + i * 0x1000, 0xf, 0, 500000);
 	}
 	fuc_leave_lock(info);
-
+	if (pll) {
+		fuc_sleep(info, 100000);
+		fuc_wr32(info, 0x10f9b0, 0x5313f41);
+		fuc_wr32(info, 0x10f9b4, 0x2f50);
+		fuc_wr32(info, 0x10f910, 0x10c1001);
+		fuc_wr32(info, 0x10f914, 0x10c1001);
+	}
+	fuc_wr32(info, 0x100b0c, nv_rd32(dev, 0x100b0c));
+	fuc_emit(info, fuc_ops_done, 0, 0, 0);
 	run_mem(dev, info);
+	nv_mask(dev, 0x10f200, 0x800, 0x800);
 }
 
 int
