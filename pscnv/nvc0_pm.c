@@ -185,6 +185,7 @@ struct nvc0_pm_state {
 	struct nvc0_pm_clock mem;
 	u32 mem_out[0x400];
 	u32 mem_pos;
+	u32 mem_10f808;
 };
 
 static u32
@@ -640,6 +641,10 @@ mclk_refresh(struct nouveau_mem_exec_func *exec)
 static void
 mclk_refresh_auto(struct nouveau_mem_exec_func *exec, bool enable)
 {
+	if (!enable) {
+		fuc_wr32(exec->priv, 0x10f200, nv_rd32(exec->dev, 0x10f200) & ~0x800);
+		fuc_wr32(exec->priv, 0x10f808, nv_rd32(exec->dev, 0x10f808) & ~0); // XXX: What mask? None noticed..
+	}
 	fuc_wr32(exec->priv, 0x10f210, enable ? 0x80000000 : 0x00000000);
 }
 
@@ -699,12 +704,13 @@ mclk_mrs(struct nouveau_mem_exec_func *exec, int mr, u32 data)
 static void
 mclk_clock_set(struct nouveau_mem_exec_func *exec)
 {
-#if 0
 	struct nvc0_pm_state *info = exec->priv;
 	struct drm_device *dev = exec->dev;
 	u32 ctrl = nv_rd32(dev, 0x132000);
+	u32 pll = info->mem.coef;
 
 	nv_wr32(dev, 0x137360, 0x00000001);
+#if 0
 	nv_wr32(dev, 0x137370, 0x00000000);
 	nv_wr32(dev, 0x137380, 0x00000000);
 	if (ctrl & 0x00000001)
@@ -718,23 +724,53 @@ mclk_clock_set(struct nouveau_mem_exec_func *exec)
 	nv_wr32(dev, 0x137370, 0x00000001);
 	nv_wr32(dev, 0x137380, 0x00000001);
 	nv_wr32(dev, 0x137360, 0x00000000);
+#else
+//up: 10f824: 0x7e77 -> 0x7fd4 (setting 0x100, altering low bits
+//down: 10f824: 0x7fd4 -> 0x7e54 (old & 0x77) -> 7e77 (setting new bits)
+
+	fuc_wr32(info, 0x10f090, 0x61);
+	fuc_wr32(info, 0x10f090, 0xc000007f);
+	fuc_sleep(info, 1000);
+	if (pll) {
+		fuc_wr32(info, 0x10f824, (nv_rd32(dev, 0x10f824) & ~0xff) | 0x1d4);
+		fuc_wr32(info, 0x10f800, nv_rd32(dev, 0x10f800) & ~0x4);
+		fuc_sleep(info, 558);
+	}
+	// Bla bla clock stuff
+	fuc_sleep(info, 2000);
+	// 10f808, 10f830, 10f200 132000
+	fuc_wr32(info, 0x10f090, 0x4000007e);
+	fuc_sleep(info, 2000);
 #endif
 }
 
 static void
 mclk_timing_set(struct nouveau_mem_exec_func *exec)
 {
+	struct drm_device *dev = exec->dev;
 	struct nvc0_pm_state *info = exec->priv;
 	struct nouveau_pm_level *perflvl = info->perflvl;
 	int i;
 	int pll = info->mem.coef;
+	u32 reg;
 
 	for (i = 0; i < 5; i++) {
 		u32 val = perflvl->timing.reg[i];
 		if (i == 3 && pll)
 			val &= ~0xff;
-		fuc_wr32(exec->priv, 0x10f290 + (i * 4), val);
+		fuc_wr32(info, 0x10f290 + (i * 4), val);
 	}
+	if (pll) {
+		reg = nv_rd32(dev, 0x10f604);
+		if (!reg & 0x01000000)
+			fuc_wr32(info, 0x10f604, reg | 0x01000000);
+		fuc_wr32(info, 0x10f614, (nv_rd32(dev, 0x10f614) & ~0x100) | 0x20000000);
+		fuc_wr32(info, 0x10f610, (nv_rd32(dev, 0x10f610) & ~0x100) | 0x20000000);
+	} else {
+		fuc_wr32(info, 0x10f614, (nv_rd32(dev, 0x10f614) & ~0x20000000) | 0x100);
+		fuc_wr32(info, 0x10f610, (nv_rd32(dev, 0x10f610) & ~0x20000000) | 0x100);
+	}
+	fuc_wr32(info, 0x10f808, info->mem_10f808);
 }
 
 static void
@@ -782,6 +818,7 @@ prog_mem(struct drm_device *dev, struct nvc0_pm_state *info)
 		fuc_wr32(info, 0x10f914, 0x800e1008);
 		for (i = 0; i < mcs; ++i)
 			fuc_wait(info, 0x110974 + i * 0x1000, 0xf, 0, 500000);
+		fuc_wr32(info, 0x10f800, nv_rd32(info->dev, 0x10f800));
 	} else {
 		fuc_wr32(info, 0x10f910, 0x80021001);
 		fuc_wr32(info, 0x10f914, 0x80021001);
