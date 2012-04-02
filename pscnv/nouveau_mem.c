@@ -498,7 +498,7 @@ nouveau_mem_timing_read(struct drm_device *dev, struct nouveau_pm_memtiming *t)
 		timing_regs = 9;
 		break;
 	case NV_C0:
-//	case NV_D0:
+	case NV_D0:
 		timing_regs = 5;
 		break;
 	case NV_30:
