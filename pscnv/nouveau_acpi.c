@@ -5,11 +5,10 @@
 #include <acpi/acpi_bus.h>
 #include <acpi/video.h>
 
-#include "drmP.h"
+#include "nouveau_drv.h"
 #include "drm.h"
 #include "drm_sarea.h"
 #include "drm_crtc_helper.h"
-#include "nouveau_drv.h"
 #include "nv50_display.h"
 #include "nouveau_connector.h"
 

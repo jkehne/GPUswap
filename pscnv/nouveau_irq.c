@@ -30,7 +30,6 @@
  *   Ben Skeggs <darktama@iinet.net.au>
  */
 
-#include "drmP.h"
 #include "drm.h"
 #include "pscnv_drm.h"
 #include "nouveau_drv.h"

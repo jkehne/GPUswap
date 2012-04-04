@@ -23,6 +23,7 @@
 #ifndef __NOUVEAU_I2C_H__
 #define __NOUVEAU_I2C_H__
 
+#ifdef __linux__
 #include <linux/i2c.h>
 #ifdef PSCNV_KAPI_I2C_ID
 #include <linux/i2c-id.h>
@@ -31,6 +32,13 @@
 #endif
 #include <linux/i2c-algo-bit.h>
 #include "drm_dp_helper.h"
+
+#else /* __linux __ */
+
+struct i2c_adapter {};
+struct i2c_algo_bit_data {};
+struct i2c_board_info;
+#endif
 
 struct dcb_i2c_entry;
 

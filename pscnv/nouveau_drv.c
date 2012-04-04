@@ -28,10 +28,9 @@
 #endif
 #include <linux/module.h>
 
-#include "drmP.h"
+#include "nouveau_drv.h"
 #include "drm.h"
 #include "drm_crtc_helper.h"
-#include "nouveau_drv.h"
 #include "nouveau_pm.h"
 #include "pscnv_gem.h"
 #include "pscnv_vm.h"

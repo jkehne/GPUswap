@@ -24,10 +24,9 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-#include "drmP.h"
+#include "nouveau_drv.h"
 #include "drm_crtc_helper.h"
 
-#include "nouveau_drv.h"
 #include "nouveau_encoder.h"
 #include "nouveau_connector.h"
 #include "nouveau_crtc.h"

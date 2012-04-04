@@ -25,6 +25,12 @@
 #ifndef __NOUVEAU_DRV_H__
 #define __NOUVEAU_DRV_H__
 
+#ifndef __linux__
+#include "bsd_support.h"
+#else
+#include "drmP.h"
+#endif
+
 #define DRIVER_AUTHOR		"Stephane Marchesin"
 #define DRIVER_EMAIL		"dri-devel@lists.sourceforge.net"
 
@@ -109,12 +115,13 @@ struct nouveau_channel {
 		int put;
 		/* access via pushbuf_bo */
 	} dma;
-
+#ifdef CONFIG_DEBUGFS
 	struct {
 		bool active;
 		char name[32];
 		struct drm_info_list info;
 	} debugfs;
+#endif
 };
 
 struct nouveau_display_engine {
@@ -921,9 +928,6 @@ extern int  nv40_fb_init(struct drm_device *);
 extern void nv40_fb_takedown(struct drm_device *);
 extern void nv40_fb_set_region_tiling(struct drm_device *, int, uint32_t,
 				      uint32_t, uint32_t);
-/* nv50_fb.c */
-extern int  nv50_fb_init(struct drm_device *);
-extern void nv50_fb_takedown(struct drm_device *);
 
 /* nv50_fb.c */
 extern int  nv50_fb_init(struct drm_device *);
@@ -1266,6 +1270,7 @@ static inline void nv_wi32(struct drm_device *dev, unsigned offset, u32 val)
  * Logging
  * Argument d is (struct drm_device *).
  */
+#ifdef __linux__
 #define NV_PRINTK(level, d, fmt, arg...) \
 	printk(level "[" DRM_NAME "] " DRIVER_NAME " %s: " fmt, \
 					pci_name(d->pdev), ##arg)
@@ -1297,6 +1302,16 @@ static inline void nv_wi32(struct drm_device *dev, unsigned offset, u32 val)
 #define NV_TRACEWARN(d, fmt, arg...) NV_PRINTK(KERN_NOTICE, d, fmt, ##arg)
 #define NV_TRACE(d, fmt, arg...) NV_PRINTK(KERN_INFO, d, fmt, ##arg)
 #define NV_WARN(d, fmt, arg...) NV_PRINTK(KERN_WARNING, d, fmt, ##arg)
+#else
+#define NV_ERROR(d, fmt, arg...) DRM_ERROR(fmt, ##arg)
+#define NV_INFO(d, fmt, arg...) DRM_INFO(fmt, ##arg)
+#define NV_DEBUG(d, fmt, arg...) DRM_DEBUG_DRIVER(fmt, ##arg)
+#define NV_TRACE(d, fmt, arg...) DRM_DEBUG_DRIVER(fmt, ##arg)
+#define NV_DEBUG_KMS(d, fmt, arg...) DRM_DEBUG_KMS(fmt, ##arg)
+#define NV_TRACEWARN(d, fmt, arg...) DRM_INFO(fmt, ##arg)
+#define NV_TRACE(d, fmt, arg...) DRM_INFO(fmt, ##arg)
+#define NV_WARN(d, fmt, arg...) DRM_INFO(fmt, ##arg)
+#endif
 
 /* nouveau_reg_debug bitmask */
 enum {
@@ -1314,7 +1329,7 @@ enum {
 
 #define NV_REG_DEBUG(type, dev, fmt, arg...) do { \
 	if (nouveau_reg_debug & NOUVEAU_REG_DEBUG_##type) \
-		NV_PRINTK(KERN_DEBUG, dev, "%s: " fmt, __func__, ##arg); \
+		NV_DEBUG(dev, "%s: " fmt, __func__, ##arg); \
 } while (0)
 
 static inline bool
@@ -1351,9 +1366,13 @@ static inline bool
 nv_match_device(struct drm_device *dev, unsigned device,
 		unsigned sub_vendor, unsigned sub_device)
 {
+#ifdef __linux__
 	return dev->pdev->device == device &&
 		dev->pdev->subsystem_vendor == sub_vendor &&
 		dev->pdev->subsystem_device == sub_device;
+#else
+	return dev->pci_vendor == sub_vendor && dev->pci_device == sub_device;
+#endif
 }
 
 #if 0

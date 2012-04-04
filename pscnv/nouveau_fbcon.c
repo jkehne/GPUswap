@@ -24,6 +24,7 @@
  *     David Airlie
  */
 
+#ifdef __linux__
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/errno.h>
@@ -36,13 +37,13 @@
 #include <linux/init.h>
 #include <linux/screen_info.h>
 #include <linux/vga_switcheroo.h>
+#endif
 
-#include "drmP.h"
+#include "nouveau_drv.h"
 #include "drm.h"
 #include "drm_crtc.h"
 #include "drm_crtc_helper.h"
 #include "drm_fb_helper.h"
-#include "nouveau_drv.h"
 #include "nouveau_crtc.h"
 #include "nouveau_fb.h"
 #include "nouveau_fbcon.h"

@@ -22,7 +22,6 @@
  * Authors: Ben Skeggs
  */
 
-#include "drmP.h"
 
 #include "nouveau_drv.h"
 #include "nouveau_pm.h"
@@ -367,6 +366,7 @@ nouveau_pm_perflvl_info(struct nouveau_pm_level *perflvl, char *ptr, int len)
 	snprintf(ptr, len, "%s%s%s%s%s\n", c, s, m, v, f);
 }
 
+#ifdef __linux__
 static ssize_t
 nouveau_pm_get_perflvl_info(struct device *d,
 			    struct device_attribute *a, char *buf)
@@ -843,6 +843,7 @@ static const struct attribute_group hwmon_fan_rpm_attrgroup = {
 static const struct attribute_group hwmon_pwm_fan_attrgroup = {
 	.attrs = hwmon_pwm_fan_attributes,
 };
+#endif
 #endif
 
 static int

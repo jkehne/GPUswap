@@ -22,7 +22,6 @@
  * Authors: Martin Peres
  */
 
-#include "drmP.h"
 #include "nouveau_drv.h"
 #include "nouveau_pm.h"
 

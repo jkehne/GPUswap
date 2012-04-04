@@ -25,7 +25,6 @@
  */
 
 #include "drm.h"
-#include "drmP.h"
 #include "nouveau_drv.h"
 #include "pscnv_chan.h"
 #include "pscnv_fifo.h"

@@ -25,7 +25,6 @@
  */
 
 #include "drm.h"
-#include "drmP.h"
 #include "nouveau_drv.h"
 #include "nouveau_grctx.h"
 #include "pscnv_engine.h"

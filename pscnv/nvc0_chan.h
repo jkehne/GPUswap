@@ -1,7 +1,6 @@
 #ifndef __NVC0_CHAN_H__
 #define __NVC0_CHAN_H__
 
-#include "drmP.h"
 #include "drm.h"
 #include "pscnv_chan.h"
 

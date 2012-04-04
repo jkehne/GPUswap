@@ -26,7 +26,6 @@
 #include <linux/version.h>
 #endif
 
-#include "drmP.h"
 #define NV_DEBUG_NOTRACE
 #include "nouveau_drv.h"
 #include "nouveau_hw.h"

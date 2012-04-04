@@ -25,14 +25,13 @@
 
 #include <linux/swab.h>
 #include <linux/slab.h>
-#include "drmP.h"
+#include "nouveau_drv.h"
 #include "drm.h"
 #include "drm_sarea.h"
 #include "drm_crtc_helper.h"
 #include <linux/vgaarb.h>
 #include <linux/vga_switcheroo.h>
 
-#include "nouveau_drv.h"
 #include "pscnv_drm.h"
 #include "nouveau_reg.h"
 #include "nouveau_fbcon.h"
@@ -216,6 +215,7 @@ nouveau_card_init(struct drm_device *dev)
 
 	NV_INFO(dev, "Initializing card...\n");
 
+#ifdef __linux__
 	vga_client_register(dev->pdev, dev, NULL, nouveau_vga_set_decode);
 #ifdef PSCNV_KAPI_SWITCHEROO_REPROBE
 	vga_switcheroo_register_client(dev->pdev, nouveau_switcheroo_set_state,
@@ -224,6 +224,7 @@ nouveau_card_init(struct drm_device *dev)
 	vga_switcheroo_register_client(dev->pdev, nouveau_switcheroo_set_state,
 								   nouveau_switcheroo_reprobe,
 								   nouveau_switcheroo_can_switch);
+#endif
 #endif
 
 	dev_priv->init_state = NOUVEAU_CARD_INIT_FAILED;
@@ -434,7 +435,9 @@ out_display_early:
 		engine->display.late_takedown(dev);
 	}
 out:
+#ifdef __linux__
 	vga_client_register(dev->pdev, NULL, NULL, NULL);
+#endif
 	return ret;
 }
 
@@ -463,8 +466,9 @@ static void nouveau_card_takedown(struct drm_device *dev)
 		nouveau_pm_fini(dev);
 		nouveau_bios_takedown(dev);
 
+#ifdef __linux__
 		vga_client_register(dev->pdev, NULL, NULL, NULL);
-
+#endif
 		dev_priv->init_state = NOUVEAU_CARD_INIT_DOWN;
 		NV_INFO(dev, "Card stopped.\n");
 	}
@@ -566,8 +570,8 @@ int nouveau_load(struct drm_device *dev, unsigned long flags)
 	dev_priv->flags = flags/* & NOUVEAU_FLAGS*/;
 	dev_priv->init_state = NOUVEAU_CARD_INIT_DOWN;
 
-	NV_DEBUG(dev, "vendor: 0x%X device: 0x%X class: 0x%X\n",
-		 dev->pci_vendor, dev->pci_device, dev->pdev->class);
+	NV_DEBUG(dev, "vendor: 0x%X device: 0x%X\n",
+		 dev->pci_vendor, dev->pci_device);
 
 	dev_priv->wq = create_workqueue("nouveau");
 	if (!dev_priv->wq)

@@ -24,10 +24,8 @@
  *
  */
 
-#include "drmP.h"
-#include "drm_crtc_helper.h"
-#include "drm_crtc.h"
 #include "nouveau_drv.h"
+#include "drm_crtc_helper.h"
 #include "nouveau_fb.h"
 #include "nouveau_fbcon.h"
 #include "nouveau_connector.h"

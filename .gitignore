@@ -8,8 +8,14 @@ pscnv/Module.symvers
 pscnv/modules.order
 pscnv/kapitest/modules.order
 pscnv/pscnv.ko
+pscnv/*_if.h
+pscnv/*_if_*.h
+pscnv/@
+pscnv/machine
+pscnv/x86
 pscnv/pscnv.mod.c
 pscnv/pscnv_kapi.h
+pscnv/opt_drm.h
 test/get_param
 test/gem
 test/map

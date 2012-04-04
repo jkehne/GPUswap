@@ -27,7 +27,6 @@
 #ifndef __PSCNV_GEM_H__
 #define __PSCNV_GEM_H__
 
-#include "drmP.h"
 
 void pscnv_gem_free_object (struct drm_gem_object *);
 struct drm_gem_object *pscnv_gem_new(struct drm_device *dev, uint64_t size,

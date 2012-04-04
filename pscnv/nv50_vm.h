@@ -1,7 +1,6 @@
 #ifndef __NV50_VM_H__
 #define __NV50_VM_H__
 
-#include "drmP.h"
 #include "drm.h"
 #include "pscnv_vm.h"
 

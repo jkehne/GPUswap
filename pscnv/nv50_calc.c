@@ -22,9 +22,8 @@
  * Authors: Ben Skeggs
  */
 
-#include "drmP.h"
-#include "drm_fixed.h"
 #include "nouveau_drv.h"
+#include "drm_fixed.h"
 #include "nouveau_hw.h"
 
 int

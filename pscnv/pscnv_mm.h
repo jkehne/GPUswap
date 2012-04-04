@@ -1,7 +1,6 @@
 #ifndef PSCNV_MM_H
 #define PSCNV_MM_H
 
-#include "drmP.h"
 #include "drm.h"
 #include "pscnv_tree.h"
 

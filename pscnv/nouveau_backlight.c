@@ -32,7 +32,6 @@
 
 #include <linux/backlight.h>
 
-#include "drmP.h"
 #include "nouveau_drv.h"
 #include "nouveau_reg.h"
 

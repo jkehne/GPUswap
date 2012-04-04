@@ -24,14 +24,15 @@
  *
  */
 
+#ifdef __linux__
 #include <acpi/button.h>
+#endif
 
-#include "drmP.h"
+#include "nouveau_drv.h"
 #include "drm_edid.h"
 #include "drm_crtc_helper.h"
 
 #include "nouveau_reg.h"
-#include "nouveau_drv.h"
 #include "nouveau_encoder.h"
 #include "nouveau_crtc.h"
 #include "nouveau_connector.h"

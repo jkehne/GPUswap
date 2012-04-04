@@ -24,12 +24,11 @@
  *
  */
 
-#include "drmP.h"
+#include "nouveau_drv.h"
 #include "drm_mode.h"
 
 #define NOUVEAU_DMA_DEBUG (nouveau_reg_debug & NOUVEAU_REG_DEBUG_EVO)
 #include "nouveau_reg.h"
-#include "nouveau_drv.h"
 #include "nouveau_crtc.h"
 #include "nouveau_dma.h"
 #include "nv50_display.h"

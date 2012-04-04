@@ -22,11 +22,12 @@
  * Authors: Ben Skeggs
  */
 
-#include "drmP.h"
 #include <linux/module.h>
 #include "nouveau_drv.h"
 #include "nouveau_i2c.h"
 #include "nouveau_hw.h"
+
+#ifdef __linux__
 
 static void
 nv04_i2c_setscl(void *data, int state)
@@ -318,6 +319,8 @@ nouveau_probe_i2c_addr(struct nouveau_i2c_chan *i2c, int addr)
 	return i2c_transfer(&i2c->adapter, msgs, 2) == 2;
 }
 
+#endif
+
 int
 nouveau_i2c_identify(struct drm_device *dev, const char *what,
 		     struct i2c_board_info *info,
@@ -325,6 +328,7 @@ nouveau_i2c_identify(struct drm_device *dev, const char *what,
 				   struct i2c_board_info *),
 		     int index)
 {
+#ifdef __linux__
 	struct nouveau_i2c_chan *i2c = nouveau_i2c_find(dev, index);
 	int i;
 
@@ -339,6 +343,8 @@ nouveau_i2c_identify(struct drm_device *dev, const char *what,
 	}
 
 	NV_DEBUG(dev, "No devices found.\n");
-
+#else
+	NV_DEBUG(dev, "i2c not supported!\n");
+#endif
 	return -ENODEV;
 }
