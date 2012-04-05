@@ -29,15 +29,13 @@
 #include "pscnv_vm.h"
 #include "pscnv_chan.h"
 #include "nvc0_vm.h"
-#include <linux/list.h>
 
 #define PSCNV_GEM_NOUSER 0x10 /* XXX */
 
-int nvc0_vm_map_kernel(struct pscnv_bo *bo);
-void nvc0_vm_takedown(struct drm_device *dev);
-void nv84_vm_bar_flush(struct drm_device *dev);
+static int nvc0_vm_map_kernel(struct pscnv_bo *bo);
+static void nvc0_vm_takedown(struct drm_device *dev);
 
-int
+static int
 nvc0_tlb_flush(struct pscnv_vspace *vs)
 {
 	struct drm_device *dev = vs->dev;
@@ -129,7 +127,7 @@ nvc0_vspace_pgt(struct pscnv_vspace *vs, unsigned int pde)
 	return pt;
 }
 
-void
+static void
 nvc0_pgt_del(struct pscnv_vspace *vs, struct nvc0_pgt *pgt)
 {
 	pscnv_vram_free(pgt->bo[1]);
@@ -143,7 +141,7 @@ nvc0_pgt_del(struct pscnv_vspace *vs, struct nvc0_pgt *pgt)
 	kfree(pgt);
 }
 
-int
+static int
 nvc0_vspace_do_unmap(struct pscnv_vspace *vs, uint64_t offset, uint64_t size)
 {
 	struct drm_nouveau_private *dev_priv = vs->dev->dev_private;
@@ -190,7 +188,7 @@ write_pt(struct pscnv_bo *pt, int pte, int count, uint64_t phys,
 	}
 }
 
-int
+static int
 nvc0_vspace_place_map (struct pscnv_vspace *vs, struct pscnv_bo *bo,
 		       uint64_t start, uint64_t end, int back,
 		       struct pscnv_mm_node **res)
@@ -205,7 +203,7 @@ nvc0_vspace_place_map (struct pscnv_vspace *vs, struct pscnv_bo *bo,
 	return pscnv_mm_alloc(vs->mm, bo->size, flags, start, end, res);
 }
 
-int
+static int
 nvc0_vspace_do_map(struct pscnv_vspace *vs,
 		   struct pscnv_bo *bo, uint64_t offset)
 {
@@ -284,7 +282,7 @@ nvc0_vspace_do_map(struct pscnv_vspace *vs,
 	return nvc0_tlb_flush(vs);
 }
 
-int nvc0_vspace_new(struct pscnv_vspace *vs) {
+static int nvc0_vspace_new(struct pscnv_vspace *vs) {
 	int i, ret;
 
 	if (vs->size > 1ull << 40)
@@ -322,7 +320,7 @@ int nvc0_vspace_new(struct pscnv_vspace *vs) {
 	return ret;
 }
 
-void nvc0_vspace_free(struct pscnv_vspace *vs) {
+static void nvc0_vspace_free(struct pscnv_vspace *vs) {
 	int i;
 	for (i = 0; i < NVC0_PDE_HT_SIZE; i++) {
 		struct nvc0_pgt *pgt, *save;
@@ -334,7 +332,7 @@ void nvc0_vspace_free(struct pscnv_vspace *vs) {
 	kfree(vs->engdata);
 }
 
-int nvc0_vm_map_user(struct pscnv_bo *bo) {
+static int nvc0_vm_map_user(struct pscnv_bo *bo) {
 	struct drm_nouveau_private *dev_priv = bo->dev->dev_private;
 	struct nvc0_vm_engine *vme = nvc0_vm(dev_priv->vm);
 	if (bo->map1)
@@ -342,7 +340,7 @@ int nvc0_vm_map_user(struct pscnv_bo *bo) {
 	return pscnv_vspace_map(vme->bar1vm, bo, 0, dev_priv->fb_size, 0, &bo->map1);
 }
 
-int nvc0_vm_map_kernel(struct pscnv_bo *bo) {
+static int nvc0_vm_map_kernel(struct pscnv_bo *bo) {
 	struct drm_nouveau_private *dev_priv = bo->dev->dev_private;
 	struct nvc0_vm_engine *vme = nvc0_vm(dev_priv->vm);
 	if (bo->map3)

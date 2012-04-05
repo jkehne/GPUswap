@@ -158,7 +158,7 @@ int pscnv_ioctl_gem_info(struct drm_device *dev, void *data,
 	return 0;
 }
 
-struct pscnv_vspace *
+static struct pscnv_vspace *
 pscnv_get_vspace(struct drm_device *dev, struct drm_file *file_priv, int vid)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;

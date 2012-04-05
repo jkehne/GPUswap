@@ -35,18 +35,19 @@
 #include <sys/lock.h>
 #include <sys/mutex.h>
 #include <sys/limits.h>
+#include <sys/kdb.h>
 #include "drmP.h"
 
 #define PSCNV_KAPI_GETPARAM_BUS_TYPE
 
 typedef DRM_SPINTYPE spinlock_t;
 
-#define spinlock_init(lock, name) DRM_SPININIT(lock, name)
-#define spinlock_destroy(lock) DRM_SPINUNINIT(lock)
+#define spin_lock_init(lock) DRM_SPININIT(lock, #lock)
+#define spin_lock_destroy(lock) DRM_SPINUNINIT(lock)
 #define spin_lock(lock) DRM_SPINLOCK(lock)
 #define spin_unlock(lock) DRM_SPINUNLOCK(lock)
 #define spin_lock_irqsave(lock, flags) DRM_SPINLOCK_IRQSAVE(lock, flags)
-#define spin_unlock_irqrestore(lock, flags) DRM_SPINLOCK_IRQRESTORE(lock, flags)
+#define spin_unlock_irqrestore(lock, flags) DRM_SPINUNLOCK_IRQRESTORE(lock, flags)
 
 #define kfree(x) drm_free(x, 0, DRM_MEM_DRIVER)
 #define kzalloc(x, y) drm_calloc(x, 1, DRM_MEM_DRIVER)
@@ -65,6 +66,23 @@ struct vm_area_struct {};
 #define iowrite8(y, x) ((*(volatile u_int8_t*)(x)) = (y))
 #define ioread32(x) (*(volatile u_int32_t*)(x))
 #define iowrite32(y, x) ((*(volatile u_int32_t*)(x)) = (y))
+
+#ifndef HZ
+#define HZ hz
+#endif
+
+#define WARN(arg1, args...) do { \
+		printf("%s:%d/%s " arg1, \
+			__FILE__, __LINE__, __FUNCTION__, ##args); \
+		kdb_backtrace(); \
+	} while (0)
+#define BUG() WARN("")
+#define WARN_ON(x,y,z...) do { if ((x)) WARN(y, ##z); } while (0)
+#define BUG_ON(x) WARN_ON(x, "")
+
+#ifndef __must_check
+#define __must_check
+#endif
 
 #ifndef _LINUX_DELAY_H_
 #define	_LINUX_DELAY_H_

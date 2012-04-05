@@ -77,5 +77,6 @@ extern int pscnv_mmap(struct file *filp, struct vm_area_struct *vma);
 
 int nv50_vm_init(struct drm_device *dev);
 int nvc0_vm_init(struct drm_device *dev);
+void nv84_vm_bar_flush(struct drm_device *dev);
 
 #endif

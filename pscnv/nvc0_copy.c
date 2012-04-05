@@ -78,7 +78,7 @@ fail_mem_alloc:
 	return ret;
 }
 
-void
+static void
 nvc0_copy_chan_kill(struct pscnv_engine *eng, struct pscnv_chan *ch)
 {
 	/* FIXME */
@@ -116,7 +116,7 @@ nvc0_copy_chan_free(struct pscnv_engine *eng, struct pscnv_chan *ch)
 	ch->engdata[PSCNV_ENGINE_COPY + pcopy->id] = NULL;
 }
 
-void
+static void
 nvc0_copy_takedown(struct pscnv_engine *eng)
 {
 	struct drm_device *dev = eng->dev;

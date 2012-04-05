@@ -28,6 +28,7 @@
 #include "nouveau_drv.h"
 #include "nouveau_dma.h"
 
+#if 0
 void
 nouveau_dma_pre_init(struct nouveau_channel *chan)
 {
@@ -38,7 +39,6 @@ nouveau_dma_pre_init(struct nouveau_channel *chan)
 	chan->dma.free = chan->dma.max - chan->dma.cur;
 }
 
-#if 0
 void
 OUT_RINGp(struct nouveau_channel *chan, const void *data, unsigned nr_dwords)
 {

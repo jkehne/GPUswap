@@ -29,8 +29,10 @@
 #include "drm.h"
 #include "drm_sarea.h"
 #include "drm_crtc_helper.h"
+#ifdef __linux__
 #include <linux/vgaarb.h>
 #include <linux/vga_switcheroo.h>
+#endif
 
 #include "pscnv_drm.h"
 #include "nouveau_reg.h"
@@ -152,6 +154,7 @@ static int nouveau_init_engine_ptrs(struct drm_device *dev)
 	return 0;
 }
 
+#ifdef __linux__
 static unsigned int
 nouveau_vga_set_decode(void *priv, bool state)
 {
@@ -199,6 +202,7 @@ static bool nouveau_switcheroo_can_switch(struct pci_dev *pdev)
 	spin_unlock(&dev->count_lock);
 	return can_switch;
 }
+#endif
 
 int
 nouveau_card_init(struct drm_device *dev)

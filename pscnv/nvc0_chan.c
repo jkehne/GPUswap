@@ -4,7 +4,7 @@
 #include "pscnv_chan.h"
 #include "nvc0_vm.h"
 
-int nvc0_chan_new (struct pscnv_chan *ch)
+static int nvc0_chan_new (struct pscnv_chan *ch)
 {
 	struct pscnv_vspace *vs = ch->vspace;
 	struct drm_nouveau_private *dev_priv = ch->dev->dev_private;
@@ -37,7 +37,7 @@ int nvc0_chan_new (struct pscnv_chan *ch)
 	return 0;
 }
 
-void nvc0_chan_free(struct pscnv_chan *ch)
+static void nvc0_chan_free(struct pscnv_chan *ch)
 {
 	struct drm_nouveau_private *dev_priv = ch->dev->dev_private;
 	unsigned long flags;
@@ -47,7 +47,7 @@ void nvc0_chan_free(struct pscnv_chan *ch)
 	pscnv_mem_free(ch->bo);
 }
 
-void
+static void
 nvc0_chan_takedown(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;

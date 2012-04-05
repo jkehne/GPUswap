@@ -1,6 +1,8 @@
 #include "nouveau_drv.h"
 #include "pscnv_mm.h"
+#ifdef __linux__
 #include <asm/div64.h>
+#endif
 
 #undef PSCNV_RB_AUGMENT
 

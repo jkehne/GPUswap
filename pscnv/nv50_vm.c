@@ -5,9 +5,9 @@
 #include "nv50_chan.h"
 #include "pscnv_chan.h"
 
-int nv50_vm_map_kernel(struct pscnv_bo *bo);
-void nv50_vm_takedown(struct drm_device *dev);
-int nv50_vspace_do_unmap (struct pscnv_vspace *vs, uint64_t offset, uint64_t length);
+static int nv50_vm_map_kernel(struct pscnv_bo *bo);
+static void nv50_vm_takedown(struct drm_device *dev);
+static int nv50_vspace_do_unmap (struct pscnv_vspace *vs, uint64_t offset, uint64_t length);
 
 int
 nv50_vm_flush(struct drm_device *dev, int unit) {
@@ -19,7 +19,7 @@ nv50_vm_flush(struct drm_device *dev, int unit) {
 	return 0;
 }
 
-int nv50_vspace_tlb_flush (struct pscnv_vspace *vs) {
+static int nv50_vspace_tlb_flush (struct pscnv_vspace *vs) {
 	struct drm_nouveau_private *dev_priv = vs->dev->dev_private;
 	int i, ret;
 	nv50_vm_flush(vs->dev, 5); /* PFIFO always active */
@@ -63,7 +63,7 @@ nv50_vspace_fill_pd_slot (struct pscnv_vspace *vs, uint32_t pdenum) {
 	return 0;
 }
 
-int
+static int
 nv50_vspace_place_map (struct pscnv_vspace *vs, struct pscnv_bo *bo,
 		uint64_t start, uint64_t end, int back,
 		struct pscnv_mm_node **res) {
@@ -98,7 +98,7 @@ static int nv50_vspace_map_contig_range (struct pscnv_vspace *vs, uint64_t offse
 	return 0;
 }
 
-int
+static int
 nv50_vspace_do_map (struct pscnv_vspace *vs, struct pscnv_bo *bo, uint64_t offset) {
 	struct drm_nouveau_private *dev_priv = vs->dev->dev_private;
 	struct pscnv_mm_node *n;
@@ -147,7 +147,7 @@ nv50_vspace_do_map (struct pscnv_vspace *vs, struct pscnv_bo *bo, uint64_t offse
 	return 0;
 }
 
-int
+static int
 nv50_vspace_do_unmap (struct pscnv_vspace *vs, uint64_t offset, uint64_t length) {
 	struct drm_nouveau_private *dev_priv = vs->dev->dev_private;
 	while (length) {
@@ -169,7 +169,7 @@ nv50_vspace_do_unmap (struct pscnv_vspace *vs, uint64_t offset, uint64_t length)
 	return 0;
 }
 
-int nv50_vspace_new(struct pscnv_vspace *vs) {
+static int nv50_vspace_new(struct pscnv_vspace *vs) {
 	int ret;
 
 	/* XXX: could actually use it some day... */
@@ -188,7 +188,7 @@ int nv50_vspace_new(struct pscnv_vspace *vs) {
 	return ret;
 }
 
-void nv50_vspace_free(struct pscnv_vspace *vs) {
+static void nv50_vspace_free(struct pscnv_vspace *vs) {
 	int i;
 	for (i = 0; i < NV50_VM_PDE_COUNT; i++) {
 		if (nv50_vs(vs)->pt[i]) {
@@ -198,7 +198,7 @@ void nv50_vspace_free(struct pscnv_vspace *vs) {
 	kfree(vs->engdata);
 }
 
-int nv50_vm_map_user(struct pscnv_bo *bo) {
+static int nv50_vm_map_user(struct pscnv_bo *bo) {
 	struct drm_nouveau_private *dev_priv = bo->dev->dev_private;
 	struct nv50_vm_engine *vme = nv50_vm(dev_priv->vm);
 	if (bo->map1)
@@ -206,7 +206,7 @@ int nv50_vm_map_user(struct pscnv_bo *bo) {
 	return pscnv_vspace_map(vme->barvm, bo, 0, dev_priv->fb_size, 0, &bo->map1);
 }
 
-int nv50_vm_map_kernel(struct pscnv_bo *bo) {
+static int nv50_vm_map_kernel(struct pscnv_bo *bo) {
 	struct drm_nouveau_private *dev_priv = bo->dev->dev_private;
 	struct nv50_vm_engine *vme = nv50_vm(dev_priv->vm);
 	if (bo->map3)
@@ -214,7 +214,7 @@ int nv50_vm_map_kernel(struct pscnv_bo *bo) {
 	return pscnv_vspace_map(vme->barvm, bo, dev_priv->fb_size, dev_priv->fb_size + dev_priv->ramin_size, 0, &bo->map3);
 }
 
-void
+static void
 nv50_vm_bar_flush(struct drm_device *dev) {
 	nv_wr32(dev, 0x330c, 1);
 	if (!nouveau_wait_until(dev, 2000000000ULL, 0x330c, 2, 0)) {
@@ -296,7 +296,7 @@ nv50_vm_init(struct drm_device *dev) {
 	return 0;
 }
 
-void
+static void
 nv50_vm_takedown(struct drm_device *dev) {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct nv50_vm_engine *vme = nv50_vm(dev_priv->vm);

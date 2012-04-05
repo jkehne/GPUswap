@@ -28,17 +28,20 @@
 #include "nouveau_drv.h"
 #include "pscnv_mem.h"
 #include "pscnv_vm.h"
+#ifdef __linux__
 #include <linux/list.h>
 #include <linux/kernel.h>
 #include <linux/mutex.h>
+#endif
 
 int
 pscnv_mem_init(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	int ret, dma_bits = 32;
-	spin_lock_init(&dev_priv->pramin_lock);
+	int ret;
 
+#ifdef __linux__
+	int dma_bits = 32;
 	if (dev_priv->card_type >= NV_50 &&
 	    pci_dma_supported(dev->pdev, DMA_BIT_MASK(40)))
 		dma_bits = 40;
@@ -48,7 +51,9 @@ pscnv_mem_init(struct drm_device *dev)
 		NV_ERROR(dev, "Error setting DMA mask: %d\n", ret);
 		return ret;
 	}
+#endif
 
+	spin_lock_init(&dev_priv->pramin_lock);
 	mutex_init(&dev_priv->vram_mutex);
 	
 	switch (dev_priv->card_type) {
@@ -103,8 +108,8 @@ pscnv_mem_alloc(struct drm_device *dev,
 	res = kzalloc (sizeof *res, GFP_KERNEL);
 	if (!res)
 		return 0;
-	size = ALIGN(size, PSCNV_MEM_PAGE_SIZE);
-	size = ALIGN(size, PAGE_SIZE);
+	size = (size + PSCNV_MEM_PAGE_SIZE - 1) & ~(PSCNV_MEM_PAGE_SIZE - 1);
+	size = PAGE_ALIGN(size);
 	res->dev = dev;
 	res->size = size;
 	res->flags = flags;

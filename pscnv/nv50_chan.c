@@ -4,7 +4,7 @@
 #include "pscnv_chan.h"
 #include "nv50_vm.h"
 
-int nv50_chan_new (struct pscnv_chan *ch) {
+static int nv50_chan_new (struct pscnv_chan *ch) {
 	struct pscnv_vspace *vs = ch->vspace;
 	struct drm_nouveau_private *dev_priv = ch->dev->dev_private;
 	uint64_t size;
@@ -139,7 +139,7 @@ nv50_chan_dmaobj_new(struct pscnv_chan *ch, uint32_t type, uint64_t start, uint6
 	return res;
 }
 
-void nv50_chan_free(struct pscnv_chan *ch) {
+static void nv50_chan_free(struct pscnv_chan *ch) {
 	struct drm_nouveau_private *dev_priv = ch->dev->dev_private;
 	unsigned long flags;
 	spin_lock_irqsave(&dev_priv->chan->ch_lock, flags);
@@ -153,7 +153,7 @@ void nv50_chan_free(struct pscnv_chan *ch) {
 	mutex_unlock(&ch->vspace->lock);
 }
 
-void
+static void
 nv50_chan_takedown(struct drm_device *dev) {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct nv50_chan_engine *che = nv50_ch(dev_priv->chan);

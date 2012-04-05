@@ -4,5 +4,8 @@ Anything touching i2c:
 - i2c methods in nouveau_bios
 - hwmon (temperature) support
 - nv04 tv/dfp
+- displayport
 
+Not implemented at all:
+- vga switcheroo / arbiter
 
