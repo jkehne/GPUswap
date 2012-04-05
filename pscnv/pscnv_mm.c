@@ -11,7 +11,11 @@
 static inline uint64_t
 pscnv_rounddown (uint64_t x, uint32_t y)
 {
+#ifdef __linux__
 	do_div(x, y);
+#else
+	x /= y;
+#endif
 	x *= y;
 	return x;
 }

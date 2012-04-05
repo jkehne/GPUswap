@@ -323,7 +323,7 @@ nouveau_print_bitfield_names_(uint32_t value,
 		printk(" (unknown bits 0x%08x)", value);
 }
 #define nouveau_print_bitfield_names(val, namelist) \
-	nouveau_print_bitfield_names_((val), (namelist), ARRAY_SIZE(namelist))
+	nouveau_print_bitfield_names_((val), (namelist), DRM_ARRAY_SIZE(namelist))
 
 struct nouveau_enum_names {
 	uint32_t value;
@@ -349,7 +349,7 @@ nouveau_print_enum_names_(uint32_t value,
 	printk("unknown value 0x%08x", value);
 }
 #define nouveau_print_enum_names(val, namelist) \
-	nouveau_print_enum_names_((val), (namelist), ARRAY_SIZE(namelist))
+	nouveau_print_enum_names_((val), (namelist), DRM_ARRAY_SIZE(namelist))
 
 static int
 nouveau_graph_chid_from_grctx(struct drm_device *dev)

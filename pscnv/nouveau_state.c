@@ -583,7 +583,7 @@ int nouveau_load(struct drm_device *dev, unsigned long flags)
 	/* resource 6 is bios */
 
 	/* map the mmio regs */
-	mmio_start_offs = pci_resource_start(dev->pdev, 0);
+	mmio_start_offs = drm_get_resource_start(dev, 0);
 	dev_priv->mmio = ioremap(mmio_start_offs, 0x00800000);
 	if (!dev_priv->mmio) {
 		NV_ERROR(dev, "Unable to initialize the mmio mapping. "
@@ -673,9 +673,9 @@ int nouveau_load(struct drm_device *dev, unsigned long flags)
 
 	NV_DEBUG(dev, "crystal freq: %dKHz\n", dev_priv->crystal);
 
-	dev_priv->fb_size = pci_resource_len(dev->pdev, 1);
-	dev_priv->fb_phys = pci_resource_start(dev->pdev, 1);
-	dev_priv->mmio_phys = pci_resource_start(dev->pdev, 0);
+	dev_priv->fb_size = drm_get_resource_len(dev, 1);
+	dev_priv->fb_phys = drm_get_resource_start(dev, 1);
+	dev_priv->mmio_phys = drm_get_resource_start(dev, 0);
 
 	if (drm_core_check_feature(dev, DRIVER_MODESET)) {
 		int ret = nouveau_remove_conflicting_drivers(dev);
@@ -686,12 +686,12 @@ int nouveau_load(struct drm_device *dev, unsigned long flags)
 	/* map larger RAMIN aperture on NV40 cards */
 	if (dev_priv->card_type >= NV_40) {
 		int ramin_bar = 2;
-		if (pci_resource_len(dev->pdev, ramin_bar) == 0)
+		if (drm_get_resource_len(dev, ramin_bar) == 0)
 			ramin_bar = 3;
 
-		dev_priv->ramin_size = pci_resource_len(dev->pdev, ramin_bar);
+		dev_priv->ramin_size = drm_get_resource_len(dev, ramin_bar);
 		dev_priv->ramin = ioremap(
-				pci_resource_start(dev->pdev, ramin_bar),
+				drm_get_resource_start(dev, ramin_bar),
 				dev_priv->ramin_size);
 		if (!dev_priv->ramin) {
 			NV_ERROR(dev, "Failed to init RAMIN mapping\n");

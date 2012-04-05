@@ -79,7 +79,7 @@ int pscnv_ioctl_getparam(struct drm_device *dev, void *data,
 		break;
 	}
 	case PSCNV_GETPARAM_BAR0_ADDR:
-		getparam->value = pci_resource_start(dev->pdev, 0);
+		getparam->value = drm_get_resource_start(dev, 0);
 		break;
 	case PSCNV_GETPARAM_GRAPH_UNITS:
 		/* NV40 and NV50 versions are quite different, but register
@@ -150,7 +150,7 @@ int pscnv_ioctl_gem_info(struct drm_device *dev, void *data,
 	info->tile_flags = bo->tile_flags;
 	info->size = obj->size;
 	info->map_handle = (uint64_t)info->handle << 32;
-	for (i = 0; i < ARRAY_SIZE(bo->user); i++)
+	for (i = 0; i < DRM_ARRAY_SIZE(bo->user); i++)
 		info->user[i] = bo->user[i];
 
 	drm_gem_object_unreference_unlocked(obj);
@@ -483,41 +483,3 @@ int pscnv_ioctl_fifo_init_ib(struct drm_device *dev, void *data,
 
 	return ret;
 }
-
-#ifdef PSCNV_KAPI_DRM_IOCTL_DEF_DRV
-struct drm_ioctl_desc nouveau_ioctls[] = {
-	DRM_IOCTL_DEF_DRV(PSCNV_GETPARAM, pscnv_ioctl_getparam, DRM_UNLOCKED),
-	DRM_IOCTL_DEF_DRV(PSCNV_GEM_NEW, pscnv_ioctl_gem_new, DRM_UNLOCKED),
-	DRM_IOCTL_DEF_DRV(PSCNV_GEM_INFO, pscnv_ioctl_gem_info, DRM_UNLOCKED),
-	DRM_IOCTL_DEF_DRV(PSCNV_VSPACE_NEW, pscnv_ioctl_vspace_new, DRM_UNLOCKED),
-	DRM_IOCTL_DEF_DRV(PSCNV_VSPACE_FREE, pscnv_ioctl_vspace_free, DRM_UNLOCKED),
-	DRM_IOCTL_DEF_DRV(PSCNV_VSPACE_MAP, pscnv_ioctl_vspace_map, DRM_UNLOCKED),
-	DRM_IOCTL_DEF_DRV(PSCNV_VSPACE_UNMAP, pscnv_ioctl_vspace_unmap, DRM_UNLOCKED),
-	DRM_IOCTL_DEF_DRV(PSCNV_CHAN_NEW, pscnv_ioctl_chan_new, DRM_UNLOCKED),
-	DRM_IOCTL_DEF_DRV(PSCNV_CHAN_FREE, pscnv_ioctl_chan_free, DRM_UNLOCKED),
-	DRM_IOCTL_DEF_DRV(PSCNV_OBJ_VDMA_NEW, pscnv_ioctl_obj_vdma_new, DRM_UNLOCKED),
-	DRM_IOCTL_DEF_DRV(PSCNV_FIFO_INIT, pscnv_ioctl_fifo_init, DRM_UNLOCKED),
-	DRM_IOCTL_DEF_DRV(PSCNV_OBJ_ENG_NEW, pscnv_ioctl_obj_eng_new, DRM_UNLOCKED),
-	DRM_IOCTL_DEF_DRV(PSCNV_FIFO_INIT_IB, pscnv_ioctl_fifo_init_ib, DRM_UNLOCKED),
-};
-#elif defined(PSCNV_KAPI_DRM_IOCTL_DEF)
-struct drm_ioctl_desc nouveau_ioctls[] = {
-	DRM_IOCTL_DEF(DRM_PSCNV_GETPARAM, pscnv_ioctl_getparam, DRM_UNLOCKED),
-	DRM_IOCTL_DEF(DRM_PSCNV_GEM_NEW, pscnv_ioctl_gem_new, DRM_UNLOCKED),
-	DRM_IOCTL_DEF(DRM_PSCNV_GEM_INFO, pscnv_ioctl_gem_info, DRM_UNLOCKED),
-	DRM_IOCTL_DEF(DRM_PSCNV_VSPACE_NEW, pscnv_ioctl_vspace_new, DRM_UNLOCKED),
-	DRM_IOCTL_DEF(DRM_PSCNV_VSPACE_FREE, pscnv_ioctl_vspace_free, DRM_UNLOCKED),
-	DRM_IOCTL_DEF(DRM_PSCNV_VSPACE_MAP, pscnv_ioctl_vspace_map, DRM_UNLOCKED),
-	DRM_IOCTL_DEF(DRM_PSCNV_VSPACE_UNMAP, pscnv_ioctl_vspace_unmap, DRM_UNLOCKED),
-	DRM_IOCTL_DEF(DRM_PSCNV_CHAN_NEW, pscnv_ioctl_chan_new, DRM_UNLOCKED),
-	DRM_IOCTL_DEF(DRM_PSCNV_CHAN_FREE, pscnv_ioctl_chan_free, DRM_UNLOCKED),
-	DRM_IOCTL_DEF(DRM_PSCNV_OBJ_VDMA_NEW, pscnv_ioctl_obj_vdma_new, DRM_UNLOCKED),
-	DRM_IOCTL_DEF(DRM_PSCNV_FIFO_INIT, pscnv_ioctl_fifo_init, DRM_UNLOCKED),
-	DRM_IOCTL_DEF(DRM_PSCNV_OBJ_ENG_NEW, pscnv_ioctl_obj_eng_new, DRM_UNLOCKED),
-	DRM_IOCTL_DEF(DRM_PSCNV_FIFO_INIT_IB, pscnv_ioctl_fifo_init_ib, DRM_UNLOCKED),
-};
-#else
-#error "Unknown IOCTLDEF method."
-#endif
-
-int nouveau_max_ioctl = DRM_ARRAY_SIZE(nouveau_ioctls);

@@ -29,8 +29,9 @@
 #include "bsd_support.h"
 #else
 #include "drmP.h"
-#define drm_get_resource_start(dev) pci_resource_start((dev)->pdev)
-#define drm_get_resource_len(dev) pci_resource_len((dev)->pdev)
+#define drm_get_resource_start(dev, x) pci_resource_start((dev)->pdev, (x))
+#define drm_get_resource_len(dev, x) pci_resource_len((dev)->pdev, (x))
+#include <linux/kref.h>
 #endif
 
 #define DRIVER_AUTHOR		"Stephane Marchesin"
@@ -675,9 +676,6 @@ extern int nouveau_override_conntype;
 extern char *nouveau_perflvl;
 extern int nouveau_perflvl_wr;
 
-extern struct drm_ioctl_desc nouveau_ioctls[];
-extern int nouveau_max_ioctl;
-
 extern int nouveau_pci_suspend(struct pci_dev *pdev, pm_message_t pm_state);
 extern int nouveau_pci_resume(struct pci_dev *pdev);
 
@@ -1305,13 +1303,13 @@ static inline void nv_wi32(struct drm_device *dev, unsigned offset, u32 val)
 #define NV_TRACE(d, fmt, arg...) NV_PRINTK(KERN_INFO, d, fmt, ##arg)
 #define NV_WARN(d, fmt, arg...) NV_PRINTK(KERN_WARNING, d, fmt, ##arg)
 #else
-#define NV_ERROR(d, fmt, arg...) DRM_ERROR(fmt, ##arg)
-#define NV_INFO(d, fmt, arg...) DRM_INFO(fmt, ##arg)
-#define NV_DEBUG(d, fmt, arg...) DRM_DEBUG_DRIVER(fmt, ##arg)
-#define NV_DEBUG_KMS(d, fmt, arg...) DRM_DEBUG_KMS(fmt, ##arg)
-#define NV_TRACEWARN(d, fmt, arg...) DRM_INFO(fmt, ##arg)
-#define NV_TRACE(d, fmt, arg...) DRM_INFO(fmt, ##arg)
-#define NV_WARN(d, fmt, arg...) DRM_INFO(fmt, ##arg)
+#define NV_ERROR(d, fmt, arg...) do { (void)d; DRM_ERROR(fmt, ##arg); } while (0)
+#define NV_INFO(d, fmt, arg...) do { (void)d; DRM_INFO(fmt, ##arg); } while (0)
+#define NV_DEBUG(d, fmt, arg...) do { (void)d; DRM_DEBUG_DRIVER(fmt, ##arg); } while (0)
+#define NV_DEBUG_KMS(d, fmt, arg...) do { (void)d; DRM_DEBUG_KMS(fmt, ##arg); } while (0)
+#define NV_TRACEWARN(d, fmt, arg...) do { (void)d; DRM_INFO(fmt, ##arg); } while (0)
+#define NV_TRACE(d, fmt, arg...) do { (void)d; DRM_INFO(fmt, ##arg); } while (0)
+#define NV_WARN(d, fmt, arg...) do { (void)d; DRM_INFO(fmt, ##arg); } while (0)
 #endif
 
 /* nouveau_reg_debug bitmask */
@@ -1415,8 +1413,10 @@ static inline void nv_wv32(struct pscnv_bo *bo,
 {
 	struct drm_nouveau_private *dev_priv = bo->dev->dev_private;
 	uint64_t addr = bo->start + offset;
-	if (bo->map3 && dev_priv->vm && dev_priv->vm_ok)
-		return iowrite32_native(val, dev_priv->ramin + bo->map3->start - dev_priv->vm_ramin_base + offset);
+	if (bo->map3 && dev_priv->vm && dev_priv->vm_ok) {
+		iowrite32_native(val, dev_priv->ramin + bo->map3->start - dev_priv->vm_ramin_base + offset);
+		return;
+	}
 	spin_lock(&dev_priv->pramin_lock);
 	if (addr >> 16 != dev_priv->pramin_start) {
 		dev_priv->pramin_start = addr >> 16;

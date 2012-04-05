@@ -63,10 +63,10 @@ struct drm_gem_object *pscnv_gem_new(struct drm_device *dev, uint64_t size, uint
 	vo->gem = obj;
 
 	if (user)
-		for (i = 0; i < ARRAY_SIZE(vo->user); i++)
+		for (i = 0; i < DRM_ARRAY_SIZE(vo->user); i++)
 			vo->user[i] = user[i];
 	else
-		for (i = 0; i < ARRAY_SIZE(vo->user); i++)
+		for (i = 0; i < DRM_ARRAY_SIZE(vo->user); i++)
 			vo->user[i] = 0;
 
 	return obj;

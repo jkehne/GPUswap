@@ -96,7 +96,7 @@ int nvc0_fifo_init(struct drm_device *dev)
 		kfree(res);
 		return -ENOMEM;
 	}
-	res->fifo_ctl = ioremap(pci_resource_start(dev->pdev, 1) +
+	res->fifo_ctl = ioremap(drm_get_resource_start(dev, 1) +
 				     res->ctrl_bo->map1->start, 128 << 12);
 	if (!res->fifo_ctl) {
 		NV_ERROR(dev, "PFIFO: Couldn't ioremap control area!\n");

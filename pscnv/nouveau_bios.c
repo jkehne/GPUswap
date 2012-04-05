@@ -219,7 +219,7 @@ static struct methods shadow_methods[] = {
 	{ "PCIROM", load_vbios_pci, true },
 	{ "ACPI", load_vbios_acpi, true },
 };
-#define NUM_SHADOW_METHODS ARRAY_SIZE(shadow_methods)
+#define NUM_SHADOW_METHODS DRM_ARRAY_SIZE(shadow_methods)
 
 static bool NVShadowVBIOS(struct drm_device *dev, uint8_t *data)
 {
@@ -227,7 +227,7 @@ static bool NVShadowVBIOS(struct drm_device *dev, uint8_t *data)
 	int testscore = 3;
 	int scores[NUM_SHADOW_METHODS], i;
 
-	if (nouveau_vbios) {
+	if (nouveau_vbios && nouveau_vbios[0]) {
 		for (i = 0; i < NUM_SHADOW_METHODS; i++)
 			if (!strcasecmp(nouveau_vbios, methods[i].desc))
 				break;
@@ -874,7 +874,7 @@ get_tmds_index_reg(struct drm_device *dev, uint8_t mlv)
 			dacoffset ^= 8;
 		return 0x6808b0 + dacoffset;
 	} else {
-		if (mlv >= ARRAY_SIZE(pramdac_table)) {
+		if (mlv >= DRM_ARRAY_SIZE(pramdac_table)) {
 			NV_ERROR(dev, "Magic Lookup Value too big (%02X)\n",
 									mlv);
 			return 0;
@@ -2178,7 +2178,7 @@ peek_fb(struct drm_device *dev, struct io_mapping *fb,
 {
 	uint32_t val = 0;
 
-	if (off < pci_resource_len(dev->pdev, 1)) {
+	if (off < drm_get_resource_len(dev, 1)) {
 #ifdef PSCNV_KAPI_IO_MAPPING_3
 		uint8_t __iomem *p =
 			io_mapping_map_atomic_wc(fb, off & PAGE_MASK, KM_USER0);
@@ -2200,7 +2200,6 @@ peek_fb(struct drm_device *dev, struct io_mapping *fb,
 	return val;
 }
 
-#error here
 #if 0
 		reloc_page = pmap_mapdev_attr(dev->agp->base + (reloc->offset &
 		    ~PAGE_MASK), PAGE_SIZE, PAT_WRITE_COMBINING);
@@ -2214,7 +2213,7 @@ static void
 poke_fb(struct drm_device *dev, struct io_mapping *fb,
 	uint32_t off, uint32_t val)
 {
-	if (off < pci_resource_len(dev->pdev, 1)) {
+	if (off < drm_get_resource_len(dev, 1)) {
 #ifdef PSCNV_KAPI_IO_MAPPING_3
 		uint8_t __iomem *p =
 			io_mapping_map_atomic_wc(fb, off & PAGE_MASK, KM_USER0);
@@ -2252,8 +2251,8 @@ nv04_init_compute_mem(struct nvbios *bios)
 	struct io_mapping *fb;
 
 	/* Map the framebuffer aperture */
-	fb = io_mapping_create_wc(pci_resource_start(dev->pdev, 1),
-				  pci_resource_len(dev->pdev, 1));
+	fb = io_mapping_create_wc(drm_get_resource_start(dev, 1),
+				  drm_get_resource_len(dev, 1));
 	if (!fb)
 		return -ENOMEM;
 #else
@@ -2356,8 +2355,8 @@ nv05_init_compute_mem(struct nvbios *bios)
 	int i, v;
 
 	/* Map the framebuffer aperture */
-	fb = io_mapping_create_wc(pci_resource_start(dev->pdev, 1),
-				  pci_resource_len(dev->pdev, 1));
+	fb = io_mapping_create_wc(drm_get_resource_start(dev, 1),
+				  drm_get_resource_len(dev, 1));
 	if (!fb)
 		return -ENOMEM;
 
@@ -2434,8 +2433,8 @@ nv10_init_compute_mem(struct nvbios *bios)
 	int i, j, k;
 
 	/* Map the framebuffer aperture */
-	fb = io_mapping_create_wc(pci_resource_start(dev->pdev, 1),
-				  pci_resource_len(dev->pdev, 1));
+	fb = io_mapping_create_wc(drm_get_resource_start(dev, 1),
+				  drm_get_resource_len(dev, 1));
 	if (!fb)
 		return -ENOMEM;
 
@@ -2494,8 +2493,8 @@ nv20_init_compute_mem(struct nvbios *bios)
 	struct io_mapping *fb;
 
 	/* Map the framebuffer aperture */
-	fb = io_mapping_create_wc(pci_resource_start(dev->pdev, 1),
-				  pci_resource_len(dev->pdev, 1));
+	fb = io_mapping_create_wc(drm_get_resource_start(dev, 1),
+				  drm_get_resource_len(dev, 1));
 	if (!fb)
 		return -ENOMEM;
 

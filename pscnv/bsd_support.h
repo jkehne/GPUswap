@@ -56,6 +56,9 @@ struct device_attribute {};
 struct notifier_block {};
 typedef struct pm_message_t { } pm_message_t;
 
+struct vm_fault {};
+struct vm_area_struct {};
+
 #define pci_dev device
 
 #define ioread8(x) (*(volatile u_int8_t*)(x))
@@ -330,3 +333,40 @@ cancel_delayed_work(struct delayed_work *work)
 }
 
 #endif	/* _LINUX_WORKQUEUE_H_ */
+
+#ifndef _LINUX_KREF_H_
+#define _LINUX_KREF_H_
+
+#include <sys/refcount.h>
+
+struct kref {
+        volatile u_int count;
+};
+
+static inline void
+kref_init(struct kref *kref)
+{
+
+	refcount_init(&kref->count, 1);
+}
+
+static inline void
+kref_get(struct kref *kref)
+{
+
+	refcount_acquire(&kref->count);
+}
+
+static inline int
+kref_put(struct kref *kref, void (*rel)(struct kref *kref))
+{
+
+	if (refcount_release(&kref->count)) {
+		rel(kref);
+		return 1;
+	}
+	return 0;
+}
+
+#endif /* _KREF_H_ */
+

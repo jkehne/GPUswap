@@ -991,7 +991,7 @@ nouveau_pm_init(struct drm_device *dev)
 	NV_INFO(dev, "c:%s", info);
 
 	/* switch performance levels now if requested */
-	if (nouveau_perflvl != NULL)
+	if (nouveau_perflvl && nouveau_perflvl[0])
 		nouveau_pm_profile_set(dev, nouveau_perflvl);
 
 	/* determine the current fan speed */

@@ -30,7 +30,6 @@
 #include "pscnv_vm.h"
 #include "pscnv_ramht.h"
 #include "pscnv_engine.h"
-#include <linux/kref.h>
 
 struct pscnv_chan {
 	struct drm_device *dev;

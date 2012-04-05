@@ -27,8 +27,6 @@
 #ifndef __PSCNV_VM_H__
 #define __PSCNV_VM_H__
 
-#include <linux/kref.h>
-
 struct pscnv_bo;
 struct pscnv_chan;
 
