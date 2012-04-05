@@ -543,7 +543,7 @@ nouveau_hw_fix_bad_vpll(struct drm_device *dev, int head)
  */
 
 static void nouveau_vga_font_io(struct drm_device *dev,
-				void __iomem *iovram,
+				struct drm_local_map *iovram,
 				bool save, unsigned plane)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
@@ -553,11 +553,9 @@ static void nouveau_vga_font_io(struct drm_device *dev,
 	NVWriteVgaGr(dev, 0, NV_VIO_GX_READ_MAP_INDEX, plane);
 	for (i = 0; i < 16384; i++) {
 		if (save) {
-			dev_priv->saved_vga_font[plane][i] =
-					ioread32_native(iovram + i * 4);
+			dev_priv->saved_vga_font[plane][i] = DRM_READ32(iovram, i * 4);
 		} else {
-			iowrite32_native(dev_priv->saved_vga_font[plane][i],
-							iovram + i * 4);
+			DRM_WRITE32(iovram, i * 4, dev_priv->saved_vga_font[plane][i]);
 		}
 	}
 }
@@ -568,7 +566,7 @@ nouveau_hw_save_vga_fonts(struct drm_device *dev, bool save)
 	uint8_t misc, gr4, gr5, gr6, seq2, seq4;
 	bool graphicsmode;
 	unsigned plane;
-	void __iomem *iovram;
+	struct drm_local_map *iovram;
 
 	if (nv_two_heads(dev))
 		NVSetOwner(dev, 0);
@@ -583,7 +581,7 @@ nouveau_hw_save_vga_fonts(struct drm_device *dev, bool save)
 	NV_INFO(dev, "%sing VGA fonts\n", save ? "Sav" : "Restor");
 
 	/* map first 64KiB of VRAM, holds VGA fonts etc */
-	iovram = ioremap(drm_get_resource_start(dev, 1), 65536);
+	drm_addmap(dev, drm_get_resource_start(dev, 1), 65536, _DRM_FRAME_BUFFER, _DRM_KERNEL | _DRM_DRIVER, &iovram);
 	if (!iovram) {
 		NV_ERROR(dev, "Failed to map VRAM, "
 					"cannot save/restore VGA fonts.\n");
@@ -623,7 +621,7 @@ nouveau_hw_save_vga_fonts(struct drm_device *dev, bool save)
 		NVBlankScreen(dev, 1, false);
 	NVBlankScreen(dev, 0, false);
 
-	iounmap(iovram);
+	drm_rmmap(dev, iovram);
 }
 
 /*

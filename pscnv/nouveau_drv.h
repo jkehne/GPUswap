@@ -675,8 +675,10 @@ extern int nouveau_override_conntype;
 extern char *nouveau_perflvl;
 extern int nouveau_perflvl_wr;
 
+#ifdef __linux__
 extern int nouveau_pci_suspend(struct pci_dev *pdev, pm_message_t pm_state);
 extern int nouveau_pci_resume(struct pci_dev *pdev);
+#endif
 
 /* nouveau_state.c */
 extern void nouveau_preclose(struct drm_device *dev, struct drm_file *);
@@ -851,7 +853,7 @@ void nouveau_unregister_dsm_handler(void);
 int nouveau_acpi_get_bios_chunk(uint8_t *bios, int offset, int len);
 bool nouveau_acpi_rom_supported(struct pci_dev *pdev);
 int nouveau_acpi_edid(struct drm_device *, struct drm_connector *);
-#else
+#elif defined(__linux__)
 static inline void nouveau_register_dsm_handler(void) {}
 static inline void nouveau_unregister_dsm_handler(void) {}
 static inline bool nouveau_acpi_rom_supported(struct pci_dev *pdev) { return false; }
@@ -1183,34 +1185,6 @@ int nv50_calc_pll(struct drm_device *, struct pll_lims *, int clk,
 int nva3_calc_pll(struct drm_device *, struct pll_lims *,
 		   int clk, int *N, int *fN, int *M, int *P);
 
-#ifndef ioread32_native
-#ifdef __BIG_ENDIAN
-#define ioread16_native ioread16be
-#define iowrite16_native iowrite16be
-#define ioread32_native  ioread32be
-#define iowrite32_native iowrite32be
-#else /* def __BIG_ENDIAN */
-#define ioread16_native ioread16
-#define iowrite16_native iowrite16
-#define ioread32_native  ioread32
-#define iowrite32_native iowrite32
-#endif /* def __BIG_ENDIAN else */
-#endif /* !ioread32_native */
-
-#if 0
-/* channel control reg access */
-static inline u32 nvchan_rd32(struct nouveau_channel *chan, unsigned reg)
-{
-	return ioread32_native(chan->user + reg);
-}
-
-static inline void nvchan_wr32(struct nouveau_channel *chan,
-							unsigned reg, u32 val)
-{
-	iowrite32_native(val, chan->user + reg);
-}
-#endif
-
 static inline u32 nv_rd32(struct drm_device *dev, unsigned reg)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
@@ -1250,20 +1224,6 @@ static inline u32 nv_mask(struct drm_device *dev, u32 reg, u32 mask, u32 val)
 #define nv_wait_cb(dev, func, data) \
 	nouveau_wait_cb(dev, 2000000000ULL, (func), (data))
 
-#if 0 /* not removing yet - may be useful for pre-NV50 one day */
-/* PRAMIN access */
-static inline u32 nv_ri32(struct drm_device *dev, unsigned offset)
-{
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	return ioread32_native(dev_priv->ramin + offset);
-}
-
-static inline void nv_wi32(struct drm_device *dev, unsigned offset, u32 val)
-{
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	iowrite32_native(val, dev_priv->ramin + offset);
-}
-#endif
 /*
  * Logging
  * Argument d is (struct drm_device *).
@@ -1395,7 +1355,7 @@ static inline uint32_t nv_rv32(struct pscnv_bo *bo,
 	uint32_t res;
 	uint64_t addr = bo->start + offset;
 	if (bo->map3 && dev_priv->vm && dev_priv->vm_ok)
-		return DRM_READ32(dev_priv->ramin, bo->map3->start - dev_priv->vm_ramin_base + offset);
+		return le32_to_cpu(DRM_READ32(dev_priv->ramin, bo->map3->start - dev_priv->vm_ramin_base + offset));
 	spin_lock(&dev_priv->pramin_lock);
 	if (addr >> 16 != dev_priv->pramin_start) {
 		dev_priv->pramin_start = addr >> 16;
@@ -1412,7 +1372,7 @@ static inline void nv_wv32(struct pscnv_bo *bo,
 	struct drm_nouveau_private *dev_priv = bo->dev->dev_private;
 	uint64_t addr = bo->start + offset;
 	if (bo->map3 && dev_priv->vm && dev_priv->vm_ok) {
-		DRM_WRITE32(dev_priv->ramin, bo->map3->start - dev_priv->vm_ramin_base + offset, val);
+		DRM_WRITE32(dev_priv->ramin, bo->map3->start - dev_priv->vm_ramin_base + offset, cpu_to_le32(val));
 		return;
 	}
 	spin_lock(&dev_priv->pramin_lock);

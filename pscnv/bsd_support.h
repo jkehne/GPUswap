@@ -61,13 +61,6 @@ typedef struct pm_message_t { } pm_message_t;
 struct vm_fault {};
 struct vm_area_struct {};
 
-#define pci_dev device
-
-#define ioread8(x) (*(volatile u_int8_t*)(x))
-#define iowrite8(y, x) ((*(volatile u_int8_t*)(x)) = (y))
-#define ioread32(x) (*(volatile u_int32_t*)(x))
-#define iowrite32(y, x) ((*(volatile u_int32_t*)(x)) = (y))
-
 #ifndef HZ
 #define HZ hz
 #endif
