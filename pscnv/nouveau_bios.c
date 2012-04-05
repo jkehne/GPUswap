@@ -33,7 +33,9 @@
 #include "nouveau_reg.h"
 #include "pscnv_kapi.h"
 
+#ifdef __linux__
 #include <linux/io-mapping.h>
+#endif
 
 /* these defines are made up */
 #define NV_CIO_CRE_44_HEADA 0x0
@@ -164,6 +166,7 @@ out:
 
 static void load_vbios_pci(struct drm_device *dev, uint8_t *data)
 {
+#ifdef __linux__ // Maybe todo?
 	void __iomem *rom = NULL;
 	size_t rom_len;
 	int ret;
@@ -180,10 +183,12 @@ static void load_vbios_pci(struct drm_device *dev, uint8_t *data)
 
 out:
 	pci_disable_rom(dev->pdev);
+#endif
 }
 
 static void load_vbios_acpi(struct drm_device *dev, uint8_t *data)
 {
+#ifdef __linux__
 	int i;
 	int ret;
 	int size = 64 * 1024;
@@ -199,6 +204,7 @@ static void load_vbios_acpi(struct drm_device *dev, uint8_t *data)
 			break;
 	}
 	return;
+#endif
 }
 
 struct methods {
@@ -2023,6 +2029,7 @@ init_sub_direct(struct nvbios *bios, uint16_t offset, struct init_exec *iexec)
 static int
 init_i2c_if(struct nvbios *bios, uint16_t offset, struct init_exec *iexec)
 {
+#ifdef __linux__
 	/*
 	 * INIT_I2C_IF   opcode: 0x5E ('^')
 	 *
@@ -2074,7 +2081,12 @@ init_i2c_if(struct nvbios *bios, uint16_t offset, struct init_exec *iexec)
 		offset, reg, val.byte, mask, data);
 
 	iexec->execute = ((val.byte & mask) == data);
-
+#else
+	BIOSLOG(bios, "0x%04X: I2CReg: 0x%02X, Value: 0x%02X, "
+		      "Mask: 0x%02X, Data: 0x%02X not handled!\n",
+		offset, reg, val.byte, mask, data);
+	iexec->execute = 0;
+#endif
 	return 6;
 }
 
@@ -2188,6 +2200,16 @@ peek_fb(struct drm_device *dev, struct io_mapping *fb,
 	return val;
 }
 
+#error here
+#if 0
+		reloc_page = pmap_mapdev_attr(dev->agp->base + (reloc->offset &
+		    ~PAGE_MASK), PAGE_SIZE, PAT_WRITE_COMBINING);
+		reloc_entry = (uint32_t *)(reloc_page + (reloc->offset &
+		    PAGE_MASK));
+		*(volatile uint32_t *)reloc_entry = reloc->delta;
+		pmap_unmapdev((vm_offset_t)reloc_page, PAGE_SIZE);
+#endif
+
 static void
 poke_fb(struct drm_device *dev, struct io_mapping *fb,
 	uint32_t off, uint32_t val)
@@ -2225,14 +2247,18 @@ nv04_init_compute_mem(struct nvbios *bios)
 {
 	struct drm_device *dev = bios->dev;
 	uint32_t patt = 0xdeadbeef;
-	struct io_mapping *fb;
 	int i;
+#ifdef __linux__
+	struct io_mapping *fb;
 
 	/* Map the framebuffer aperture */
 	fb = io_mapping_create_wc(pci_resource_start(dev->pdev, 1),
 				  pci_resource_len(dev->pdev, 1));
 	if (!fb)
 		return -ENOMEM;
+#else
+	asdfasd
+#endif
 
 	/* Sequencer and refresh off */
 	NVWriteVgaSeq(dev, 0, 1, NVReadVgaSeq(dev, 0, 1) | 0x20);
@@ -3627,6 +3653,7 @@ init_zm_auxch(struct nvbios *bios, uint16_t offset, struct init_exec *iexec)
 static int
 init_i2c_long_if(struct nvbios *bios, uint16_t offset, struct init_exec *iexec)
 {
+#ifdef __linux__
 	/*
 	 * INIT_I2C_LONG_IF   opcode: 0x9A ('')
 	 *
@@ -3683,7 +3710,11 @@ init_i2c_long_if(struct nvbios *bios, uint16_t offset, struct init_exec *iexec)
 		offset, reghi, reglo, buf1[0], mask, data);
 
 	iexec->execute = ((buf1[0] & mask) == data);
-
+#else
+	BIOSLOG(bios, "0x%04X: DCBI2CIndex: 0x%02X, I2CAddress: 0x%02X skipped due to no i2c yet\n",
+		offset, i2c_index, i2c_address);
+	iexec->execute = 0;
+#endif
 	return 7;
 }
 

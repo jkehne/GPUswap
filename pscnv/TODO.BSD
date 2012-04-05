@@ -1,0 +1,8 @@
+Currently disabled temporarily
+
+Anything touching i2c:
+- i2c methods in nouveau_bios
+- hwmon (temperature) support
+- nv04 tv/dfp
+
+

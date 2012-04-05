@@ -7,4 +7,4 @@ SRCS=$(HEADERS) $(C_SRCS) bus_if.h device_if.h pci_if.h opt_drm.h vnode_if.h
 
 .include <bsd.kmod.mk>
 
-CFLAGS+=-I$(SYSDIR)/dev/drm # -I$(SYSDIR)/ofed/include
+CFLAGS+=-Wno-pointer-arith -I$(SYSDIR)/dev/drm # -I$(SYSDIR)/ofed/include

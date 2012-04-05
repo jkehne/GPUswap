@@ -29,6 +29,8 @@
 #include "bsd_support.h"
 #else
 #include "drmP.h"
+#define drm_get_resource_start(dev) pci_resource_start((dev)->pdev)
+#define drm_get_resource_len(dev) pci_resource_len((dev)->pdev)
 #endif
 
 #define DRIVER_AUTHOR		"Stephane Marchesin"
@@ -1306,7 +1308,6 @@ static inline void nv_wi32(struct drm_device *dev, unsigned offset, u32 val)
 #define NV_ERROR(d, fmt, arg...) DRM_ERROR(fmt, ##arg)
 #define NV_INFO(d, fmt, arg...) DRM_INFO(fmt, ##arg)
 #define NV_DEBUG(d, fmt, arg...) DRM_DEBUG_DRIVER(fmt, ##arg)
-#define NV_TRACE(d, fmt, arg...) DRM_DEBUG_DRIVER(fmt, ##arg)
 #define NV_DEBUG_KMS(d, fmt, arg...) DRM_DEBUG_KMS(fmt, ##arg)
 #define NV_TRACEWARN(d, fmt, arg...) DRM_INFO(fmt, ##arg)
 #define NV_TRACE(d, fmt, arg...) DRM_INFO(fmt, ##arg)
