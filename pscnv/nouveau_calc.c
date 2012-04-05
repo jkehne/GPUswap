@@ -209,11 +209,14 @@ nv04_update_arb(struct drm_device *dev, int VClk, int bpp,
 	sim_data.two_heads = nv_two_heads(dev);
 	if ((dev->pci_device & 0xffff) == 0x01a0 /*CHIPSET_NFORCE*/ ||
 	    (dev->pci_device & 0xffff) == 0x01f0 /*CHIPSET_NFORCE2*/) {
+#ifdef __linux__
 		uint32_t type;
-
 		pci_read_config_dword(pci_get_bus_and_slot(0, 1), 0x7c, &type);
-
 		sim_data.memory_type = (type >> 12) & 1;
+#else
+		// TODO: If anyone ever has a nv04 and wants things working? Dno
+		sim_data.memory_type = nvReadFB(dev, NV04_PFB_CFG0) & 0x1;
+#endif
 		sim_data.memory_width = 64;
 		sim_data.mem_latency = 3;
 		sim_data.mem_page_miss = 10;

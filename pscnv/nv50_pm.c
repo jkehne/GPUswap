@@ -120,6 +120,7 @@ read_pll_src(struct drm_device *dev, u32 base)
 		case 1: return read_clk(dev, clk_src_crystal);
 		case 2: return read_clk(dev, clk_src_href);
 		case 3: id = 0; break;
+		default: BUG_ON(1);
 		}
 
 		coef =  nv_rd32(dev, 0x00e81c + (id * 0x28));

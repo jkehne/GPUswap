@@ -482,8 +482,7 @@ struct drm_nouveau_private {
 	int chipset;
 	int flags;
 
-	void __iomem *mmio;
-	void __iomem *ramin;
+	struct drm_local_map *mmio, *ramin;
 	uint32_t ramin_size;
 
 	struct workqueue_struct *wq;
@@ -1212,17 +1211,28 @@ static inline void nvchan_wr32(struct nouveau_channel *chan,
 }
 #endif
 
-/* register access */
 static inline u32 nv_rd32(struct drm_device *dev, unsigned reg)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	return ioread32_native(dev_priv->mmio + reg);
+	return DRM_READ32(dev_priv->mmio, reg);
+}
+
+static inline u32 nv_rd08(struct drm_device *dev, unsigned reg)
+{
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	return DRM_READ8(dev_priv->mmio, reg);
 }
 
 static inline void nv_wr32(struct drm_device *dev, unsigned reg, u32 val)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	iowrite32_native(val, dev_priv->mmio + reg);
+	DRM_WRITE32(dev_priv->mmio, reg, val);
+}
+
+static inline void nv_wr08(struct drm_device *dev, unsigned reg, u8 val)
+{
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	DRM_WRITE8(dev_priv->mmio, reg, val);
 }
 
 static inline u32 nv_mask(struct drm_device *dev, u32 reg, u32 mask, u32 val)
@@ -1230,18 +1240,6 @@ static inline u32 nv_mask(struct drm_device *dev, u32 reg, u32 mask, u32 val)
 	u32 tmp = nv_rd32(dev, reg);
 	nv_wr32(dev, reg, (tmp & ~mask) | val);
 	return tmp;
-}
-
-static inline u8 nv_rd08(struct drm_device *dev, unsigned reg)
-{
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	return ioread8(dev_priv->mmio + reg);
-}
-
-static inline void nv_wr08(struct drm_device *dev, unsigned reg, u8 val)
-{
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	iowrite8(val, dev_priv->mmio + reg);
 }
 
 #define nv_wait(dev, reg, mask, val) \
@@ -1397,7 +1395,7 @@ static inline uint32_t nv_rv32(struct pscnv_bo *bo,
 	uint32_t res;
 	uint64_t addr = bo->start + offset;
 	if (bo->map3 && dev_priv->vm && dev_priv->vm_ok)
-		return ioread32_native(dev_priv->ramin + bo->map3->start - dev_priv->vm_ramin_base + offset);
+		return DRM_READ32(dev_priv->ramin, bo->map3->start - dev_priv->vm_ramin_base + offset);
 	spin_lock(&dev_priv->pramin_lock);
 	if (addr >> 16 != dev_priv->pramin_start) {
 		dev_priv->pramin_start = addr >> 16;
@@ -1414,7 +1412,7 @@ static inline void nv_wv32(struct pscnv_bo *bo,
 	struct drm_nouveau_private *dev_priv = bo->dev->dev_private;
 	uint64_t addr = bo->start + offset;
 	if (bo->map3 && dev_priv->vm && dev_priv->vm_ok) {
-		iowrite32_native(val, dev_priv->ramin + bo->map3->start - dev_priv->vm_ramin_base + offset);
+		DRM_WRITE32(dev_priv->ramin, bo->map3->start - dev_priv->vm_ramin_base + offset, val);
 		return;
 	}
 	spin_lock(&dev_priv->pramin_lock);

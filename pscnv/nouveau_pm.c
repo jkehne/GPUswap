@@ -28,6 +28,7 @@
 #include "nouveau_bios.h"
 #include "nouveau_crtc.h"
 
+#ifdef __linux__
 #ifdef CONFIG_ACPI
 #include <linux/acpi.h>
 #endif
@@ -36,6 +37,7 @@
 #include <linux/hwmon-sysfs.h>
 
 #include <asm/div64.h>
+#endif
 
 static int
 nouveau_pwmfan_get(struct drm_device *dev)
@@ -844,6 +846,9 @@ static const struct attribute_group hwmon_pwm_fan_attrgroup = {
 	.attrs = hwmon_pwm_fan_attributes,
 };
 #endif
+#else
+#define nouveau_sysfs_init(x) do { } while (0)
+#define nouveau_sysfs_fini(x) do { } while (0)
 #endif
 
 static int

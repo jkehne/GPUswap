@@ -51,6 +51,7 @@ typedef DRM_SPINTYPE spinlock_t;
 
 #define kfree(x) drm_free(x, 0, DRM_MEM_DRIVER)
 #define kzalloc(x, y) drm_calloc(x, 1, DRM_MEM_DRIVER)
+#define kcalloc(x, y, z) drm_calloc(x, y, DRM_MEM_DRIVER)
 #define kmalloc(x, y) drm_alloc(x, DRM_MEM_DRIVER)
 
 struct device_attribute {};
@@ -71,14 +72,29 @@ struct vm_area_struct {};
 #define HZ hz
 #endif
 
+#define power_supply_is_system_supplied() 1
+
+/* Dog slow version, but only called once
+ * Linux kernel has a faster software fallback
+ * but I prefer not to GPL this or even worry about it
+ */
+static inline u32 hweight32(u32 val)
+{
+	u32 i, ret = 0;
+	for (i = 1; i; i <<= 1)
+		if (val & i)
+			++ret;
+	return ret;
+}
+
 #define WARN(arg1, args...) do { \
 		printf("%s:%d/%s " arg1, \
 			__FILE__, __LINE__, __FUNCTION__, ##args); \
 		kdb_backtrace(); \
 	} while (0)
-#define BUG() WARN("")
+#define BUG() panic("BUG()\n");
 #define WARN_ON(x,y,z...) do { if ((x)) WARN(y, ##z); } while (0)
-#define BUG_ON(x) WARN_ON(x, "")
+#define BUG_ON(x) do { if ((x)) { panic(#x "triggered\n"); } } while (0)
 
 #ifndef __must_check
 #define __must_check
@@ -95,6 +111,8 @@ linux_msleep(int ms)
 
 #undef msleep
 #define	msleep	linux_msleep
+#define udelay(x) DELAY((x))
+#define mdelay(x) DELAY((x) * 1000)
 
 #endif	/* _LINUX_DELAY_H_ */
 
@@ -388,3 +406,73 @@ kref_put(struct kref *kref, void (*rel)(struct kref *kref))
 
 #endif /* _KREF_H_ */
 
+#ifndef	_LINUX_LOG2_H_
+#define	_LINUX_LOG2_H_
+
+#include <sys/libkern.h>
+
+static inline unsigned long
+roundup_pow_of_two(unsigned long x)
+{
+	return (1UL << flsl(x - 1));
+}
+
+static inline int
+is_power_of_2(unsigned long n)
+{
+	return (n == roundup_pow_of_two(n));
+}
+
+static inline unsigned long
+rounddown_pow_of_two(unsigned long x)
+{
+        return (1UL << (flsl(x) - 1));
+}
+
+static inline unsigned long
+ilog2(unsigned long x)
+{
+	return (flsl(x) - 1);
+}
+
+#endif	/* _LINUX_LOG2_H_ */
+
+#ifndef	_LINUX_ERR_H_
+#define	_LINUX_ERR_H_
+
+#define MAX_ERRNO	4095
+
+#define IS_ERR_VALUE(x) ((x) >= (unsigned long)-MAX_ERRNO)
+
+static inline void *
+ERR_PTR(long error)
+{
+	return (void *)error;
+}
+
+static inline long
+PTR_ERR(const void *ptr)
+{
+	return (long)ptr;
+}
+
+static inline long
+IS_ERR(const void *ptr)
+{
+	return IS_ERR_VALUE((unsigned long)ptr);
+}
+
+static inline void *
+ERR_CAST(void *ptr)
+{
+	return (void *)ptr;
+}
+
+#endif	/* _LINUX_ERR_H_ */
+
+// Not defined inside _LINUX_WORKQUEUE_H_ header
+static inline int
+work_pending(struct work_struct *work)
+{
+	return to_delayed_work(work)->work.work_task.ta_pending;
+}

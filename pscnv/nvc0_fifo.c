@@ -35,22 +35,22 @@ struct nvc0_fifo_engine {
 	struct pscnv_bo *playlist[2];
 	int cur_playlist;
 	struct pscnv_bo *ctrl_bo;
-	volatile uint32_t *fifo_ctl;
+	struct drm_local_map *fifo_ctl;
 };
 
 #define nvc0_fifo(x) container_of(x, struct nvc0_fifo_engine, base)
 
-void nvc0_fifo_takedown(struct drm_device *dev);
-void nvc0_fifo_irq_handler(struct drm_device *dev, int irq);
-int nvc0_fifo_chan_init_ib (struct pscnv_chan *ch, uint32_t pb_handle, uint32_t flags, uint32_t slimask, uint64_t ib_start, uint32_t ib_order);
-void nvc0_fifo_chan_kill(struct pscnv_chan *ch);
+static void nvc0_fifo_takedown(struct drm_device *dev);
+static void nvc0_fifo_irq_handler(struct drm_device *dev, int irq);
+static int nvc0_fifo_chan_init_ib (struct pscnv_chan *ch, uint32_t pb_handle, uint32_t flags, uint32_t slimask, uint64_t ib_start, uint32_t ib_order);
+static void nvc0_fifo_chan_kill(struct pscnv_chan *ch);
 
 int nvc0_fifo_init(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct nvc0_fifo_engine *res = kzalloc(sizeof *res, GFP_KERNEL);
 	int subfifo_count;
-	int i;
+	int i, ret;
 
 	if (!res) {
 		NV_ERROR(dev, "PFIFO: Couldn't allocate engine!\n");
@@ -96,15 +96,16 @@ int nvc0_fifo_init(struct drm_device *dev)
 		kfree(res);
 		return -ENOMEM;
 	}
-	res->fifo_ctl = ioremap(drm_get_resource_start(dev, 1) +
-				     res->ctrl_bo->map1->start, 128 << 12);
-	if (!res->fifo_ctl) {
+	ret = drm_addmap(dev, drm_get_resource_start(dev, 1) +
+			res->ctrl_bo->map1->start, 128 << 12,
+			_DRM_REGISTERS, _DRM_KERNEL | _DRM_DRIVER, &res->fifo_ctl);
+	if (ret) {
 		NV_ERROR(dev, "PFIFO: Couldn't ioremap control area!\n");
 		pscnv_mem_free(res->playlist[0]);
 		pscnv_mem_free(res->playlist[1]);
 		pscnv_mem_free(res->ctrl_bo);
 		kfree(res);
-		return -ENOMEM;
+		return ret;
 	}
 	
 	/* reset PFIFO, enable all available PSUBFIFO areas */
@@ -155,7 +156,7 @@ int nvc0_fifo_init(struct drm_device *dev)
 	return 0;
 }
 
-void nvc0_fifo_takedown(struct drm_device *dev)
+static void nvc0_fifo_takedown(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct nvc0_fifo_engine *fifo = nvc0_fifo(dev_priv->fifo);
@@ -164,13 +165,13 @@ void nvc0_fifo_takedown(struct drm_device *dev)
 	/* XXX */
 	pscnv_mem_free(fifo->playlist[0]);
 	pscnv_mem_free(fifo->playlist[1]);
-	iounmap(fifo->fifo_ctl);
+	drm_rmmap(dev, fifo->fifo_ctl);
 	pscnv_mem_free(fifo->ctrl_bo);
 	kfree(fifo);
 	dev_priv->fifo = 0;
 }
 
-void nvc0_fifo_playlist_update(struct drm_device *dev)
+static void nvc0_fifo_playlist_update(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct nvc0_fifo_engine *fifo = nvc0_fifo(dev_priv->fifo);
@@ -195,7 +196,7 @@ void nvc0_fifo_playlist_update(struct drm_device *dev)
 			nv_rd32(dev, 0x227c));
 }
 
-void nvc0_fifo_chan_kill(struct pscnv_chan *ch)
+static void nvc0_fifo_chan_kill(struct pscnv_chan *ch)
 {
 	struct drm_device *dev = ch->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
@@ -222,9 +223,9 @@ void nvc0_fifo_chan_kill(struct pscnv_chan *ch)
 }
 
 #define nvchan_wr32(chan, ofst, val)					\
-	fifo->fifo_ctl[((chan)->cid * 0x1000 + ofst) / 4] = val
+	DRM_WRITE32(fifo->fifo_ctl, ((chan)->cid * 0x1000 + ofst), val)
 
-int nvc0_fifo_chan_init_ib (struct pscnv_chan *ch, uint32_t pb_handle, uint32_t flags, uint32_t slimask, uint64_t ib_start, uint32_t ib_order) {
+static int nvc0_fifo_chan_init_ib (struct pscnv_chan *ch, uint32_t pb_handle, uint32_t flags, uint32_t slimask, uint64_t ib_start, uint32_t ib_order) {
 	struct drm_device *dev = ch->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct nvc0_fifo_engine *fifo = nvc0_fifo(dev_priv->fifo);
@@ -316,7 +317,7 @@ static const char *pgf_cause_str(uint32_t flags)
 	return "unknown cause";
 }
 
-void nvc0_pfifo_page_fault(struct drm_device *dev, int unit)
+static void nvc0_pfifo_page_fault(struct drm_device *dev, int unit)
 {
 	uint64_t virt;
 	uint32_t chan, flags;
@@ -331,7 +332,7 @@ void nvc0_pfifo_page_fault(struct drm_device *dev, int unit)
 		(flags & 0x80) ? 'w' : 'r', pgf_cause_str(flags));
 }
 
-void nvc0_pfifo_subfifo_fault(struct drm_device *dev, int unit)
+static void nvc0_pfifo_subfifo_fault(struct drm_device *dev, int unit)
 {
 	int cid = nv_rd32(dev, 0x40120 + unit * 0x2000) & 0x7f;
 	int status = nv_rd32(dev, 0x40108 + unit * 0x2000);
@@ -359,7 +360,7 @@ void nvc0_pfifo_subfifo_fault(struct drm_device *dev, int unit)
 	}
 }
 
-void nvc0_fifo_irq_handler(struct drm_device *dev, int irq)
+static void nvc0_fifo_irq_handler(struct drm_device *dev, int irq)
 {
 	uint32_t status;
 
@@ -422,9 +423,11 @@ uint64_t nvc0_fifo_ctrl_offs(struct drm_device *dev, int cid)
 	return fifo->ctrl_bo->map1->start + cid * 0x1000;
 }
 
-volatile uint32_t *nvc0_fifo_ctrl_ptr(struct drm_device *dev, struct pscnv_chan *chan) 
+#if 0
+static volatile uint32_t *nvc0_fifo_ctrl_ptr(struct drm_device *dev, struct pscnv_chan *chan) 
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct nvc0_fifo_engine *fifo = nvc0_fifo(dev_priv->fifo);
 	return &fifo->fifo_ctl[chan->cid * 0x1000 / 4];
 }
+#endif

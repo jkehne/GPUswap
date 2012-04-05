@@ -1,4 +1,5 @@
-Currently disabled temporarily
+Currently disabled temporarily:
+- anything i2c, probably displayport soon as well
 
 Anything touching i2c:
 - i2c methods in nouveau_bios
@@ -8,4 +9,11 @@ Anything touching i2c:
 
 Not implemented at all:
 - vga switcheroo / arbiter
+
+TODO:
+- framebuffer
+- fixup vm
+- fixup io
+- compile failures general
+- Maybe figure out wtf special casing nForce + old nv04 was for in nouveau_calc?
 

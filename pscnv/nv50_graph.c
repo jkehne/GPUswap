@@ -479,7 +479,7 @@ static struct pscnv_enumval *pscnv_enum_find (struct pscnv_enumval *list, int va
 		return 0;
 }
 
-void nv50_graph_tex_trap(struct drm_device *dev, int cid, int tp) {
+static void nv50_graph_tex_trap(struct drm_device *dev, int cid, int tp) {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	uint32_t staddr, status;
 	uint32_t e04, e08, e0c, e10;
@@ -521,7 +521,7 @@ void nv50_graph_tex_trap(struct drm_device *dev, int cid, int tp) {
 	nv_wr32(dev, staddr, 0xc0000000);
 }
 
-void nv50_graph_mp_trap(struct drm_device *dev, int cid, int tp, int mp) {
+static void nv50_graph_mp_trap(struct drm_device *dev, int cid, int tp, int mp) {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	uint32_t mpaddr, mp10, status, pc, oplo, ophi;
 	if (dev_priv->chipset < 0xa0)
@@ -567,7 +567,7 @@ void nv50_graph_mp_trap(struct drm_device *dev, int cid, int tp, int mp) {
 	nv_wr32(dev, mpaddr + 0x14, 0);
 }
 
-void nv50_graph_mpc_trap(struct drm_device *dev, int cid, int tp) {
+static void nv50_graph_mpc_trap(struct drm_device *dev, int cid, int tp) {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	uint32_t staddr, status;
 	if (dev_priv->chipset < 0xa0)
@@ -621,7 +621,7 @@ void nv50_graph_mpc_trap(struct drm_device *dev, int cid, int tp) {
 	nv_wr32(dev, staddr, 0xc0000000);
 }
 
-void nv50_graph_tprop_trap(struct drm_device *dev, int cid, int tp) {
+static void nv50_graph_tprop_trap(struct drm_device *dev, int cid, int tp) {
 	static const char *const tprop_tnames[14] = {
 		"RT0",
 		"RT1",
@@ -711,7 +711,7 @@ void nv50_graph_tprop_trap(struct drm_device *dev, int cid, int tp) {
 	nv_wr32(dev, staddr, 0xc0000000);
 }
 
-void nv50_graph_trap_handler(struct drm_device *dev, int cid) {
+static void nv50_graph_trap_handler(struct drm_device *dev, int cid) {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	uint32_t status = nv_rd32(dev, 0x400108);
 	uint32_t ustatus;

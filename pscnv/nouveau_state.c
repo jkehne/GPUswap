@@ -564,6 +564,7 @@ int nouveau_load(struct drm_device *dev, unsigned long flags)
 	struct drm_nouveau_private *dev_priv;
 	uint32_t reg0, strap;
 	resource_size_t mmio_start_offs;
+	int ret;
 
 	dev_priv = kzalloc(sizeof(*dev_priv), GFP_KERNEL);
 	if (!dev_priv)
@@ -588,11 +589,13 @@ int nouveau_load(struct drm_device *dev, unsigned long flags)
 
 	/* map the mmio regs */
 	mmio_start_offs = drm_get_resource_start(dev, 0);
-	dev_priv->mmio = ioremap(mmio_start_offs, 0x00800000);
-	if (!dev_priv->mmio) {
+	ret = drm_addmap(dev, mmio_start_offs, 0x00800000, _DRM_REGISTERS,
+	    _DRM_KERNEL | _DRM_DRIVER, &dev_priv->mmio);
+
+	if (ret) {
 		NV_ERROR(dev, "Unable to initialize the mmio mapping. "
 			 "Please report your setup to " DRIVER_EMAIL "\n");
-		return -EINVAL;
+		return ret;
 	}
 	NV_DEBUG(dev, "regs mapped ok at 0x%llx\n",
 					(unsigned long long)mmio_start_offs);
@@ -694,12 +697,12 @@ int nouveau_load(struct drm_device *dev, unsigned long flags)
 			ramin_bar = 3;
 
 		dev_priv->ramin_size = drm_get_resource_len(dev, ramin_bar);
-		dev_priv->ramin = ioremap(
-				drm_get_resource_start(dev, ramin_bar),
-				dev_priv->ramin_size);
-		if (!dev_priv->ramin) {
+		ret = drm_addmap(dev, drm_get_resource_start(dev, ramin_bar),
+				 dev_priv->ramin_size, _DRM_REGISTERS,
+				 _DRM_KERNEL | _DRM_DRIVER, &dev_priv->ramin);
+		if (ret) {
 			NV_ERROR(dev, "Failed to init RAMIN mapping\n");
-			return -ENOMEM;
+			return ret;
 		}
 	}
 
@@ -749,8 +752,8 @@ int nouveau_unload(struct drm_device *dev)
 		nouveau_close(dev);
 	}
 
-	iounmap(dev_priv->mmio);
-	iounmap(dev_priv->ramin);
+	drm_rmmap(dev, dev_priv->mmio);
+	drm_rmmap(dev, dev_priv->ramin);
 
 	kfree(dev_priv);
 	dev->dev_private = NULL;

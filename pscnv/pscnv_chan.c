@@ -147,9 +147,6 @@ static struct vm_operations_struct pscnv_chan_vm_ops = {
 	.close = pscnv_chan_vm_close,
 };	
 
-/* XXX */
-extern uint64_t nvc0_fifo_ctrl_offs(struct drm_device *dev, int cid);
-
 int pscnv_chan_mmap(struct file *filp, struct vm_area_struct *vma)
 {
 	struct drm_file *priv = filp->private_data;

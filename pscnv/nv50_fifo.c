@@ -38,11 +38,11 @@ struct nv50_fifo_engine {
 
 #define nv50_fifo(x) container_of(x, struct nv50_fifo_engine, base)
 
-void nv50_fifo_takedown(struct drm_device *dev);
-void nv50_fifo_irq_handler(struct drm_device *dev, int irq);
-int nv50_fifo_chan_init_dma (struct pscnv_chan *ch, uint32_t pb_handle, uint32_t flags, uint32_t slimask, uint64_t pb_start);
-int nv50_fifo_chan_init_ib (struct pscnv_chan *ch, uint32_t pb_handle, uint32_t flags, uint32_t slimask, uint64_t ib_start, uint32_t ib_order);
-void nv50_fifo_chan_kill(struct pscnv_chan *ch);
+static void nv50_fifo_takedown(struct drm_device *dev);
+static void nv50_fifo_irq_handler(struct drm_device *dev, int irq);
+static int nv50_fifo_chan_init_dma (struct pscnv_chan *ch, uint32_t pb_handle, uint32_t flags, uint32_t slimask, uint64_t pb_start);
+static int nv50_fifo_chan_init_ib (struct pscnv_chan *ch, uint32_t pb_handle, uint32_t flags, uint32_t slimask, uint64_t ib_start, uint32_t ib_order);
+static void nv50_fifo_chan_kill(struct pscnv_chan *ch);
 
 int nv50_fifo_init(struct drm_device *dev) {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
@@ -106,7 +106,7 @@ int nv50_fifo_init(struct drm_device *dev) {
 	return 0;
 }
 
-void nv50_fifo_takedown(struct drm_device *dev) {
+static void nv50_fifo_takedown(struct drm_device *dev) {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	int i;
 	struct nv50_fifo_engine *fifo = nv50_fifo(dev_priv->fifo);
@@ -122,7 +122,7 @@ void nv50_fifo_takedown(struct drm_device *dev) {
 	dev_priv->fifo = 0;
 }
 
-void nv50_fifo_playlist_update (struct drm_device *dev) {
+static void nv50_fifo_playlist_update (struct drm_device *dev) {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct nv50_fifo_engine *fifo = nv50_fifo(dev_priv->fifo);
 	int i, pos;
@@ -142,7 +142,7 @@ void nv50_fifo_playlist_update (struct drm_device *dev) {
 	nv_wr32(dev, 0x2500, 0x101);
 }
 
-void nv50_fifo_chan_kill(struct pscnv_chan *ch) {
+static void nv50_fifo_chan_kill(struct pscnv_chan *ch) {
 	struct drm_device *dev = ch->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	uint64_t start;
@@ -174,7 +174,7 @@ void nv50_fifo_chan_kill(struct pscnv_chan *ch) {
 	spin_unlock_irqrestore(&dev_priv->context_switch_lock, flags);
 }
 
-int nv50_fifo_chan_init_dma (struct pscnv_chan *ch, uint32_t pb_handle, uint32_t flags, uint32_t slimask, uint64_t pb_start) {
+static int nv50_fifo_chan_init_dma (struct pscnv_chan *ch, uint32_t pb_handle, uint32_t flags, uint32_t slimask, uint64_t pb_start) {
 	struct drm_device *dev = ch->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	unsigned long irqflags;
@@ -242,7 +242,7 @@ int nv50_fifo_chan_init_dma (struct pscnv_chan *ch, uint32_t pb_handle, uint32_t
 	return 0;
 }
 
-int nv50_fifo_chan_init_ib (struct pscnv_chan *ch, uint32_t pb_handle, uint32_t flags, uint32_t slimask, uint64_t ib_start, uint32_t ib_order) {
+static int nv50_fifo_chan_init_ib (struct pscnv_chan *ch, uint32_t pb_handle, uint32_t flags, uint32_t slimask, uint64_t ib_start, uint32_t ib_order) {
 	struct drm_device *dev = ch->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	unsigned long irqflags;
@@ -347,7 +347,7 @@ static struct pscnv_enumval *pscnv_enum_find (struct pscnv_enumval *list, int va
 		return 0;
 }
 
-void nv50_fifo_irq_handler(struct drm_device *dev, int irq) {
+static void nv50_fifo_irq_handler(struct drm_device *dev, int irq) {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	uint32_t status;
 	int ch;

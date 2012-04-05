@@ -34,20 +34,12 @@
 #include "pscnv_drm.h"
 #include "nouveau_drv.h"
 #include "nouveau_reg.h"
-#include <linux/ratelimit.h>
 
 /* needed for hotplug irq */
 #include "nouveau_connector.h"
 #include "nv50_display.h"
 #include "pscnv_engine.h"
 #include "pscnv_fifo.h"
-
-static DEFINE_RATELIMIT_STATE(nouveau_ratelimit_state, 3 * HZ, 20);
-
-static inline int nouveau_ratelimit(void)
-{
-	return __ratelimit(&nouveau_ratelimit_state);
-}
 
 void
 nouveau_irq_preinstall(struct drm_device *dev)
@@ -83,6 +75,14 @@ nouveau_irq_uninstall(struct drm_device *dev)
 }
 
 #if 0
+#include <linux/ratelimit.h>
+
+static DEFINE_RATELIMIT_STATE(nouveau_ratelimit_state, 3 * HZ, 20);
+
+static inline int nouveau_ratelimit(void)
+{
+	return __ratelimit(&nouveau_ratelimit_state);
+}
 
 static int
 nouveau_call_method(struct nouveau_channel *chan, int class, int mthd, int data)

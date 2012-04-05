@@ -237,7 +237,11 @@ nouveau_display_create(struct drm_device *dev)
 		disp->color_vibrance_property->values[1] = 200; /* -100..+100 */
 	}
 
-	dev->mode_config.funcs = (void *)&nouveau_mode_config_funcs;
+#ifdef __DECONST
+	dev->mode_config.funcs = __DECONST(struct drm_mode_config_funcs *, &nouveau_mode_config_funcs);
+#else
+	dev->mode_config.funcs = (void*)&nouveau_mode_config_funcs;
+#endif
 	dev->mode_config.fb_base = dev_priv->fb_phys;
 
 	dev->mode_config.min_width = 0;

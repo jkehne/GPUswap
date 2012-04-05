@@ -23,7 +23,6 @@
  */
 
 #include "nouveau_drv.h"
-#include "drm_fixed.h"
 #include "nouveau_hw.h"
 
 int

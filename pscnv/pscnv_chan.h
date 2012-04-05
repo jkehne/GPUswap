@@ -31,6 +31,9 @@
 #include "pscnv_ramht.h"
 #include "pscnv_engine.h"
 
+/* XXX */
+extern uint64_t nvc0_fifo_ctrl_offs(struct drm_device *dev, int cid);
+
 struct pscnv_chan {
 	struct drm_device *dev;
 	int cid;
