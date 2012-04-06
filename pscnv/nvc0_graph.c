@@ -120,7 +120,7 @@ nvc0_graph_init_gpc(struct drm_device *dev, struct nvc0_graph_engine *graph)
 		graph->tp_count += graph->gpc_tp_count[gpc];
 	}
 
-	magicgpc918 = DIV_ROUND_UP(0x00800000, graph->tp_count);
+	magicgpc918 = (0x00800000 + (graph->tp_count - 1)) / graph->tp_count;
 
 	/*
 	 *      TP      ROP UNKVAL(magic_val)

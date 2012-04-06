@@ -31,14 +31,15 @@
 #include <linux/i2c-dev.h>
 #endif
 #include <linux/i2c-algo-bit.h>
-#include "drm_dp_helper.h"
 
 #else /* __linux __ */
 
 struct i2c_adapter {};
 struct i2c_algo_bit_data {};
 struct i2c_board_info;
+
 #endif
+#include "drm_dp_helper.h"
 
 struct dcb_i2c_entry;
 
