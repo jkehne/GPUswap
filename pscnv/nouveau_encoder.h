@@ -27,7 +27,11 @@
 #ifndef __NOUVEAU_ENCODER_H__
 #define __NOUVEAU_ENCODER_H__
 
+#ifdef __linux__
 #include "drm_encoder_slave.h"
+#else
+#include "drm_encoder_slave_proto.h"
+#endif
 #include "nouveau_drv.h"
 
 #define NV_DPMS_CLEARED 0x80
