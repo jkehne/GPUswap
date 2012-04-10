@@ -22,7 +22,9 @@
  * Authors: Martin Peres
  */
 
+#ifdef __linux__
 #include <linux/module.h>
+#endif
 #include "nouveau_drv.h"
 #include "nouveau_pm.h"
 
@@ -253,6 +255,7 @@ static bool
 probe_monitoring_device(struct nouveau_i2c_chan *i2c,
 			struct i2c_board_info *info)
 {
+#ifdef __linux__
 	char modalias[16] = "i2c:";
 	struct i2c_client *client;
 
@@ -267,6 +270,9 @@ probe_monitoring_device(struct nouveau_i2c_chan *i2c,
 		i2c_unregister_device(client);
 		return false;
 	}
+#else
+	NV_WARN(i2c->dev, "Can not test for monitoring device \"%s\" on %02x due to missing os support\n", info->name, info->addr);
+#endif
 
 	return true;
 }
