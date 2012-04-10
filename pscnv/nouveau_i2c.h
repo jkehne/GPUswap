@@ -57,6 +57,28 @@ static inline int i2c_transfer(device_t *dev, struct iic_msg *msg, int n) {
 	return ret ? -ret : n;
 }
 
+enum i2c_smbus_op { I2C_SMBUS_WRITE, I2C_SMBUS_READ };
+enum i2c_smbus_data_type { I2C_SMBUS_BYTE_DATA };
+union i2c_smbus_data { u8 byte; };
+
+static inline int i2c_smbus_xfer(device_t *dev, uint16_t addr, uint16_t flags,
+				 enum i2c_smbus_op op, uint8_t command,
+				 enum i2c_smbus_data_type type,
+				 union i2c_smbus_data *val)
+{
+	if (op == I2C_SMBUS_WRITE) {
+		uint8_t wrbuf[2] = { command, val->byte };
+		struct iic_msg msg = { addr, flags, 2, wrbuf };
+		return i2c_transfer(dev, &msg, 1);
+	} else {
+		struct iic_msg msg[2] = {
+			{ addr, flags, 1, &command },
+			{ addr, flags | IIC_M_RD, 1, &val->byte }
+		};
+		return i2c_transfer(dev, msg, 2);
+	}
+}
+
 #endif
 
 struct nouveau_i2c_chan {

@@ -1608,7 +1608,6 @@ init_zm_i2c(struct nvbios *bios, uint16_t offset, struct init_exec *iexec)
 	uint8_t count = bios->data[offset + 3];
 	int len = 4 + count;
 	struct nouveau_i2c_chan *chan;
-	struct i2c_msg msg;
 	uint8_t data[256];
 	int ret, i;
 
@@ -1632,10 +1631,7 @@ init_zm_i2c(struct nvbios *bios, uint16_t offset, struct init_exec *iexec)
 	}
 
 	if (bios->execute) {
-		msg.addr = i2c_address;
-		msg.flags = 0;
-		msg.len = count;
-		msg.buf = data;
+		struct i2c_msg msg = { i2c_address, 0, count, data };
 		ret = i2c_transfer(&chan->adapter, &msg, 1);
 		if (ret != 1) {
 			NV_ERROR(dev, "0x%04X: i2c wr fail: %d\n", offset, ret);
