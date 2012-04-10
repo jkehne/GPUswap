@@ -1139,6 +1139,8 @@ int nv10_gpio_set(struct drm_device *dev, enum dcb_gpio_tag tag, int state);
 int nv50_gpio_init(struct drm_device *dev);
 int nv50_gpio_get(struct drm_device *dev, enum dcb_gpio_tag tag);
 int nv50_gpio_set(struct drm_device *dev, enum dcb_gpio_tag tag, int state);
+int nvd0_gpio_get(struct drm_device *dev, enum dcb_gpio_tag tag);
+int nvd0_gpio_set(struct drm_device *dev, enum dcb_gpio_tag tag, int state);
 void nv50_gpio_irq_enable(struct drm_device *, enum dcb_gpio_tag, bool on);
 
 /* nv50_calc. */

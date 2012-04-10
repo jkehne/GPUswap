@@ -94,6 +94,9 @@ static int nouveau_init_engine_ptrs(struct drm_device *dev)
 			engine->pm.clocks_pre	= nva3_pm_clocks_pre;
 			engine->pm.clocks_set	= nva3_pm_clocks_set;
 			break;
+		case 0xd0:
+			engine->gpio.get	= nvd0_gpio_get;
+			engine->gpio.set	= nvd0_gpio_set;
 		case 0xc0:
 			engine->pm.clocks_get		= nvc0_pm_clocks_get;
 			engine->pm.clocks_pre		= nvc0_pm_clocks_pre;
@@ -623,6 +626,9 @@ int nouveau_load(struct drm_device *dev, unsigned long flags)
 		break;
 	case 0xc0:
 		dev_priv->card_type = NV_C0;
+		break;
+	case 0xd0:
+		dev_priv->card_type = NV_D0;
 		break;
 	default:
 		NV_INFO(dev, "Unsupported chipset 0x%08x\n", reg0);

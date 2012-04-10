@@ -3224,6 +3224,49 @@ init_8d(struct nvbios *bios, uint16_t offset, struct init_exec *iexec)
 	return 1;
 }
 
+static void
+init_gpio_unknv50(struct nvbios *bios, struct dcb_gpio_entry *gpio)
+{
+	const uint32_t nv50_gpio_ctl[2] = { 0xe100, 0xe28c };
+	u32 r, s, v;
+
+	/* Not a clue, needs de-magicing */
+	r = nv50_gpio_ctl[gpio->line >> 4];
+	s = (gpio->line & 0x0f);
+	v = bios_rd32(bios, r) & ~(0x00010001 << s);
+	switch ((gpio->entry & 0x06000000) >> 25) {
+	case 1:
+		v |= (0x00000001 << s);
+		break;
+	case 2:
+		v |= (0x00010000 << s);
+		break;
+	default:
+		break;
+	}
+
+	bios_wr32(bios, r, v);
+}
+
+static void
+init_gpio_unknvd0(struct nvbios *bios, struct dcb_gpio_entry *gpio)
+{
+	u32 v, i;
+
+	v  = bios_rd32(bios, 0x00d610 + (gpio->line * 4));
+	v &= 0xffffff00;
+	v |= (gpio->entry & 0x00ff0000) >> 16;
+	bios_wr32(bios, 0x00d610 + (gpio->line * 4), v);
+
+	i = (gpio->entry & 0x1f000000) >> 24;
+	if (i) {
+		v  = bios_rd32(bios, 0x00d640 + ((i - 1) * 4));
+		v &= 0xffffff00;
+		v |= gpio->line;
+		bios_wr32(bios, 0x00d640 + ((i - 1) * 4), v);
+	}
+}
+
 static int
 init_gpio(struct nvbios *bios, uint16_t offset, struct init_exec *iexec)
 {
@@ -3238,7 +3281,6 @@ init_gpio(struct nvbios *bios, uint16_t offset, struct init_exec *iexec)
 
 	struct drm_nouveau_private *dev_priv = bios->dev->dev_private;
 	struct nouveau_gpio_engine *pgpio = &dev_priv->engine.gpio;
-	const uint32_t nv50_gpio_ctl[2] = { 0xe100, 0xe28c };
 	int i;
 
 	if (dev_priv->card_type < NV_50) {
@@ -3251,33 +3293,20 @@ init_gpio(struct nvbios *bios, uint16_t offset, struct init_exec *iexec)
 
 	for (i = 0; i < bios->dcb.gpio.entries; i++) {
 		struct dcb_gpio_entry *gpio = &bios->dcb.gpio.entry[i];
-		uint32_t r, s, v;
 
 		BIOSLOG(bios, "0x%04X: Entry: 0x%08X\n", offset, gpio->entry);
 
 		BIOSLOG(bios, "0x%04X: set gpio 0x%02x, state %d\n",
 			offset, gpio->tag, gpio->state_default);
-		if (bios->execute)
-			pgpio->set(bios->dev, gpio->tag, gpio->state_default);
 
-		/* The NVIDIA binary driver doesn't appear to actually do
-		 * any of this, my VBIOS does however.
-		 */
-		/* Not a clue, needs de-magicing */
-		r = nv50_gpio_ctl[gpio->line >> 4];
-		s = (gpio->line & 0x0f);
-		v = bios_rd32(bios, r) & ~(0x00010001 << s);
-		switch ((gpio->entry & 0x06000000) >> 25) {
-		case 1:
-			v |= (0x00000001 << s);
-			break;
-		case 2:
-			v |= (0x00010000 << s);
-			break;
-		default:
-			break;
-		}
-		bios_wr32(bios, r, v);
+		if (!bios->execute)
+			continue;
+
+		pgpio->set(bios->dev, gpio->tag, gpio->state_default);
+		if (dev_priv->card_type < NV_D0)
+			init_gpio_unknv50(bios, gpio);
+		else
+			init_gpio_unknvd0(bios, gpio);
 	}
 
 	return 1;
@@ -5882,18 +5911,6 @@ parse_dcb_gpio_table(struct nvbios *bios)
 
 			e->line = (e->entry & 0x001f);
 			e->invert = ((e->entry & 0xf800) >> 11) != 4;
-		} else if (gpio[0] < 0x41) {
-			e->entry = ROM32(entry[0]);
-			e->tag = (e->entry & 0x0000ff00) >> 8;
-			if (e->tag == 0xff) {
-				bios->dcb.gpio.entries--;
-				continue;
-			}
-
-			e->line = (e->entry & 0x0000001f) >> 0;
-			e->state_default = (e->entry & 0x01000000) >> 24;
-			e->state[0] = (e->entry & 0x18000000) >> 27;
-			e->state[1] = (e->entry & 0x60000000) >> 29;
 		} else {
 			e->entry = ROM32(entry[0]);
 			e->tag = (e->entry & 0x0000ff00) >> 8;
@@ -5902,10 +5919,16 @@ parse_dcb_gpio_table(struct nvbios *bios)
 				continue;
 			}
 
-			e->line = (e->entry & 0x0000003f) >> 0;
-			e->state_default = (e->entry & 0x01000000) >> 24;
-			e->state[0] = (e->entry & 0x30000000) >> 28;
-			e->state[1] = (e->entry & 0xc0000000) >> 30;
+			e->line = (e->entry & 0x0000001f) >> 0;
+			if (gpio[0] == 0x40) {
+				e->state_default = (e->entry & 0x01000000) >> 24;
+				e->state[0] = (e->entry & 0x18000000) >> 27;
+				e->state[1] = (e->entry & 0x60000000) >> 29;
+			} else {
+				e->state_default = (e->entry & 0x00000080) >> 7;
+				e->state[0] = (entry[4] >> 4) & 3;
+				e->state[1] = (entry[4] >> 6) & 3;
+			}
 		}
 	}
 
