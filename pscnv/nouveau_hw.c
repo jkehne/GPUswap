@@ -482,6 +482,7 @@ nouveau_hw_get_clock(struct drm_device *dev, enum pll_types plltype)
 	struct nouveau_pll_vals pllvals;
 	int ret;
 
+#ifdef __linux__ // TODO?
 	if (plltype == PLL_MEMORY &&
 	    (dev->pci_device & 0x0ff0) == CHIPSET_NFORCE) {
 		uint32_t mpllP;
@@ -499,6 +500,7 @@ nouveau_hw_get_clock(struct drm_device *dev, enum pll_types plltype)
 		pci_read_config_dword(pci_get_bus_and_slot(0, 5), 0x4c, &clock);
 		return clock;
 	}
+#endif
 
 	ret = nouveau_hw_get_pllvals(dev, plltype, &pllvals);
 	if (ret)

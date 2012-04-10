@@ -579,6 +579,8 @@ out:
 	return ret ? ret : (stat & NV50_AUXCH_STAT_REPLY);
 }
 
+#ifdef __linux__
+
 static int
 nouveau_dp_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg *msgs, int num)
 {
@@ -640,3 +642,5 @@ const struct i2c_algorithm nouveau_dp_i2c_algo = {
 	.master_xfer = nouveau_dp_i2c_xfer,
 	.functionality = nouveau_dp_i2c_func
 };
+
+#endif

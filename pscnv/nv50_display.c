@@ -678,7 +678,7 @@ nv50_display_unk10_handler(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	u32 unk30 = nv_rd32(dev, 0x610030), mc;
-	int i, crtc, or, type = OUTPUT_ANY;
+	int i, crtc, or = 0, type = OUTPUT_ANY;
 
 	NV_DEBUG_KMS(dev, "0x610030: 0x%08x\n", unk30);
 	dev_priv->evo_irq.dcb = NULL;
@@ -800,7 +800,7 @@ nv50_display_unk20_handler(struct drm_device *dev)
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	u32 unk30 = nv_rd32(dev, 0x610030), tmp, pclk, script, mc;
 	struct dcb_entry *dcb;
-	int i, crtc, or, type = OUTPUT_ANY;
+	int i, crtc, or = 0, type = OUTPUT_ANY;
 
 	NV_DEBUG_KMS(dev, "0x610030: 0x%08x\n", unk30);
 	dcb = dev_priv->evo_irq.dcb;

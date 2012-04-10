@@ -2029,7 +2029,6 @@ init_sub_direct(struct nvbios *bios, uint16_t offset, struct init_exec *iexec)
 static int
 init_i2c_if(struct nvbios *bios, uint16_t offset, struct init_exec *iexec)
 {
-#ifdef __linux__
 	/*
 	 * INIT_I2C_IF   opcode: 0x5E ('^')
 	 *
@@ -2081,12 +2080,6 @@ init_i2c_if(struct nvbios *bios, uint16_t offset, struct init_exec *iexec)
 		offset, reg, val.byte, mask, data);
 
 	iexec->execute = ((val.byte & mask) == data);
-#else
-	BIOSLOG(bios, "0x%04X: I2CReg: 0x%02X, Value: 0x%02X, "
-		      "Mask: 0x%02X, Data: 0x%02X not handled!\n",
-		offset, reg, val.byte, mask, data);
-	iexec->execute = 0;
-#endif
 	return 6;
 }
 
@@ -2247,7 +2240,6 @@ nv04_init_compute_mem(struct nvbios *bios)
 	struct drm_device *dev = bios->dev;
 	uint32_t patt = 0xdeadbeef;
 	int i;
-#ifdef __linux__
 	struct io_mapping *fb;
 
 	/* Map the framebuffer aperture */
@@ -2255,9 +2247,6 @@ nv04_init_compute_mem(struct nvbios *bios)
 				  drm_get_resource_len(dev, 1));
 	if (!fb)
 		return -ENOMEM;
-#else
-	asdfasd
-#endif
 
 	/* Sequencer and refresh off */
 	NVWriteVgaSeq(dev, 0, 1, NVReadVgaSeq(dev, 0, 1) | 0x20);
@@ -3652,7 +3641,6 @@ init_zm_auxch(struct nvbios *bios, uint16_t offset, struct init_exec *iexec)
 static int
 init_i2c_long_if(struct nvbios *bios, uint16_t offset, struct init_exec *iexec)
 {
-#ifdef __linux__
 	/*
 	 * INIT_I2C_LONG_IF   opcode: 0x9A ('')
 	 *
@@ -3709,11 +3697,6 @@ init_i2c_long_if(struct nvbios *bios, uint16_t offset, struct init_exec *iexec)
 		offset, reghi, reglo, buf1[0], mask, data);
 
 	iexec->execute = ((buf1[0] & mask) == data);
-#else
-	BIOSLOG(bios, "0x%04X: DCBI2CIndex: 0x%02X, I2CAddress: 0x%02X skipped due to no i2c yet\n",
-		offset, i2c_index, i2c_address);
-	iexec->execute = 0;
-#endif
 	return 7;
 }
 
@@ -3927,7 +3910,11 @@ run_digital_op_script(struct drm_device *dev, uint16_t scriptptr,
 	NVWriteVgaCrtc5758(dev, head, 0, dcbent->index);
 	parse_init_table(bios, scriptptr, &iexec);
 
+#ifdef __linux__
 	nv04_dfp_bind_head(dev, dcbent, head, dl);
+#else
+	WARN("NYI\n");
+#endif
 }
 
 static int call_lvds_manufacturer_script(struct drm_device *dev, struct dcb_entry *dcbent, int head, enum LVDS_script script)
@@ -6482,8 +6469,10 @@ parse_dcb_table(struct drm_device *dev, struct nvbios *bios, bool twoHeads)
 		NV_INFO(dev, "Assuming a CRT output exists\n");
 		fabricate_vga_output(dcb, LEGACY_I2C_CRT, 1);
 
+#ifdef __linux__
 		if (nv04_tv_identify(dev, bios->legacy.i2c_indices.tv) >= 0)
 			fabricate_tv_output(dcb, twoHeads);
+#endif
 
 		return 0;
 	}
@@ -6546,6 +6535,7 @@ parse_dcb_table(struct drm_device *dev, struct nvbios *bios, bool twoHeads)
 				  "adding all possible outputs\n");
 		fabricate_vga_output(dcb, LEGACY_I2C_CRT, 1);
 
+#ifdef __linux__
 		/*
 		 * Attempt to detect TV before DVI because the test
 		 * for the former is more accurate and it rules the
@@ -6555,7 +6545,9 @@ parse_dcb_table(struct drm_device *dev, struct nvbios *bios, bool twoHeads)
 				     bios->legacy.i2c_indices.tv) >= 0)
 			fabricate_tv_output(dcb, twoHeads);
 
-		else if (bios->tmds.output0_script_ptr ||
+		else
+#endif
+		if (bios->tmds.output0_script_ptr ||
 			 bios->tmds.output1_script_ptr)
 			fabricate_dvi_i_output(dcb, twoHeads);
 

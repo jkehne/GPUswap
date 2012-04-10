@@ -57,6 +57,10 @@ typedef DRM_SPINTYPE spinlock_t;
 struct device_attribute {};
 struct notifier_block {};
 typedef struct pm_message_t { } pm_message_t;
+struct fb_info;
+struct fb_copyarea;
+struct fb_fillrect;
+struct fb_image;
 
 struct vm_fault {};
 struct vm_area_struct {};
@@ -429,6 +433,8 @@ ilog2(unsigned long x)
 }
 
 #endif	/* _LINUX_LOG2_H_ */
+
+#define EREMOTEIO ENXIO
 
 #ifndef	_LINUX_ERR_H_
 #define	_LINUX_ERR_H_

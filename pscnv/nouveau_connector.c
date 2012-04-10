@@ -109,7 +109,9 @@ nouveau_connector_destroy(struct drm_connector *drm_connector)
 	NV_DEBUG_KMS(dev, "\n");
 
 	kfree(nv_connector->edid);
+#ifdef __linux__
 	drm_sysfs_connector_remove(drm_connector);
+#endif
 	drm_connector_cleanup(drm_connector);
 	kfree(drm_connector);
 }
@@ -241,7 +243,11 @@ nouveau_connector_detect(struct drm_connector *connector, bool force)
 
 	i2c = nouveau_connector_ddc_detect(connector, &nv_encoder);
 	if (i2c) {
+#ifdef __linux__
 		nv_connector->edid = drm_get_edid(connector, &i2c->adapter);
+#else
+		nv_connector->edid = drm_get_edid(connector, i2c->adapter);
+#endif
 		drm_mode_connector_update_edid_property(connector,
 							nv_connector->edid);
 		if (!nv_connector->edid) {
@@ -1016,7 +1022,9 @@ nouveau_connector_create(struct drm_device *dev, int index)
 
 	nouveau_connector_set_polling(connector);
 
+#ifdef __linux__
 	drm_sysfs_connector_add(connector);
+#endif
 	dcb->drm = connector;
 	return dcb->drm;
 

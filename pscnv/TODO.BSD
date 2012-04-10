@@ -6,6 +6,7 @@ Anything touching i2c:
 - hwmon (temperature) support
 - nv04 tv/dfp
 - displayport
+- iic doesn't respect udelay and timeout.. nouveau defines as 40 instead of 10
 
 Not implemented at all:
 - vga switcheroo / arbiter
@@ -15,5 +16,7 @@ TODO:
 - fixup vm
 - fixup io
 - compile failures general
-- Maybe figure out wtf special casing nForce + old nv04 was for in nouveau_calc?
+- Maybe fix special casing nForce + old nv04 in nouveau_calc.c and nouveau_hw.c?
+- get outside i2c drm_encoder_slaves working properly (ch7006/sil164)
+- apci video support is lacking, impossible to get EDID through acpi video atm (for macbooks I guess?)
 

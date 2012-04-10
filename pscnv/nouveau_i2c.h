@@ -34,17 +34,38 @@
 
 #else /* __linux __ */
 
-struct i2c_adapter {};
-struct i2c_algo_bit_data {};
-struct i2c_board_info;
+struct i2c_algo_bit_data {
+	int (*getsda)(void *data);
+	int (*getscl)(void *data);
+	void (*setsda)(void *data, int sda);
+	void (*setscl)(void *data, int sdl);
+};
+struct i2c_board_info { const char *name; int addr; };
+#define I2C_BOARD_INFO(a, b) (a), (b)
+#define I2C_M_RD IIC_M_RD
+#define i2c_msg iic_msg
+
+#include <dev/iicbus/iic.h>
+#include <dev/iicbus/iiconf.h>
+#include <dev/iicbus/iicbus.h>
+#include "iicbus_if.h"
+#include "iicbb_if.h"
+
+static inline int i2c_transfer(device_t *dev, struct iic_msg *msg, int n) {
+	int ret;
+	ret = IICBUS_TRANSFER(*dev, msg, n);
+	return ret ? -ret : n;
+}
 
 #endif
-#include "drm_dp_helper.h"
-
-struct dcb_i2c_entry;
 
 struct nouveau_i2c_chan {
+#ifdef __linux__
 	struct i2c_adapter adapter;
+#else
+	device_t adapter, bus, iic_dev;
+	char name[32];
+#endif
 	struct drm_device *dev;
 	struct i2c_algo_bit_data bit;
 	unsigned rd;
@@ -52,6 +73,9 @@ struct nouveau_i2c_chan {
 	unsigned data;
 };
 
+#include "drm_dp_helper.h"
+
+struct dcb_i2c_entry;
 int nouveau_i2c_init(struct drm_device *, struct dcb_i2c_entry *, int index);
 void nouveau_i2c_fini(struct drm_device *, struct dcb_i2c_entry *);
 struct nouveau_i2c_chan *nouveau_i2c_find(struct drm_device *, int index);

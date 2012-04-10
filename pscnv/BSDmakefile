@@ -2,8 +2,8 @@
 
 KMOD= pscnv
 HEADERS= nouveau_bios.h nouveau_connector.h nouveau_crtc.h nouveau_dma.h nouveau_drv.h nouveau_encoder.h nouveau_fb.h nouveau_fbcon.h nouveau_grctx.h nouveau_hw.h nouveau_hwsq.h nouveau_i2c.h nouveau_pm.h nouveau_reg.h nv50_chan.h nv50_display.h nv50_evo.h nv50_vm.h nvc0_chan.h nvc0_copy.h nvc0_graph.h nvc0_pgraph.xml.h nvc0_vm.h nvreg.h pscnv_chan.h pscnv_drm.h pscnv_engine.h pscnv_fifo.h pscnv_gem.h pscnv_ioctl.h pscnv_mem.h pscnv_mm.h pscnv_ramht.h pscnv_tree.h pscnv_vm.h
-C_SRCS=nouveau_bios.c nouveau_calc.c nouveau_connector.c nouveau_display.c nouveau_dma.c nouveau_dp.c nouveau_bsddrv.c nouveau_fbcon.c nouveau_hw.c nouveau_i2c.c nouveau_irq.c nouveau_mem.c nouveau_perf.c nouveau_pm.c nouveau_state.c nouveau_temp.c nouveau_volt.c nv04_dac.c nv04_dfp.c nv04_pm.c nv04_timer.c nv04_tv.c nv10_gpio.c nv40_counter.c nv50_calc.c nv50_chan.c nv50_crtc.c nv50_cursor.c nv50_dac.c nv50_display.c nv50_fifo.c nv50_gpio.c nv50_graph.c nv50_grctx.c nv50_pm.c nv50_sor.c nv50_vm.c nv50_vram.c nv84_crypt.c nv98_crypt.c nva3_pm.c nvc0_chan.c nvc0_copy.c nvc0_fifo.c nvc0_graph.c nvc0_grctx.c nvc0_pm.c nvc0_vm.c nvc0_vram.c pscnv_chan.c pscnv_gem.c pscnv_ioctl.c pscnv_mem.c pscnv_mm.c pscnv_ramht.c pscnv_sysram.c pscnv_vm.c
-SRCS=$(HEADERS) $(C_SRCS) bus_if.h device_if.h pci_if.h opt_drm.h vnode_if.h
+C_SRCS=nouveau_bios.c nouveau_calc.c nouveau_connector.c nouveau_display.c nouveau_dma.c nouveau_dp.c nouveau_bsddrv.c nouveau_fbcon.c nouveau_hw.c nouveau_iic.c nouveau_irq.c nouveau_mem.c nouveau_perf.c nouveau_pm.c nouveau_state.c nouveau_temp.c nouveau_volt.c nv04_pm.c nv04_timer.c nv10_gpio.c nv40_counter.c nv50_calc.c nv50_chan.c nv50_crtc.c nv50_cursor.c nv50_dac.c nv50_display.c nv50_fifo.c nv50_gpio.c nv50_graph.c nv50_grctx.c nv50_pm.c nv50_sor.c nv50_vm.c nv50_vram.c nv84_crypt.c nv98_crypt.c nva3_pm.c nvc0_chan.c nvc0_copy.c nvc0_fifo.c nvc0_graph.c nvc0_grctx.c nvc0_pm.c nvc0_vm.c nvc0_vram.c pscnv_chan.c pscnv_gem.c pscnv_ioctl.c pscnv_mem.c pscnv_mm.c pscnv_ramht.c pscnv_sysram.c pscnv_vm.c
+SRCS=$(HEADERS) $(C_SRCS) bus_if.h device_if.h pci_if.h opt_drm.h vnode_if.h iicbb_if.h iicbus_if.h
 
 .include <bsd.kmod.mk>
 

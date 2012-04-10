@@ -40,8 +40,8 @@ pscnv_mem_init(struct drm_device *dev)
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	int ret;
 
-#ifdef __linux__
 	int dma_bits = 32;
+#ifdef __linux__
 	if (dev_priv->card_type >= NV_50 &&
 	    pci_dma_supported(dev->pdev, DMA_BIT_MASK(40)))
 		dma_bits = 40;
@@ -51,7 +51,11 @@ pscnv_mem_init(struct drm_device *dev)
 		NV_ERROR(dev, "Error setting DMA mask: %d\n", ret);
 		return ret;
 	}
+#else
+	if (dev_priv->card_type >= NV_50)
+		dma_bits = 40;
 #endif
+	dev_priv->dma_mask = DMA_BIT_MASK(dma_bits);
 
 	spin_lock_init(&dev_priv->pramin_lock);
 	mutex_init(&dev_priv->vram_mutex);
