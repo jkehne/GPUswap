@@ -147,6 +147,20 @@ nv50_i2c_setsda(void *data, int state)
 	i2c->data = state;
 }
 
+static int
+nvd0_i2c_getscl(void *data)
+{
+	struct nouveau_i2c_chan *i2c = data;
+	return !!(nv_rd32(i2c->dev, i2c->rd) & 0x10);
+}
+
+static int
+nvd0_i2c_getsda(void *data)
+{
+	struct nouveau_i2c_chan *i2c = data;
+	return !!(nv_rd32(i2c->dev, i2c->rd) & 0x20);
+}
+
 static const uint32_t nv50_i2c_port[] = {
 	0x00e138, 0x00e150, 0x00e168, 0x00e180,
 	0x00e254, 0x00e274, 0x00e764, 0x00e780,
@@ -193,9 +207,15 @@ nouveau_i2c_init(struct drm_device *dev, struct dcb_i2c_entry *entry, int index)
 	case 5:
 		i2c->bit.setsda = nv50_i2c_setsda;
 		i2c->bit.setscl = nv50_i2c_setscl;
-		i2c->bit.getsda = nv50_i2c_getsda;
-		i2c->bit.getscl = nv50_i2c_getscl;
-		i2c->rd = nv50_i2c_port[entry->read];
+		if (dev_priv->card_type < NV_D0) {
+			i2c->bit.getsda = nv50_i2c_getsda;
+			i2c->bit.getscl = nv50_i2c_getscl;
+			i2c->rd = nv50_i2c_port[entry->read];
+		} else {
+			i2c->bit.getsda = nvd0_i2c_getsda;
+			i2c->bit.getscl = nvd0_i2c_getscl;
+			i2c->rd = 0x00d014 + (entry->read * 0x20);
+		}
 		i2c->wr = i2c->rd;
 		break;
 	case 6:
