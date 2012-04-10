@@ -2161,6 +2161,8 @@ bios_md32(struct nvbios *bios, uint32_t reg,
 	bios_wr32(bios, reg, (bios_rd32(bios, reg) & ~mask) | val);
 }
 
+#ifdef __linux__
+
 static uint32_t
 peek_fb(struct drm_device *dev, struct io_mapping *fb,
 	uint32_t off)
@@ -2501,6 +2503,8 @@ nv20_init_compute_mem(struct nvbios *bios)
 	return 0;
 }
 
+#endif
+
 static int
 init_compute_mem(struct nvbios *bios, uint16_t offset, struct init_exec *iexec)
 {
@@ -2541,6 +2545,7 @@ init_compute_mem(struct nvbios *bios, uint16_t offset, struct init_exec *iexec)
 
 	/* no iexec->execute check by design */
 
+#ifdef __linux__
 	struct drm_nouveau_private *dev_priv = bios->dev->dev_private;
 	int ret;
 
@@ -2560,6 +2565,7 @@ init_compute_mem(struct nvbios *bios, uint16_t offset, struct init_exec *iexec)
 
 	if (ret)
 		return ret;
+#endif
 
 	return 1;
 }
@@ -6167,6 +6173,7 @@ static void fabricate_dvi_i_output(struct dcb_table *dcb, bool twoHeads)
 #endif
 }
 
+#ifdef __linux__
 static void fabricate_tv_output(struct dcb_table *dcb, bool twoHeads)
 {
 	struct dcb_entry *entry = new_dcb_entry(dcb);
@@ -6176,6 +6183,7 @@ static void fabricate_tv_output(struct dcb_table *dcb, bool twoHeads)
 	entry->heads = twoHeads ? 3 : 1;
 	entry->location = !DCB_LOC_ON_CHIP;	/* ie OFF CHIP */
 }
+#endif
 
 static bool
 parse_dcb20_entry(struct drm_device *dev, struct dcb_table *dcb,
