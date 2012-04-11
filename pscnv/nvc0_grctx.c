@@ -1,3 +1,26 @@
+/*
+ * Copyright 2010 Red Hat Inc.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+ * THE COPYRIGHT HOLDER(S) OR AUTHOR(S) BE LIABLE FOR ANY CLAIM, DAMAGES OR
+ * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * Authors: Ben Skeggs
+ */
 
 #include "drmP.h"
 #include "nouveau_drv.h"
@@ -262,21 +285,17 @@ nvc0_grctx_construct(struct drm_device *dev,
 }
 
 static void
-nv_icmd(struct drm_device *dev, uint32_t icmd, uint32_t data)
+nv_icmd(struct drm_device *dev, u32 icmd, u32 data)
 {
 	nv_wr32(dev, NVC0_PGRAPH_ICMD_DATA, data);
 	nv_wr32(dev, NVC0_PGRAPH_ICMD_CMD, icmd);
 	while (nv_rd32(dev, NVC0_PGRAPH_STATUS) & 2) { }
 }
 
-static void
-nvc0_grctx_init_icmds(struct drm_device *dev)
+static void nvc0_grctx_init_icmds(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	int i;
-
 	nv_wr32(dev, 0x400208, 0x80000000);
-
 	nv_icmd(dev, 0x00001000, 0x00000004);
 	nv_icmd(dev, 0x000000a9, 0x0000ffff);
 	nv_icmd(dev, 0x00000038, 0x0fac6881);
@@ -954,7 +973,8 @@ nvc0_grctx_init_icmds(struct drm_device *dev)
 	nv_icmd(dev, 0x0000053f, 0xffff0000);
 	nv_icmd(dev, 0x00000585, 0x0000003f);
 	nv_icmd(dev, 0x00000576, 0x00000003);
-	if (dev_priv->chipset == 0xc1 || dev_priv->chipset == 0xd9)
+	if (dev_priv->chipset == 0xc1 ||
+	    dev_priv->chipset == 0xd9)
 		nv_icmd(dev, 0x0000057b, 0x00000059);
 	nv_icmd(dev, 0x00000586, 0x00000040);
 	nv_icmd(dev, 0x00000582, 0x00000080);
@@ -1186,7 +1206,6 @@ nvc0_grctx_init_icmds(struct drm_device *dev)
 	nv_icmd(dev, 0x00000825, 0x00000100);
 	nv_icmd(dev, 0x00000826, 0x00000001);
 	nv_icmd(dev, 0x0001e100, 0x00000001);
-
 	nv_wr32(dev, 0x400208, 0x00000000);
 }
 
@@ -1221,7 +1240,6 @@ nvc0_grctx_init_dispatch(struct drm_device *dev)
 	nv_wr32(dev, 0x4040c0, 0x00000000);
 	nv_wr32(dev, 0x4040c4, 0x00000000);
 	nv_wr32(dev, 0x4040c8, 0xf0000087);
-	nv_wr32(dev, 0x4040d0, 0x00000000);
 	nv_wr32(dev, 0x4040d4, 0x00000000);
 	nv_wr32(dev, 0x4040d8, 0x00000000);
 	nv_wr32(dev, 0x4040dc, 0x00000000);
@@ -1240,8 +1258,8 @@ nvc0_grctx_init_dispatch(struct drm_device *dev)
 	nv_wr32(dev, 0x404174, 0x00000000);
 	nv_wr32(dev, 0x404178, 0x00000000);
 	nv_wr32(dev, 0x40417c, 0x00000000);
-	for (i = 0; i < 8; ++i)
-		nv_wr32(dev, 0x404200 + i * 4, 0x00000000); /* subc */
+	for (i = 0; i < 8; i++)
+		nv_wr32(dev, 0x404200 + (i * 4), 0x00000000); /* subc */
 }
 
 static void
@@ -1365,13 +1383,12 @@ nvc0_grctx_init_shaders(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 
-
 	if (dev_priv->chipset == 0xd9) {
 		nv_wr32(dev, 0x405800, 0x0f8000bf);
 		nv_wr32(dev, 0x405830, 0x02180218);
 		nv_wr32(dev, 0x405834, 0x08000000);
-	} 
-	else if (dev_priv->chipset == 0xc1) {
+	} else
+	if (dev_priv->chipset == 0xc1) {
 		nv_wr32(dev, 0x405800, 0x0f8000bf);
 		nv_wr32(dev, 0x405830, 0x02180218);
 		nv_wr32(dev, 0x405834, 0x00000000);
@@ -1459,20 +1476,13 @@ nvc0_grctx_init_ropc(struct drm_device *dev)
 		nv_wr32(dev, 0x408900, 0x3080b801);
 		nv_wr32(dev, 0x408904, 0x1043e005);
 		nv_wr32(dev, 0x408908, 0x00c8102f);
-	} 
-	else if (chipset == 0xc1) {
+	} else
+	if (chipset == 0xc1) {
 		nv_wr32(dev, 0x408808, 0x1003e005);
 		nv_wr32(dev, 0x408900, 0x3080b801);
 		nv_wr32(dev, 0x408904, 0x62000001);
 		nv_wr32(dev, 0x408908, 0x00c80929);
-	} 
-	else if (chipset == 0xc0) {
-		nv_wr32(dev, 0x408808, 0x0003e00d);
-		nv_wr32(dev, 0x408900, 0x0080b801);
-		nv_wr32(dev, 0x408904, 0x02000001);
-		nv_wr32(dev, 0x408908, 0x00c80929);
-	}
-	else {
+	} else {
 		nv_wr32(dev, 0x408808, 0x0003e00d);
 		nv_wr32(dev, 0x408900, 0x3080b801);
 		nv_wr32(dev, 0x408904, 0x02000001);
@@ -1614,10 +1624,7 @@ nvc0_grctx_init_tp(struct drm_device *dev)
 	else
 		nv_wr32(dev, 0x419be0, 0x00000001);
 	nv_wr32(dev, 0x419be4, 0x00000000);
-	if (chipset == 0xd9)
-		nv_wr32(dev, 0x419c00, 0x0000000a);
-	else
-		nv_wr32(dev, 0x419c00, 0x00000002);
+	nv_wr32(dev, 0x419c00, chipset != 0xd9 ? 0x00000002 : 0x0000000a);
 	nv_wr32(dev, 0x419c04, 0x00000006);
 	nv_wr32(dev, 0x419c08, 0x00000002);
 	nv_wr32(dev, 0x419c20, 0x00000000);
@@ -1625,11 +1632,10 @@ nvc0_grctx_init_tp(struct drm_device *dev)
 		nv_wr32(dev, 0x419c24, 0x00084210);
 		nv_wr32(dev, 0x419c28, 0x3cf3cf3c);
 		nv_wr32(dev, 0x419cb0, 0x00020048);
-	} 
-	else if (chipset == 0xce || chipset == 0xcf) {
+	} else
+	if (chipset == 0xce || chipset == 0xcf) {
 		nv_wr32(dev, 0x419cb0, 0x00020048);
-	}
-	else {
+	} else {
 		nv_wr32(dev, 0x419cb0, 0x00060048);
 	}
 	nv_wr32(dev, 0x419ce8, 0x00000000);
@@ -1674,21 +1680,18 @@ nvc0_grctx_init_tp(struct drm_device *dev)
 		nv_wr32(dev, 0x419f58, 0x00000000);
 }
 
-#define nv_mthd(a, c, m, d)										\
-	do {														\
-		if (data != (d))										\
-			nv_wr32(dev, 0x40448c, (d));						\
-		data = (d);												\
-		nv_wr32((a), 0x404488, (1 << 31) | ((m) << 14) | (c));	\
-	} while(0)
+static void
+nv_mthd(struct drm_device *dev, u32 class, u32 mthd, u32 data)
+{
+	nv_wr32(dev, 0x40448c, data);
+	nv_wr32(dev, 0x404488, 0x80000000 | (mthd << 14) | class);
+}
 
-/* NVC0_3D */
 static void
 nvc0_grctx_init_9097(struct drm_device *dev)
 {
-	uint32_t fermi = nvc0_graph_class(dev);
-	uint32_t data = ~0;
-	uint32_t mthd;
+	u32 fermi = nvc0_graph_class(dev);
+	u32 mthd;
 
 	nv_mthd(dev, 0x9097, 0x0800, 0x00000000);
 	nv_mthd(dev, 0x9097, 0x0840, 0x00000000);
@@ -2473,134 +2476,6 @@ nvc0_grctx_init_9097(struct drm_device *dev)
 		for (mthd = 0x3400; mthd <= 0x35fc; mthd += 4)
 			nv_mthd(dev, 0x9097, mthd, 0x00000000);
 	}
-	nv_mthd(dev, 0x9097, 0x3400, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3404, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3408, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x340c, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3410, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3414, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3418, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x341c, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3420, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3424, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3428, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x342c, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3430, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3434, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3438, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x343c, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3440, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3444, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3448, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x344c, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3450, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3454, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3458, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x345c, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3460, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3464, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3468, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x346c, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3470, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3474, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3478, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x347c, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3480, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3484, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3488, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x348c, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3490, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3494, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3498, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x349c, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x34a0, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x34a4, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x34a8, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x34ac, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x34b0, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x34b4, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x34b8, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x34bc, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x34c0, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x34c4, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x34c8, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x34cc, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x34d0, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x34d4, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x34d8, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x34dc, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x34e0, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x34e4, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x34e8, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x34ec, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x34f0, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x34f4, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x34f8, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x34fc, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3500, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3504, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3508, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x350c, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3510, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3514, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3518, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x351c, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3520, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3524, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3528, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x352c, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3530, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3534, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3538, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x353c, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3540, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3544, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3548, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x354c, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3550, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3554, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3558, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x355c, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3560, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3564, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3568, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x356c, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3570, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3574, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3578, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x357c, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3580, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3584, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3588, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x358c, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3590, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3594, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x3598, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x359c, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x35a0, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x35a4, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x35a8, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x35ac, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x35b0, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x35b4, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x35b8, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x35bc, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x35c0, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x35c4, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x35c8, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x35cc, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x35d0, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x35d4, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x35d8, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x35dc, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x35e0, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x35e4, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x35e8, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x35ec, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x35f0, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x35f4, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x35f8, 0x00000000);
-	nv_mthd(dev, 0x9097, 0x35fc, 0x00000000);
 	nv_mthd(dev, 0x9097, 0x030c, 0x00000001);
 	nv_mthd(dev, 0x9097, 0x1944, 0x00000000);
 	nv_mthd(dev, 0x9097, 0x1514, 0x00000000);
@@ -2972,9 +2847,8 @@ nvc0_grctx_init_9097(struct drm_device *dev)
 static void
 nvc0_grctx_init_9197(struct drm_device *dev)
 {
-	uint32_t fermi = nvc0_graph_class(dev);
-	uint32_t data = ~0;
-	uint32_t mthd;
+	u32 fermi = nvc0_graph_class(dev);
+	u32 mthd;
 
 	if (fermi == 0x9197) {
 		for (mthd = 0x3400; mthd <= 0x35fc; mthd += 4)
@@ -2986,9 +2860,8 @@ nvc0_grctx_init_9197(struct drm_device *dev)
 static void
 nvc0_grctx_init_9297(struct drm_device *dev)
 {
-	uint32_t fermi = nvc0_graph_class(dev);
-	uint32_t data = ~0;
-	uint32_t mthd;
+	u32 fermi = nvc0_graph_class(dev);
+	u32 mthd;
 
 	if (fermi == 0x9297) {
 		for (mthd = 0x3400; mthd <= 0x35fc; mthd += 4)
@@ -3002,12 +2875,9 @@ nvc0_grctx_init_9297(struct drm_device *dev)
 	nv_mthd(dev, 0x9297, 0x0378, 0x00000020);
 }
 
-/* NVC0_2D */
 static void
 nvc0_grctx_init_902d(struct drm_device *dev)
 {
-	uint32_t data = ~0;
-
 	nv_mthd(dev, 0x902d, 0x0200, 0x000000cf);
 	nv_mthd(dev, 0x902d, 0x0204, 0x00000001);
 	nv_mthd(dev, 0x902d, 0x0208, 0x00000020);
@@ -3027,12 +2897,9 @@ nvc0_grctx_init_902d(struct drm_device *dev)
 	nv_mthd(dev, 0x902d, 0x024c, 0x00000100);
 }
 
-/* NVC0_M2MF */
 static void
 nvc0_grctx_init_9039(struct drm_device *dev)
 {
-	uint32_t data = ~0;
-
 	nv_mthd(dev, 0x9039, 0x030c, 0x00000000);
 	nv_mthd(dev, 0x9039, 0x0310, 0x00000000);
 	nv_mthd(dev, 0x9039, 0x0314, 0x00000000);
@@ -3043,12 +2910,10 @@ nvc0_grctx_init_9039(struct drm_device *dev)
 	nv_mthd(dev, 0x9039, 0x031c, 0x00000000);
 }
 
-/* NVC0_COMPUTE */
 static void
 nvc0_grctx_init_90c0(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	uint32_t data = ~0;
 	int i;
 
 	for (i = 0; dev_priv->chipset == 0xd9 && i < 4; i++) {

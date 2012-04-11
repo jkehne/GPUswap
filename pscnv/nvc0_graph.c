@@ -1,4 +1,5 @@
 /*
+ * Copyright 2010 Red Hat Inc.
  * Copyright (C) 2010 Christoph Bumiller.
  * All Rights Reserved.
  *
@@ -649,6 +650,9 @@ nvc0_graph_init(struct drm_device *dev)
 		break;
 	case 0xcf: /* 4/0/0/0, 3 */
 		res->magic_val = 0x03;
+		break;
+	case 0xd9: /* 1/0/0/0, 1 */
+		priv->magic_val = 0x01;
 		break;
 	}
 

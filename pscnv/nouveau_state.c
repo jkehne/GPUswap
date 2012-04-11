@@ -307,13 +307,14 @@ nouveau_card_init(struct drm_device *dev)
 				nv50_graph_init(dev);
 			}
 			break;
+		case NV_D0:
 		case NV_C0:
 			/* PFIFO */
 			ret = nvc0_fifo_init(dev);
 			if (!ret) {
 				/* PGRAPH */
 				ret = nvc0_graph_init(dev);
-				if (!ret) {
+				if (!ret && dev_priv->card_type == NV_C0) {
 					/* PCOPY0 */
 					nvc0_copy_init(dev, 0);
 					/* PCOPY1 */
