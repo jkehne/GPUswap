@@ -341,7 +341,7 @@ nouveau_card_init(struct drm_device *dev)
 	}
 
 	if (drm_core_check_feature(dev, DRIVER_MODESET)) {
-		ret = engine->display.create(dev);
+		ret = nouveau_display_create(dev);
 		if (ret)
 			goto out_fifo;
 	}
@@ -391,7 +391,7 @@ out_irq:
 	drm_irq_uninstall(dev);
 out_display:
 	if (drm_core_check_feature(dev, DRIVER_MODESET)) {
-		engine->display.destroy(dev);
+		nouveau_display_destroy(dev);
 	}
 out_fifo:
 	for (i = 0; i < PSCNV_ENGINES_NUM; i++)

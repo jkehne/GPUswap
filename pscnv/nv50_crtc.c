@@ -139,34 +139,44 @@ nv50_crtc_blank(struct nouveau_crtc *nv_crtc, bool blanked)
 }
 
 static int
-nv50_crtc_set_dither(struct nouveau_crtc *nv_crtc, bool on, bool update)
+nv50_crtc_set_dither(struct nouveau_crtc *nv_crtc, bool update)
 {
 	struct drm_device *dev = nv_crtc->base.dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct nouveau_channel *evo = dev_priv->evo;
-	int ret;
+	struct nouveau_connector *nv_connector;
+	struct drm_connector *connector;
+	int head = nv_crtc->index, ret;
+	u32 mode = 0x00;
 
-	NV_DEBUG_KMS(dev, "\n");
+	nv_connector = nouveau_crtc_connector_get(nv_crtc);
+	connector = &nv_connector->base;
+	if (nv_connector->dithering_mode == DITHERING_MODE_AUTO) {
+		if (nv_crtc->base.fb->depth > connector->display_info.bpc * 3)
+			mode = DITHERING_MODE_DYNAMIC2X2;
+	} else {
+		mode = nv_connector->dithering_mode;
+	}
+
+	if (nv_connector->dithering_depth == DITHERING_DEPTH_AUTO) {
+		if (connector->display_info.bpc >= 8)
+			mode |= DITHERING_DEPTH_8BPC;
+	} else {
+		mode |= nv_connector->dithering_depth;
+	}
 
 	ret = RING_SPACE(evo, 2 + (update ? 2 : 0));
-	if (ret) {
-		NV_ERROR(dev, "no space while setting dither\n");
-		return ret;
+	if (ret == 0) {
+		BEGIN_RING(evo, 0, NV50_EVO_CRTC(head, DITHER_CTRL), 1);
+		OUT_RING  (evo, mode);
+		if (update) {
+			BEGIN_RING(evo, 0, NV50_EVO_UPDATE, 1);
+			OUT_RING  (evo, 0);
+			FIRE_RING (evo);
+		}
 	}
 
-	BEGIN_RING(evo, 0, NV50_EVO_CRTC(nv_crtc->index, DITHER_CTRL), 1);
-	if (on)
-		OUT_RING(evo, NV50_EVO_CRTC_DITHER_CTRL_ON);
-	else
-		OUT_RING(evo, NV50_EVO_CRTC_DITHER_CTRL_OFF);
-
-	if (update) {
-		BEGIN_RING(evo, 0, NV50_EVO_UPDATE, 1);
-		OUT_RING(evo, 0);
-		FIRE_RING(evo);
-	}
-
-	return 0;
+	return ret;
 }
 
 struct nouveau_connector *
@@ -187,82 +197,143 @@ nouveau_crtc_connector_get(struct nouveau_crtc *nv_crtc)
 	return NULL;
 }
 
+
+
 static int
-nv50_crtc_set_scale(struct nouveau_crtc *nv_crtc, int scaling_mode, bool update)
+nv50_crtc_set_scale(struct nouveau_crtc *nv_crtc, bool update)
 {
-	struct nouveau_connector *nv_connector =
-		nouveau_crtc_connector_get(nv_crtc);
-	struct drm_device *dev = nv_crtc->base.dev;
+	struct nouveau_connector *nv_connector;
+	struct drm_crtc *crtc = &nv_crtc->base;
+	struct drm_device *dev = crtc->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct nouveau_channel *evo = dev_priv->evo;
-	struct drm_display_mode *native_mode = NULL;
-	struct drm_display_mode *mode = &nv_crtc->base.mode;
-	uint32_t outX, outY, horiz, vert;
-	int ret;
+	struct drm_display_mode *umode = &crtc->mode;
+	struct drm_display_mode *omode;
+	int scaling_mode, ret;
+	u32 ctrl = 0, oX, oY;
 
 	NV_DEBUG_KMS(dev, "\n");
 
-	switch (scaling_mode) {
-	case DRM_MODE_SCALE_NONE:
-		break;
-	default:
-		if (!nv_connector || !nv_connector->native_mode) {
-			NV_ERROR(dev, "No native mode, forcing panel scaling\n");
-			scaling_mode = DRM_MODE_SCALE_NONE;
-		} else {
-			native_mode = nv_connector->native_mode;
-		}
-		break;
+	nv_connector = nouveau_crtc_connector_get(nv_crtc);
+	if (!nv_connector || !nv_connector->native_mode) {
+		NV_ERROR(dev, "no native mode, forcing panel scaling\n");
+		scaling_mode = DRM_MODE_SCALE_NONE;
+	} else {
+		scaling_mode = nv_connector->scaling_mode;
 	}
 
-	switch (scaling_mode) {
-	case DRM_MODE_SCALE_ASPECT:
-		horiz = (native_mode->hdisplay << 19) / mode->hdisplay;
-		vert = (native_mode->vdisplay << 19) / mode->vdisplay;
+	/* start off at the resolution we programmed the crtc for, this
+	 * effectively handles NONE/FULL scaling
+	 */
+	if (scaling_mode != DRM_MODE_SCALE_NONE)
+		omode = nv_connector->native_mode;
+	else
+		omode = umode;
 
-		if (vert > horiz) {
-			outX = (mode->hdisplay * horiz) >> 19;
-			outY = (mode->vdisplay * horiz) >> 19;
+	oX = omode->hdisplay;
+	oY = omode->vdisplay;
+	if (omode->flags & DRM_MODE_FLAG_DBLSCAN)
+		oY *= 2;
+
+	/* add overscan compensation if necessary, will keep the aspect
+	 * ratio the same as the backend mode unless overridden by the
+	 * user setting both hborder and vborder properties.
+	 */
+	if (nv_connector && ( nv_connector->underscan == UNDERSCAN_ON ||
+			     (nv_connector->underscan == UNDERSCAN_AUTO &&
+			      nv_connector->edid &&
+			      drm_detect_hdmi_monitor(nv_connector->edid)))) {
+		u32 bX = nv_connector->underscan_hborder;
+		u32 bY = nv_connector->underscan_vborder;
+		u32 aspect = (oY << 19) / oX;
+
+		if (bX) {
+			oX -= (bX * 2);
+			if (bY) oY -= (bY * 2);
+			else    oY  = ((oX * aspect) + (aspect / 2)) >> 19;
 		} else {
-			outX = (mode->hdisplay * vert) >> 19;
-			outY = (mode->vdisplay * vert) >> 19;
+			oX -= (oX >> 4) + 32;
+			if (bY) oY -= (bY * 2);
+			else    oY  = ((oX * aspect) + (aspect / 2)) >> 19;
 		}
-		break;
-	case DRM_MODE_SCALE_FULLSCREEN:
-		outX = native_mode->hdisplay;
-		outY = native_mode->vdisplay;
-		break;
+	}
+
+	/* handle CENTER/ASPECT scaling, taking into account the areas
+	 * removed already for overscan compensation
+	 */
+	switch (scaling_mode) {
 	case DRM_MODE_SCALE_CENTER:
-	case DRM_MODE_SCALE_NONE:
+		oX = min((u32)umode->hdisplay, oX);
+		oY = min((u32)umode->vdisplay, oY);
+		/* fall-through */
+	case DRM_MODE_SCALE_ASPECT:
+		if (oY < oX) {
+			u32 aspect = (umode->hdisplay << 19) / umode->vdisplay;
+			oX = ((oY * aspect) + (aspect / 2)) >> 19;
+		} else {
+			u32 aspect = (umode->vdisplay << 19) / umode->hdisplay;
+			oY = ((oX * aspect) + (aspect / 2)) >> 19;
+		}
+		break;
 	default:
-		outX = mode->hdisplay;
-		outY = mode->vdisplay;
 		break;
 	}
+
+	if (umode->hdisplay != oX || umode->vdisplay != oY ||
+	    umode->flags & DRM_MODE_FLAG_INTERLACE ||
+	    umode->flags & DRM_MODE_FLAG_DBLSCAN)
+		ctrl |= NV50_EVO_CRTC_SCALE_CTRL_ACTIVE;
 
 	ret = RING_SPACE(evo, update ? 7 : 5);
 	if (ret)
 		return ret;
 
-	/* Got a better name for SCALER_ACTIVE? */
-	/* One day i've got to really figure out why this is needed. */
 	BEGIN_RING(evo, 0, NV50_EVO_CRTC(nv_crtc->index, SCALE_CTRL), 1);
-	if ((mode->flags & DRM_MODE_FLAG_DBLSCAN) ||
-	    (mode->flags & DRM_MODE_FLAG_INTERLACE) ||
-	    mode->hdisplay != outX || mode->vdisplay != outY) {
-		OUT_RING(evo, NV50_EVO_CRTC_SCALE_CTRL_ACTIVE);
-	} else {
-		OUT_RING(evo, NV50_EVO_CRTC_SCALE_CTRL_INACTIVE);
-	}
-
+	OUT_RING  (evo, ctrl);
 	BEGIN_RING(evo, 0, NV50_EVO_CRTC(nv_crtc->index, SCALE_RES1), 2);
-	OUT_RING(evo, outY << 16 | outX);
-	OUT_RING(evo, outY << 16 | outX);
+	OUT_RING  (evo, oY << 16 | oX);
+	OUT_RING  (evo, oY << 16 | oX);
 
 	if (update) {
 		BEGIN_RING(evo, 0, NV50_EVO_UPDATE, 1);
 		OUT_RING(evo, 0);
 		FIRE_RING(evo);
+	}
+
+	return 0;
+}
+
+static int
+nv50_crtc_set_color_vibrance(struct nouveau_crtc *nv_crtc, bool update)
+{
+	struct drm_device *dev = nv_crtc->base.dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_channel *evo = dev_priv->evo;
+	int ret;
+	int adj;
+	u32 hue, vib;
+
+	NV_DEBUG_KMS(dev, "vibrance = %i, hue = %i\n",
+		     nv_crtc->color_vibrance, nv_crtc->vibrant_hue);
+
+	ret = RING_SPACE(evo, 2 + (update ? 2 : 0));
+	if (ret) {
+		NV_ERROR(dev, "no space while setting color vibrance\n");
+		return ret;
+	}
+
+	adj = (nv_crtc->color_vibrance > 0) ? 50 : 0;
+	vib = ((nv_crtc->color_vibrance * 2047 + adj) / 100) & 0xfff;
+
+	hue = ((nv_crtc->vibrant_hue * 2047) / 100) & 0xfff;
+
+	BEGIN_RING(evo, 0, NV50_EVO_CRTC(nv_crtc->index, COLOR_CTRL), 1);
+	OUT_RING  (evo, (hue << 20) | (vib << 8));
+
+	if (update) {
+		BEGIN_RING(evo, 0, NV50_EVO_UPDATE, 1);
+		OUT_RING  (evo, 0);
+		FIRE_RING (evo);
 	}
 
 	return 0;
@@ -736,8 +807,9 @@ nv50_crtc_mode_set(struct drm_crtc *crtc, struct drm_display_mode *mode,
 	BEGIN_RING(evo, 0, NV50_EVO_CRTC(nv_crtc->index, SCALE_CENTER_OFFSET), 1);
 	OUT_RING(evo, NV50_EVO_CRTC_SCALE_CENTER_OFFSET_VAL(0, 0));
 
-	nv_crtc->set_dither(nv_crtc, nv_connector->use_dithering, false);
-	nv_crtc->set_scale(nv_crtc, nv_connector->scaling_mode, false);
+	nv_crtc->set_dither(nv_crtc, false);
+	nv_crtc->set_scale(nv_crtc, false);
+	nv_crtc->set_color_vibrance(nv_crtc, false);
 
 	return nv50_crtc_do_mode_set_base(crtc, x, y, old_fb, false);
 }
@@ -803,6 +875,7 @@ nv50_crtc_create(struct drm_device *dev, int index)
 	/* set function pointers */
 	nv_crtc->set_dither = nv50_crtc_set_dither;
 	nv_crtc->set_scale = nv50_crtc_set_scale;
+	nv_crtc->set_color_vibrance = nv50_crtc_set_color_vibrance;
 
 	drm_crtc_init(dev, &nv_crtc->base, &nv50_crtc_funcs);
 	drm_crtc_helper_add(&nv_crtc->base, &nv50_crtc_helper_funcs);

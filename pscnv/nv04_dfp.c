@@ -287,6 +287,7 @@ static void nv04_dfp_mode_set(struct drm_encoder *encoder,
 	struct nv04_crtc_reg *regp = &dev_priv->mode_reg.crtc_reg[nv_crtc->index];
 	struct nv04_crtc_reg *savep = &dev_priv->saved_reg.crtc_reg[nv_crtc->index];
 	struct nouveau_connector *nv_connector = nouveau_crtc_connector_get(nv_crtc);
+	struct drm_connector *connector = &nv_connector->base;
 	struct nouveau_encoder *nv_encoder = nouveau_encoder(encoder);
 	struct drm_display_mode *output_mode = &nv_encoder->mode;
 	uint32_t mode_ratio, panel_ratio;
@@ -407,7 +408,9 @@ static void nv04_dfp_mode_set(struct drm_encoder *encoder,
 	}
 
 	/* Output property. */
-	if (nv_connector->use_dithering) {
+	if ((nv_connector->dithering_mode == DITHERING_MODE_ON) ||
+	    (nv_connector->dithering_mode == DITHERING_MODE_AUTO &&
+	     encoder->crtc->fb->depth > connector->display_info.bpc * 3)) {
 		if (dev_priv->chipset == 0x11)
 			regp->dither = savep->dither | 0x00010000;
 		else {

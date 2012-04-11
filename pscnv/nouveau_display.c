@@ -26,9 +26,11 @@
 
 #include "drmP.h"
 #include "drm_crtc_helper.h"
+#include "drm_crtc.h"
 #include "nouveau_drv.h"
 #include "nouveau_fb.h"
 #include "nouveau_fbcon.h"
+#include "nouveau_connector.h"
 #include "pscnv_kapi.h"
 
 static void
@@ -121,4 +123,171 @@ const struct drm_mode_config_funcs nouveau_mode_config_funcs = {
 	.fb_create = nouveau_user_framebuffer_create,
 	.output_poll_changed = nouveau_fbcon_output_poll_changed,
 };
+
+struct nouveau_drm_prop_enum_list {
+	u8 gen_mask;
+	int type;
+	char *name;
+};
+
+static struct nouveau_drm_prop_enum_list underscan[] = {
+	{ 6, UNDERSCAN_AUTO, "auto" },
+	{ 6, UNDERSCAN_OFF, "off" },
+	{ 6, UNDERSCAN_ON, "on" },
+	{}
+};
+
+static struct nouveau_drm_prop_enum_list dither_mode[] = {
+	{ 7, DITHERING_MODE_AUTO, "auto" },
+	{ 7, DITHERING_MODE_OFF, "off" },
+	{ 1, DITHERING_MODE_ON, "on" },
+	{ 6, DITHERING_MODE_STATIC2X2, "static 2x2" },
+	{ 6, DITHERING_MODE_DYNAMIC2X2, "dynamic 2x2" },
+	{ 4, DITHERING_MODE_TEMPORAL, "temporal" },
+	{}
+};
+
+static struct nouveau_drm_prop_enum_list dither_depth[] = {
+	{ 6, DITHERING_DEPTH_AUTO, "auto" },
+	{ 6, DITHERING_DEPTH_6BPC, "6 bpc" },
+	{ 6, DITHERING_DEPTH_8BPC, "8 bpc" },
+	{}
+};
+
+#define PROP_ENUM(p,gen,n,list) do {                                           \
+	struct nouveau_drm_prop_enum_list *l = (list);                         \
+	int c = 0;                                                             \
+	while (l->gen_mask) {                                                  \
+		if (l->gen_mask & (1 << (gen)))                                \
+			c++;                                                   \
+		l++;                                                           \
+	}                                                                      \
+	if (c) {                                                               \
+		p = drm_property_create(dev, DRM_MODE_PROP_ENUM, n, c);        \
+		l = (list);                                                    \
+		c = 0;                                                         \
+		while (p && l->gen_mask) {                                     \
+			if (l->gen_mask & (1 << (gen))) {                      \
+				drm_property_add_enum(p, c, l->type, l->name); \
+				c++;                                           \
+			}                                                      \
+			l++;                                                   \
+		}                                                              \
+	}                                                                      \
+} while(0)
+
+#if 1 // TODO: Add KAPI test
+  struct drm_property *drm_property_create_range(struct drm_device *dev, int flags,
+						 const char *name,
+						 uint64_t min, uint64_t max)
+{
+	struct drm_property *property;
+
+	flags |= DRM_MODE_PROP_RANGE;
+
+	property = drm_property_create(dev, flags, name, 2);
+	if (!property)
+		return NULL;
+
+	property->values[0] = min;
+	property->values[1] = max;
+
+	return property;
+}
+#endif
+
+int
+nouveau_display_create(struct drm_device *dev)
+{
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_display_engine *disp = &dev_priv->engine.display;
+	int ret, gen;
+
+	drm_mode_config_init(dev);
+	drm_mode_create_scaling_mode_property(dev);
+	drm_mode_create_dvi_i_properties(dev);
+
+	if (dev_priv->card_type < NV_50)
+		gen = 0;
+	else
+	if (dev_priv->card_type < NV_D0)
+		gen = 1;
+	else
+		gen = 2;
+
+	PROP_ENUM(disp->dithering_mode, gen, "dithering mode", dither_mode);
+	PROP_ENUM(disp->dithering_depth, gen, "dithering depth", dither_depth);
+	PROP_ENUM(disp->underscan_property, gen, "underscan", underscan);
+
+	disp->underscan_hborder_property =
+		drm_property_create_range(dev, 0, "underscan hborder", 0, 128);
+
+	disp->underscan_vborder_property =
+		drm_property_create_range(dev, 0, "underscan vborder", 0, 128);
+
+	if (gen == 1) {
+		disp->vibrant_hue_property =
+			drm_property_create(dev, DRM_MODE_PROP_RANGE,
+					    "vibrant hue", 2);
+		disp->vibrant_hue_property->values[0] = 0;
+		disp->vibrant_hue_property->values[1] = 180; /* -90..+90 */
+
+		disp->color_vibrance_property =
+			drm_property_create(dev, DRM_MODE_PROP_RANGE,
+					    "color vibrance", 2);
+		disp->color_vibrance_property->values[0] = 0;
+		disp->color_vibrance_property->values[1] = 200; /* -100..+100 */
+	}
+
+	dev->mode_config.funcs = (void *)&nouveau_mode_config_funcs;
+	dev->mode_config.fb_base = dev_priv->fb_phys;
+
+	dev->mode_config.min_width = 0;
+	dev->mode_config.min_height = 0;
+	if (dev_priv->card_type < NV_10) {
+		dev->mode_config.max_width = 2048;
+		dev->mode_config.max_height = 2048;
+	} else
+	if (dev_priv->card_type < NV_50) {
+		dev->mode_config.max_width = 4096;
+		dev->mode_config.max_height = 4096;
+	} else {
+		dev->mode_config.max_width = 8192;
+		dev->mode_config.max_height = 8192;
+	}
+
+#ifdef DRM_CAP_DUMB_PREFERRED_DEPTH
+	dev->mode_config.preferred_depth = 24;
+	dev->mode_config.prefer_shadow = 1;
+#endif
+
+	drm_kms_helper_poll_init(dev);
+	drm_kms_helper_poll_disable(dev);
+
+	ret = disp->create(dev);
+	if (ret)
+		return ret;
+
+	if (dev->mode_config.num_crtc) {
+		ret = drm_vblank_init(dev, 0);
+		if (ret)
+			return ret;
+	}
+
+	return ret;
+}
+
+void
+nouveau_display_destroy(struct drm_device *dev)
+{
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_display_engine *disp = &dev_priv->engine.display;
+
+	drm_vblank_cleanup(dev);
+
+	disp->destroy(dev);
+
+	drm_kms_helper_poll_fini(dev);
+	drm_mode_config_cleanup(dev);
+}
 

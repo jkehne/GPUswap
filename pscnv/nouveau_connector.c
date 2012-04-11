@@ -435,11 +435,15 @@ nouveau_connector_set_property(struct drm_connector *connector,
 	struct nouveau_encoder *nv_encoder = nv_connector->detected_encoder;
 	struct drm_encoder *encoder = to_drm_encoder(nv_encoder);
 	struct drm_device *dev = connector->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nouveau_display_engine *disp = &dev_priv->engine.display;
+	struct nouveau_crtc *nv_crtc = NULL;
 	int ret;
+	if (connector->encoder && connector->encoder->crtc)
+		nv_crtc = nouveau_crtc(connector->encoder->crtc);
 
 	/* Scaling mode */
 	if (property == dev->mode_config.scaling_mode_property) {
-		struct nouveau_crtc *nv_crtc = NULL;
 		bool modeset = false;
 
 		switch (value) {
@@ -465,8 +469,6 @@ nouveau_connector_set_property(struct drm_connector *connector,
 			modeset = true;
 		nv_connector->scaling_mode = value;
 
-		if (connector->encoder && connector->encoder->crtc)
-			nv_crtc = nouveau_crtc(connector->encoder->crtc);
 		if (!nv_crtc)
 			return 0;
 
@@ -478,7 +480,7 @@ nouveau_connector_set_property(struct drm_connector *connector,
 			if (!ret)
 				return -EINVAL;
 		} else {
-			ret = nv_crtc->set_scale(nv_crtc, value, true);
+			ret = nv_crtc->set_scale(nv_crtc, true);
 			if (ret)
 				return ret;
 		}
@@ -486,23 +488,71 @@ nouveau_connector_set_property(struct drm_connector *connector,
 		return 0;
 	}
 
+	/* Underscan */
+	if (property == disp->underscan_property) {
+		if (nv_connector->underscan != value) {
+			nv_connector->underscan = value;
+			if (!nv_crtc || !nv_crtc->set_scale)
+				return 0;
+
+			return nv_crtc->set_scale(nv_crtc, true);
+		}
+
+		return 0;
+	}
+
+	if (property == disp->underscan_hborder_property) {
+		if (nv_connector->underscan_hborder != value) {
+			nv_connector->underscan_hborder = value;
+			if (!nv_crtc || !nv_crtc->set_scale)
+				return 0;
+
+			return nv_crtc->set_scale(nv_crtc, true);
+		}
+
+		return 0;
+	}
+
+	if (property == disp->underscan_vborder_property) {
+		if (nv_connector->underscan_vborder != value) {
+			nv_connector->underscan_vborder = value;
+			if (!nv_crtc || !nv_crtc->set_scale)
+				return 0;
+
+			return nv_crtc->set_scale(nv_crtc, true);
+		}
+
+		return 0;
+	}
+
 	/* Dithering */
-	if (property == dev->mode_config.dithering_mode_property) {
-		struct nouveau_crtc *nv_crtc = NULL;
-
-		if (value == DRM_MODE_DITHERING_ON)
-			nv_connector->use_dithering = true;
-		else
-			nv_connector->use_dithering = false;
-
-		if (connector->encoder && connector->encoder->crtc)
-			nv_crtc = nouveau_crtc(connector->encoder->crtc);
-
+	if (property == disp->dithering_mode) {
+		nv_connector->dithering_mode = value;
 		if (!nv_crtc || !nv_crtc->set_dither)
 			return 0;
 
-		return nv_crtc->set_dither(nv_crtc, nv_connector->use_dithering,
-					   true);
+		return nv_crtc->set_dither(nv_crtc, true);
+	}
+
+	if (property == disp->dithering_depth) {
+		nv_connector->dithering_depth = value;
+		if (!nv_crtc || !nv_crtc->set_dither)
+			return 0;
+
+		return nv_crtc->set_dither(nv_crtc, true);
+	}
+
+	if (nv_crtc && nv_crtc->set_color_vibrance) {
+		/* Hue */
+		if (property == disp->vibrant_hue_property) {
+			nv_crtc->vibrant_hue = value - 90;
+			return nv_crtc->set_color_vibrance(nv_crtc, true);
+		}
+		/* Saturation */
+		if (property == disp->color_vibrance_property) {
+			nv_crtc->color_vibrance = value - 100;
+			return nv_crtc->set_color_vibrance(nv_crtc, true);
+		}
 	}
 
 	if (nv_encoder && nv_encoder->dcb->type == OUTPUT_TV)
@@ -826,6 +876,7 @@ nouveau_connector_create(struct drm_device *dev, int index)
 	struct nouveau_connector *nv_connector = NULL;
 	struct dcb_connector_table_entry *dcb = NULL;
 	struct drm_connector *connector;
+	struct nouveau_display_engine *disp = &dev_priv->engine.display;
 	int type, ret = 0;
 
 	NV_DEBUG_KMS(dev, "\n");
@@ -894,16 +945,39 @@ nouveau_connector_create(struct drm_device *dev, int index)
 				 "LVDS\n");
 			goto fail;
 		}
-
-		nv_connector->use_dithering = !is_24bit;
 	}
 
 	/* Init DVI-I specific properties */
-	if (dcb->type == DCB_CONNECTOR_DVI_I) {
-		drm_mode_create_dvi_i_properties(dev);
+	if (dcb->type == DCB_CONNECTOR_DVI_I)
 		drm_connector_attach_property(connector, dev->mode_config.dvi_i_subconnector_property, 0);
-		drm_connector_attach_property(connector, dev->mode_config.dvi_i_select_subconnector_property, 0);
+
+	/* Add overscan compensation options to digital outputs */
+	if (disp->underscan_property &&
+	    (type == DRM_MODE_CONNECTOR_DVID ||
+	     type == DRM_MODE_CONNECTOR_DVII ||
+	     type == DRM_MODE_CONNECTOR_HDMIA ||
+	     type == DRM_MODE_CONNECTOR_DisplayPort)) {
+		drm_connector_attach_property(connector,
+					      disp->underscan_property,
+					      UNDERSCAN_OFF);
+		drm_connector_attach_property(connector,
+					      disp->underscan_hborder_property,
+					      0);
+		drm_connector_attach_property(connector,
+					      disp->underscan_vborder_property,
+					      0);
 	}
+
+	/* Add hue and saturation options */
+	if (disp->vibrant_hue_property)
+		drm_connector_attach_property(connector,
+					      disp->vibrant_hue_property,
+					      90);
+	if (disp->color_vibrance_property)
+		drm_connector_attach_property(connector,
+					      disp->color_vibrance_property,
+					      150);
+
 
 	switch (dcb->type) {
 	case DCB_CONNECTOR_VGA:
@@ -924,10 +998,18 @@ nouveau_connector_create(struct drm_device *dev, int index)
 		drm_connector_attach_property(connector,
 				dev->mode_config.scaling_mode_property,
 				nv_connector->scaling_mode);
-		drm_connector_attach_property(connector,
-				dev->mode_config.dithering_mode_property,
-				nv_connector->use_dithering ?
-				DRM_MODE_DITHERING_ON : DRM_MODE_DITHERING_OFF);
+		if (disp->dithering_mode) {
+			nv_connector->dithering_mode = DITHERING_MODE_AUTO;
+			drm_connector_attach_property(connector,
+						disp->dithering_mode,
+						nv_connector->dithering_mode);
+		}
+		if (disp->dithering_depth) {
+			nv_connector->dithering_depth = DITHERING_DEPTH_AUTO;
+			drm_connector_attach_property(connector,
+						disp->dithering_depth,
+						nv_connector->dithering_depth);
+		}
 		break;
 	}
 

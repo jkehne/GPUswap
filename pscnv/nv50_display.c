@@ -493,23 +493,6 @@ int nv50_display_create(struct drm_device *dev)
 
 	NV_DEBUG_KMS(dev, "\n");
 
-	/* init basic kernel modesetting */
-	drm_mode_config_init(dev);
-
-	/* Initialise some optional connector properties. */
-	drm_mode_create_scaling_mode_property(dev);
-	drm_mode_create_dithering_property(dev);
-
-	dev->mode_config.min_width = 0;
-	dev->mode_config.min_height = 0;
-
-	dev->mode_config.funcs = (void *)&nouveau_mode_config_funcs;
-
-	dev->mode_config.max_width = 8192;
-	dev->mode_config.max_height = 8192;
-
-	dev->mode_config.fb_base = dev_priv->fb_phys;
-
 	/* Create EVO channel */
 	ret = nv50_evo_channel_new(dev, &dev_priv->evo);
 	if (ret) {
@@ -574,8 +557,6 @@ nv50_display_destroy(struct drm_device *dev)
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 
 	NV_DEBUG_KMS(dev, "\n");
-
-	drm_mode_config_cleanup(dev);
 
 	nv50_display_disable(dev);
 	nv50_evo_channel_del(&dev_priv->evo);

@@ -123,6 +123,15 @@ struct nouveau_display_engine {
 	int (*create)(struct drm_device *);
 	int (*init)(struct drm_device *);
 	void (*destroy)(struct drm_device *);
+
+	struct drm_property *dithering_mode;
+	struct drm_property *dithering_depth;
+	struct drm_property *underscan_property;
+	struct drm_property *underscan_hborder_property;
+	struct drm_property *underscan_vborder_property;
+	/* not really hue and saturation: */
+	struct drm_property *vibrant_hue_property;
+	struct drm_property *color_vibrance_property;
 };
 
 struct nouveau_gpio_engine {
@@ -881,6 +890,10 @@ extern int run_tmds_table(struct drm_device *, struct dcb_entry *,
 			  int head, int pxclk);
 extern int call_lvds_script(struct drm_device *, struct dcb_entry *, int head,
 			    enum LVDS_script, int pxclk);
+
+/* nouveau_display.c */
+int nouveau_display_create(struct drm_device *dev);
+void nouveau_display_destroy(struct drm_device *dev);
 
 /* nouveau_dp.c */
 int nouveau_dp_auxch(struct nouveau_i2c_chan *auxch, int cmd, int addr,
