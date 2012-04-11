@@ -131,12 +131,18 @@ static int nouveau_init_engine_ptrs(struct drm_device *dev)
 #endif
 		NV_ERROR(dev, "NV%02x unsupported\n", dev_priv->chipset);
 		return -ENOSYS;
-	} else {
+	} else if (dev_priv->chipset < 0xd0) {
 		engine->display.early_init	= nv50_display_early_init;
 		engine->display.late_takedown	= nv50_display_late_takedown;
 		engine->display.create		= nv50_display_create;
 		engine->display.init		= nv50_display_init;
 		engine->display.destroy		= nv50_display_destroy;
+	} else {
+		engine->display.early_init	= nouveau_stub_init;
+		engine->display.late_takedown	= nouveau_stub_takedown;
+		engine->display.create		= nvd0_display_create;
+		engine->display.init		= nvd0_display_init;
+		engine->display.destroy		= nvd0_display_destroy;
 	}
 
 	return 0;

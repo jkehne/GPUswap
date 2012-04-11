@@ -301,6 +301,11 @@ munge_reg(struct nvbios *bios, uint32_t reg)
 	if (dev_priv->card_type < NV_50)
 		return reg;
 
+	if (reg & 0x80000000) {
+		BUG_ON(bios->display.crtc < 0);
+		reg += bios->display.crtc * 0x800;
+	}
+
 	if (reg & 0x40000000) {
 		BUG_ON(!dcbent);
 
@@ -309,7 +314,7 @@ munge_reg(struct nvbios *bios, uint32_t reg)
 			reg += 0x00000080;
 	}
 
-	reg &= ~0x60000000;
+	reg &= ~0xe0000000;
 	return reg;
 }
 
@@ -4500,7 +4505,7 @@ nouveau_bios_dp_table(struct drm_device *dev, struct dcb_entry *dcbent,
 
 int
 nouveau_bios_run_display_table(struct drm_device *dev, struct dcb_entry *dcbent,
-			       uint32_t sub, int pxclk)
+			       int crtc, uint32_t sub, int pxclk)
 {
 	/*
 	 * The display script table is located by the BIT 'U' table.
@@ -4613,7 +4618,7 @@ nouveau_bios_run_display_table(struct drm_device *dev, struct dcb_entry *dcbent,
 		}
 
 		NV_DEBUG_KMS(dev, "0x%04X: parsing output script 0\n", script);
-		nouveau_bios_run_init_table(dev, script, dcbent);
+		nouveau_bios_run_init_table(dev, script, dcbent, crtc);
 	} else
 	if (pxclk == -1) {
 		script = ROM16(otable[8]);
@@ -4623,7 +4628,7 @@ nouveau_bios_run_display_table(struct drm_device *dev, struct dcb_entry *dcbent,
 		}
 
 		NV_DEBUG_KMS(dev, "0x%04X: parsing output script 1\n", script);
-		nouveau_bios_run_init_table(dev, script, dcbent);
+		nouveau_bios_run_init_table(dev, script, dcbent, crtc);
 	} else
 	if (pxclk == -2) {
 		if (table[4] >= 12)
@@ -4636,7 +4641,7 @@ nouveau_bios_run_display_table(struct drm_device *dev, struct dcb_entry *dcbent,
 		}
 
 		NV_DEBUG_KMS(dev, "0x%04X: parsing output script 2\n", script);
-		nouveau_bios_run_init_table(dev, script, dcbent);
+		nouveau_bios_run_init_table(dev, script, dcbent, crtc);
 	} else
 	if (pxclk > 0) {
 		script = ROM16(otable[table[4] + i*6 + 2]);
@@ -4648,7 +4653,7 @@ nouveau_bios_run_display_table(struct drm_device *dev, struct dcb_entry *dcbent,
 		}
 
 		NV_DEBUG_KMS(dev, "0x%04X: parsing clock script 0\n", script);
-		nouveau_bios_run_init_table(dev, script, dcbent);
+		nouveau_bios_run_init_table(dev, script, dcbent, crtc);
 	} else
 	if (pxclk < 0) {
 		script = ROM16(otable[table[4] + i*6 + 4]);
@@ -4660,7 +4665,7 @@ nouveau_bios_run_display_table(struct drm_device *dev, struct dcb_entry *dcbent,
 		}
 
 		NV_DEBUG_KMS(dev, "0x%04X: parsing clock script 1\n", script);
-		nouveau_bios_run_init_table(dev, script, dcbent);
+		nouveau_bios_run_init_table(dev, script, dcbent, crtc);
 	}
 
 	return 0;
@@ -6766,7 +6771,7 @@ uint8_t *nouveau_bios_embedded_edid(struct drm_device *dev)
 
 void
 nouveau_bios_run_init_table(struct drm_device *dev, uint16_t table,
-			    struct dcb_entry *dcbent)
+			    struct dcb_entry *dcbent, int crtc)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct nvbios *bios = &dev_priv->vbios;
@@ -6774,7 +6779,9 @@ nouveau_bios_run_init_table(struct drm_device *dev, uint16_t table,
 
 	mutex_lock(&bios->lock);
 	bios->display.output = dcbent;
+	bios->display.crtc = crtc;
 	parse_init_table(bios, table, &iexec);
+	bios->display.crtc = -1;
 	bios->display.output = NULL;
 	mutex_unlock(&bios->lock);
 }
@@ -6862,7 +6869,7 @@ nouveau_run_vbios_init(struct drm_device *dev)
 		for (i = 0; i < bios->dcb.entries; i++) {
 			nouveau_bios_run_display_table(dev,
 						       &bios->dcb.entry[i],
-						       0, 0);
+						       -1, 0, 0);
 		}
 	}
 

@@ -132,6 +132,8 @@ struct nouveau_display_engine {
 	/* not really hue and saturation: */
 	struct drm_property *vibrant_hue_property;
 	struct drm_property *color_vibrance_property;
+
+	void *priv;
 };
 
 struct nouveau_gpio_engine {
@@ -869,7 +871,7 @@ extern int nouveau_bios_init(struct drm_device *);
 extern void nouveau_bios_takedown(struct drm_device *dev);
 extern int nouveau_run_vbios_init(struct drm_device *);
 extern void nouveau_bios_run_init_table(struct drm_device *, uint16_t table,
-					struct dcb_entry *);
+					struct dcb_entry *, int crtc);
 extern struct dcb_gpio_entry *nouveau_bios_gpio_entry(struct drm_device *,
 						      enum dcb_gpio_tag);
 extern struct dcb_connector_table_entry *
@@ -878,7 +880,7 @@ extern u32 get_pll_register(struct drm_device *, enum pll_types);
 extern int get_pll_limits(struct drm_device *, uint32_t limit_match,
 			  struct pll_lims *);
 extern int nouveau_bios_run_display_table(struct drm_device *,
-					  struct dcb_entry *,
+					  struct dcb_entry *, int crtc,
 					  uint32_t script, int pxclk);
 extern void *nouveau_bios_dp_table(struct drm_device *, struct dcb_entry *,
 				   int *length);
@@ -1108,6 +1110,19 @@ extern void nv04_display_late_takedown(struct drm_device *);
 extern int nv04_display_create(struct drm_device *);
 extern int nv04_display_init(struct drm_device *);
 extern void nv04_display_destroy(struct drm_device *);
+
+/* nvd0_display.c */
+extern int nvd0_display_create(struct drm_device *);
+extern void nvd0_display_destroy(struct drm_device *);
+extern int nvd0_display_init(struct drm_device *);
+extern void nvd0_display_fini(struct drm_device *);
+extern void nvd0_display_bh(struct work_struct *work);
+#if 0
+struct nouveau_bo *nvd0_display_crtc_sema(struct drm_device *, int crtc);
+void nvd0_display_flip_stop(struct drm_crtc *);
+int nvd0_display_flip_next(struct drm_crtc *, struct drm_framebuffer *,
+			   struct nouveau_channel *, u32 swap_interval);
+#endif
 
 /* nv04_crtc.c */
 extern int nv04_crtc_create(struct drm_device *, int index);

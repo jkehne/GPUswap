@@ -56,6 +56,7 @@ struct nouveau_encoder {
 			int link_nr;
 			int link_bw;
 			bool enhanced_frame;
+			uint32_t datarate; // TODO
 		} dp;
 	};
 };

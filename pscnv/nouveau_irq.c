@@ -59,7 +59,10 @@ nouveau_irq_preinstall(struct drm_device *dev)
 	nv_wr32(dev, NV03_PMC_INTR_EN_0, 0);
 
 	if (dev_priv->card_type >= NV_50) {
-		INIT_WORK(&dev_priv->irq_work, nv50_display_irq_handler_bh);
+		if (dev_priv->card_type < NV_D0)
+			INIT_WORK(&dev_priv->irq_work, nv50_display_irq_handler_bh);
+		else
+			INIT_WORK(&dev_priv->irq_work, nvd0_display_bh);
 		INIT_WORK(&dev_priv->hpd_work, nv50_display_irq_hotplug_bh);
 //		INIT_LIST_HEAD(&dev_priv->vbl_waiting);
 	}

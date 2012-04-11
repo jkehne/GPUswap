@@ -26,6 +26,7 @@
 
 #include "nouveau_drv.h"
 #include "nouveau_reg.h"
+#include "nouveau_crtc.h"
 #include "nouveau_i2c.h"
 #include "nouveau_connector.h"
 #include "nouveau_encoder.h"
@@ -303,7 +304,8 @@ nouveau_dp_link_train(struct drm_encoder *encoder)
 	if (dpe->script0) {
 		NV_DEBUG_KMS(dev, "SOR-%d: running DP script 0\n", nv_encoder->or);
 		nouveau_bios_run_init_table(dev, le16_to_cpu(dpe->script0),
-					    nv_encoder->dcb);
+					    nv_encoder->dcb,
+					    nouveau_crtc(encoder->crtc)->index);
 	}
 
 train:
@@ -436,7 +438,8 @@ stop:
 	if (dpe->script1) {
 		NV_DEBUG_KMS(dev, "SOR-%d: running DP script 1\n", nv_encoder->or);
 		nouveau_bios_run_init_table(dev, le16_to_cpu(dpe->script1),
-					    nv_encoder->dcb);
+					    nv_encoder->dcb,
+					    nouveau_crtc(encoder->crtc)->index);
 	}
 
 	/* re-enable hotplug detect */

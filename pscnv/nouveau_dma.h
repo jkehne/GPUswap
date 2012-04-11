@@ -80,6 +80,8 @@ enum {
 	NvEvoFB16	= 0x01000001,
 	NvEvoFB32	= 0x01000002,
 	NvEvoFE         = 0x01000003,
+
+	NvEvoSync	= 0xcafe0000,
 };
 
 #if 0

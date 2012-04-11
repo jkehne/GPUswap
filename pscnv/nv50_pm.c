@@ -809,12 +809,12 @@ nv50_pm_clocks_set(struct drm_device *dev, void *data)
 		/* execute some scripts that do ??? from the vbios.. */
 		if (!bit_table(dev, 'M', &M) && M.version == 1) {
 			if (M.length >= 6 && (script = ROM16(M.data[5])))
-				nouveau_bios_run_init_table(dev, script, NULL);
+				nouveau_bios_run_init_table(dev, script, NULL, -1);
 			if (M.length >= 8 && (script = ROM16(M.data[7])))
-				nouveau_bios_run_init_table(dev, script, NULL);
+				nouveau_bios_run_init_table(dev, script, NULL, -1);
 			if (M.length >= 10 && (script = ROM16(M.data[9])))
-				nouveau_bios_run_init_table(dev, script, NULL);
-			nouveau_bios_run_init_table(dev, info->mscript, NULL);
+				nouveau_bios_run_init_table(dev, script, NULL, -1);
+			nouveau_bios_run_init_table(dev, info->mscript, NULL, -1);
 		}
 
 		ret = prog_hwsq(dev, &info->mclk_hwsq);

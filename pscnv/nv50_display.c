@@ -751,7 +751,7 @@ nv50_display_unk10_handler(struct drm_device *dev)
 		struct dcb_entry *dcb = &dev_priv->vbios.dcb.entry[i];
 
 		if (dcb->type == type && (dcb->or & (1 << or))) {
-			nouveau_bios_run_display_table(dev, dcb, 0, -1);
+			nouveau_bios_run_display_table(dev, dcb, -1, 0, -1);
 			dev_priv->evo_irq.dcb = dcb;
 			goto ack;
 		}
@@ -805,7 +805,7 @@ nv50_display_unk20_handler(struct drm_device *dev)
 	NV_DEBUG_KMS(dev, "0x610030: 0x%08x\n", unk30);
 	dcb = dev_priv->evo_irq.dcb;
 	if (dcb) {
-		nouveau_bios_run_display_table(dev, dcb, 0, -2);
+		nouveau_bios_run_display_table(dev, dcb, -1, 0, -2);
 		dev_priv->evo_irq.dcb = NULL;
 	}
 
@@ -889,7 +889,7 @@ nv50_display_unk20_handler(struct drm_device *dev)
 	}
 
 	script = nv50_display_script_select(dev, dcb, mc, pclk);
-	nouveau_bios_run_display_table(dev, dcb, script, pclk);
+	nouveau_bios_run_display_table(dev, dcb, -1, script, pclk);
 
 	nv50_display_unk20_dp_hack(dev, dcb);
 
@@ -956,7 +956,7 @@ nv50_display_unk40_handler(struct drm_device *dev)
 	if (!dcb)
 		goto ack;
 
-	nouveau_bios_run_display_table(dev, dcb, script, -pclk);
+	nouveau_bios_run_display_table(dev, dcb, -1, script, -pclk);
 	nv50_display_unk40_dp_set_tmds(dev, dcb);
 
 ack:
@@ -1015,7 +1015,6 @@ nv50_display_irq_hotplug_bh(struct work_struct *work)
 		container_of(work, struct drm_nouveau_private, hpd_work);
 	struct drm_device *dev = dev_priv->dev;
 	struct drm_connector *connector;
-	const uint32_t gpio_reg[4] = { 0xe104, 0xe108, 0xe280, 0xe284 };
 	uint32_t unplug_mask, plug_mask, change_mask;
 	uint32_t hpd0, hpd1 = 0;
 
@@ -1033,7 +1032,6 @@ nv50_display_irq_hotplug_bh(struct work_struct *work)
 			nouveau_connector(connector);
 		struct nouveau_encoder *nv_encoder;
 		struct dcb_gpio_entry *gpio;
-		uint32_t reg;
 		bool plugged;
 
 		if (!nv_connector->dcb)
@@ -1043,8 +1041,7 @@ nv50_display_irq_hotplug_bh(struct work_struct *work)
 		if (!gpio || !(change_mask & (1 << gpio->line)))
 			continue;
 
-		reg = nv_rd32(dev, gpio_reg[gpio->line >> 3]);
-		plugged = !!(reg & (4 << ((gpio->line & 7) << 2)));
+		plugged = dev_priv->engine.gpio.get(dev, nv_connector->dcb->gpio_tag);
 		NV_INFO(dev, "%splugged %s\n", plugged ? "" : "un",
 			drm_get_connector_name(connector)) ;
 
