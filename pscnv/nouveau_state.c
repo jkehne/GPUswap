@@ -723,9 +723,8 @@ int nouveau_unload(struct drm_device *dev)
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 
 	if (drm_core_check_feature(dev, DRIVER_MODESET)) {
-		drm_kms_helper_poll_fini(dev);
 		nouveau_fbcon_fini(dev);
-		dev_priv->engine.display.destroy(dev);
+		nouveau_display_destroy(dev);
 		nouveau_close(dev);
 	}
 
