@@ -888,6 +888,9 @@ int nouveau_dp_auxch(struct nouveau_i2c_chan *auxch, int cmd, int addr,
 bool nouveau_dp_detect(struct drm_encoder *);
 bool nouveau_dp_link_train(struct drm_encoder *);
 
+/* nouveau_hdmi.c */
+void nouveau_hdmi_mode_set(struct drm_encoder *, struct drm_display_mode *);
+
 /* nv04_fb.c */
 extern int  nv04_fb_init(struct drm_device *);
 extern void nv04_fb_takedown(struct drm_device *);

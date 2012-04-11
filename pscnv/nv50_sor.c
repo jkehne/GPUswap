@@ -61,6 +61,7 @@ nv50_sor_disconnect(struct drm_encoder *encoder)
 	BEGIN_RING(evo, 0, NV50_EVO_UPDATE, 1);
 	OUT_RING  (evo, 0);
 
+	nouveau_hdmi_mode_set(encoder, NULL);
 	nv_encoder->crtc = NULL;
 	nv_encoder->last_dpms = DRM_MODE_DPMS_OFF;
 }
@@ -206,6 +207,7 @@ nv50_sor_mode_set(struct drm_encoder *encoder, struct drm_display_mode *mode,
 				mode_ctl = 0x0500;
 		} else
 			mode_ctl = 0x0200;
+		nouveau_hdmi_mode_set(encoder, mode);
 		break;
 	case OUTPUT_DP:
 		mode_ctl |= (nv_encoder->dp.mc_unknown << 16);

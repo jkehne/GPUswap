@@ -1,7 +1,7 @@
 pscnv-y := nouveau_drv.o nouveau_state.o \
 	     nouveau_irq.o nouveau_bios.o nouveau_hw.o nouveau_mem.o \
 	     nouveau_i2c.o nouveau_calc.o nouveau_dp.o nouveau_connector.o \
-	     nouveau_display.o nouveau_fbcon.o nouveau_dma.o \
+	     nouveau_display.o nouveau_fbcon.o nouveau_dma.o nouveau_hdmi.o \
 	     nouveau_pm.o nouveau_volt.o nouveau_perf.o nouveau_temp.o \
 	     nv04_tv.o nv04_dfp.o nv04_dac.o nv04_timer.o \
 	     nv10_gpio.o \
