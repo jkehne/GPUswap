@@ -295,6 +295,7 @@ nv_icmd(struct drm_device *dev, u32 icmd, u32 data)
 static void nvc0_grctx_init_icmds(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	int i;
 	nv_wr32(dev, 0x400208, 0x80000000);
 	nv_icmd(dev, 0x00001000, 0x00000004);
 	nv_icmd(dev, 0x000000a9, 0x0000ffff);
