@@ -261,19 +261,7 @@ nouveau_display_create(struct drm_device *dev)
 	dev->mode_config.prefer_shadow = 1;
 #endif
 
-	drm_kms_helper_poll_init(dev);
-	drm_kms_helper_poll_disable(dev);
-
 	ret = disp->create(dev);
-	if (ret)
-		return ret;
-
-	if (dev->mode_config.num_crtc) {
-		ret = drm_vblank_init(dev, 0);
-		if (ret)
-			return ret;
-	}
-
 	return ret;
 }
 

@@ -169,7 +169,7 @@ static void pscnv_mm_free_node(struct pscnv_mm_node *node) {
 		node->next->prev = NULL;
 		node->next = NULL;
 	}
-	if (pscnv_mm_debug >= 1)
+	if (pscnv_mm_debug >= 1 && node->prev)
 		NV_ERROR(node->mm->dev, "A node that's about to be freed should not have a valid prev pointer!\n");
 	node->prev = NULL;
 	node->type = PSCNV_MM_TYPE_FREE;

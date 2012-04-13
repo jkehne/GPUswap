@@ -278,6 +278,7 @@ nvc0_vspace_do_map(struct pscnv_vspace *vs,
 		}
 		break;
 	default:
+		WARN(1, "Should not be here! Mask %08x\n", bo->flags & PSCNV_GEM_MEMTYPE_MASK);
 		return -ENOSYS;
 	}
 	dev_priv->vm->bar_flush(vs->dev);

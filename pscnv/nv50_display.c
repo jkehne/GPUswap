@@ -971,6 +971,7 @@ nv50_display_irq_handler_bh(struct work_struct *work)
 	struct drm_nouveau_private *dev_priv =
 		container_of(work, struct drm_nouveau_private, irq_work);
 	struct drm_device *dev = dev_priv->dev;
+	BUG_ON(dev_priv->card_type >= NV_D0);
 
 	for (;;) {
 		uint32_t intr0 = nv_rd32(dev, NV50_PDISPLAY_INTR_0);
@@ -1072,6 +1073,7 @@ nv50_display_irq_handler(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	uint32_t delayed = 0;
+	BUG_ON(dev_priv->card_type >= NV_D0);
 
 	if (nv_rd32(dev, NV50_PMC_INTR_0) & NV50_PMC_INTR_0_HOTPLUG) {
 		if (!work_pending(&dev_priv->hpd_work))

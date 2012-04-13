@@ -37,7 +37,7 @@
 #include "nouveau_fb.h"
 #include "nv50_display.h"
 
-#define EVO_DMA_NR 1
+#define EVO_DMA_NR 9
 
 #define EVO_MASTER  (0x00)
 #define EVO_FLIP(c) (0x01 + (c))
@@ -273,18 +273,60 @@ nvd0_display_flip_stop(struct drm_crtc *crtc)
 	}
 }
 
+static int nvd0_crtc_get_data(struct nouveau_crtc *nv_crtc,
+			      struct drm_framebuffer *drm_fb,
+			      uint32_t *pitch, uint32_t *dma,
+			      uint32_t *format) 
+{
+	struct nouveau_framebuffer *fb = nouveau_framebuffer(drm_fb);
+	switch (drm_fb->depth) {
+	case  8: *format = NV50_EVO_CRTC_FB_DEPTH_8; break;
+	case 15: *format = NV50_EVO_CRTC_FB_DEPTH_15; break;
+	case 16: *format = NV50_EVO_CRTC_FB_DEPTH_16; break;
+	case 24:
+	case 32: *format = NV50_EVO_CRTC_FB_DEPTH_24; break;
+	case 30: *format = NV50_EVO_CRTC_FB_DEPTH_30; break;
+	default:
+		 NV_ERROR(drm_fb->dev, "unknown depth %d\n", drm_fb->depth);
+		 return -EINVAL;
+	}
+
+	if (fb->nvbo->tile_flags == 0xfe)
+		*dma = NvEvoFE;
+	else {
+		WARN(fb->nvbo->tile_flags, "Unsupported tile flags %08x for framebuffer!", fb->nvbo->tile_flags);
+		*dma = NvEvoVRAM;
+	}
+#if 1 // Hack for lack of page flipping
+	nv_crtc->fb.tile_flags = 0;
+#endif
+
+	if (!nv_crtc->fb.tile_flags) {
+#ifdef PSCNV_KAPI_DRM_FB_PITCH
+		*pitch = drm_fb->pitch | (1 << 24);
+#else
+		*pitch = drm_fb->pitches[0] | (1 << 24);
+#endif
+	} else {
+#ifdef PSCNV_KAPI_DRM_FB_PITCH
+		*pitch = ((drm_fb->pitch / 4) << 4) | (fb->nvbo->user[0]>>4);
+#else
+		*pitch = ((drm_fb->pitches[0] / 4) << 4) | (fb->nvbo->user[0]>>4);
+#endif
+	}
+
+	return 0;
+}
+
 int
 nvd0_display_flip_next(struct drm_crtc *crtc, struct drm_framebuffer *fb,
 		       struct nouveau_channel *chan, u32 swap_interval)
 {
-#if 0
 	struct nouveau_framebuffer *nv_fb = nouveau_framebuffer(fb);
 	struct nvd0_display *disp = nvd0_display(crtc->dev);
 	struct nouveau_crtc *nv_crtc = nouveau_crtc(crtc);
 	struct evo *evo = &disp->evo[EVO_FLIP(nv_crtc->index)];
-	u64 offset;
-	u32 *push;
-	int ret;
+	u32 *push, r_pitch, r_dma, r_format;
 
 	evo_sync(crtc->dev, EVO_MASTER);
 
@@ -296,9 +338,11 @@ nvd0_display_flip_next(struct drm_crtc *crtc, struct drm_framebuffer *fb,
 	if (unlikely(push == NULL))
 		return -EBUSY;
 
+#if 0
 	/* synchronise with the rendering channel, if necessary */
 	if (likely(chan)) {
-		ret = RING_SPACE(chan, 10);
+		u64 offset;
+		int ret = RING_SPACE(chan, 10);
 		if (ret)
 			return ret;
 
@@ -316,8 +360,10 @@ nvd0_display_flip_next(struct drm_crtc *crtc, struct drm_framebuffer *fb,
 		OUT_RING  (chan, 0x74b1e000);
 		OUT_RING  (chan, 0x1001);
 		FIRE_RING (chan);
-	} else {
-		nouveau_bo_wr32(disp->sync, evo->sem.offset / 4,
+	} else
+#endif
+	{
+		nv_wv32(disp->sync, evo->sem.offset,
 				0xf00d0000 | evo->sem.value);
 		evo_sync(crtc->dev, EVO_MASTER);
 	}
@@ -331,6 +377,7 @@ nvd0_display_flip_next(struct drm_crtc *crtc, struct drm_framebuffer *fb,
 		evo_mthd(push, 0x00e0, 1);
 		evo_data(push, 0x40000000);
 	}
+	nvd0_crtc_get_data(nv_crtc, fb, &r_pitch, &r_dma, &r_format);
 	evo_mthd(push, 0x0088, 4);
 	evo_data(push, evo->sem.offset);
 	evo_data(push, 0xf00d0000 | evo->sem.value);
@@ -340,25 +387,22 @@ nvd0_display_flip_next(struct drm_crtc *crtc, struct drm_framebuffer *fb,
 	evo_data(push, 0x00000000);
 	evo_data(push, 0x00000000);
 	evo_mthd(push, 0x00c0, 1);
-	evo_data(push, nv_fb->r_dma);
+	evo_data(push, r_dma);
 	evo_mthd(push, 0x0110, 2);
 	evo_data(push, 0x00000000);
 	evo_data(push, 0x00000000);
 	evo_mthd(push, 0x0400, 5);
-	evo_data(push, nv_fb->nvbo->bo.offset >> 8);
+	evo_data(push, nv_fb->nvbo->start >> 8);
 	evo_data(push, 0);
 	evo_data(push, (fb->height << 16) | fb->width);
-	evo_data(push, nv_fb->r_pitch);
-	evo_data(push, nv_fb->r_format);
+	evo_data(push, r_pitch);
+	evo_data(push, r_format);
 	evo_mthd(push, 0x0080, 1);
 	evo_data(push, 0x00000000);
 	evo_kick(push, crtc->dev, evo->idx);
 
 	evo->sem.offset ^= 0x10;
 	evo->sem.value++;
-#else
-	(void)evo_sync;
-#endif
 	return 0;
 }
 
@@ -415,7 +459,6 @@ nvd0_crtc_set_scale(struct nouveau_crtc *nv_crtc, bool update)
 {
 	struct drm_display_mode *omode, *umode = &nv_crtc->base.mode;
 	struct drm_device *dev = nv_crtc->base.dev;
-	struct drm_crtc *crtc = &nv_crtc->base;
 	struct nouveau_connector *nv_connector;
 	int mode = DRM_MODE_SCALE_NONE;
 	u32 oX, oY, *push;
@@ -493,61 +536,10 @@ nvd0_crtc_set_scale(struct nouveau_crtc *nv_crtc, bool update)
 		evo_data(push, (umode->vdisplay << 16) | umode->hdisplay);
 		evo_kick(push, dev, EVO_MASTER);
 		if (update) {
+			struct drm_crtc *crtc = &nv_crtc->base;
 			nvd0_display_flip_stop(crtc);
 			nvd0_display_flip_next(crtc, crtc->fb, NULL, 1);
 		}
-	}
-
-	return 0;
-}
-
-static int nvd0_crtc_get_data(struct nouveau_crtc *nv_crtc,
-			      struct drm_framebuffer *drm_fb,
-			      uint32_t *pitch, uint32_t *dma,
-			      uint32_t *format) 
-{
-	struct nouveau_framebuffer *fb = nouveau_framebuffer(drm_fb);
-	switch (drm_fb->depth) {
-	case  8:
-		*format = NV50_EVO_CRTC_FB_DEPTH_8;
-		break;
-	case 15:
-		*format = NV50_EVO_CRTC_FB_DEPTH_15;
-		break;
-	case 16:
-		*format = NV50_EVO_CRTC_FB_DEPTH_16;
-		break;
-	case 24:
-	case 32:
-		*format = NV50_EVO_CRTC_FB_DEPTH_24;
-		break;
-	case 30:
-		*format = NV50_EVO_CRTC_FB_DEPTH_30;
-		break;
-	default:
-		 NV_ERROR(drm_fb->dev, "unknown depth %d\n", drm_fb->depth);
-		 return -EINVAL;
-	}
-
-	switch (nv_crtc->fb.tile_flags) {
-	case 0xfe: *dma = NvEvoFE; break;
-	case 0x7a: *dma = NvEvoFB32; break;
-	case 0x70: *dma = NvEvoFB16; break;
-	default: *dma = NvEvoVRAM; break;
-	}
-
-	if (!nv_crtc->fb.tile_flags) {
-#ifdef PSCNV_KAPI_DRM_FB_PITCH
-		*pitch = drm_fb->pitch | (1 << 24);
-#else
-		*pitch = drm_fb->pitches[0] | (1 << 24);
-#endif
-	} else {
-#ifdef PSCNV_KAPI_DRM_FB_PITCH
-		*pitch = ((drm_fb->pitch / 4) << 4) | fb->nvbo->user[0];
-#else
-		*pitch = ((drm_fb->pitches[0] / 4) << 4) | fb->nvbo->user[0];
-#endif
 	}
 
 	return 0;
@@ -831,13 +823,8 @@ nvd0_crtc_cursor_set(struct drm_crtc *crtc, struct drm_file *file_priv,
 		nvbo = gem->driver_private;
 
 		//ret = nouveau_bo_map(nvbo);
-		if (ret == 0) {
-			for (i = 0; i < 64 * 64; i++) {
-				u32 v = nv_rv32(nvbo, i);
-				nv_wv32(nv_crtc->cursor.nvbo, i, v);
-			}
-			//nouveau_bo_unmap(nvbo);
-		}
+		for (i = 0; i < 64 * 64; i++)
+			nv_wv32(nv_crtc->cursor.nvbo, i*4, nv_rv32(nvbo, i*4));
 
 		drm_gem_object_unreference_unlocked(gem);
 	}
@@ -946,13 +933,13 @@ nvd0_crtc_create(struct drm_device *dev, int index)
 	drm_crtc_helper_add(crtc, &nvd0_crtc_hfunc);
 	drm_mode_crtc_set_gamma_size(crtc, 256);
 
-	nv_crtc->cursor.nvbo = pscnv_mem_alloc(dev, 64*64*4, PSCNV_GEM_CONTIG, 0, 0xd15c);
+	nv_crtc->cursor.nvbo = pscnv_mem_alloc(dev, 64*64*4, PSCNV_GEM_CONTIG, 0, 0xd151c);
 	if (!nv_crtc->cursor.nvbo) {
 		kfree(nv_crtc);
 		return -ENOMEM;
 	}
 
-	nv_crtc->lut.nvbo = pscnv_mem_alloc(dev, 4096, PSCNV_GEM_CONTIG, 0, 0xd1517);
+	nv_crtc->lut.nvbo = pscnv_mem_alloc(dev, 0x2000, PSCNV_GEM_CONTIG, 0, 0xd15170 + index);
 	if (!nv_crtc->lut.nvbo || (ret = dev_priv->vm->map_kernel(nv_crtc->lut.nvbo))) {
 		pscnv_mem_free(nv_crtc->cursor.nvbo);
 		kfree(nv_crtc->mode);
@@ -1491,10 +1478,8 @@ static void
 nvd0_sor_prepare(struct drm_encoder *encoder)
 {
 	nvd0_sor_disconnect(encoder);
-#if 0
 	if (nouveau_encoder(encoder)->dcb->type == OUTPUT_DP)
 		evo_sync(encoder->dev, EVO_MASTER);
-#endif
 }
 
 static void
@@ -1937,6 +1922,8 @@ int
 nvd0_display_init(struct drm_device *dev)
 {
 	struct nvd0_display *disp = nvd0_display(dev);
+	struct drm_connector *connector;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	int ret, i;
 	u32 *push;
 
@@ -2004,6 +1991,17 @@ nvd0_display_init(struct drm_device *dev)
 	evo_mthd(push, 0x008c, 1);
 	evo_data(push, 0x00000000);
 	evo_kick(push, dev, EVO_MASTER);
+
+	/* enable hotplug interrupts */
+	list_for_each_entry(connector, &dev->mode_config.connector_list, head) {
+		struct nouveau_connector *conn = nouveau_connector(connector);
+		struct nouveau_gpio_engine *pgpio = &dev_priv->engine.gpio;
+		if (conn->dcb->gpio_tag == 0xff)
+			continue;
+
+		pgpio->irq_enable(dev, conn->dcb->gpio_tag, true);
+	}
+
 
 error:
 	if (ret)
@@ -2103,13 +2101,15 @@ nvd0_display_create(struct drm_device *dev)
 		ret = -ENOMEM;
 		goto out;
 	}
+	dev_priv->vm->map_kernel(disp->sync);
 
 	/* hash table and dma objects for the memory areas we care about */
-	disp->mem = pscnv_mem_alloc(dev, 0x10000, PSCNV_GEM_VRAM_LARGE, 0, 0xd9d902);
+	disp->mem = pscnv_mem_alloc(dev, 0x2000, PSCNV_GEM_CONTIG | PSCNV_GEM_VRAM_LARGE, 0, 0xd9d902);
 	if (!disp->mem) {
 		ret = -ENOMEM;
 		goto out;
 	}
+	dev_priv->vm->map_kernel(disp->mem);
 
 	/* create evo dma channels */
 	for (i = 0; i < EVO_DMA_NR; i++) {
@@ -2152,7 +2152,7 @@ nvd0_display_create(struct drm_device *dev)
 		nv_wv32(disp->mem, dmao + 0x4c, 0x00000000);
 		nv_wv32(disp->mem, dmao + 0x50, 0x00000000);
 		nv_wv32(disp->mem, dmao + 0x54, 0x00000000);
-		nv_wv32(disp->mem, hash + 0x10, NvEvoFE);
+		nv_wv32(disp->mem, hash + 0x10, NvEvoFB32);
 		nv_wv32(disp->mem, hash + 0x14, 0x00000001 | (i << 27) |
 						((dmao + 0x40) << 9));
 
@@ -2162,12 +2162,13 @@ nvd0_display_create(struct drm_device *dev)
 		nv_wv32(disp->mem, dmao + 0x6c, 0x00000000);
 		nv_wv32(disp->mem, dmao + 0x70, 0x00000000);
 		nv_wv32(disp->mem, dmao + 0x74, 0x00000000);
-		nv_wv32(disp->mem, hash + 0x18, NvEvoFB32);
+		nv_wv32(disp->mem, hash + 0x18, NvEvoFE);
 		nv_wv32(disp->mem, hash + 0x1c, 0x00000001 | (i << 27) |
 						((dmao + 0x60) << 9));
 	}
 	dev_priv->vm->bar_flush(dev);
 
+	ret = nvd0_display_init(dev);
 out:
 	if (ret)
 		nvd0_display_destroy(dev);

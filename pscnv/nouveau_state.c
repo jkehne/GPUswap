@@ -97,6 +97,8 @@ static int nouveau_init_engine_ptrs(struct drm_device *dev)
 		case 0xd0:
 			engine->gpio.get	= nvd0_gpio_get;
 			engine->gpio.set	= nvd0_gpio_set;
+			engine->pm.pwm_get	= NULL;
+			engine->pm.pwm_set	= NULL;
 		case 0xc0:
 			engine->pm.clocks_get		= nvc0_pm_clocks_get;
 			engine->pm.clocks_pre		= nvc0_pm_clocks_pre;
@@ -262,6 +264,7 @@ nouveau_card_init(struct drm_device *dev)
 		case NV_50:
 			ret = nv50_chan_init(dev);
 			break;
+		case NV_D0:
 		case NV_C0:
 			ret = nvc0_chan_init(dev);
 			break;
@@ -276,6 +279,7 @@ nouveau_card_init(struct drm_device *dev)
 		case NV_50:
 			ret = nv50_vm_init(dev);
 			break;
+		case NV_D0:
 		case NV_C0:
 			ret = nvc0_vm_init(dev);
 			break;
@@ -415,10 +419,10 @@ out_vm:
 	dev_priv->vm->takedown(dev);
 out_chan:
 	dev_priv->chan->takedown(dev);
+	nouveau_pm_fini(dev);
 out_vram:
 	pscnv_mem_takedown(dev);
 out_bios:
-	nouveau_pm_fini(dev);
 	if (drm_core_check_feature(dev, DRIVER_MODESET)) {
 		nouveau_bios_takedown(dev);
 	}
