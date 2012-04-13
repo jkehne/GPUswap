@@ -70,6 +70,9 @@ static int nouveau_init_engine_ptrs(struct drm_device *dev)
 		engine->pm.clocks_pre		= nv04_pm_clocks_pre;
 		engine->pm.clocks_set		= nv04_pm_clocks_set;
 	} else {
+		u32 chip = dev_priv->chipset;
+		if (chip >= 0xc0)
+			chip &= ~0xf;
 		engine->gpio.init		= nv50_gpio_init;
 		engine->gpio.takedown		= nouveau_stub_takedown;
 		engine->gpio.get		= nv50_gpio_get;
@@ -85,7 +88,7 @@ static int nouveau_init_engine_ptrs(struct drm_device *dev)
 		engine->pm.counter.start	= nv40_counter_start;
 		engine->pm.counter.stop		= nv40_counter_stop;
 		engine->pm.counter.signal_value	= nv40_counter_value;
-		switch (dev_priv->chipset) {
+		switch (chip) {
 		case 0xa3:
 		case 0xa5:
 		case 0xa8:
