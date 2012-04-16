@@ -183,6 +183,9 @@ static device_method_t pscnv_methods[] = {
 	DEVMETHOD(device_suspend,	nouveau_suspend),
 	DEVMETHOD(device_resume,	nouveau_resume),
 	DEVMETHOD(device_detach,	drm_detach),
+#ifdef DEVICE_AFTER_ATTACH
+	DEVMETHOD(device_after_attach,	drm_after_attach),
+#endif
 	DEVMETHOD_END
 };
 

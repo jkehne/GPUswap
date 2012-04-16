@@ -42,6 +42,11 @@
 
 typedef DRM_SPINTYPE spinlock_t;
 
+#ifndef cpu_to_le16
+#define cpu_to_le16(x) htole16(x)
+#define le16_to_cpu(x) le16toh(x)
+#endif
+
 #define spin_lock_init(lock) DRM_SPININIT(lock, #lock)
 #define spin_lock_destroy(lock) DRM_SPINUNINIT(lock)
 #define spin_lock(lock) DRM_SPINLOCK(lock)
