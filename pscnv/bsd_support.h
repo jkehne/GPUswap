@@ -89,7 +89,8 @@ static inline u32 hweight32(u32 val)
 	return ret;
 }
 
-#define WARN(arg1, args...) do { \
+#define WARN(x, arg1, args...) do { \
+		if (!(x)) break; \
 		printf("%s:%d/%s " arg1, \
 			__FILE__, __LINE__, __FUNCTION__, ##args); \
 		kdb_backtrace(); \

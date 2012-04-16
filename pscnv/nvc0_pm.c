@@ -705,11 +705,11 @@ mclk_clock_set(struct nouveau_mem_exec_func *exec)
 {
 	struct nvc0_pm_state *info = exec->priv;
 	struct drm_device *dev = exec->dev;
-	u32 ctrl = nv_rd32(dev, 0x132000);
 	u32 pll = info->mem.coef;
+#if 0
+	u32 ctrl = nv_rd32(dev, 0x132000);
 
 	nv_wr32(dev, 0x137360, 0x00000001);
-#if 0
 	nv_wr32(dev, 0x137370, 0x00000000);
 	nv_wr32(dev, 0x137380, 0x00000000);
 	if (ctrl & 0x00000001)
@@ -727,6 +727,7 @@ mclk_clock_set(struct nouveau_mem_exec_func *exec)
 //up: 10f824: 0x7e77 -> 0x7fd4 (setting 0x100, altering low bits
 //down: 10f824: 0x7fd4 -> 0x7e54 (old & 0x77) -> 7e77 (setting new bits)
 
+	nv_wr32(dev, 0x137360, 0x00000001);
 	fuc_wr32(info, 0x10f090, 0x61);
 	fuc_wr32(info, 0x10f090, 0xc000007f);
 	fuc_sleep(info, 1000);

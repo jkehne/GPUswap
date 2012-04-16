@@ -3915,7 +3915,7 @@ run_digital_op_script(struct drm_device *dev, uint16_t scriptptr,
 #ifdef __linux__
 	nv04_dfp_bind_head(dev, dcbent, head, dl);
 #else
-	WARN("NYI\n");
+	WARN(1, "NYI\n");
 #endif
 }
 

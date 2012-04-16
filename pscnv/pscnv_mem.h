@@ -56,6 +56,8 @@ struct pscnv_bo {
 	/* SYSRaM only: list of pages */
 	struct page **pages;
 	dma_addr_t *dmapages;
+	/* CHAN only, pointer to a channel (FreeBSD doesn't allow overriding mmap) */
+	struct pscnv_chan *chan;
 };
 #define PSCNV_GEM_NOUSER	0x10
 

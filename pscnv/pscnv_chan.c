@@ -105,6 +105,7 @@ pscnv_chan_new (struct drm_device *dev, struct pscnv_vspace *vs, int fake) {
 		return 0;
 	}
 
+	res->bo->chan = res;
 	return res;
 }
 
@@ -114,6 +115,8 @@ void pscnv_chan_ref_free(struct kref *ref) {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 
 	NV_INFO(dev, "CHAN: Freeing channel %d\n", ch->cid);
+	if (ch->bo->gem)
+		drm_gem_object_unreference_unlocked(ch->bo->gem);
 
 	if (ch->cid >= 0) {
 		int i;
@@ -131,6 +134,8 @@ void pscnv_chan_ref_free(struct kref *ref) {
 		pscnv_vspace_unref(ch->vspace);
 	kfree(ch);
 }
+
+#ifdef __linux__
 
 static void pscnv_chan_vm_open(struct vm_area_struct *vma) {
 	struct pscnv_chan *ch = vma->vm_private_data;
@@ -201,6 +206,8 @@ int pscnv_chan_mmap(struct file *filp, struct vm_area_struct *vma)
 	}
 	return -EINVAL;
 }
+
+#endif
 
 int pscnv_chan_handle_lookup(struct drm_device *dev, uint32_t handle) {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;

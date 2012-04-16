@@ -52,6 +52,8 @@
 #include "pscnv_vm.h"
 #include "pscnv_kapi.h"
 
+#ifdef __linux__
+
 static int
 nouveau_fbcon_sync(struct fb_info *info)
 {
@@ -143,6 +145,9 @@ static struct fb_ops nv50_fbcon_ops = {
 	.fb_setcmap = drm_fb_helper_setcmap,
 };
 #endif
+
+#endif // __linux__
+
 static void nouveau_fbcon_gamma_set(struct drm_crtc *crtc, u16 red, u16 green,
 				    u16 blue, int regno)
 {
@@ -166,6 +171,7 @@ static void nouveau_fbcon_gamma_get(struct drm_crtc *crtc, u16 *red, u16 *green,
 static void
 nouveau_fbcon_zfill(struct drm_device *dev, struct nouveau_fbdev *nfbdev)
 {
+#ifdef __linux__
 	struct fb_info *info = nfbdev->helper.fbdev;
 	struct fb_fillrect rect;
 
@@ -179,6 +185,9 @@ nouveau_fbcon_zfill(struct drm_device *dev, struct nouveau_fbdev *nfbdev)
 	rect.color = 0;
 	rect.rop = ROP_COPY;
 	info->fbops->fb_fillrect(info, &rect);
+#else
+	WARN(1, "Missing!\n");
+#endif
 }
 
 static int
@@ -187,7 +196,9 @@ nouveau_fbcon_create(struct nouveau_fbdev *nfbdev,
 {
 	struct drm_device *dev = nfbdev->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
+#ifdef __linux__
 	struct fb_info *info;
+#endif
 	struct drm_framebuffer *fb;
 	struct nouveau_framebuffer *nouveau_fb;
 	struct pscnv_bo *nvbo;
@@ -197,8 +208,6 @@ nouveau_fbcon_create(struct nouveau_fbdev *nfbdev,
 #else
 	struct drm_mode_fb_cmd mode_cmd;
 #endif
-	struct pci_dev *pdev = dev->pdev;
-	struct device *device = &pdev->dev;
 	int size, ret;
 
 	mode_cmd.width = sizes->surface_width;
@@ -238,9 +247,10 @@ nouveau_fbcon_create(struct nouveau_fbdev *nfbdev,
 		goto out;
 	}
 
+#ifdef __linux__
 	mutex_lock(&dev->struct_mutex);
 
-	info = framebuffer_alloc(0, device);
+	info = framebuffer_alloc(0, &dev->pdev->dev);
 	if (!info) {
 		ret = -ENOMEM;
 		goto out_unref;
@@ -253,6 +263,9 @@ nouveau_fbcon_create(struct nouveau_fbdev *nfbdev,
 	}
 
 	info->par = nfbdev;
+#else
+	DRM_LOCK();
+#endif // __linux__
 
 	nouveau_framebuffer_init(dev, &nfbdev->nouveau_fb, &mode_cmd, nvbo);
 
@@ -261,6 +274,7 @@ nouveau_fbcon_create(struct nouveau_fbdev *nfbdev,
 
 	/* setup helper */
 	nfbdev->helper.fb = fb;
+#ifdef __linux__
 	nfbdev->helper.fbdev = info;
 
 	strcpy(info->fix.id, "nouveaufb");
@@ -307,6 +321,9 @@ nouveau_fbcon_create(struct nouveau_fbdev *nfbdev,
 	info->pixmap.scan_align = 1;
 
 	mutex_unlock(&dev->struct_mutex);
+#else // __linux__
+	DRM_UNLOCK();
+#endif
 #if 0
 	if (dev_priv->channel && !nouveau_nofbaccel) {
 		switch (dev_priv->card_type) {
@@ -329,11 +346,15 @@ nouveau_fbcon_create(struct nouveau_fbdev *nfbdev,
 						nouveau_fb->base.height,
 						nvbo->start, nvbo->map1->start, nvbo);
 
+#ifdef __linux__
 	vga_switcheroo_client_fb_set(dev->pdev, info);
+#endif
 	return 0;
 
+#ifdef __linux__
 out_unref:
 	mutex_unlock(&dev->struct_mutex);
+#endif
 out:
 	return ret;
 }
@@ -366,15 +387,16 @@ static int
 nouveau_fbcon_destroy(struct drm_device *dev, struct nouveau_fbdev *nfbdev)
 {
 	struct nouveau_framebuffer *nouveau_fb = &nfbdev->nouveau_fb;
-	struct fb_info *info;
 
+#ifdef __linux__
 	if (nfbdev->helper.fbdev) {
-		info = nfbdev->helper.fbdev;
+		struct fb_info *info = nfbdev->helper.fbdev;
 		unregister_framebuffer(info);
 		if (info->cmap.len)
 			fb_dealloc_cmap(&info->cmap);
 		framebuffer_release(info);
 	}
+#endif
 
 	if (nouveau_fb->nvbo) {
 		drm_gem_object_unreference_unlocked(nouveau_fb->nvbo->gem);
@@ -385,6 +407,7 @@ nouveau_fbcon_destroy(struct drm_device *dev, struct nouveau_fbdev *nfbdev)
 	return 0;
 }
 
+#ifdef __linux__
 void nouveau_fbcon_gpu_lockup(struct fb_info *info)
 {
 	struct nouveau_fbdev *nfbdev = info->par;
@@ -393,6 +416,7 @@ void nouveau_fbcon_gpu_lockup(struct fb_info *info)
 	NV_ERROR(dev, "GPU lockup - switching to software fbcon\n");
 	info->flags |= FBINFO_HWACCEL_DISABLED;
 }
+#endif
 
 static struct drm_fb_helper_funcs nouveau_fbcon_helper_funcs = {
 	.gamma_set = nouveau_fbcon_gamma_set,
@@ -439,6 +463,7 @@ void nouveau_fbcon_fini(struct drm_device *dev)
 	dev_priv->nfbdev = NULL;
 }
 
+#ifdef __linux__
 void nouveau_fbcon_save_disable_accel(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
@@ -458,6 +483,7 @@ void nouveau_fbcon_set_suspend(struct drm_device *dev, int state)
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	fb_set_suspend(dev_priv->nfbdev->helper.fbdev, state);
 }
+#endif
 
 void nouveau_fbcon_zfill_all(struct drm_device *dev)
 {

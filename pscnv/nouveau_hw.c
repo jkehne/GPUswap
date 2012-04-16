@@ -568,7 +568,7 @@ nouveau_hw_save_vga_fonts(struct drm_device *dev, bool save)
 	uint8_t misc, gr4, gr5, gr6, seq2, seq4;
 	bool graphicsmode;
 	unsigned plane;
-	struct drm_local_map *iovram;
+	struct drm_local_map *iovram = NULL;
 
 	if (nv_two_heads(dev))
 		NVSetOwner(dev, 0);

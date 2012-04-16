@@ -182,6 +182,8 @@ pscnv_vspace_unmap(struct pscnv_vspace *vs, uint64_t start) {
 	return ret;
 }
 
+#ifdef __linux__
+
 static struct vm_operations_struct pscnv_vram_ops = {
 	.open = drm_gem_vm_open,
 	.close = drm_gem_vm_close,
@@ -250,3 +252,5 @@ int pscnv_mmap(struct file *filp, struct vm_area_struct *vma)
 		return -ENOSYS;
 	}
 }
+
+#endif

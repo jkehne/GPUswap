@@ -23,13 +23,13 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-#include <linux/swab.h>
-#include <linux/slab.h>
 #include "nouveau_drv.h"
 #include "drm.h"
 #include "drm_sarea.h"
 #include "drm_crtc_helper.h"
 #ifdef __linux__
+#include <linux/swab.h>
+#include <linux/slab.h>
 #include <linux/vgaarb.h>
 #include <linux/vga_switcheroo.h>
 #endif
@@ -229,6 +229,12 @@ nouveau_card_init(struct drm_device *dev)
 								   nouveau_switcheroo_reprobe,
 								   nouveau_switcheroo_can_switch);
 #endif
+#else
+	ret = -vm_phys_fictitious_reg_range(dev_priv->fb_phys,
+		dev_priv->fb_phys + dev_priv->fb_size,
+		VM_MEMATTR_WRITE_COMBINING);
+	if (ret)
+		return ret;
 #endif
 
 	dev_priv->init_state = NOUVEAU_CARD_INIT_FAILED;
@@ -441,6 +447,9 @@ out_display_early:
 out:
 #ifdef __linux__
 	vga_client_register(dev->pdev, NULL, NULL, NULL);
+#else
+	vm_phys_fictitious_unreg_range(dev_priv->fb_phys,
+		dev_priv->fb_phys + dev_priv->fb_size);
 #endif
 	return ret;
 }
@@ -452,7 +461,7 @@ static void nouveau_card_takedown(struct drm_device *dev)
 
 	NV_DEBUG(dev, "prev state = %d\n", dev_priv->init_state);
 
-	if (dev_priv->init_state != NOUVEAU_CARD_INIT_DOWN) {
+	if (dev_priv->init_state == NOUVEAU_CARD_INIT_DONE) {
 		NV_INFO(dev, "Stopping card...\n");
 		nouveau_backlight_exit(dev);
 		drm_irq_uninstall(dev);
@@ -472,6 +481,8 @@ static void nouveau_card_takedown(struct drm_device *dev)
 
 #ifdef __linux__
 		vga_client_register(dev->pdev, NULL, NULL, NULL);
+#else
+		vm_phys_fictitious_unreg_range(dev_priv->fb_phys, dev_priv->fb_phys + dev_priv->fb_size);
 #endif
 		dev_priv->init_state = NOUVEAU_CARD_INIT_DOWN;
 		NV_INFO(dev, "Card stopped.\n");
@@ -517,6 +528,7 @@ static void nouveau_OF_copy_vbios_to_ramin(struct drm_device *dev)
 #endif
 }
 
+#ifdef __linux__
 static struct apertures_struct *nouveau_get_apertures(struct drm_device *dev)
 {
 	struct pci_dev *pdev = dev->pdev;
@@ -542,9 +554,11 @@ static struct apertures_struct *nouveau_get_apertures(struct drm_device *dev)
 
 	return aper;
 }
+#endif
 
 static int nouveau_remove_conflicting_drivers(struct drm_device *dev)
 {
+#ifdef __linux__
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	bool primary = false;
 	dev_priv->apertures = nouveau_get_apertures(dev);
@@ -556,6 +570,7 @@ static int nouveau_remove_conflicting_drivers(struct drm_device *dev)
 #endif
 	
 	remove_conflicting_framebuffers(dev_priv->apertures, "nouveaufb", primary);
+#endif
 	return 0;
 }
 

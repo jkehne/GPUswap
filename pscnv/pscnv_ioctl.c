@@ -124,8 +124,14 @@ int pscnv_ioctl_gem_new(struct drm_device *dev, void *data,
 	if (pscnv_gem_debug >= 1)
 		NV_INFO(dev, "GEM handle %x is VO %x/%d\n", info->handle, bo->cookie, bo->serial);
 
+#ifdef __linux__
 	info->map_handle = (uint64_t)info->handle << 32;
+#else
+	info->map_handle = DRM_GEM_MAPPING_OFF(obj->map_list.key) |
+			   DRM_GEM_MAPPING_KEY;
+#endif
 	drm_gem_object_handle_unreference_unlocked (obj);
+
 	return ret;
 }
 
@@ -149,7 +155,12 @@ int pscnv_ioctl_gem_info(struct drm_device *dev, void *data,
 	info->flags = bo->flags;
 	info->tile_flags = bo->tile_flags;
 	info->size = obj->size;
-	info->map_handle = (uint64_t)info->handle << 32;
+#ifdef __linux__
+	info->map_handle = (uint64_t)info->handle | 32;
+#else
+	info->map_handle = DRM_GEM_MAPPING_OFF(obj->map_list.key) |
+			   DRM_GEM_MAPPING_KEY;
+#endif
 	for (i = 0; i < DRM_ARRAY_SIZE(bo->user); i++)
 		info->user[i] = bo->user[i];
 
@@ -305,7 +316,9 @@ int pscnv_ioctl_chan_new(struct drm_device *dev, void *data,
 	struct drm_pscnv_chan_new *req = data;
 	struct pscnv_vspace *vs;
 	struct pscnv_chan *ch;
-
+#ifndef __linux__
+	struct drm_gem_object *obj;
+#endif
 	NOUVEAU_CHECK_INITIALISED_WITH_RETURN;
 
 	vs = pscnv_get_vspace(dev, file_priv, req->vid);
@@ -318,9 +331,18 @@ int pscnv_ioctl_chan_new(struct drm_device *dev, void *data,
 		return -ENOMEM;
 	}
 	pscnv_vspace_unref(vs);
+#ifndef __linux__
+	if (!(obj = pscnv_gem_wrap(dev, ch->bo))) {
+		pscnv_chan_unref(ch);
+		return -ENOMEM;
+	}
+	req->map_handle = DRM_GEM_MAPPING_OFF(obj->map_list.key) |
+			  DRM_GEM_MAPPING_KEY;
+#else
+	req->map_handle = 0xc0000000 | ch->cid << 16;
+#endif
 
 	req->cid = ch->cid;
-	req->map_handle = 0xc0000000 | ch->cid << 16;
 
 	ch->filp = file_priv;
 	

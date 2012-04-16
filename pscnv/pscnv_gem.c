@@ -35,34 +35,49 @@ void pscnv_gem_free_object (struct drm_gem_object *obj) {
 #ifndef PSCNV_KAPI_DRM_GEM_OBJECT_HANDLE_COUNT
 	atomic_dec(&obj->handle_count);
 #endif
-	pscnv_mem_free(vo);
+	if (!vo->chan)
+		pscnv_mem_free(vo);
+	else
+		vo->gem = 0;
+	drm_gem_free_mmap_offset(obj);
 	drm_gem_object_release(obj);
 	kfree(obj);
+}
+
+struct drm_gem_object *pscnv_gem_wrap(struct drm_device *dev, struct pscnv_bo *vo)
+{
+	struct drm_gem_object *obj;
+
+	obj = drm_gem_object_alloc(dev, vo->size);
+	if (!obj)
+		return 0;
+#ifndef __linux__
+	if (drm_gem_create_mmap_offset(obj) != 0) {
+		drm_gem_object_handle_unreference_unlocked(obj);
+		return 0;
+	}
+#endif
+
+#ifndef PSCNV_KAPI_DRM_GEM_OBJECT_HANDLE_COUNT
+	atomic_inc(&obj->handle_count);
+#endif
+	obj->driver_private = vo;
+	vo->gem = obj;
+	return obj;
 }
 
 struct drm_gem_object *pscnv_gem_new(struct drm_device *dev, uint64_t size, uint32_t flags,
 		uint32_t tile_flags, uint32_t cookie, uint32_t *user)
 {
 	int i;
+	struct pscnv_bo *vo = pscnv_mem_alloc(dev, size, flags, tile_flags, cookie);
 	struct drm_gem_object *obj;
-	struct pscnv_bo *vo;
-
-	vo = pscnv_mem_alloc(dev, size, flags, tile_flags, cookie);
 	if (!vo)
 		return 0;
 
-	obj = drm_gem_object_alloc(dev, vo->size);
-	if (!obj) {
+	if (!(obj = pscnv_gem_wrap(dev, vo)))
 		pscnv_mem_free(vo);
-		return 0;
-	}
-#ifndef PSCNV_KAPI_DRM_GEM_OBJECT_HANDLE_COUNT
-	atomic_inc(&obj->handle_count);
-#endif
-	obj->driver_private = vo;
-	vo->gem = obj;
-
-	if (user)
+	else if (user)
 		for (i = 0; i < DRM_ARRAY_SIZE(vo->user); i++)
 			vo->user[i] = user[i];
 	else

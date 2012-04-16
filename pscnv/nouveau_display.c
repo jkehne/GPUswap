@@ -80,6 +80,7 @@ nouveau_framebuffer_init(struct drm_device *dev, struct nouveau_framebuffer *nou
 	return 0;
 }
 
+
 #ifdef PSCNV_KAPI_DRM_MODE_FB_CMD2
 static struct drm_framebuffer *
 nouveau_user_framebuffer_create(struct drm_device *dev,
@@ -117,10 +118,35 @@ nouveau_user_framebuffer_create(struct drm_device *dev,
 	return &nouveau_fb->base;
 }
 
+#ifdef __linux__
+
 const struct drm_mode_config_funcs nouveau_mode_config_funcs = {
 	.fb_create = nouveau_user_framebuffer_create,
 	.output_poll_changed = nouveau_fbcon_output_poll_changed,
 };
+
+#else
+
+static int
+nouveau_user_framebuffer_create_bsd(struct drm_device *dev,
+    struct drm_file *filp, struct drm_mode_fb_cmd2 *mode_cmd,
+    struct drm_framebuffer **res)
+{
+	struct drm_framebuffer *ret = nouveau_user_framebuffer_create(dev, filp, mode_cmd);
+	if (IS_ERR(ret)) {
+		*res = NULL;
+		return PTR_ERR(ret);
+	}
+	*res = ret;
+	return 0;
+}
+
+const struct drm_mode_config_funcs nouveau_mode_config_funcs = {
+	.fb_create = nouveau_user_framebuffer_create_bsd,
+	.output_poll_changed = nouveau_fbcon_output_poll_changed,
+};
+
+#endif
 
 struct nouveau_drm_prop_enum_list {
 	u8 gen_mask;

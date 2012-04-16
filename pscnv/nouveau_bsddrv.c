@@ -28,6 +28,7 @@
 #include "nouveau_pm.h"
 #include "pscnv_gem.h"
 #include "pscnv_vm.h"
+#include "pscnv_chan.h"
 #if 0
 #include "nouveau_hw.h"
 #include "nouveau_fb.h"
@@ -218,6 +219,89 @@ struct drm_ioctl_desc nouveau_ioctls[] = {
 	DRM_IOCTL_DEF(DRM_PSCNV_FIFO_INIT, pscnv_ioctl_fifo_init, DRM_UNLOCKED),
 	DRM_IOCTL_DEF(DRM_PSCNV_OBJ_ENG_NEW, pscnv_ioctl_obj_eng_new, DRM_UNLOCKED),
 	DRM_IOCTL_DEF(DRM_PSCNV_FIFO_INIT_IB, pscnv_ioctl_fifo_init_ib, DRM_UNLOCKED),
+};
+
+static int
+pscnv_gem_pager_ctor(void *handle, vm_ooffset_t size, vm_prot_t prot,
+    vm_ooffset_t foff, struct ucred *cred, u_short *color)
+{
+	struct drm_gem_object *gem_obj = handle;
+	struct drm_device *dev = gem_obj->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	int ret = (0);
+	struct pscnv_bo *bo = gem_obj->driver_private;
+	if (bo->chan)
+		pscnv_chan_ref(bo->chan);
+	else if ((ret = dev_priv->vm->map_user(bo)) == 0)
+		drm_gem_object_reference(gem_obj);
+	*color = 0; /* ...? */
+	return (ret);
+}
+
+static int
+pscnv_gem_pager_fault(vm_object_t vm_obj, vm_ooffset_t offset, int prot,
+    vm_page_t *mres)
+{
+	struct drm_gem_object *gem_obj = vm_obj->handle;
+	struct pscnv_bo *bo = gem_obj->driver_private;
+	struct drm_device *dev = gem_obj->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	vm_page_t m = NULL;
+
+	if (bo->chan)
+		m = vm_phys_fictitious_to_vm_page(dev_priv->fb_phys +
+			nvc0_fifo_ctrl_offs(dev, bo->chan->cid));
+	else switch (bo->flags & PSCNV_GEM_MEMTYPE_MASK) {
+	case PSCNV_GEM_VRAM_SMALL:
+	case PSCNV_GEM_VRAM_LARGE:
+		m = vm_phys_fictitious_to_vm_page(dev_priv->fb_phys +
+			bo->map1->start + offset);
+		break;
+	case PSCNV_GEM_SYSRAM_SNOOP:
+	case PSCNV_GEM_SYSRAM_NOSNOOP:
+		m = PHYS_TO_VM_PAGE(vtophys(((void*)bo->pages[offset/PAGE_SIZE])));
+		break;
+	}
+	//write = (prot & VM_PROT_WRITE) != 0;
+
+	/*
+	 * Remove the placeholder page inserted by vm_fault() from the
+	 * object.
+	 */
+	if (*mres != NULL) {
+		vm_page_lock(*mres);
+		vm_page_free(*mres);
+		vm_page_unlock(*mres);
+		*mres = NULL;
+	}
+	if (offset >= bo->size || !m)
+		return (VM_PAGER_ERROR);
+
+	*mres = m;
+	m->valid = VM_PAGE_BITS_ALL;
+	vm_page_lock(m);
+	vm_page_insert(m, vm_obj, OFF_TO_IDX(offset));
+	vm_page_unlock(m);
+	vm_page_busy(m);
+	return (VM_PAGER_OK);
+}
+
+static void
+pscnv_gem_pager_dtor(void *handle)
+{
+	struct drm_gem_object *gem_obj = handle;
+	struct pscnv_bo *bo = gem_obj->driver_private;
+
+	if (bo->chan)
+		pscnv_chan_unref(bo->chan);
+	else // TODO: Add refcounting to user mmaps in pscnv_bo
+		drm_gem_object_unreference_unlocked(gem_obj);
+}
+
+struct cdev_pager_ops i915_gem_pager_ops = {
+	.cdev_pg_fault	= pscnv_gem_pager_fault,
+	.cdev_pg_ctor	= pscnv_gem_pager_ctor,
+	.cdev_pg_dtor	= pscnv_gem_pager_dtor
 };
 
 static struct drm_driver_info driver = {
