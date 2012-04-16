@@ -22,14 +22,14 @@
  * Authors: Ben Skeggs
  */
 
+#ifdef __linux__
 #include <linux/dma-mapping.h>
-
-#include "drmP.h"
+#endif
+#include "nouveau_drv.h"
 #include "drm_crtc_helper.h"
 #include "pscnv_mem.h"
 #include "pscnv_vm.h"
 #include "pscnv_chan.h"
-#include "nouveau_drv.h"
 #include "nouveau_connector.h"
 #include "nouveau_encoder.h"
 #include "nouveau_crtc.h"
@@ -245,13 +245,15 @@ evo_sync(struct drm_device *dev, int ch)
 /******************************************************************************
  * Page flipping channel
  *****************************************************************************/
+#if 0 // TODO
 struct pscnv_bo *
 nvd0_display_crtc_sema(struct drm_device *dev, int crtc)
 {
 	return nvd0_display(dev)->sync;
 }
+#endif
 
-void
+static void
 nvd0_display_flip_stop(struct drm_crtc *crtc)
 {
 	struct nvd0_display *disp = nvd0_display(crtc->dev);
@@ -318,7 +320,7 @@ static int nvd0_crtc_get_data(struct nouveau_crtc *nv_crtc,
 	return 0;
 }
 
-int
+static int
 nvd0_display_flip_next(struct drm_crtc *crtc, struct drm_framebuffer *fb,
 		       struct nouveau_channel *chan, u32 swap_interval)
 {
@@ -1365,13 +1367,22 @@ nvd0_sor_dp_calc_tu(struct drm_device *dev, struct dcb_entry *dcb,
 
 	ratio  = datarate;
 	ratio *= symbol;
+#ifdef __linux__
 	do_div(ratio, link_nr * link_bw);
+#else
+	ratio = datarate;
+	ratio *= symbol;
+	ratio /= (u64)link_nr * link_bw;
+#endif
 
 	value  = (symbol - ratio) * TU;
 	value *= ratio;
+#ifdef __linux__
 	do_div(value, symbol);
 	do_div(value, symbol);
-
+#else
+	value /= (u64)symbol * symbol;
+#endif
 	value += 5;
 	value |= 0x08000000;
 
@@ -1809,7 +1820,12 @@ nvd0_display_bh(struct work_struct *work)
 	u32 mask = 0, crtc = ~0;
 	int i;
 
-	if (drm_debug & (DRM_UT_DRIVER | DRM_UT_KMS)) {
+#ifdef __linux__
+	if (drm_debug & (DRM_UT_DRIVER | DRM_UT_KMS))
+#else
+	if (drm_debug_flag & (DRM_DEBUGBITS_DEBUG|DRM_DEBUGBITS_KMS))
+#endif
+	{
 		NV_INFO(dev, "PDISP: modeset req %d\n", disp->modeset);
 		NV_INFO(dev, " STAT: 0x%08x 0x%08x 0x%08x\n",
 			 nv_rd32(dev, 0x6101d0),
@@ -2014,12 +2030,15 @@ nvd0_display_destroy(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct nvd0_display *disp = nvd0_display(dev);
-	struct pci_dev *pdev = dev->pdev;
 	int i;
 
 	for (i = 0; i < EVO_DMA_NR; i++) {
 		struct evo *evo = &disp->evo[i];
-		pci_free_consistent(pdev, PAGE_SIZE, evo->ptr, evo->handle);
+#ifdef __linux__
+		pci_free_consistent(dev->pdev, PAGE_SIZE, evo->ptr, evo->handle);
+#else
+		kmem_free(kmem_map, (vm_offset_t)evo->ptr, PAGE_SIZE);
+#endif
 	}
 
 	pscnv_mem_free(disp->mem);
@@ -2036,7 +2055,6 @@ nvd0_display_create(struct drm_device *dev)
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct dcb_table *dcb = &dev_priv->vbios.dcb;
 	struct drm_connector *connector, *tmp;
-	struct pci_dev *pdev = dev->pdev;
 	struct nvd0_display *disp;
 	struct dcb_entry *dcbe;
 	int crtcs, ret = 0, i;
@@ -2120,7 +2138,13 @@ nvd0_display_create(struct drm_device *dev)
 
 		evo->idx = i;
 		evo->sem.offset = EVO_SYNC(evo->idx, 0x00);
-		evo->ptr = pci_alloc_consistent(pdev, PAGE_SIZE, &evo->handle);
+#ifdef __linux__
+		evo->ptr = pci_alloc_consistent(dev->pdev, PAGE_SIZE, &evo->handle);
+#else
+		evo->ptr = (void*)kmem_alloc_contig(kmem_map, PAGE_SIZE, M_WAITOK, 0, 0xffffffffU, PAGE_SIZE, 0, VM_MEMATTR_DEFAULT);
+		if (evo->ptr)
+			evo->handle = vtophys(evo->ptr);
+#endif
 		if (!evo->ptr) {
 			ret = -ENOMEM;
 			goto out;
