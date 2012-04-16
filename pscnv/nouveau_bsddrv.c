@@ -136,10 +136,10 @@ module_param_named(fbpercrtc, nouveau_fbpercrtc, int, 0400);
 
 static drm_pci_id_list_t pciidlist[] = {
 	{
-		/*PCI_VENDOR_ID_NVIDIA*/ 0x10de, ~0U
+		/*PCI_VENDOR_ID_NVIDIA*/ 0x10de, 0U
 	},
 	{
-		/*PCI_VENDOR_ID_NVIDIA_SGS*/ 0x12d2, ~0U
+		/*PCI_VENDOR_ID_NVIDIA_SGS*/ 0x12d2, 0U
 	},
 	{}
 };
