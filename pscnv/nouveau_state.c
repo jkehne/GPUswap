@@ -374,7 +374,14 @@ nouveau_card_init(struct drm_device *dev)
 	/* this call irq_preinstall, register irq handler and
 	 * call irq_postinstall
 	 */
+#ifdef __linux__
 	ret = drm_irq_install(dev);
+#else
+	// SIGH
+	DRM_UNLOCK();
+	ret = drm_irq_install(dev);
+	DRM_LOCK();
+#endif
 	if (ret)
 		goto out_display;
 
@@ -398,7 +405,14 @@ nouveau_card_init(struct drm_device *dev)
 	dev_priv->init_state = NOUVEAU_CARD_INIT_DONE;
 
 	if (drm_core_check_feature(dev, DRIVER_MODESET)) {
+#ifdef __linux__
 		nouveau_fbcon_init(dev);
+#else
+		// SIGH
+		DRM_UNLOCK();
+		nouveau_fbcon_init(dev);
+		DRM_LOCK();
+#endif
 		drm_kms_helper_poll_init(dev);
 	}
 
@@ -708,7 +722,7 @@ int nouveau_load(struct drm_device *dev, unsigned long flags)
 	/* map larger RAMIN aperture on NV40 cards */
 	if (dev_priv->card_type >= NV_40) {
 		int ramin_bar = 2;
-		if (drm_get_resource_len(dev, ramin_bar) == 0)
+		if (drm_get_resource_len(dev, ramin_bar) < PAGE_SIZE)
 			ramin_bar = 3;
 
 		dev_priv->ramin_size = drm_get_resource_len(dev, ramin_bar);

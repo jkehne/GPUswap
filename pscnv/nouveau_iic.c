@@ -179,6 +179,20 @@ nv50_i2c_setsda(void *data, int state)
 	i2c->data = state;
 }
 
+static int
+nvd0_i2c_getscl(void *data)
+{
+	struct nouveau_i2c_chan *i2c = data;
+	return !!(nv_rd32(i2c->dev, i2c->rd) & 0x10);
+}
+
+static int
+nvd0_i2c_getsda(void *data)
+{
+	struct nouveau_i2c_chan *i2c = data;
+	return !!(nv_rd32(i2c->dev, i2c->rd) & 0x20);
+}
+
 static void
 pscnv_iicbb_setsda(device_t idev, int val)
 {
@@ -236,13 +250,21 @@ nouveau_i2c_init(struct drm_device *dev, struct dcb_i2c_entry *entry, int index)
 	} else {
 		idev = device_add_child(dev->device, "pscnv_gmbus", index);
 	}
-	device_quiet(idev);
+	if (!idev) {
+		return -ENODEV;
+	}
 	ret = device_probe_and_attach(idev);
 	if (ret) {
+		NV_ERROR(dev, "Couldn't attach device: %d\n", ret);
 		device_delete_child(dev->device, idev);
 		return -ret;
 	}
+	device_quiet(idev);
 	i2c = device_get_softc(idev);
+	if (!i2c) {
+		NV_ERROR(dev, "Erp?!\n");
+		return -ENODEV;
+	}
 
 	switch (entry->port_type) {
 	case 0:
@@ -264,9 +286,15 @@ nouveau_i2c_init(struct drm_device *dev, struct dcb_i2c_entry *entry, int index)
 	case 5:
 		i2c->bit.setsda = nv50_i2c_setsda;
 		i2c->bit.setscl = nv50_i2c_setscl;
-		i2c->bit.getsda = nv50_i2c_getsda;
-		i2c->bit.getscl = nv50_i2c_getscl;
-		i2c->rd = nv50_i2c_port[entry->read];
+		if (dev_priv->card_type < NV_D0) {
+			i2c->bit.getsda = nv50_i2c_getsda;
+			i2c->bit.getscl = nv50_i2c_getscl;
+			i2c->rd = nv50_i2c_port[entry->read];
+		} else {
+			i2c->bit.getsda = nvd0_i2c_getsda;
+			i2c->bit.getscl = nvd0_i2c_getscl;
+			i2c->rd = 0x00d014 + (entry->read * 0x20);
+		}
 		i2c->wr = i2c->rd;
 		break;
 	case 6:
@@ -339,7 +367,7 @@ nouveau_probe_i2c_addr(struct nouveau_i2c_chan *i2c, int addr)
 		}
 	};
 
-	return !IICBUS_TRANSFER(i2c->adapter, msgs, 2);
+	return !iicbus_transfer(i2c->bus, msgs, 2);
 }
 
 int
@@ -383,8 +411,10 @@ pscnv_gmbus_attach(device_t idev)
 
 	/* add bus interface device */
 	sc->bus = sc->iic_dev = device_add_child(idev, "iicbus", -1);
-	if (sc->iic_dev == NULL)
+	if (sc->iic_dev == NULL) {
+		NV_ERROR(sc->dev, "Could not add iicbus to gmbus!\n");
 		return (ENXIO);
+	}
 	device_quiet(sc->iic_dev);
 	bus_generic_attach(idev);
 
@@ -408,8 +438,10 @@ pscnv_iicbb_attach(device_t idev)
 
 	/* add bus interface device */
 	sc->iic_dev = device_add_child(idev, "iicbb", -1);
-	if (sc->iic_dev == NULL)
+	if (sc->iic_dev == NULL) {
+		NV_ERROR(sc->dev, "Could not add iicbb to our bitbanger!\n");
 		return (ENXIO);
+	}
 	device_quiet(sc->iic_dev);
 	bus_generic_attach(idev);
 	sc->bus = device_find_child(sc->iic_dev, "iicbus", -1);
@@ -474,8 +506,7 @@ pscnv_gmbus_transfer(device_t idev, struct iic_msg *msgs, uint32_t nmsgs)
 static int
 pscnv_iic_probe(device_t dev)
 {
-
-	return (BUS_PROBE_DEFAULT);
+	return (BUS_PROBE_SPECIFIC);
 }
 
 static int
@@ -492,11 +523,18 @@ pscnv_iic_detach(device_t idev)
 	return (0);
 }
 
+static int
+pscnv_iicbus_reset(device_t idev, u_char speed, u_char addr, u_char *oldaddr)
+{
+	return (0);
+}
+
 /* DP transfer with auxch */
 static device_method_t pscnv_gmbus_methods[] = {
 	DEVMETHOD(device_probe,		pscnv_iic_probe),
 	DEVMETHOD(device_attach,	pscnv_gmbus_attach),
 	DEVMETHOD(device_detach,	pscnv_iic_detach),
+	DEVMETHOD(iicbus_reset,		pscnv_iicbus_reset),
 	DEVMETHOD(iicbus_transfer,	pscnv_gmbus_transfer),
 	DEVMETHOD_END
 };
@@ -520,6 +558,7 @@ static device_method_t pscnv_iicbb_methods[] =	{
 	DEVMETHOD(bus_print_child,	bus_generic_print_child),
 
 	DEVMETHOD(iicbb_callback,	iicbus_null_callback),
+	DEVMETHOD(iicbus_reset,		pscnv_iicbus_reset),
 	DEVMETHOD(iicbb_setsda,		pscnv_iicbb_setsda),
 	DEVMETHOD(iicbb_setscl,		pscnv_iicbb_setscl),
 	DEVMETHOD(iicbb_getsda,		pscnv_iicbb_getsda),

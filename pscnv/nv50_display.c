@@ -1017,7 +1017,7 @@ nv50_display_irq_hotplug_bh(struct work_struct *work)
 	struct drm_device *dev = dev_priv->dev;
 	struct drm_connector *connector;
 	uint32_t unplug_mask, plug_mask, change_mask;
-	uint32_t hpd0, hpd1 = 0;
+	uint32_t hpd0, hpd1 = 0, changed = 0;
 
 	hpd0 = nv_rd32(dev, 0xe054) & nv_rd32(dev, 0xe050);
 	if (dev_priv->chipset >= 0x90)
@@ -1034,6 +1034,7 @@ nv50_display_irq_hotplug_bh(struct work_struct *work)
 		struct nouveau_encoder *nv_encoder;
 		struct dcb_gpio_entry *gpio;
 		bool plugged;
+		uint32_t mode;
 
 		if (!nv_connector->dcb)
 			continue;
@@ -1056,16 +1057,21 @@ nv50_display_irq_hotplug_bh(struct work_struct *work)
 			continue;
 
 		if (plugged)
-			helper->dpms(connector->encoder, DRM_MODE_DPMS_ON);
+			mode = DRM_MODE_DPMS_ON;
 		else
-			helper->dpms(connector->encoder, DRM_MODE_DPMS_OFF);
+			mode = DRM_MODE_DPMS_OFF;
+		if (mode != nv_encoder->last_dpms) {
+			changed = 1;
+			helper->dpms(connector->encoder, mode);
+		}
 	}
 
 	nv_wr32(dev, 0xe054, nv_rd32(dev, 0xe054));
 	if (dev_priv->chipset >= 0x90)
 		nv_wr32(dev, 0xe074, nv_rd32(dev, 0xe074));
 
-	drm_helper_hpd_irq_event(dev);
+	if (changed)
+		drm_helper_hpd_irq_event(dev);
 }
 
 void

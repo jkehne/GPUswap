@@ -39,6 +39,7 @@
 #include "drm_pciids.h"
 #include "pscnv_ioctl.h"
 #include "pscnv_kapi.h"
+#include "device_if.h"
 
 #define MODULE_PARM_DESC(a, b)
 #define module_param_named(name, where, type, mode) TUNABLE_INT("drm.pscnv." #name, &where)
@@ -136,10 +137,10 @@ module_param_named(fbpercrtc, nouveau_fbpercrtc, int, 0400);
 
 static drm_pci_id_list_t pciidlist[] = {
 	{
-		/*PCI_VENDOR_ID_NVIDIA*/ 0x10de, 0U
+		/*PCI_VENDOR_ID_NVIDIA*/ 0x10de, 0U, 0, "nVidia graphics card"
 	},
 	{
-		/*PCI_VENDOR_ID_NVIDIA_SGS*/ 0x12d2, 0U
+		/*PCI_VENDOR_ID_NVIDIA_SGS*/ 0x12d2, 0U, 0, "nVidia SGS graphics card"
 	},
 	{}
 };
@@ -181,12 +182,12 @@ static device_method_t pscnv_methods[] = {
 	/* Device interface */
 	DEVMETHOD(device_probe,		pscnv_probe),
 	DEVMETHOD(device_attach,	pscnv_attach),
-	DEVMETHOD(device_suspend,	nouveau_suspend),
-	DEVMETHOD(device_resume,	nouveau_resume),
-	DEVMETHOD(device_detach,	drm_detach),
 #ifdef DEVICE_AFTER_ATTACH
 	DEVMETHOD(device_after_attach,	drm_after_attach),
 #endif
+	DEVMETHOD(device_suspend,	nouveau_suspend),
+	DEVMETHOD(device_resume,	nouveau_resume),
+	DEVMETHOD(device_detach,	drm_detach),
 	DEVMETHOD_END
 };
 
@@ -313,10 +314,6 @@ static struct drm_driver_info driver = {
 	.lastclose = nouveau_lastclose,
 	.unload = nouveau_unload,
 	.preclose = nouveau_preclose,
-#if defined(CONFIG_DRM_NOUVEAU_DEBUG)
-	.debugfs_init = nouveau_debugfs_init,
-	.debugfs_cleanup = nouveau_debugfs_takedown,
-#endif
 	.irq_preinstall = nouveau_irq_preinstall,
 	.irq_postinstall = nouveau_irq_postinstall,
 	.irq_uninstall = nouveau_irq_uninstall,

@@ -51,9 +51,26 @@ struct i2c_board_info { const char *name; int addr; };
 #include "iicbus_if.h"
 #include "iicbb_if.h"
 
+#endif
+
+struct nouveau_i2c_chan {
+#ifdef __linux__
+	struct i2c_adapter adapter;
+#else
+	device_t adapter, bus, iic_dev;
+	char name[32];
+#endif
+	struct drm_device *dev;
+	struct i2c_algo_bit_data bit;
+	unsigned rd;
+	unsigned wr;
+	unsigned data;
+};
+
+#ifndef __linux__
 static inline int i2c_transfer(device_t *dev, struct iic_msg *msg, int n) {
-	int ret;
-	ret = IICBUS_TRANSFER(*dev, msg, n);
+	struct nouveau_i2c_chan *d = (struct nouveau_i2c_chan*)dev;
+	int ret = iicbus_transfer(d->bus, msg, n);
 	return ret ? -ret : n;
 }
 
@@ -78,22 +95,7 @@ static inline int i2c_smbus_xfer(device_t *dev, uint16_t addr, uint16_t flags,
 		return i2c_transfer(dev, msg, 2);
 	}
 }
-
 #endif
-
-struct nouveau_i2c_chan {
-#ifdef __linux__
-	struct i2c_adapter adapter;
-#else
-	device_t adapter, bus, iic_dev;
-	char name[32];
-#endif
-	struct drm_device *dev;
-	struct i2c_algo_bit_data bit;
-	unsigned rd;
-	unsigned wr;
-	unsigned data;
-};
 
 #include "drm_dp_helper.h"
 
