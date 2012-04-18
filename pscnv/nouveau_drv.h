@@ -186,6 +186,7 @@ struct nouveau_pm_memtiming {
 
 	u32 reg[9];
 	u32 mr[9];
+	u32 etc[8];
 
 	u8 tCWL;
 
