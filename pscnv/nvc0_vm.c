@@ -329,6 +329,8 @@ static void nvc0_vspace_free(struct pscnv_vspace *vs) {
 	}
 	pscnv_mem_free(nvc0_vs(vs)->pd);
 
+	if (nvc0_vs(vs)->mmio_bo)
+		pscnv_mem_free(nvc0_vs(vs)->mmio_bo);
 	kfree(vs->engdata);
 }
 
