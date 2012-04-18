@@ -49,6 +49,7 @@ nvc0_vram_init(struct drm_device *dev)
 	}
 
 	dev_priv->vram_type = nouveau_mem_vbios_type(dev);
+	WARN(dev_priv->vram_type == 9, "WTF?\n");
 	dev_priv->vram->alloc = nvc0_vram_alloc;
 	dev_priv->vram->free = pscnv_vram_free;
 	dev_priv->vram->takedown = pscnv_vram_takedown;

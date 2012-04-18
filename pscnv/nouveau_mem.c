@@ -429,11 +429,13 @@ nouveau_mem_timing_calc(struct drm_device *dev, u32 freq,
 		ret = nvc0_mem_timing_calc(dev, freq, e, len, boot, t);
 		break;
 	default:
-		ret = -ENODEV;
-		break;
+		return -ENODEV;
 	}
 
-	switch (dev_priv->vram_type * !ret) {
+	if (ret)
+		return ret;
+
+	switch (dev_priv->vram_type) {
 	case NV_MEM_TYPE_GDDR3:
 		ret = nouveau_mem_gddr3_mr(dev, freq, e, len, boot, t);
 		break;
@@ -447,6 +449,7 @@ nouveau_mem_timing_calc(struct drm_device *dev, u32 freq,
 		ret = nouveau_mem_ddr3_mr(dev, freq, e, len, boot, t);
 		break;
 	default:
+		NV_WARN(dev, "Unknown memory type %u\n", dev_priv->vram_type);
 		ret = -EINVAL;
 		break;
 	}
@@ -694,5 +697,6 @@ nouveau_mem_vbios_type(struct drm_device *dev)
 
 		}
 	}
+	WARN(dev, "Could not determine vbios type!\n");
 	return NV_MEM_TYPE_UNKNOWN;
 }

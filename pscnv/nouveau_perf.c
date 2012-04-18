@@ -377,7 +377,7 @@ nouveau_perf_init(struct drm_device *dev)
 		if (pm->voltage.supported && perflvl->volt_min) {
 			vid = nouveau_volt_vid_lookup_range(dev, perflvl->volt_min, perflvl->volt_max);
 			if (vid < 0) {
-				NV_DEBUG(dev, "perflvl %d, bad vid\n", i);
+				NV_WARN(dev, "perflvl %d, bad vid\n", i);
 				continue;
 			}
 		}
@@ -386,7 +386,7 @@ nouveau_perf_init(struct drm_device *dev)
 		ret = nouveau_mem_timing_calc(dev, perflvl->memory,
 					          &perflvl->timing);
 		if (ret) {
-			NV_DEBUG(dev, "perflvl %d, bad timing: %d\n", i, ret);
+			NV_WARN(dev, "perflvl %d, bad timing: %d\n", i, ret);
 			continue;
 		}
 

@@ -39,7 +39,9 @@ void pscnv_gem_free_object (struct drm_gem_object *obj) {
 		pscnv_mem_free(vo);
 	else
 		vo->gem = 0;
+#ifndef __linux__
 	drm_gem_free_mmap_offset(obj);
+#endif
 	drm_gem_object_release(obj);
 	kfree(obj);
 }
