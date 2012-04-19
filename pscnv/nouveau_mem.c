@@ -425,6 +425,7 @@ nouveau_mem_timing_calc(struct drm_device *dev, u32 freq,
 	case NV_50:
 		ret = nv50_mem_timing_calc(dev, freq, e, len, boot, t);
 		break;
+	case NV_D0:
 	case NV_C0:
 		ret = nvc0_mem_timing_calc(dev, freq, e, len, boot, t);
 		break;
@@ -523,13 +524,13 @@ nouveau_mem_timing_read(struct drm_device *dev, struct nouveau_pm_memtiming *t)
 	}
 
 	t->mr[0] = nv_rd32(dev, mr_base);
-	if (dev_priv->card_type < NV_C0) {
+	if (dev_priv->vram_type != NV_MEM_TYPE_GDDR5) {
 		t->mr[1] = nv_rd32(dev, mr_base + 0x04);
 		t->mr[2] = nv_rd32(dev, mr_base + 0x20);
 		t->mr[3] = nv_rd32(dev, mr_base + 0x24);
 	} else {
-		int i, mr = dev_priv->vram_type = NV_MEM_TYPE_GDDR5 ? 9 : 4;
-		for (i = 1; i < mr; ++i)
+		int i;
+		for (i = 1; i < 9; ++i)
 			t->mr[i] = nv_rd32(dev, mr_base + 0x2c + i * 4);
 	}
 

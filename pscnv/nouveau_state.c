@@ -479,6 +479,7 @@ static void nouveau_card_takedown(struct drm_device *dev)
 		NV_INFO(dev, "Stopping card...\n");
 		nouveau_backlight_exit(dev);
 		drm_irq_uninstall(dev);
+		flush_workqueue(dev_priv->wq);
 		for (i = 0; i < PSCNV_ENGINES_NUM; i++)
 			if (dev_priv->engines[i]) {
 				dev_priv->engines[i]->takedown(dev_priv->engines[i]);
@@ -780,6 +781,7 @@ int nouveau_unload(struct drm_device *dev)
 		nouveau_display_destroy(dev);
 		nouveau_close(dev);
 	}
+	destroy_workqueue(dev_priv->wq);
 
 	drm_rmmap(dev, dev_priv->mmio);
 	drm_rmmap(dev, dev_priv->ramin);
