@@ -80,6 +80,9 @@ nouveau_volt_vid_lookup_range(struct drm_device *dev, int volt_min, int volt_max
 		NV_WARN(dev, "volt_max %d < volt_min %d\n", volt_min, volt_max);
 		volt_max = volt_min;
 	}
+	if (volt_min == volt_max)
+		volt_max = volt_min + 500;
+
 	for (i = 0; i < volt->nr_level; i++) {
 		if (volt->level[i].voltage < volt_min ||
 		    volt->level[i].voltage > volt_max)
