@@ -429,7 +429,8 @@ nouveau_mem_timing_calc(struct drm_device *dev, u32 freq,
 		ret = nvc0_mem_timing_calc(dev, freq, e, len, boot, t);
 		break;
 	default:
-		return -ENODEV;
+		ret = -ENODEV;
+		break;
 	}
 
 	if (ret)
