@@ -118,7 +118,7 @@ int pscnv_ioctl_gem_new(struct drm_device *dev, void *data,
 
 	/* could change due to page size align */
 	info->size = bo->size;
-
+	info->handle = 0; /* FreeBSD expects this to be 0 else allocation fails */
 	ret = drm_gem_handle_create(file_priv, obj, &info->handle);
 
 	if (pscnv_gem_debug >= 1)

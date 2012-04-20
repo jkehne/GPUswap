@@ -181,6 +181,7 @@ int pscnv_chan_mmap(struct file *filp, struct vm_area_struct *vma)
 				vma->vm_end - vma->vm_start, PAGE_SHARED);
 		}
 		break;
+	case NV_D0:
 	case NV_C0:
 		if ((vma->vm_pgoff * PAGE_SIZE & ~0x7f0000ull) == 0xc0000000) {
 			if (vma->vm_end - vma->vm_start > 0x1000)

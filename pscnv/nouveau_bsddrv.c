@@ -235,8 +235,10 @@ pscnv_gem_pager_ctor(void *handle, vm_ooffset_t size, vm_prot_t prot,
 		pscnv_chan_ref(bo->chan);
 	else if ((ret = dev_priv->vm->map_user(bo)) == 0)
 		drm_gem_object_reference(gem_obj);
+	else
+		NV_WARN(dev, "map_user failed with %i\n", ret);
 	*color = 0; /* ...? */
-	return (ret);
+	return (-ret);
 }
 
 static int
@@ -248,11 +250,26 @@ pscnv_gem_pager_fault(vm_object_t vm_obj, vm_ooffset_t offset, int prot,
 	struct drm_device *dev = gem_obj->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	vm_page_t m = NULL;
-
+	const char *what;
 	if (bo->chan)
+		what = "fifo";
+	else if ((bo->flags & PSCNV_GEM_MEMTYPE_MASK) == PSCNV_GEM_VRAM_SMALL ||
+		 (bo->flags & PSCNV_GEM_MEMTYPE_MASK) == PSCNV_GEM_VRAM_LARGE)
+		what = "vram";
+	else
+		what = "sysram";
+
+	if (offset >= bo->size) {
+		if (pscnv_mem_debug)
+			NV_WARN(dev, "Reading %010llx (%s) at offset %08llx is past max size %08llx\n",
+				bo->start, what, offset, bo->size);
+		return (VM_PAGER_ERROR);
+	}
+
+	if (bo->chan) {
 		m = vm_phys_fictitious_to_vm_page(dev_priv->fb_phys +
 			nvc0_fifo_ctrl_offs(dev, bo->chan->cid));
-	else switch (bo->flags & PSCNV_GEM_MEMTYPE_MASK) {
+	} else switch (bo->flags & PSCNV_GEM_MEMTYPE_MASK) {
 	case PSCNV_GEM_VRAM_SMALL:
 	case PSCNV_GEM_VRAM_LARGE:
 		m = vm_phys_fictitious_to_vm_page(dev_priv->fb_phys +
@@ -260,8 +277,14 @@ pscnv_gem_pager_fault(vm_object_t vm_obj, vm_ooffset_t offset, int prot,
 		break;
 	case PSCNV_GEM_SYSRAM_SNOOP:
 	case PSCNV_GEM_SYSRAM_NOSNOOP:
-		m = PHYS_TO_VM_PAGE(vtophys(((void*)bo->pages[offset/PAGE_SIZE])));
+		m = PHYS_TO_VM_PAGE(bo->dmapages[OFF_TO_IDX(offset)]);
 		break;
+	}
+	if (!m) {
+		if (pscnv_mem_debug)
+			NV_WARN(dev, "BO %010llx (%s) at offset %08llx could not be found!\n",
+				bo->start, what, offset);
+		return (VM_PAGER_ERROR);
 	}
 	//write = (prot & VM_PROT_WRITE) != 0;
 
@@ -275,8 +298,10 @@ pscnv_gem_pager_fault(vm_object_t vm_obj, vm_ooffset_t offset, int prot,
 		vm_page_unlock(*mres);
 		*mres = NULL;
 	}
-	if (offset >= bo->size || !m)
-		return (VM_PAGER_ERROR);
+
+	if (pscnv_mem_debug)
+		NV_WARN(dev, "BO %010llx (%s) at offset %08llx mapped!\n",
+			bo->start, what, offset);
 
 	*mres = m;
 	m->valid = VM_PAGE_BITS_ALL;
@@ -299,7 +324,7 @@ pscnv_gem_pager_dtor(void *handle)
 		drm_gem_object_unreference_unlocked(gem_obj);
 }
 
-struct cdev_pager_ops i915_gem_pager_ops = {
+static struct cdev_pager_ops pscnv_gem_pager_ops = {
 	.cdev_pg_fault	= pscnv_gem_pager_fault,
 	.cdev_pg_ctor	= pscnv_gem_pager_ctor,
 	.cdev_pg_dtor	= pscnv_gem_pager_dtor
@@ -325,6 +350,7 @@ static struct drm_driver_info driver = {
 	// .dumb_* ?
 	// sysctl init/cleanup ?
 	.gem_free_object = pscnv_gem_free_object,
+	.gem_pager_ops	= &pscnv_gem_pager_ops,
 
 	.name = DRIVER_NAME,
 	.desc = DRIVER_DESC,
