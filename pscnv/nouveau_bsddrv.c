@@ -115,11 +115,11 @@ int pscnv_mm_debug = 0;
 module_param_named(mm_debug, pscnv_mm_debug, int, 0400);
 
 MODULE_PARM_DESC(mem_debug, "memory debug level: 0-1.");
-int pscnv_mem_debug = 0;
+int pscnv_mem_debug = 1;
 module_param_named(mem_debug, pscnv_mem_debug, int, 0400);
 
 MODULE_PARM_DESC(vm_debug, "VM debug level: 0-2.");
-int pscnv_vm_debug = 0;
+int pscnv_vm_debug = 1;
 module_param_named(vm_debug, pscnv_vm_debug, int, 0400);
 
 MODULE_PARM_DESC(ramht_debug, "RAMHT debug level: 0-2.");
@@ -127,7 +127,7 @@ int pscnv_ramht_debug = 0;
 module_param_named(ramht_debug, pscnv_ramht_debug, int, 0400);
 
 MODULE_PARM_DESC(gem_debug, "GEM debug level: 0-1.");
-int pscnv_gem_debug = 0;
+int pscnv_gem_debug = 1;
 module_param_named(gem_debug, pscnv_gem_debug, int, 0400);
 
 int nouveau_fbpercrtc;
@@ -229,16 +229,26 @@ pscnv_gem_pager_ctor(void *handle, vm_ooffset_t size, vm_prot_t prot,
 	struct drm_gem_object *gem_obj = handle;
 	struct drm_device *dev = gem_obj->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	int ret = (0);
 	struct pscnv_bo *bo = gem_obj->driver_private;
+	int ret;
+	*color = 0; /* ...? */
+
+	if (!bo->fake_pages) {
+		bo->fake_pages = kzalloc(OFF_TO_IDX(bo->size) * sizeof(*bo->fake_pages), GFP_KERNEL);
+		if (!bo->fake_pages)
+			return (ENOMEM);
+	}
+
+	if (!bo->chan && !bo->dmapages && (ret = -dev_priv->vm->map_user(bo)))
+		return (ret);
+
 	if (bo->chan)
 		pscnv_chan_ref(bo->chan);
-	else if ((ret = dev_priv->vm->map_user(bo)) == 0)
-		drm_gem_object_reference(gem_obj);
 	else
-		NV_WARN(dev, "map_user failed with %i\n", ret);
-	*color = 0; /* ...? */
-	return (-ret);
+		drm_gem_object_reference(gem_obj);
+
+	NV_WARN(dev, "Mapping %p\n", bo);
+	return (0);
 }
 
 static int
@@ -250,60 +260,53 @@ pscnv_gem_pager_fault(vm_object_t vm_obj, vm_ooffset_t offset, int prot,
 	struct drm_device *dev = gem_obj->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	vm_page_t m = NULL;
+	vm_memattr_t mattr;
+	vm_paddr_t paddr;
 	const char *what;
-	if (bo->chan)
-		what = "fifo";
-	else if ((bo->flags & PSCNV_GEM_MEMTYPE_MASK) == PSCNV_GEM_VRAM_SMALL ||
-		 (bo->flags & PSCNV_GEM_MEMTYPE_MASK) == PSCNV_GEM_VRAM_LARGE)
-		what = "vram";
-	else
-		what = "sysram";
-
-	if (offset >= bo->size) {
-		if (pscnv_mem_debug)
-			NV_WARN(dev, "Reading %010llx (%s) at offset %08llx is past max size %08llx\n",
-				bo->start, what, offset, bo->size);
-		return (VM_PAGER_ERROR);
-	}
 
 	if (bo->chan) {
-		m = vm_phys_fictitious_to_vm_page(dev_priv->fb_phys +
-			nvc0_fifo_ctrl_offs(dev, bo->chan->cid));
+		paddr = dev_priv->fb_phys + offset +
+			nvc0_fifo_ctrl_offs(dev, bo->chan->cid);
+		mattr = VM_MEMATTR_UNCACHEABLE;
+		what = "fifo";
 	} else switch (bo->flags & PSCNV_GEM_MEMTYPE_MASK) {
 	case PSCNV_GEM_VRAM_SMALL:
 	case PSCNV_GEM_VRAM_LARGE:
-		m = vm_phys_fictitious_to_vm_page(dev_priv->fb_phys +
-			bo->map1->start + offset);
+		paddr = dev_priv->fb_phys + bo->map1->start + offset;
+		mattr = VM_MEMATTR_WRITE_COMBINING;
+		what = "vram";
 		break;
 	case PSCNV_GEM_SYSRAM_SNOOP:
 	case PSCNV_GEM_SYSRAM_NOSNOOP:
-		m = PHYS_TO_VM_PAGE(bo->dmapages[OFF_TO_IDX(offset)]);
+		paddr = bo->dmapages[OFF_TO_IDX(offset)];
+		mattr = VM_MEMATTR_WRITE_BACK;
+		what = "sysram";
 		break;
+	default: return (EINVAL);
 	}
-	if (!m) {
-		if (pscnv_mem_debug)
-			NV_WARN(dev, "BO %010llx (%s) at offset %08llx could not be found!\n",
-				bo->start, what, offset);
+
+	if (offset >= bo->size) {
+		if (pscnv_mem_debug > 0)
+			NV_WARN(dev, "Reading %p + %08llx (%s) is past max size %08llx\n",
+				bo, offset, what, bo->size);
 		return (VM_PAGER_ERROR);
 	}
-	//write = (prot & VM_PROT_WRITE) != 0;
+	if (pscnv_mem_debug > 0)
+		NV_WARN(dev, "Connecting %p+%08llx (%s) at phys %010llx\n",
+			bo, offset, what, paddr);
 
+	m = &bo->fake_pages[OFF_TO_IDX(offset)];
 	/*
-	 * Remove the placeholder page inserted by vm_fault() from the
-	 * object.
+	 * Replace the passed in reqpage page with our own fake page and
+	 * free up the all of the original pages.
 	 */
-	if (*mres != NULL) {
-		vm_page_lock(*mres);
-		vm_page_free(*mres);
-		vm_page_unlock(*mres);
-		*mres = NULL;
-	}
-
-	if (pscnv_mem_debug)
-		NV_WARN(dev, "BO %010llx (%s) at offset %08llx mapped!\n",
-			bo->start, what, offset);
-
+	if (*mres)
+		vm_page_putfake(*mres);
 	*mres = m;
+
+	vm_page_initfake(m, paddr, mattr);
+	pmap_page_init(m);
+	m->oflags &= ~(VPO_BUSY | VPO_UNMANAGED);
 	m->valid = VM_PAGE_BITS_ALL;
 	vm_page_lock(m);
 	vm_page_insert(m, vm_obj, OFF_TO_IDX(offset));
@@ -317,10 +320,34 @@ pscnv_gem_pager_dtor(void *handle)
 {
 	struct drm_gem_object *gem_obj = handle;
 	struct pscnv_bo *bo = gem_obj->driver_private;
+	struct drm_device *dev = gem_obj->dev;
+	vm_object_t devobj = cdev_pager_lookup(handle);
+
+	if (devobj != NULL) {
+		vm_size_t page_count = OFF_TO_IDX(bo->size);
+		vm_page_t m;
+		int i;
+		VM_OBJECT_LOCK(devobj);
+		for (i = 0; i < page_count; i++) {
+			m = vm_page_lookup(devobj, i);
+			if (!m)
+				continue;
+			if (pscnv_mem_debug > 0)
+				NV_WARN(dev, "Freeing %010llx + %08llx (%p\n", bo->start, i * PAGE_SIZE, m);
+			cdev_pager_free_page(devobj, m);
+		}
+		VM_OBJECT_UNLOCK(devobj);
+		vm_object_deallocate(devobj);
+	}
+	else
+		NV_ERROR(dev, "Could not find handle %p\n", handle);
+	if (pscnv_mem_debug > 0)
+		NV_WARN(dev, "Freed %010llx (%p)\n", bo->start, bo);
+	kfree(bo->fake_pages);
 
 	if (bo->chan)
 		pscnv_chan_unref(bo->chan);
-	else // TODO: Add refcounting to user mmaps in pscnv_bo
+	else
 		drm_gem_object_unreference_unlocked(gem_obj);
 }
 

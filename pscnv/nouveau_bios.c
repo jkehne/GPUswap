@@ -47,7 +47,12 @@
 
 #define EDID1_LEN 128
 
+#if 0
 #define BIOSLOG(sip, fmt, arg...) NV_DEBUG(sip->dev, fmt, ##arg)
+#else
+#define BIOSLOG(sip, fmt, arg...) do { (void)sip; } while (0)
+#endif
+
 #define LOG_OLD_VALUE(x)
 
 struct init_exec {
@@ -2190,15 +2195,6 @@ peek_fb(struct drm_device *dev, struct io_mapping *fb,
 
 	return val;
 }
-
-#if 0
-		reloc_page = pmap_mapdev_attr(dev->agp->base + (reloc->offset &
-		    ~PAGE_MASK), PAGE_SIZE, PAT_WRITE_COMBINING);
-		reloc_entry = (uint32_t *)(reloc_page + (reloc->offset &
-		    PAGE_MASK));
-		*(volatile uint32_t *)reloc_entry = reloc->delta;
-		pmap_unmapdev((vm_offset_t)reloc_page, PAGE_SIZE);
-#endif
 
 static void
 poke_fb(struct drm_device *dev, struct io_mapping *fb,

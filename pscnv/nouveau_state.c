@@ -229,12 +229,6 @@ nouveau_card_init(struct drm_device *dev)
 								   nouveau_switcheroo_reprobe,
 								   nouveau_switcheroo_can_switch);
 #endif
-#else
-	ret = -vm_phys_fictitious_reg_range(dev_priv->fb_phys,
-		dev_priv->fb_phys + dev_priv->fb_size,
-		VM_MEMATTR_WRITE_COMBINING);
-	if (ret)
-		return ret;
 #endif
 
 	dev_priv->init_state = NOUVEAU_CARD_INIT_FAILED;
@@ -461,9 +455,6 @@ out_display_early:
 out:
 #ifdef __linux__
 	vga_client_register(dev->pdev, NULL, NULL, NULL);
-#else
-	vm_phys_fictitious_unreg_range(dev_priv->fb_phys,
-		dev_priv->fb_phys + dev_priv->fb_size);
 #endif
 	return ret;
 }
@@ -496,8 +487,6 @@ static void nouveau_card_takedown(struct drm_device *dev)
 
 #ifdef __linux__
 		vga_client_register(dev->pdev, NULL, NULL, NULL);
-#else
-		vm_phys_fictitious_unreg_range(dev_priv->fb_phys, dev_priv->fb_phys + dev_priv->fb_size);
 #endif
 		dev_priv->init_state = NOUVEAU_CARD_INIT_DOWN;
 		NV_INFO(dev, "Card stopped.\n");

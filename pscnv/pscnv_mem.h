@@ -58,6 +58,10 @@ struct pscnv_bo {
 	dma_addr_t *dmapages;
 	/* CHAN only, pointer to a channel (FreeBSD doesn't allow overriding mmap) */
 	struct pscnv_chan *chan;
+#ifndef __linux__
+	/* freebsd: Allocate an array of fake pages we can populate if user-space mappable */
+	vm_page_t fake_pages;
+#endif
 };
 #define PSCNV_GEM_NOUSER	0x10
 
