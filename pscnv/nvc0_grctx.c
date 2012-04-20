@@ -66,15 +66,9 @@ nvc0_grctx_construct(struct drm_device *dev,
 					 struct pscnv_chan *chan)
 {
 	struct nvc0_vspace *vs = nvc0_vs(chan->vspace);
-	uint32_t val260;
+	uint32_t val260, tmp;
 	uint32_t fermi = nvc0_graph_class(dev);
-	int gpc_tp_count_max = 0;
-	int i;
-
-	for (i = 0; i < graph->gpc_count; ++i) {
-		if (gpc_tp_count_max < graph->gpc_tp_count[i])
-			gpc_tp_count_max = graph->gpc_tp_count[i];
-	}
+	int i, gpc, tp, id;
 
 	val260 = nv_rd32(dev, 0x260);
 	nv_wr32(dev, 0x260, val260 & ~1);
@@ -101,103 +95,75 @@ nvc0_grctx_construct(struct drm_device *dev,
 		uint32_t reg = nv_rv32(vs->mmio_bo, i + 0);
 		nv_wr32(dev, reg, nv_rv32(vs->mmio_bo, i + 4));
 	}
-
-	{
-		int gpc, tp, id;		
-		for (tp = 0, id = 0; tp < gpc_tp_count_max; tp++) {
-			for (gpc = 0; gpc < graph->gpc_count; gpc++) {
-				if (tp < graph->gpc_tp_count[gpc]) {
-					nv_wr32(dev, TP_REG(gpc, tp, 0x698), id);
-					nv_wr32(dev, TP_REG(gpc, tp, 0x4e8), id);
-					nv_wr32(dev, GPC_REG(gpc, 0x0c10 + tp * 4), id);
-					nv_wr32(dev, TP_REG(gpc, tp, 0x088), id);
-					id++;
-				}
-				nv_wr32(dev, GPC_REG(gpc, 0x0c08), graph->gpc_tp_count[gpc]);
-				nv_wr32(dev, GPC_REG(gpc, 0x0c8c), graph->gpc_tp_count[gpc]);
+	for (tp = 0, id = 0; tp < 4; tp++) {
+		for (gpc = 0; gpc < graph->gpc_count; gpc++) {
+			if (tp < graph->gpc_tp_count[gpc]) {
+				nv_wr32(dev, TP_REG(gpc, tp, 0x698), id);
+				nv_wr32(dev, TP_REG(gpc, tp, 0x4e8), id);
+				nv_wr32(dev, GPC_REG(gpc, 0x0c10 + tp * 4), id);
+				nv_wr32(dev, TP_REG(gpc, tp, 0x088), id);
+				id++;
 			}
+
+			nv_wr32(dev, GPC_REG(gpc, 0x0c08), graph->gpc_tp_count[gpc]);
+			nv_wr32(dev, GPC_REG(gpc, 0x0c8c), graph->gpc_tp_count[gpc]);
 		}
 	}
 
-	{
-		uint32_t tp_bitfield = 0;
-		for (i = 1; i < graph->gpc_count; i++)
-			tp_bitfield |= graph->gpc_tp_count[i] << (i * 4);
+	tmp = 0;
+	for (i = 0; i < graph->gpc_count; i++)
+		tmp |= graph->gpc_tp_count[i] << (i * 4);
+	nv_wr32(dev, 0x406028, tmp);
+	nv_wr32(dev, 0x405870, tmp);
 
-		nv_wr32(dev, UNK6000(GPC_TPCNT(0)), tp_bitfield);
-		nv_wr32(dev, UNK5800(GPC_TPCNT(0)), tp_bitfield);
+	nv_wr32(dev, 0x40602c, 0x00000000);
+	nv_wr32(dev, 0x405874, 0x00000000);
+	nv_wr32(dev, 0x406030, 0x00000000);
+	nv_wr32(dev, 0x405878, 0x00000000);
+	nv_wr32(dev, 0x406034, 0x00000000);
+	nv_wr32(dev, 0x40587c, 0x00000000);
 
-		for (i = 1; i < graph->gpc_count; i++) {
-			nv_wr32(dev, UNK6000(GPC_TPCNT(i)), 0x00000000);
-			nv_wr32(dev, UNK5800(GPC_TPCNT(i)), 0x00000000);
-		}
-	}
+	if (1) {
+		u8 tpnr[NVC0_GPC_MAX], data[NVC0_TP_MAX];
 
-	/* every 8-bit word shows a TP number and the presence of the TP. */
-	{
-		uint8_t gpc_tp_count[NVC0_GPC_MAX], data[NVC0_TP_MAX];
-		int gpc, tp;
-
-		memcpy(gpc_tp_count, graph->gpc_tp_count, sizeof(graph->gpc_tp_count));
+		memcpy(tpnr, graph->gpc_tp_count, sizeof(graph->gpc_tp_count));
 		memset(data, 0x1f, sizeof(data));
 
 		gpc = -1;
 		for (tp = 0; tp < graph->tp_count; tp++) {
 			do {
 				gpc = (gpc + 1) % graph->gpc_count;
-			} while (!gpc_tp_count[gpc]);
-			gpc_tp_count[gpc]--;
+			} while (!tpnr[gpc]);
+			tpnr[gpc]--;
 			data[tp] = gpc;
 		}
 
-		for (i = 0; i < gpc_tp_count_max; i++)
-			nv_wr32(dev, UNK6000(TP_GPCID(i)), ((uint32_t *)data)[i]);
+		for (i = 0; i < 4; i++)
+			nv_wr32(dev, 0x4060a8 + (i * 4), ((u32 *)data)[i]);
 	}
 
-	/******* TP broadcast section starts. ******/
-	{
-		uint32_t data[6] = {};
-		uint32_t data2[2] = {};
-		uint8_t gpc_tp_count[NVC0_GPC_MAX];
-		uint8_t shift, ntpcv;
-		int gpc, tp;
+	if (1) {
+		u32 data[6] = {}, data2[2] = {};
+		u8 tpnr[NVC0_GPC_MAX];
+		u8 shift, ntpcv;
 
-		/* some initial assignment of TPs at 0x418b08 + x.
-		   Example:
-		   GTX470 has 2 TP0's, 4 TP1's, 4 TP2's, and 4 TP3's.
-		   GTX480 has 3 TP0's, 4 TP1's, 4 TP2's, and 4 TP3's.
-		   in other words, TP0/TP1 in GTX470 and TP0 in GTX480 don't have TP0.
-		   therefore we set 2,3,0,1,2,3,0,1,2,3,0,1,2,3 for GTX470,
-		   and 1,2,3,0,1,2,3,0,1,2,3,0,1,2,3 for GTX480.
-		   the remaining fields are filled with 7.
-		   one mystery: the blob sets 2,3,0,1,2,3,0,1,2,3,1,2,3,0 for GTX470.
-		*/
-		memcpy(gpc_tp_count, graph->gpc_tp_count, sizeof(graph->gpc_tp_count));
+		/* calculate first set of magics */
+		memcpy(tpnr, graph->gpc_tp_count, sizeof(graph->gpc_tp_count));
 
 		gpc = -1;
 		for (tp = 0; tp < graph->tp_count; tp++) {
 			do {
 				gpc = (gpc + 1) % graph->gpc_count;
-			} while (!gpc_tp_count[gpc]);
-			gpc_tp_count[gpc]--;
+			} while (!tpnr[gpc]);
+			tpnr[gpc]--;
 
 			data[tp / 6] |= gpc << ((tp % 6) * 5);
 		}
 
-		for (; tp < NVC0_TP_MAX; tp++)
+		for (; tp < 32; tp++)
 			data[tp / 6] |= 7 << ((tp % 6) * 5);
 
-		/* the following are how to determine 419bd0 and 419be0.
-		   let's define shift, ntpcv, and data2[] as follows.
-		   shift is a shift amount that makes bit 4 of (tp_count << shift)
-		   equal to 1.
-		   ntpcv is a normalized tp_count: ntpcv = tp_count << shift.
-		   data2[i] = (1 << (i + 5)) % ntpcv.
-		   now, you can derive:
-		   419bd0: 0-7 ???, 8-15 tp_count, 16-20 ntpcv, 21-23 shift, and
-		   24-28 data2[0].
-		   419be4: 0-4 data2[1], 5-9 data2[2], 10-14 data2[3], 
-		   15-19 data2[4], 20-24 data2[5], and 25-29 data2[6]. */
+		/* and the second... */
 		shift = 0;
 		ntpcv = graph->tp_count;
 		while (!(ntpcv & (1 << 4))) {
@@ -212,54 +178,48 @@ nvc0_grctx_construct(struct drm_device *dev,
 			data2[1] |= ((1 << (i + 5)) % ntpcv) << ((i - 1) * 5);
 
 		/* GPC_BROADCAST */
-		nv_wr32(dev, GPC_BC(TPBUS_TOTAL),
-				(graph->tp_count << 8) | graph->magic_val);
+		nv_wr32(dev, 0x418bb8, (graph->tp_count << 8) |
+					graph->magic_val);
 		for (i = 0; i < 6; i++)
-			nv_wr32(dev, GPC_BC(TPBUS_TP_GPCID(i)), data[i]);
+			nv_wr32(dev, 0x418b08 + (i * 4), data[i]);
 
 		/* GPC_BROADCAST.TP_BROADCAST */
-		nv_wr32(dev, GPC_BC(TP_BROADCAST_TPBUS_UNKD0),
-				(graph->tp_count << 8) | graph->magic_val | data2[0]);
-		nv_wr32(dev, GPC_BC(TP_BROADCAST_TPBUS_UNKE4), data2[1]);
+		nv_wr32(dev, 0x419bd0, (graph->tp_count << 8) |
+				       graph->magic_val|
+				       data2[0]);
+		nv_wr32(dev, 0x419be4, data2[1]);
 		for (i = 0; i < 6; i++)
-			nv_wr32(dev, GPC_BC(TP_BROADCAST_TPBUS_TP_GPCID(i)), data[i]);
+			nv_wr32(dev, 0x419b00 + (i * 4), data[i]);
 
-		/* TPBUS */
-		nv_wr32(dev, NVC0_PGRAPH_TPBUS_TOTAL,
-				(graph->tp_count << 8) | graph->magic_val);
+		/* UNK78xx */
+		nv_wr32(dev, 0x4078bc, (graph->tp_count << 8) |
+					graph->magic_val);
 		for (i = 0; i < 6; i++)
-			nv_wr32(dev, NVC0_PGRAPH_TPBUS_TP_GPCID(i), data[i]);
+			nv_wr32(dev, 0x40780c + (i * 4), data[i]);
 	}
 
-	{
-		uint32_t tp_mask = 0, tp_set = 0;
-		uint8_t  gpc_tp_count[NVC0_GPC_MAX];
-		int gpc, tp;
+	if (1) {
+		u32 tp_mask = 0, tp_set = 0;
+		u8  tpnr[NVC0_GPC_MAX], a, b;
 
-		memcpy(gpc_tp_count, graph->gpc_tp_count, sizeof(graph->gpc_tp_count));
-
-		/* example: GTX470=0x0f0f0707 and GTX480=0x0f0f0f07. */
+		memcpy(tpnr, graph->gpc_tp_count, sizeof(graph->gpc_tp_count));
 		for (gpc = 0; gpc < graph->gpc_count; gpc++)
 			tp_mask |= ((1 << graph->gpc_tp_count[gpc]) - 1) << (gpc * 8);
 
-		gpc = -1;
-		for (i = 0, gpc = -1; i < 32; i++) {
-			int ltp = i * (graph->tp_count - 1) / 32;
+		for (i = 0, gpc = -1, b = -1; i < 32; i++) {
+			a = (i * (graph->tp_count - 1)) / 32;
+			if (a != b) {
+				b = a;
+				do {
+					gpc = (gpc + 1) % graph->gpc_count;
+				} while (!tpnr[gpc]);
+				tp = graph->gpc_tp_count[gpc] - tpnr[gpc]--;
 
-			do {
-				gpc = (gpc + 1) % graph->gpc_count;
-			} while (!gpc_tp_count[gpc]);
-			tp = graph->gpc_tp_count[gpc] - gpc_tp_count[gpc]--;
+				tp_set |= 1 << ((gpc * 8) + tp);
+			}
 
-			tp_set |= 1 << ((gpc * 8) + tp);
-
-			do {
-				nv_wr32(dev, NVC0_PGRAPH_TPGRAD(0, i), tp_set);
-				tp_set ^= tp_mask;
-				nv_wr32(dev, NVC0_PGRAPH_TPGRAD(1, i), tp_set);
-				tp_set ^= tp_mask;
-			} while (ltp == (++i * (graph->tp_count - 1) / 32));
-			i--;
+			nv_wr32(dev, 0x406800 + (i * 0x20), tp_set);
+			nv_wr32(dev, 0x406c00 + (i * 0x20), tp_set ^ tp_mask);
 		}
 	}
 
