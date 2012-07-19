@@ -155,7 +155,7 @@ pscnv_attach(device_t kdev)
 	if (nouveau_modeset == 1)
 		driver.driver_features |= DRIVER_MODESET;
 	dev->driver = &driver;
-	drm_sleep_locking_init(dev);
+	/* drm_sleep_locking_init(dev); XXX PLHK */
 	return (drm_attach(kdev, pciidlist));
 }
 
@@ -200,7 +200,7 @@ static driver_t pscnv_driver = {
 extern devclass_t drm_devclass;
 DRIVER_MODULE_ORDERED(pscnv, vgapci, pscnv_driver, drm_devclass, 0, 0,
     SI_ORDER_ANY);
-MODULE_DEPEND(pscnv, drm, 1, 1, 1);
+MODULE_DEPEND(pscnv, drmn, 1, 1, 1);
 MODULE_DEPEND(pscnv, agp, 1, 1, 1);
 MODULE_DEPEND(pscnv, iicbus, 1, 1, 1);
 MODULE_DEPEND(pscnv, iic, 1, 1, 1);
