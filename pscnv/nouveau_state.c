@@ -372,9 +372,9 @@ nouveau_card_init(struct drm_device *dev)
 	ret = drm_irq_install(dev);
 #else
 	// SIGH
-	DRM_UNLOCK();
+	DRM_UNLOCK(dev);
 	ret = drm_irq_install(dev);
-	DRM_LOCK();
+	DRM_LOCK(dev);
 #endif
 	if (ret)
 		goto out_display;
@@ -403,9 +403,9 @@ nouveau_card_init(struct drm_device *dev)
 		nouveau_fbcon_init(dev);
 #else
 		// SIGH
-		DRM_UNLOCK();
+		DRM_UNLOCK(dev);
 		nouveau_fbcon_init(dev);
-		DRM_LOCK();
+		DRM_LOCK(dev);
 #endif
 		drm_kms_helper_poll_init(dev);
 	}
