@@ -7,4 +7,9 @@ SRCS=$(HEADERS) $(C_SRCS) bus_if.h device_if.h pci_if.h opt_drm.h vnode_if.h iic
 
 .include <bsd.kmod.mk>
 
-CFLAGS+=-std=gnu99 -Wno-format -Wno-pointer-arith -I$(SYSDIR)/dev/drm # -I$(SYSDIR)/ofed/include
+CFLAGS+=-std=gnu99 -Wno-format -Wno-pointer-arith -I@/dev/drm2 \
+       	-DPSCNV_KAPI_DRM_CONNECTOR_DETECT_2 \
+       	-DPSCNV_KAPI_DRM_MODE_FB_CMD2 \
+	-DPSCNV_KAPI_GAMMA_SET_6 \
+	-Ipreassembled
+# -I$(SYSDIR)/ofed/include
