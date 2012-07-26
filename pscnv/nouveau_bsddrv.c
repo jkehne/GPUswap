@@ -233,12 +233,6 @@ pscnv_gem_pager_ctor(void *handle, vm_ooffset_t size, vm_prot_t prot,
 	int ret;
 	*color = 0; /* ...? */
 
-	if (!bo->fake_pages) {
-		bo->fake_pages = kzalloc(OFF_TO_IDX(bo->size) * sizeof(*bo->fake_pages), GFP_KERNEL);
-		if (!bo->fake_pages)
-			return (ENOMEM);
-	}
-
 	if (!bo->chan && !bo->dmapages && (ret = -dev_priv->vm->map_user(bo)))
 		return (ret);
 
@@ -260,6 +254,7 @@ pscnv_gem_pager_fault(vm_object_t vm_obj, vm_ooffset_t offset, int prot,
 	struct drm_device *dev = gem_obj->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	vm_page_t m = NULL;
+	vm_page_t oldm;
 	vm_memattr_t mattr;
 	vm_paddr_t paddr;
 	const char *what;
@@ -294,24 +289,44 @@ pscnv_gem_pager_fault(vm_object_t vm_obj, vm_ooffset_t offset, int prot,
 	if (pscnv_mem_debug > 0)
 		NV_WARN(dev, "Connecting %p+%08llx (%s) at phys %010llx\n",
 			bo, offset, what, paddr);
+	vm_object_pip_add(vm_obj, 1);
 
-	m = &bo->fake_pages[OFF_TO_IDX(offset)];
-	/*
-	 * Replace the passed in reqpage page with our own fake page and
-	 * free up the all of the original pages.
-	 */
-	if (*mres)
-		vm_page_putfake(*mres);
-	*mres = m;
+	if (*mres != NULL) {
+		oldm = *mres;
+		vm_page_lock(oldm);
+		vm_page_remove(oldm);
+		vm_page_unlock(oldm);
+		*mres = NULL;
+	} else
+		oldm = NULL;
+	//VM_OBJECT_LOCK(vm_obj);
+	m = vm_phys_fictitious_to_vm_page(paddr);
+	if (m == NULL) {
+		return -EFAULT;
+	}
+	KASSERT((m->flags & PG_FICTITIOUS) != 0,
+	    ("not fictitious %p", m));
+	KASSERT(m->wire_count == 1, ("wire_count not 1 %p", m));
 
-	vm_page_initfake(m, paddr, mattr);
-	pmap_page_init(m);
-	m->oflags &= ~(VPO_BUSY | VPO_UNMANAGED);
+	if ((m->flags & VPO_BUSY) != 0) {
+		return -EFAULT;
+	}
 	m->valid = VM_PAGE_BITS_ALL;
+	*mres = m;
 	vm_page_lock(m);
 	vm_page_insert(m, vm_obj, OFF_TO_IDX(offset));
 	vm_page_unlock(m);
 	vm_page_busy(m);
+
+	CTR4(KTR_DRM, "fault %p %jx %x phys %x", gem_obj, offset, prot,
+	    m->phys_addr);
+	//DRM_UNLOCK(dev);
+	if (oldm != NULL) {
+		vm_page_lock(oldm);
+		vm_page_free(oldm);
+		vm_page_unlock(oldm);
+	}
+	vm_object_pip_wakeup(vm_obj);
 	return (VM_PAGER_OK);
 }
 
@@ -339,11 +354,13 @@ pscnv_gem_pager_dtor(void *handle)
 		VM_OBJECT_UNLOCK(devobj);
 		vm_object_deallocate(devobj);
 	}
-	else
+	else {
 		NV_ERROR(dev, "Could not find handle %p\n", handle);
+		return;
+	}
 	if (pscnv_mem_debug > 0)
 		NV_WARN(dev, "Freed %010llx (%p)\n", bo->start, bo);
-	kfree(bo->fake_pages);
+	//kfree(bo->fake_pages);
 
 	if (bo->chan)
 		pscnv_chan_unref(bo->chan);
