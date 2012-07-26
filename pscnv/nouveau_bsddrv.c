@@ -311,6 +311,7 @@ pscnv_gem_pager_fault(vm_object_t vm_obj, vm_ooffset_t offset, int prot,
 	if ((m->flags & VPO_BUSY) != 0) {
 		return -EFAULT;
 	}
+	pmap_page_set_memattr(m, mattr);
 	m->valid = VM_PAGE_BITS_ALL;
 	*mres = m;
 	vm_page_lock(m);
