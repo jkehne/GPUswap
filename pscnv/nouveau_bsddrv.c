@@ -238,10 +238,10 @@ pscnv_gem_pager_ctor(void *handle, vm_ooffset_t size, vm_prot_t prot,
 
 	if (bo->chan)
 		pscnv_chan_ref(bo->chan);
-	else
+	/* else */
 		drm_gem_object_reference(gem_obj);
 
-	NV_WARN(dev, "Mapping %p\n", bo);
+	NV_WARN(dev, "Mapping bo %p, handle %p, chan %p\n", bo, handle, bo->chan);
 	return (0);
 }
 
@@ -286,6 +286,7 @@ pscnv_gem_pager_fault(vm_object_t vm_obj, vm_ooffset_t offset, int prot,
 				bo, offset, what, bo->size);
 		return (VM_PAGER_ERROR);
 	}
+	DRM_LOCK(dev);
 	if (pscnv_mem_debug > 0)
 		NV_WARN(dev, "Connecting %p+%08llx (%s) at phys %010llx\n",
 			bo, offset, what, paddr);
@@ -302,6 +303,7 @@ pscnv_gem_pager_fault(vm_object_t vm_obj, vm_ooffset_t offset, int prot,
 	//VM_OBJECT_LOCK(vm_obj);
 	m = vm_phys_fictitious_to_vm_page(paddr);
 	if (m == NULL) {
+		DRM_UNLOCK(dev);
 		return -EFAULT;
 	}
 	KASSERT((m->flags & PG_FICTITIOUS) != 0,
@@ -309,6 +311,7 @@ pscnv_gem_pager_fault(vm_object_t vm_obj, vm_ooffset_t offset, int prot,
 	KASSERT(m->wire_count == 1, ("wire_count not 1 %p", m));
 
 	if ((m->flags & VPO_BUSY) != 0) {
+		DRM_UNLOCK(dev);
 		return -EFAULT;
 	}
 	pmap_page_set_memattr(m, mattr);
@@ -319,9 +322,9 @@ pscnv_gem_pager_fault(vm_object_t vm_obj, vm_ooffset_t offset, int prot,
 	vm_page_unlock(m);
 	vm_page_busy(m);
 
-	CTR4(KTR_DRM, "fault %p %jx %x phys %x", gem_obj, offset, prot,
+	printf("fault %p %jx %x phys %x", gem_obj, offset, prot,
 	    m->phys_addr);
-	//DRM_UNLOCK(dev);
+	DRM_UNLOCK(dev);
 	if (oldm != NULL) {
 		vm_page_lock(oldm);
 		vm_page_free(oldm);
@@ -337,7 +340,10 @@ pscnv_gem_pager_dtor(void *handle)
 	struct drm_gem_object *gem_obj = handle;
 	struct pscnv_bo *bo = gem_obj->driver_private;
 	struct drm_device *dev = gem_obj->dev;
-	vm_object_t devobj = cdev_pager_lookup(handle);
+	vm_object_t devobj;
+
+	DRM_LOCK(dev);
+	devobj = cdev_pager_lookup(handle);
 
 	if (devobj != NULL) {
 		vm_size_t page_count = OFF_TO_IDX(bo->size);
@@ -356,7 +362,8 @@ pscnv_gem_pager_dtor(void *handle)
 		vm_object_deallocate(devobj);
 	}
 	else {
-		NV_ERROR(dev, "Could not find handle %p\n", handle);
+		DRM_UNLOCK(dev);
+		NV_ERROR(dev, "Could not find handle %p bo %p\n", handle, bo);
 		return;
 	}
 	if (pscnv_mem_debug > 0)
@@ -367,6 +374,7 @@ pscnv_gem_pager_dtor(void *handle)
 		pscnv_chan_unref(bo->chan);
 	else
 		drm_gem_object_unreference_unlocked(gem_obj);
+	DRM_UNLOCK(dev);
 }
 
 static struct cdev_pager_ops pscnv_gem_pager_ops = {
