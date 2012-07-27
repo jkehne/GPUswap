@@ -497,6 +497,7 @@ static void nouveau_card_takedown(struct drm_device *dev)
  * file_priv */
 void nouveau_preclose(struct drm_device *dev, struct drm_file *file_priv)
 {
+	DRM_LOCK_ASSERT(dev);
 	pscnv_chan_cleanup(dev, file_priv);
 	pscnv_vspace_cleanup(dev, file_priv);
 }
