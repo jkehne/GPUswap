@@ -1,0 +1,46 @@
+CPPFLAGS+=-I/usr/X11R6/include -I/usr/local/include/libdrm -I../libpscnv
+LDFLAGS+=-ldrm -L/usr/X11R6/lib -L/usr/local/lib
+LDADD=../libpscnv/libpscnv.a
+CFLAGS+=${CPPFLAGS}
+
+PROGS = get_param gem map m2mf loop subc0 ib mem_test 902d
+all: ../libpscnv/libpscnv.a ${PROGS}
+
+get_param: get_param.c
+	 ${CC} ${CFLAGS} -c $<
+	 ${CC} ${LDFLAGS} $@.o ${LDADD} -o $@
+
+gem: gem.c
+	 ${CC} ${CFLAGS} -c $< -o $@.o
+	 ${CC} ${LDFLAGS} $@.o ${LDADD} -o $@
+
+map: map.c
+	 ${CC} ${CFLAGS} -c $< -o $@.o
+	 ${CC} ${LDFLAGS} $@.o ${LDADD} -o $@
+
+m2mf: m2mf.c
+	 ${CC} ${CFLAGS} -c $< -o $@.o
+	 ${CC} ${LDFLAGS} $@.o ${LDADD} -o $@
+
+loop: loop.c
+	 ${CC} ${CFLAGS} -c $< -o $@.o
+	 ${CC} ${LDFLAGS} $@.o ${LDADD} -o $@
+
+subc0: subc0.c
+	 ${CC} ${CFLAGS} -c $< -o $@.o
+	 ${CC} ${LDFLAGS} $@.o ${LDADD} -o $@
+
+ib: ib.c
+	 ${CC} ${CFLAGS} -c $< -o $@.o
+	 ${CC} ${LDFLAGS} $@.o ${LDADD} -o $@
+
+mem_test: mem_test.c
+	 ${CC} ${CFLAGS} -c $< -o $@.o
+	 ${CC} ${LDFLAGS} $@.o ${LDADD} -o $@
+
+902d: 902d.c
+	 ${CC} ${CFLAGS} -c $< -o $@.o
+	 ${CC} ${LDFLAGS} $@.o ${LDADD} -o $@
+
+clean:
+	rm -f $(PROGS)
