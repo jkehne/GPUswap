@@ -1,16 +1,16 @@
 /* envyas -a -w -m fuc -V nva3 -o out.fuc.h */
-section #nvc0_pdaemon_pointers
-b32 #done
-b32 #mmwrs
-b32 #mmwr
-b32 #mmrd
-b32 #wait_mask_ext
-b32 #wait_mask_iord
-b32 #sleep
-b32 #enter_lock
-b32 #leave_lock
+.section #nvc0_pdaemon_pointers
+.b32 #done
+.b32 #mmwrs
+.b32 #mmwr
+.b32 #mmrd
+.b32 #wait_mask_ext
+.b32 #wait_mask_iord
+.b32 #sleep
+.b32 #enter_lock
+.b32 #leave_lock
 
-section #nvc0_pdaemon_code
+.section #nvc0_pdaemon_code
 init:
    bclr $flags ie0
    bclr $flags ie1
@@ -239,5 +239,5 @@ main:
    st b32 D[$r3] $r10
    add b32 $r3 4
    bra #main
-align 256
+.align 256
 
