@@ -11,5 +11,6 @@ CFLAGS+=-std=gnu99 -Wno-format -Wno-pointer-arith -I@/dev/drm2 \
        	-DPSCNV_KAPI_DRM_CONNECTOR_DETECT_2 \
        	-DPSCNV_KAPI_DRM_MODE_FB_CMD2 \
 	-DPSCNV_KAPI_GAMMA_SET_6 \
+	-DINVARIANTS \
 	-Ipreassembled
 # -I$(SYSDIR)/ofed/include
