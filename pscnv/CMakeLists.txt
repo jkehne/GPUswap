@@ -11,30 +11,37 @@ add_custom_command(OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/pscnv_kapi.h"
 
 # generating nv98_crypt.fuc.h
 add_custom_command(OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/nv98_crypt.fuc.h"
-                   COMMAND envyas -m fuc -a "${CMAKE_CURRENT_SOURCE_DIR}/nv98_crypt.fuc"
+                   COMMAND envyas -m fuc -V fuc0 -F crypt -a "${CMAKE_CURRENT_SOURCE_DIR}/nv98_crypt.fuc"
                            -o "${CMAKE_CURRENT_SOURCE_DIR}/nv98_crypt.fuc.h"
                    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/nv98_crypt.fuc"
                    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
 
 # generating nvc0_grhub.fuc.h
 add_custom_command(OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/nvc0_grhub.fuc.h"
-                   COMMAND m4 "${CMAKE_CURRENT_SOURCE_DIR}/nvc0_grhub.fuc" | envyas -a -w -m fuc -V nva3
+                   COMMAND m4 "${CMAKE_CURRENT_SOURCE_DIR}/nvc0_grhub.fuc" | envyas -a -w -m fuc -V fuc3
                            -o "${CMAKE_CURRENT_SOURCE_DIR}/nvc0_grhub.fuc.h"
                    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/nvc0_grhub.fuc"
                    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
 
 # generating nvc0_grgpc.fuc.h
 add_custom_command(OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/nvc0_grgpc.fuc.h"
-                   COMMAND m4 "${CMAKE_CURRENT_SOURCE_DIR}/nvc0_grgpc.fuc" | envyas -a -w -m fuc -V nva3
+                   COMMAND m4 "${CMAKE_CURRENT_SOURCE_DIR}/nvc0_grgpc.fuc" | envyas -a -w -m fuc -V fuc3
                            -o "${CMAKE_CURRENT_SOURCE_DIR}/nvc0_grgpc.fuc.h"
                    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/nvc0_grgpc.fuc"
                    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
 
 # generating nvc0_copy.fuc.h
 add_custom_command(OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/nvc0_copy.fuc.h"
-                   COMMAND m4 -DNVC0 "${CMAKE_CURRENT_SOURCE_DIR}/nva3_copy.fuc" | envyas -a -w -m fuc -V nva3
+                   COMMAND m4 -DNVC0 "${CMAKE_CURRENT_SOURCE_DIR}/nva3_copy.fuc" | envyas -a -w -m fuc -V fuc3
                            -o "${CMAKE_CURRENT_SOURCE_DIR}/nvc0_copy.fuc.h"
                    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/nva3_copy.fuc"
+                   WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+
+# generating nvc0_pdaemon.fuc.h
+add_custom_command(OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/nvc0_pdaemon.fuc.h"
+                   COMMAND envyas -a "${CMAKE_CURRENT_SOURCE_DIR}/nvc0_pdaemon.fuc" -w -m fuc -V fuc3
+                           -o "${CMAKE_CURRENT_SOURCE_DIR}/nvc0_pdaemon.fuc.h"
+                   DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/nvc0_pdaemon.fuc"
                    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
 
 
@@ -131,6 +138,7 @@ add_custom_command(OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/pscnv.ko"
                            "${CMAKE_CURRENT_SOURCE_DIR}/nvc0_grhub.fuc.h"
                            "${CMAKE_CURRENT_SOURCE_DIR}/nvc0_grgpc.fuc.h"
                            "${CMAKE_CURRENT_SOURCE_DIR}/nvc0_copy.fuc.h"
+                           "${CMAKE_CURRENT_SOURCE_DIR}/nvc0_pdaemon.fuc.h"
                    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
 
 add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/pscnv.ko"
