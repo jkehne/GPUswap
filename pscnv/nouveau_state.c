@@ -202,7 +202,14 @@ static bool nouveau_switcheroo_can_switch(struct pci_dev *pdev)
 	spin_unlock(&dev->count_lock);
 	return can_switch;
 }
+#ifdef PSCNV_KAPI_SWITCHEROO_OPS
+static const struct vga_switcheroo_client_ops nouveau_switcheroo_ops = {
+	.set_gpu_state = nouveau_switcheroo_set_state,
+	.reprobe = nouveau_switcheroo_reprobe,
+	.can_switch = nouveau_switcheroo_can_switch,
+};
 #endif
+#endif /* __linux__ */
 
 int
 nouveau_card_init(struct drm_device *dev)
@@ -221,15 +228,19 @@ nouveau_card_init(struct drm_device *dev)
 
 #ifdef __linux__
 	vga_client_register(dev->pdev, dev, NULL, nouveau_vga_set_decode);
-#ifdef PSCNV_KAPI_SWITCHEROO_REPROBE
-	vga_switcheroo_register_client(dev->pdev, nouveau_switcheroo_set_state,
-								   nouveau_switcheroo_can_switch);
+#ifdef PSCNV_KAPI_SWITCHEROO_OPS
+	vga_switcheroo_register_client(dev->pdev, &nouveau_switcheroo_ops);
 #else
+#ifdef PSCNV_KAPI_SWITCHEROO_REPROBE
 	vga_switcheroo_register_client(dev->pdev, nouveau_switcheroo_set_state,
 								   nouveau_switcheroo_reprobe,
 								   nouveau_switcheroo_can_switch);
+#else
+	vga_switcheroo_register_client(dev->pdev, nouveau_switcheroo_set_state,
+								   nouveau_switcheroo_can_switch);
 #endif
 #endif
+#endif /* __linux__ */
 
 	dev_priv->init_state = NOUVEAU_CARD_INIT_FAILED;
 

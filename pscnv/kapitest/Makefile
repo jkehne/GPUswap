@@ -6,6 +6,7 @@ kapitest-y := fail.o \
 	io_mapping_2.o io_mapping_3.o \
 	i2c_id.o \
 	switcheroo_reprobe.o \
+	switcheroo_ops.o \
 	getparam_bus_type.o \
 	drm_init.o \
 	drm_gem_object_handle_count.o \
