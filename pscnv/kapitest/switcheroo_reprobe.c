@@ -4,5 +4,6 @@
 
 void dummy(struct drm_device *dev)
 {
-	vga_switcheroo_register_client(dev->pdev, 0, 0);
+	/* reprobe arg was added in 2.6.38 for a total of 4 args */
+	vga_switcheroo_register_client(dev->pdev, 0, 0, 0);
 }
