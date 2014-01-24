@@ -193,7 +193,7 @@ MODULE_DEVICE_TABLE(pci, pciidlist);
 
 static struct drm_driver driver;
 
-static int __devinit
+static int
 nouveau_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 {
 #ifdef PSCNV_KAPI_DRM_GET_DEV
@@ -478,7 +478,6 @@ static struct drm_driver driver = {
 	.irq_postinstall = nouveau_irq_postinstall,
 	.irq_uninstall = nouveau_irq_uninstall,
 	.irq_handler = nouveau_irq_handler,
-	.reclaim_buffers = drm_core_reclaim_buffers,
 #ifdef PSCNV_KAPI_MAP_OFS
 	.get_map_ofs = drm_core_get_map_ofs,
 	.get_reg_ofs = drm_core_get_reg_ofs,

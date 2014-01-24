@@ -169,7 +169,7 @@ int pscnv_chan_mmap(struct file *filp, struct vm_area_struct *vma)
 			if (!ch)
 				return -ENOENT;
 
-			vma->vm_flags |= VM_RESERVED | VM_IO | VM_PFNMAP | VM_DONTEXPAND;
+			vma->vm_flags |= VM_DONTDUMP | VM_IO | VM_PFNMAP | VM_DONTEXPAND;
 			vma->vm_ops = &pscnv_chan_vm_ops;
 			vma->vm_private_data = ch;
 
@@ -190,7 +190,7 @@ int pscnv_chan_mmap(struct file *filp, struct vm_area_struct *vma)
 			if (!ch)
 				return -ENOENT;
 
-			vma->vm_flags |= VM_RESERVED | VM_IO | VM_PFNMAP | VM_DONTEXPAND;
+			vma->vm_flags |= VM_DONTDUMP | VM_IO | VM_PFNMAP | VM_DONTEXPAND;
 			vma->vm_ops = &pscnv_chan_vm_ops;
 			vma->vm_private_data = ch;
 			vma->vm_page_prot = pgprot_writecombine(vm_get_page_prot(vma->vm_flags));

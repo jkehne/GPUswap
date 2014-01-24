@@ -101,7 +101,6 @@ pscnv_vspace_new (struct drm_device *dev, uint64_t size, uint32_t flags, int fak
 static void
 pscnv_vspace_free_unmap(struct pscnv_mm_node *node) {
 	struct pscnv_bo *bo = node->tag;
-	DRM_LOCK_ASSERT(bo->dev);
 	drm_gem_object_unreference(bo->gem);
 	pscnv_mm_free(node);
 }
@@ -228,7 +227,7 @@ int pscnv_mmap(struct file *filp, struct vm_area_struct *vma)
 			return ret;
 		}
 
-		vma->vm_flags |= VM_RESERVED | VM_IO | VM_PFNMAP | VM_DONTEXPAND;
+		vma->vm_flags |= VM_DONTDUMP | VM_IO | VM_PFNMAP | VM_DONTEXPAND;
 		vma->vm_ops = &pscnv_vram_ops;
 		vma->vm_private_data = obj;
 		vma->vm_page_prot = pgprot_writecombine(vm_get_page_prot(vma->vm_flags));
@@ -241,7 +240,7 @@ int pscnv_mmap(struct file *filp, struct vm_area_struct *vma)
 	case PSCNV_GEM_SYSRAM_SNOOP:
 	case PSCNV_GEM_SYSRAM_NOSNOOP:
 		/* XXX */
-		vma->vm_flags |= VM_RESERVED;
+	        vma->vm_flags |= VM_IO | VM_DONTEXPAND | VM_DONTDUMP;
 		vma->vm_ops = &pscnv_sysram_ops;
 		vma->vm_private_data = obj;
 
