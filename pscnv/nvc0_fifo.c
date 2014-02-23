@@ -43,6 +43,7 @@ struct nvc0_fifo_engine {
 static void nvc0_fifo_takedown(struct drm_device *dev);
 static void nvc0_fifo_irq_handler(struct drm_device *dev, int irq);
 static int nvc0_fifo_chan_init_ib (struct pscnv_chan *ch, uint32_t pb_handle, uint32_t flags, uint32_t slimask, uint64_t ib_start, uint32_t ib_order);
+static int nvc0_fifo_chan_resume_ib (struct pscnv_chan *ch, uint32_t pb_handle, uint32_t flags, uint32_t slimask, uint64_t ib_start, uint32_t ib_order);
 static void nvc0_fifo_chan_kill(struct pscnv_chan *ch);
 
 int nvc0_fifo_init(struct drm_device *dev)
@@ -60,6 +61,7 @@ int nvc0_fifo_init(struct drm_device *dev)
 	res->base.takedown = nvc0_fifo_takedown;
 	res->base.chan_kill = nvc0_fifo_chan_kill;
 	res->base.chan_init_ib = nvc0_fifo_chan_init_ib;
+	res->base.chan_resume_ib = nvc0_fifo_chan_resume_ib;
 
 	res->ctrl_bo = pscnv_mem_alloc(dev, 128 * 0x1000,
 					     PSCNV_GEM_CONTIG, 0, 0xf1f03e95);
@@ -245,6 +247,64 @@ static int nvc0_fifo_chan_init_ib (struct pscnv_chan *ch, uint32_t pb_handle, ui
 		nvchan_wr32(ch, i, 0);
 	nvchan_wr32(ch, 0x88, 0);
 	nvchan_wr32(ch, 0x8c, 0);
+
+	for (i = 0; i < 0x100; i += 4)
+		nv_wv32(ch->bo, i, 0);
+
+	dev_priv->vm->bar_flush(dev);
+
+	nv_wv32(ch->bo, 0x08, fifo_regs);
+	nv_wv32(ch->bo, 0x0c, fifo_regs >> 32);
+
+	nv_wv32(ch->bo, 0x48, ib_start); /* IB */
+	nv_wv32(ch->bo, 0x4c,
+		(ib_start >> 32) | (ib_order << 16));
+	nv_wv32(ch->bo, 0x10, 0xface);
+	nv_wv32(ch->bo, 0x54, 0x2);
+	nv_wv32(ch->bo, 0x9c, 0x100);
+	nv_wv32(ch->bo, 0x84, 0x20400000);
+	nv_wv32(ch->bo, 0x94, 0x30000000 ^ slimask);
+	nv_wv32(ch->bo, 0xa4, 0x1f1f1f1f);
+	nv_wv32(ch->bo, 0xa8, 0x1f1f1f1f);
+	nv_wv32(ch->bo, 0xac, 0x1f);
+	nv_wv32(ch->bo, 0x30, 0xfffff902);
+	/* nv_wv32(chan->vo, 0xb8, 0xf8000000); */ /* previously omitted */
+	nv_wv32(ch->bo, 0xf8, 0x10003080);
+	nv_wv32(ch->bo, 0xfc, 0x10000010);
+	dev_priv->vm->bar_flush(dev);
+
+	nv_wr32(dev, 0x3000 + ch->cid * 8, 0xc0000000 | ch->bo->start >> 12);
+	nv_wr32(dev, 0x3004 + ch->cid * 8, 0x1f0001);
+
+	nvc0_fifo_playlist_update(dev);
+
+	spin_unlock_irqrestore(&dev_priv->context_switch_lock, irqflags);
+
+	dev_priv->engines[PSCNV_ENGINE_GRAPH]->
+		chan_alloc(dev_priv->engines[PSCNV_ENGINE_GRAPH], ch);
+	if (dev_priv->engines[PSCNV_ENGINE_COPY0])
+		dev_priv->engines[PSCNV_ENGINE_COPY0]->
+			chan_alloc(dev_priv->engines[PSCNV_ENGINE_COPY0], ch);
+	if (dev_priv->engines[PSCNV_ENGINE_COPY1])
+		dev_priv->engines[PSCNV_ENGINE_COPY1]->
+			chan_alloc(dev_priv->engines[PSCNV_ENGINE_COPY1], ch);
+
+	return 0;
+}
+
+static int nvc0_fifo_chan_resume_ib (struct pscnv_chan *ch, uint32_t pb_handle, uint32_t flags, uint32_t slimask, uint64_t ib_start, uint32_t ib_order) {
+	struct drm_device *dev = ch->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nvc0_fifo_engine *fifo = nvc0_fifo(dev_priv->fifo);
+	unsigned long irqflags;
+
+	int i;
+	uint64_t fifo_regs = fifo->ctrl_bo->start + (ch->cid << 12);
+
+	if (ib_order > 29)
+		return -EINVAL;
+
+	spin_lock_irqsave(&dev_priv->context_switch_lock, irqflags);
 
 	for (i = 0; i < 0x100; i += 4)
 		nv_wv32(ch->bo, i, 0);

@@ -505,3 +505,26 @@ int pscnv_ioctl_fifo_init_ib(struct drm_device *dev, void *data,
 
 	return ret;
 }
+
+int pscnv_ioctl_fifo_resume_ib(struct drm_device *dev, void *data,
+						struct drm_file *file_priv) {
+	struct drm_pscnv_fifo_init_ib *req = data;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct pscnv_chan *ch;
+	int ret;
+
+	NOUVEAU_CHECK_INITIALISED_WITH_RETURN;
+
+	if (!dev_priv->fifo || !dev_priv->fifo->chan_resume_ib)
+		return -ENODEV;
+
+	ch = pscnv_get_chan(dev, file_priv, req->cid);
+	if (!ch)
+		return -ENOENT;
+
+	ret = dev_priv->fifo->chan_resume_ib(ch, req->pb_handle, req->flags, req->slimask, req->ib_start, req->ib_order);
+
+	pscnv_chan_unref(ch);
+
+	return ret;
+}

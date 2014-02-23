@@ -1129,6 +1129,7 @@ void nvc0_graph_irq_handler(struct drm_device *dev, int irq)
 		status &= ~NVC0_PGRAPH_INTR_DATA_ERROR;
 	}
 	if (status & NVC0_PGRAPH_INTR_TRAP) {
+		PGRAPH_ERROR("TRAP");
 		nvc0_graph_trap_handler(dev, cid);
 		nv_wr32(dev, NVC0_PGRAPH_INTR, NVC0_PGRAPH_INTR_TRAP);
 		status &= ~NVC0_PGRAPH_INTR_TRAP;

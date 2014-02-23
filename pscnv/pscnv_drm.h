@@ -159,6 +159,8 @@ struct drm_pscnv_obj_eng_new {
 #define DRM_PSCNV_FIFO_INIT          0x29	/* Initialises PFIFO processing on a channel */
 #define DRM_PSCNV_OBJ_ENG_NEW        0x2a	/* Create a new engine object on a channel */
 #define DRM_PSCNV_FIFO_INIT_IB       0x2b	/* Initialises IB PFIFO processing on a channel */
+#define DRM_PSCNV_FIFO_RESUME_IB     0x2c	/* Initialises IB PFIFO processing on a channel
+                                               without initializing the control region */
 
 #define DRM_IOCTL_PSCNV_GETPARAM           DRM_IOWR(DRM_COMMAND_BASE + DRM_PSCNV_GETPARAM, struct drm_pscnv_getparam)
 #define DRM_IOCTL_PSCNV_GEM_NEW            DRM_IOWR(DRM_COMMAND_BASE + DRM_PSCNV_GEM_NEW, struct drm_pscnv_gem_info)
@@ -174,5 +176,6 @@ struct drm_pscnv_obj_eng_new {
 #define DRM_IOCTL_PSCNV_FIFO_INIT          DRM_IOW(DRM_COMMAND_BASE + DRM_PSCNV_FIFO_INIT, struct drm_pscnv_fifo_init)
 #define DRM_IOCTL_PSCNV_OBJ_ENG_NEW        DRM_IOW(DRM_COMMAND_BASE + DRM_PSCNV_OBJ_ENG_NEW, struct drm_pscnv_obj_eng_new)
 #define DRM_IOCTL_PSCNV_FIFO_INIT_IB       DRM_IOW(DRM_COMMAND_BASE + DRM_PSCNV_FIFO_INIT_IB, struct drm_pscnv_fifo_init_ib)
+#define DRM_IOCTL_PSCNV_FIFO_RESUME_IB       DRM_IOW(DRM_COMMAND_BASE + DRM_PSCNV_FIFO_RESUME_IB, struct drm_pscnv_fifo_init_ib)
 
 #endif /* __PSCNV_DRM_H__ */

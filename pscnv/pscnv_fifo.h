@@ -31,6 +31,7 @@ struct pscnv_fifo_engine {
 	void (*takedown) (struct drm_device *dev);
 	int (*chan_init_dma) (struct pscnv_chan *ch, uint32_t pb_handle, uint32_t flags, uint32_t slimask, uint64_t pb_start);
 	int (*chan_init_ib) (struct pscnv_chan *ch, uint32_t pb_handle, uint32_t flags, uint32_t slimask, uint64_t ib_start, uint32_t ib_order);
+	int (*chan_resume_ib) (struct pscnv_chan *ch, uint32_t pb_handle, uint32_t flags, uint32_t slimask, uint64_t ib_start, uint32_t ib_order);
 	void (*chan_kill) (struct pscnv_chan *ch);
 };
 
