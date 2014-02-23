@@ -156,8 +156,8 @@ pscnv_mem_free(struct pscnv_bo *bo)
 {
 	struct drm_nouveau_private *dev_priv = bo->dev->dev_private;
 	if (pscnv_mem_debug >= 1)
-		NV_INFO(bo->dev, "Freeing %d, %#llx-byte %sBO(%p) of type %08x, tile_flags %x\n", bo->serial, bo->size,
-				(bo->flags & PSCNV_GEM_CONTIG ? "contig " : ""), bo, bo->cookie, bo->tile_flags);
+		NV_INFO(bo->dev, "Freeing %d, %#llx-byte %sBO of type %08x, tile_flags %x\n", bo->serial, bo->size,
+				(bo->flags & PSCNV_GEM_CONTIG ? "contig " : ""), bo->cookie, bo->tile_flags);
 
 	if (dev_priv->vm_ok && bo->map1)
 		pscnv_vspace_unmap_node(bo->map1);

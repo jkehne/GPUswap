@@ -146,7 +146,6 @@ static void nv50_chan_free(struct pscnv_chan *ch) {
 	ch->handle = 0;
 	spin_unlock_irqrestore(&dev_priv->chan->ch_lock, flags);
 	pscnv_mem_free(ch->bo);
-	ch->bo = NULL;
 	if (ch->cache)
 		pscnv_mem_free(ch->cache);
 	mutex_lock(&ch->vspace->lock);

@@ -264,7 +264,7 @@ nouveau_fbcon_create(struct nouveau_fbdev *nfbdev,
 
 	info->par = nfbdev;
 #else
-	DRM_LOCK(dev);
+	DRM_LOCK();
 #endif // __linux__
 
 	nouveau_framebuffer_init(dev, &nfbdev->nouveau_fb, &mode_cmd, nvbo);
@@ -322,7 +322,7 @@ nouveau_fbcon_create(struct nouveau_fbdev *nfbdev,
 
 	mutex_unlock(&dev->struct_mutex);
 #else // __linux__
-	DRM_UNLOCK(dev);
+	DRM_UNLOCK();
 #endif
 #if 0
 	if (dev_priv->channel && !nouveau_nofbaccel) {

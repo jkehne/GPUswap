@@ -28,7 +28,6 @@
 #define __DRM_ENCODER_SLAVE_H__
 
 #include "drmP.h"
-#include "drm_mode.h"
 #include "drm_crtc.h"
 
 /**

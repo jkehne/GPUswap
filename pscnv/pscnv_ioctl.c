@@ -122,7 +122,7 @@ int pscnv_ioctl_gem_new(struct drm_device *dev, void *data,
 	ret = drm_gem_handle_create(file_priv, obj, &info->handle);
 
 	if (pscnv_gem_debug >= 1)
-		NV_INFO(dev, "GEM handle %x (obj handle %p) is VO %x/%d\n", info->handle, bo->gem, bo->cookie, bo->serial);
+		NV_INFO(dev, "GEM handle %x is VO %x/%d\n", info->handle, bo->cookie, bo->serial);
 
 #ifdef __linux__
 	info->map_handle = (uint64_t)info->handle << 32;

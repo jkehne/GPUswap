@@ -101,8 +101,7 @@ pscnv_vspace_new (struct drm_device *dev, uint64_t size, uint32_t flags, int fak
 static void
 pscnv_vspace_free_unmap(struct pscnv_mm_node *node) {
 	struct pscnv_bo *bo = node->tag;
-	DRM_LOCK_ASSERT(bo->dev);
-	drm_gem_object_unreference(bo->gem);
+	drm_gem_object_unreference_unlocked(bo->gem);
 	pscnv_mm_free(node);
 }
 
