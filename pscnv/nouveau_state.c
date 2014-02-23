@@ -508,6 +508,7 @@ static void nouveau_card_takedown(struct drm_device *dev)
  * file_priv */
 void nouveau_preclose(struct drm_device *dev, struct drm_file *file_priv)
 {
+	DRM_LOCK_ASSERT(dev);
 	pscnv_chan_cleanup(dev, file_priv);
 	pscnv_vspace_cleanup(dev, file_priv);
 }
@@ -750,6 +751,12 @@ int nouveau_load(struct drm_device *dev, unsigned long flags)
 		if (ret)
 			return ret;
 	}
+	device_printf(dev->device,
+				"taking over the fictitious range 0x%lx-0x%lx...",
+				dev_priv->fb_phys, dev_priv->fb_phys + dev_priv->fb_size);
+	if ((ret = -vm_phys_fictitious_reg_range(dev_priv->fb_phys, dev_priv->fb_phys + dev_priv->fb_size, 0 /* PLHK FIXME */)))
+		return (ret);
+	device_printf(dev->device, "OK\n");
 
 	return 0;
 }
