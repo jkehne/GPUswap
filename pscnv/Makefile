@@ -25,7 +25,7 @@ pscnv-$(CONFIG_ACPI) += nouveau_acpi.o
 
 obj-m := pscnv.o
 
-EXTRA_CFLAGS = -Iinclude/drm
+EXTRA_CFLAGS = -Iinclude/drm -Iinclude/uapi/drm
 
 SYSSRC = /lib/modules/$(shell uname -r)/build
 

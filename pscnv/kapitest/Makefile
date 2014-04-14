@@ -19,7 +19,7 @@ kapitest-y := fail.o \
 
 obj-m := kapitest.o
 
-EXTRA_CFLAGS = -Iinclude/drm
+EXTRA_CFLAGS = -Iinclude/drm -Iinclude/uapi/drm
 
 SYSSRC = /lib/modules/$(shell uname -r)/build
 
