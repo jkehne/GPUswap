@@ -1,7 +1,9 @@
 build/
+tags
 .hg/*
 *.cmd
 *.o
+*.swp
 pscnv/*.fuc.h
 pscnv/nv98_crypt_fuc.h
 pscnv/.tmp_versions
