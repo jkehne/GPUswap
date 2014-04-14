@@ -27,7 +27,7 @@
 #include <linux/module.h>
 
 #include "nouveau_drv.h"
-#include "drmP.h"
+#include "drm.h"
 #include "drm_crtc_helper.h"
 #include "nouveau_pm.h"
 #include "pscnv_gem.h"

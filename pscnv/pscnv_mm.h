@@ -1,7 +1,7 @@
 #ifndef PSCNV_MM_H
 #define PSCNV_MM_H
 
-#include "drmP.h"
+#include "drm.h"
 #include "pscnv_tree.h"
 
 PSCNV_RB_HEAD(pscnv_mm_head, pscnv_mm_node);
