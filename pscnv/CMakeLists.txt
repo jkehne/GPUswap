@@ -1,6 +1,8 @@
 
 set(sys_src "/lib/modules/${CMAKE_SYSTEM_VERSION}/build")
 
+MESSAGE( "Compiling against /lib/modules/${CMAKE_SYSTEM_VERSION}")
+
 # generating pscnv_kapi.h
 add_custom_command(OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/pscnv_kapi.h"
                    COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/kapitest.sh" "${sys_src}"
