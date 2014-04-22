@@ -370,9 +370,12 @@ static const char *pgf_cause_str(uint32_t flags)
 	case 0x0: return "PDE not present";
 	case 0x1: return "PT too short";
 	case 0x2: return "PTE not present";
-	case 0x3: return "LIMIT exceeded";
-	case 0x5: return "NOUSER";
+	case 0x3: return "VM LIMIT exceeded";
+	case 0x4: return "NO CHANNEL";
+	case 0x5: return "PAGE SYSTEM ONLY";
 	case 0x6: return "PTE set read-only";
+	case 0xa: return "Compressed Sysram";
+	case 0xc: return "Invalid Storage Type";
 	default:
 		break;
 	}
@@ -428,10 +431,18 @@ static void nvc0_fifo_irq_handler(struct drm_device *dev, int irq)
 
 	status = nv_rd32(dev, 0x2100) & nv_rd32(dev, 0x2140);
 
-	if (status & 1) {
-		NV_INFO(dev, "PFIFO INTR 1!\n");
-		nv_wr32(dev, 0x2100, 1);
-		status &= ~1;
+	if (status & 0x00000001) {
+		u32 intr = nv_rd32(dev, 0x00252c);
+		NV_INFO(dev, "PFIFO INTR 0x00000001 (Puller error?): 0x%08x\n", intr);
+		nv_wr32(dev, 0x002100, 0x00000001);
+		status &= ~0x00000001;
+	}
+
+	if (status & 0x01000000) {
+		u32 intr = nv_rd32(dev, 0x00258c);
+		NV_INFO(dev, "INTR 0x01000000: 0x%08x\n", intr);
+		nv_wr32(dev, 0x002100, 0x01000000);
+		status &= ~0x01000000;
 	}
 	
 	if (status & 0x10000000) {
