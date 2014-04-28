@@ -33,11 +33,12 @@ int pscnv_ib_chan_new(int fd, int vid, struct pscnv_ib_chan **res, uint32_t pb_d
 		goto out_chmap;
 	}
 	rr->pb_dma = pb_dma;
+	/* this is not necessary for nvc0, see gdev version
 	ret = pscnv_obj_vdma_new(fd, rr->cid, pb_dma, 0x3d, 0, 0, 1ull << 40);
 	if (ret) {
 		printf("pscnv_obj_vdma_new failed with return value %d\n", ret);
 		goto out_vdma;
-	}
+	}*/
 	rr->ib_order = ib_order;
 	if (!ib_order)
 		rr->ib_order = 9;
