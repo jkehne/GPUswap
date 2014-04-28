@@ -27,7 +27,7 @@ int pscnv_ib_chan_new(int fd, int vid, struct pscnv_ib_chan **res, uint32_t pb_d
 			printf("pscnv_chan_new failed with return value %d\n", ret);
 			goto out_chan;
 	}
-	rr->chmap = mmap(0, 0x2000, PROT_READ | PROT_WRITE, MAP_SHARED, fd, map_handle);
+	rr->chmap = mmap(0, 0x1000, PROT_READ | PROT_WRITE, MAP_SHARED, fd, map_handle);
 	if ((void*)rr->chmap == MAP_FAILED) {
 		printf("mmap failed\n");
 		goto out_chmap;
@@ -77,7 +77,7 @@ out_pb:
 	pscnv_ib_bo_free(rr->ib);
 out_ib:
 out_vdma:
-	munmap((void*)rr->chmap, 0x2000);
+	munmap((void*)rr->chmap, 0x1000);
 out_chmap:
 	pscnv_chan_free(fd, rr->cid);
 out_chan:
