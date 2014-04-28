@@ -156,6 +156,8 @@ pscnv_vspace_map(struct pscnv_vspace *vs, struct pscnv_bo *bo,
 				node->start + node->size);
 	ret = dev_priv->vm->do_map(vs, bo, node->start);
 	if (ret) {
+		NV_ERROR(vs->dev, "VM: vspace %d: Mapping BO %x/%d at %llx-%llx. FAILED \n", vs->vid, bo->cookie, bo->serial, node->start,
+				node->start + node->size);
 		pscnv_vspace_unmap_node_unlocked(node);
 	}
 	*res = node;
@@ -216,6 +218,7 @@ int pscnv_mmap(struct file *filp, struct vm_area_struct *vma)
 	bo = obj->driver_private;
 	
 	if (vma->vm_end - vma->vm_start > bo->size) {
+		NV_ERROR(dev, "vma->vm_end - vma->vm_start > bo->size\n");
 		drm_gem_object_unreference_unlocked(obj);
 		return -EINVAL;
 	}
@@ -240,7 +243,7 @@ int pscnv_mmap(struct file *filp, struct vm_area_struct *vma)
 	case PSCNV_GEM_SYSRAM_SNOOP:
 	case PSCNV_GEM_SYSRAM_NOSNOOP:
 		/* XXX */
-	        vma->vm_flags |= VM_IO | VM_DONTEXPAND | VM_DONTDUMP;
+		vma->vm_flags |= VM_IO | VM_DONTEXPAND | VM_DONTDUMP;
 		vma->vm_ops = &pscnv_sysram_ops;
 		vma->vm_private_data = obj;
 

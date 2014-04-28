@@ -297,6 +297,7 @@ static int nvc0_vspace_new(struct pscnv_vspace *vs) {
 	nvc0_vs(vs)->pd = pscnv_mem_alloc(vs->dev, NVC0_VM_PDE_COUNT * 8,
 			PSCNV_GEM_CONTIG, 0, 0xdeadcafe);
 	if (!nvc0_vs(vs)->pd) {
+		NV_ERROR(vs->dev, "VM: nvc0_vspace_new: pscnv_mem_alloc failed\n");
 		kfree(vs->engdata);
 		return -ENOMEM;
 	}
@@ -380,12 +381,14 @@ nvc0_vm_init(struct drm_device *dev) {
 
 	vme->bar3vm = pscnv_vspace_new (dev, dev_priv->ramin_size, 0, 3);
 	if (!vme->bar3vm) {
+		NV_ERROR(dev, "VM: failed to create BAR3 VM");
 		kfree(vme);
 		dev_priv->vm = 0;
 		return -ENOMEM;
 	}
 	vme->bar3ch = pscnv_chan_new (dev, vme->bar3vm, 3);
 	if (!vme->bar3ch) {
+		NV_ERROR(dev, "VM: failed to create BAR3 Channel");
 		pscnv_vspace_unref(vme->bar3vm);
 		kfree(vme);
 		dev_priv->vm = 0;
