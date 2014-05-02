@@ -230,7 +230,7 @@ int pscnv_mmap(struct file *filp, struct vm_area_struct *vma)
 			return ret;
 		}
 
-		vma->vm_flags |= VM_DONTDUMP | VM_IO | VM_PFNMAP | VM_DONTEXPAND;
+		vma->vm_flags |= VM_RESERVED | VM_IO | VM_PFNMAP | VM_DONTEXPAND;
 		vma->vm_ops = &pscnv_vram_ops;
 		vma->vm_private_data = obj;
 		vma->vm_page_prot = pgprot_writecombine(vm_get_page_prot(vma->vm_flags));
@@ -243,7 +243,7 @@ int pscnv_mmap(struct file *filp, struct vm_area_struct *vma)
 	case PSCNV_GEM_SYSRAM_SNOOP:
 	case PSCNV_GEM_SYSRAM_NOSNOOP:
 		/* XXX */
-		vma->vm_flags |= VM_IO | VM_DONTEXPAND | VM_DONTDUMP;
+		vma->vm_flags |= VM_RESERVED;
 		vma->vm_ops = &pscnv_sysram_ops;
 		vma->vm_private_data = obj;
 
