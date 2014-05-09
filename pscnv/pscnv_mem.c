@@ -151,6 +151,46 @@ pscnv_mem_alloc(struct drm_device *dev,
 	return res;
 }
 
+struct pscnv_bo*
+pscnv_mem_alloc_and_map(struct pscnv_vspace *vs, uint64_t size, uint32_t flags, uint32_t cookie, uint64_t *vm_base)
+{
+	struct drm_device *dev = vs->dev;
+	struct pscnv_mm_node *map;
+	struct pscnv_bo *bo;
+	int ret;
+	
+	bo = pscnv_mem_alloc(dev, size, flags, 0 /* tile flags */, cookie);
+	
+	if (!bo) {
+		NV_INFO(dev, "Failed to allocate buffer object of size %llx"
+			" in vspace %d, cookie=%x\n", size, vs->vid, cookie);
+		return NULL;
+	}
+	
+	ret = pscnv_vspace_map(vs, bo,
+			0x20000000, /* start */
+			1ull << 40, /* end */
+			0, /* back, nonsense? */
+			&map);
+	
+	if (ret) {
+		NV_INFO(dev, "failed to map buffer object of size %llx in"
+			" vspace %d, cookie%x\n", size, vs->vid, cookie);
+		goto fail_map;
+	}
+	
+	if (vm_base) {
+		*vm_base = map->start;
+	}
+	
+	return bo;
+	
+fail_map:
+	pscnv_mem_free(bo);
+	
+	return NULL;
+}
+
 int
 pscnv_mem_free(struct pscnv_bo *bo)
 {

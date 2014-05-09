@@ -43,6 +43,7 @@
 #include "pscnv_chan.h"
 #include "pscnv_fifo.h"
 #include "pscnv_ioctl.h"
+#include "pscnv_dma.h"
 
 static void nouveau_stub_takedown(struct drm_device *dev) {}
 static int nouveau_stub_init(struct drm_device *dev) { return 0; }
@@ -349,6 +350,12 @@ nouveau_card_init(struct drm_device *dev)
 					/* PCOPY1 */
 					nvc0_copy_init(dev, 1);
 				}
+                ret = pscnv_dma_init(dev);
+                if (ret) {
+                    NV_ERROR(dev, "DMA: initialization failed with value %d", ret);
+                } else {
+                    NV_INFO(dev, "DMA: Initalized\n");
+                }
 			}
 			break;
 		default:
@@ -420,7 +427,7 @@ nouveau_card_init(struct drm_device *dev)
 #endif
 		drm_kms_helper_poll_init(dev);
 	}
-
+    
 	NV_INFO(dev, "Card initialized.\n");
 	return 0;
 

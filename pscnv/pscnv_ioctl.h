@@ -29,6 +29,8 @@ int pscnv_ioctl_fifo_init_ib(struct drm_device *dev, void *data,
 						struct drm_file *file_priv);
 int pscnv_ioctl_fifo_resume_ib(struct drm_device *dev, void *data,
 						struct drm_file *file_priv);
+int pscnv_ioctl_copy_to_host(struct drm_device *dev, void *data,
+						struct drm_file *file_priv);
 
 extern void pscnv_chan_cleanup(struct drm_device *dev, struct drm_file *file_priv);
 extern void pscnv_vspace_cleanup(struct drm_device *dev, struct drm_file *file_priv);

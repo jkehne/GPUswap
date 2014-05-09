@@ -1,6 +1,8 @@
 build/
 tags
 .hg/*
+.DS_Store
+._*
 *.cmd
 *.o
 *.swp

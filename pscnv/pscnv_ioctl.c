@@ -6,6 +6,7 @@
 #include "pscnv_chan.h"
 #include "pscnv_fifo.h"
 #include "pscnv_gem.h"
+#include "pscnv_swapping.h"
 #include "nv50_chan.h"
 #include "nvc0_graph.h"
 #include "pscnv_kapi.h"
@@ -167,6 +168,31 @@ int pscnv_ioctl_gem_info(struct drm_device *dev, void *data,
 	drm_gem_object_unreference_unlocked(obj);
 
 	return 0;
+}
+
+int pscnv_ioctl_copy_to_host(struct drm_device *dev, void *data,
+						struct drm_file *file_priv)
+{
+	struct drm_pscnv_gem_info *info = data;
+	struct drm_gem_object *obj;
+	struct pscnv_bo *bo;
+	int res;
+
+	NOUVEAU_CHECK_INITIALISED_WITH_RETURN;
+	
+	obj = drm_gem_object_lookup(dev, file_priv, info->handle);
+	if (!obj) {
+		NV_INFO(dev, "GEM Handle %x, cookie %x does not exists\n", info->handle, info->cookie);
+		return -EBADF;
+	}
+	
+	bo = obj->driver_private;
+	
+	res = pscnv_bo_copy_to_host(bo);
+	
+	drm_gem_object_handle_unreference_unlocked (obj);
+	
+	return res;
 }
 
 static struct pscnv_vspace *

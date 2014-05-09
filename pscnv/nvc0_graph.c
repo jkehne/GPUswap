@@ -774,6 +774,8 @@ nvc0_graph_chan_alloc(struct pscnv_engine *eng, struct pscnv_chan *chan)
 		return -ENOMEM;
 	}
 
+	NV_INFO(dev, "PGRAPH: adding to channel %d in vscpace %d\n", chan->cid, chan->vspace->vid);
+
 	grch->grctx = pscnv_mem_alloc(dev, graph->grctx_size,
 								  PSCNV_GEM_CONTIG | PSCNV_GEM_NOUSER,
 								  0, 0x93ac0747);

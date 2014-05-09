@@ -67,6 +67,8 @@ nvc0_copy_chan_alloc(struct pscnv_engine *eng, struct pscnv_chan *ch)
 
 	ch->engdata[PSCNV_ENGINE_COPY + pcopy->id] = coch;
 
+	NV_INFO(dev, "adding PCOPY %d engine to channel %d in vspace %d\n", pcopy->id, ch->cid, ch->vspace->vid);
+
 	return 0;
 
 fail_vspace_map:

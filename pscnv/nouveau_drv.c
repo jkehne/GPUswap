@@ -155,6 +155,7 @@ static struct drm_ioctl_desc nouveau_ioctls[] = {
 	DRM_IOCTL_DEF_DRV(PSCNV_OBJ_ENG_NEW, pscnv_ioctl_obj_eng_new, DRM_UNLOCKED),
 	DRM_IOCTL_DEF_DRV(PSCNV_FIFO_INIT_IB, pscnv_ioctl_fifo_init_ib, DRM_UNLOCKED),
 	DRM_IOCTL_DEF_DRV(PSCNV_FIFO_RESUME_IB, pscnv_ioctl_fifo_resume_ib, DRM_UNLOCKED),
+	DRM_IOCTL_DEF_DRV(PSCNV_COPY_TO_HOST, pscnv_ioctl_copy_to_host, DRM_UNLOCKED),
 };
 #elif defined(PSCNV_KAPI_DRM_IOCTL_DEF)
 static struct drm_ioctl_desc nouveau_ioctls[] = {
@@ -172,6 +173,7 @@ static struct drm_ioctl_desc nouveau_ioctls[] = {
 	DRM_IOCTL_DEF(DRM_PSCNV_OBJ_ENG_NEW, pscnv_ioctl_obj_eng_new, DRM_UNLOCKED),
 	DRM_IOCTL_DEF(DRM_PSCNV_FIFO_INIT_IB, pscnv_ioctl_fifo_init_ib, DRM_UNLOCKED),
 	DRM_IOCTL_DEF(DRM_PSCNV_FIFO_RESUME_IB, pscnv_ioctl_fifo_resume_ib, DRM_UNLOCKED),
+	DRM_IOCTL_DEF(DRM_PSCNV_COPY_TO_HOST, pscnv_ioctl_copy_to_host, DRM_UNLOCKED),
 };
 #else
 #error "Unknown IOCTLDEF method."

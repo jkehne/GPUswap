@@ -96,7 +96,7 @@ pscnv_chan_new (struct drm_device *dev, struct pscnv_vspace *vs, int fake) {
 		kfree(res);
 		return 0;
 	}
-	NV_INFO(vs->dev, "CHAN: Allocating channel %d\n", res->cid);
+	NV_INFO(vs->dev, "CHAN: Allocating channel %d in vspace %d\n", res->cid, vs->vid);
 	if (dev_priv->chan->do_chan_new(res)) {
 		if (vs)
 			pscnv_vspace_unref(vs);

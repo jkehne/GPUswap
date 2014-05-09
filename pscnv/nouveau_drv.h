@@ -79,6 +79,8 @@ enum nouveau_flags {
 };
 
 struct pscnv_bo;
+struct pscnv_dma;
+struct pscnv_ib_chan;
 
 struct nouveau_channel {
 	struct drm_device *dev;
@@ -609,6 +611,8 @@ struct drm_nouveau_private {
 
 	struct nouveau_fbdev *nfbdev;
 	struct apertures_struct *apertures;
+    
+    struct pscnv_dma *dma;
 };
 #if 0
 static inline struct drm_nouveau_private *

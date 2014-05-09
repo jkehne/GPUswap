@@ -31,6 +31,8 @@
 
 #define PSCNV_MEM_PAGE_SIZE 0x1000
 
+struct pscnv_vspace;
+
 /* A VRAM object of any kind. */
 struct pscnv_bo {
 	struct drm_device *dev;
@@ -76,6 +78,13 @@ extern int pscnv_mem_init(struct drm_device *);
 extern void pscnv_mem_takedown(struct drm_device *);
 extern struct pscnv_bo *pscnv_mem_alloc(struct drm_device *,
 		uint64_t size, int flags, int tile_flags, uint32_t cookie);
+
+/*
+ * convenience function. Allocates and maps to vm. GPU virtual address is
+ * returned in *vm_base. tile flags are set zero */
+extern struct pscnv_bo*	pscnv_mem_alloc_and_map(struct pscnv_vspace *vs, 
+		uint64_t size, uint32_t flags, uint32_t cookie, uint64_t *vm_base);
+
 extern int pscnv_mem_free(struct pscnv_bo *);
 
 extern int pscnv_vram_free(struct pscnv_bo *bo);
