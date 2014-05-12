@@ -1,4 +1,7 @@
 #! /bin/sh
+#KERNELVER=$(uname -r)
+KERNELVER="3.5.7.31"
+
 cd pscnv
 make clean
 cd ../libpscnv
@@ -10,8 +13,8 @@ cd build
 cmake ..
 make clean
 make
-mkdir -p /lib/modules/$(uname -r)/extra
-cp pscnv/pscnv.ko /lib/modules/$(uname -r)/extra
+mkdir -p /lib/modules/$KERNELVER/extra
+cp pscnv/pscnv.ko /lib/modules/$KERNELVER/extra
 depmod
 cd ../test
 make clean
