@@ -32,6 +32,7 @@
 #include "pscnv_chan.h"
 #include "pscnv_fifo.h"
 #include "pscnv_ioctl.h"
+#include "pscnv_dma.h"
 
 static int pscnv_chan_bind (struct pscnv_chan *ch, int fake) {
 	struct drm_nouveau_private *dev_priv = ch->dev->dev_private;
@@ -39,23 +40,34 @@ static int pscnv_chan_bind (struct pscnv_chan *ch, int fake) {
 	int i;
 	BUG_ON(ch->cid);
 	spin_lock_irqsave(&dev_priv->chan->ch_lock, flags);
-	if (fake) {
-		ch->cid = -fake;
-		BUG_ON(dev_priv->chan->fake_chans[fake]);
-		dev_priv->chan->fake_chans[fake] = ch;
+	switch(fake) {
+	case PSCNV_DMA_CHAN:
+		if (dev_priv->chan->chans[PSCNV_DMA_CHAN]) {
+			NV_ERROR(ch->dev, "CHAN: Channel %d already allocated\n", fake);
+			return -ENOSPC;
+		}
+		ch->cid = fake;
+		dev_priv->chan->chans[fake] = ch;
 		spin_unlock_irqrestore(&dev_priv->chan->ch_lock, flags);
 		return 0;
-	} else {
-		for (i = dev_priv->chan->ch_min; i <= dev_priv->chan->ch_max; i++)
+	case 0:
+		for (i = dev_priv->chan->ch_min; i <= dev_priv->chan->ch_max; i++) {
 			if (!dev_priv->chan->chans[i]) {
 				ch->cid = i;
 				dev_priv->chan->chans[i] = ch;
 				spin_unlock_irqrestore(&dev_priv->chan->ch_lock, flags);
 				return 0;
 			}
+		}
 		spin_unlock_irqrestore(&dev_priv->chan->ch_lock, flags);
 		NV_ERROR(ch->dev, "CHAN: Out of channels\n");
 		return -ENOSPC;
+	default:
+		ch->cid = -fake;
+		BUG_ON(dev_priv->chan->fake_chans[fake]);
+		dev_priv->chan->fake_chans[fake] = ch;
+		spin_unlock_irqrestore(&dev_priv->chan->ch_lock, flags);
+		return 0;
 	}
 }
 

@@ -29,6 +29,7 @@
 #include "pscnv_mem.h"
 #include "pscnv_vm.h"
 #include "pscnv_chan.h"
+#include "pscnv_dma.h"
 
 
 static int pscnv_vspace_bind (struct pscnv_vspace *vs, int fake) {
@@ -37,23 +38,34 @@ static int pscnv_vspace_bind (struct pscnv_vspace *vs, int fake) {
 	int i;
 	BUG_ON(vs->vid);
 	spin_lock_irqsave(&dev_priv->vm->vs_lock, flags);
-	if (fake) {
-		vs->vid = -fake;
-		BUG_ON(dev_priv->vm->fake_vspaces[fake]);
-		dev_priv->vm->fake_vspaces[fake] = vs;
+	switch(fake) {
+	case PSCNV_DMA_VSPACE:
+		if (dev_priv->vm->vspaces[fake]) {
+			NV_ERROR(vs->dev, "VM: vspace %d already allocated\n", fake);
+			return -ENOSPC;
+		}
+		vs->vid = fake;
+		dev_priv->vm->vspaces[fake] = vs;
 		spin_unlock_irqrestore(&dev_priv->vm->vs_lock, flags);
 		return 0;
-	} else {
-		for (i = 1; i < 128; i++)
+	case 0:
+		for (i = 1; i < 128; i++) {
 			if (!dev_priv->vm->vspaces[i]) {
 				vs->vid = i;
 				dev_priv->vm->vspaces[i] = vs;
 				spin_unlock_irqrestore(&dev_priv->vm->vs_lock, flags);
 				return 0;
 			}
+		}
 		spin_unlock_irqrestore(&dev_priv->vm->vs_lock, flags);
 		NV_ERROR(vs->dev, "VM: Out of vspaces\n");
 		return -ENOSPC;
+	default:
+		vs->vid = -fake;
+		BUG_ON(dev_priv->vm->fake_vspaces[fake]);
+		dev_priv->vm->fake_vspaces[fake] = vs;
+		spin_unlock_irqrestore(&dev_priv->vm->vs_lock, flags);
+		return 0;
 	}
 }
 
@@ -147,6 +159,8 @@ pscnv_vspace_map(struct pscnv_vspace *vs, struct pscnv_bo *bo,
 	ret = dev_priv->vm->place_map(vs, bo, start, end, back, &node);
 	if (ret) {
 		mutex_unlock(&vs->lock);
+		NV_INFO(vs->dev, "VM: vspace %d: Mapping BO %x/%d:"
+			" place_map failed\n", vs->vid, bo->cookie, bo->serial);
 		return ret;
 	}
 	node->tag = bo;

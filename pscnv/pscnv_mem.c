@@ -175,7 +175,7 @@ pscnv_mem_alloc_and_map(struct pscnv_vspace *vs, uint64_t size, uint32_t flags, 
 	
 	if (ret) {
 		NV_INFO(dev, "failed to map buffer object of size %llx in"
-			" vspace %d, cookie%x\n", size, vs->vid, cookie);
+			" vspace %d, cookie=%x\n", size, vs->vid, cookie);
 		goto fail_map;
 	}
 	

@@ -24,21 +24,9 @@
  *
  */
 
-#include "drm.h"
-#include "nouveau_drv.h"
+#include "nvc0_fifo.h"
 #include "nouveau_reg.h"
-#include "pscnv_fifo.h"
 #include "pscnv_chan.h"
-
-struct nvc0_fifo_engine {
-	struct pscnv_fifo_engine base;
-	struct pscnv_bo *playlist[2];
-	int cur_playlist;
-	struct pscnv_bo *ctrl_bo;
-	struct drm_local_map *fifo_ctl;
-};
-
-#define nvc0_fifo(x) container_of(x, struct nvc0_fifo_engine, base)
 
 static void nvc0_fifo_takedown(struct drm_device *dev);
 static void nvc0_fifo_irq_handler(struct drm_device *dev, int irq);
@@ -224,6 +212,16 @@ static void nvc0_fifo_chan_kill(struct pscnv_chan *ch)
 	spin_unlock_irqrestore(&dev_priv->context_switch_lock, flags);
 }
 
+
+static uint64_t nvc0_fifo_get_fifo_regs(struct pscnv_chan *ch)
+{
+	struct drm_device *dev = ch->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nvc0_fifo_engine *fifo = nvc0_fifo(dev_priv->fifo);
+	
+	return fifo->ctrl_bo->start + (ch->cid << 12);
+}
+
 #define nvchan_wr32(chan, ofst, val)					\
 	DRM_WRITE32(fifo->fifo_ctl, ((chan)->cid * 0x1000 + ofst), val)
 
@@ -234,7 +232,7 @@ static int nvc0_fifo_chan_init_ib (struct pscnv_chan *ch, uint32_t pb_handle, ui
 	unsigned long irqflags;
 
 	int i;
-	uint64_t fifo_regs = fifo->ctrl_bo->start + (ch->cid << 12);
+	uint64_t fifo_regs = nvc0_fifo_get_fifo_regs(ch);
 
 	if (ib_order > 29)
 		return -EINVAL;
@@ -295,11 +293,10 @@ static int nvc0_fifo_chan_init_ib (struct pscnv_chan *ch, uint32_t pb_handle, ui
 static int nvc0_fifo_chan_resume_ib (struct pscnv_chan *ch, uint32_t pb_handle, uint32_t flags, uint32_t slimask, uint64_t ib_start, uint32_t ib_order) {
 	struct drm_device *dev = ch->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nvc0_fifo_engine *fifo = nvc0_fifo(dev_priv->fifo);
 	unsigned long irqflags;
 
 	int i;
-	uint64_t fifo_regs = fifo->ctrl_bo->start + (ch->cid << 12);
+	uint64_t fifo_regs = nvc0_fifo_get_fifo_regs(ch);
 
 	if (ib_order > 29)
 		return -EINVAL;

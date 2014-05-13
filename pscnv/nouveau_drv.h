@@ -611,8 +611,8 @@ struct drm_nouveau_private {
 
 	struct nouveau_fbdev *nfbdev;
 	struct apertures_struct *apertures;
-    
-    struct pscnv_dma *dma;
+
+	struct pscnv_dma *dma;
 };
 #if 0
 static inline struct drm_nouveau_private *

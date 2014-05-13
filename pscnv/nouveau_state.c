@@ -350,12 +350,6 @@ nouveau_card_init(struct drm_device *dev)
 					/* PCOPY1 */
 					nvc0_copy_init(dev, 1);
 				}
-                ret = pscnv_dma_init(dev);
-                if (ret) {
-                    NV_ERROR(dev, "DMA: initialization failed with value %d", ret);
-                } else {
-                    NV_INFO(dev, "DMA: Initalized\n");
-                }
 			}
 			break;
 		default:
@@ -427,7 +421,14 @@ nouveau_card_init(struct drm_device *dev)
 #endif
 		drm_kms_helper_poll_init(dev);
 	}
-    
+	
+	/*ret = pscnv_dma_init(dev);
+	if (ret) {
+		NV_ERROR(dev, "DMA: initialization failed with value %d", ret);
+	} else {
+		NV_INFO(dev, "DMA: Initalized\n");
+	}*/
+
 	NV_INFO(dev, "Card initialized.\n");
 	return 0;
 

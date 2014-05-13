@@ -161,7 +161,7 @@ struct drm_pscnv_obj_eng_new {
 #define DRM_PSCNV_FIFO_INIT_IB       0x2b	/* Initialises IB PFIFO processing on a channel */
 #define DRM_PSCNV_FIFO_RESUME_IB     0x2c	/* Initialises IB PFIFO processing on a channel
                                                without initializing the control region */
-#define DRM_PSCNV_COPY_TO_HOST       0x40       /* copy a buffer object to host memory */
+#define DRM_PSCNV_COPY_TO_HOST       0x3a       /* copy a buffer object to host memory */
 
 #define DRM_IOCTL_PSCNV_GETPARAM           DRM_IOWR(DRM_COMMAND_BASE + DRM_PSCNV_GETPARAM, struct drm_pscnv_getparam)
 #define DRM_IOCTL_PSCNV_GEM_NEW            DRM_IOWR(DRM_COMMAND_BASE + DRM_PSCNV_GEM_NEW, struct drm_pscnv_gem_info)
