@@ -44,7 +44,8 @@ static void nvc0_chan_free(struct pscnv_chan *ch)
 	spin_lock_irqsave(&dev_priv->chan->ch_lock, flags);
 	ch->handle = 0;
 	spin_unlock_irqrestore(&dev_priv->chan->ch_lock, flags);
-	pscnv_mem_free(ch->bo);
+	 /* should usually free it, nobody else should be using this bo */
+	pscnv_bo_unref(ch->bo);
 }
 
 static void

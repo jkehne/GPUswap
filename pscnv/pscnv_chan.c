@@ -139,8 +139,6 @@ void pscnv_chan_ref_free(struct kref *ref) {
 	}
 	dev_priv->chan->do_chan_free(ch);
 	pscnv_chan_unbind(ch);
-	if (ch->bo->gem)
-		drm_gem_object_unreference_unlocked(ch->bo->gem);
 	if (ch->vspace)
 		pscnv_vspace_unref(ch->vspace);
 	kfree(ch);

@@ -110,6 +110,7 @@ nvc0_vram_alloc(struct pscnv_bo *bo)
 		if (bo->flags & PSCNV_GEM_CONTIG)
 			bo->start = bo->mmnode->start;
 		bo->mmnode->tag = bo;
+		dev_priv->vram_usage += bo->size;
 	}
 	mutex_unlock(&dev_priv->vram_mutex);
 	return ret;

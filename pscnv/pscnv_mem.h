@@ -60,6 +60,8 @@ struct pscnv_bo {
 	dma_addr_t *dmapages;
 	/* CHAN only, pointer to a channel (FreeBSD doesn't allow overriding mmap) */
 	struct pscnv_chan *chan;
+	/* number of references to this buffer object */
+	struct kref ref;
 #ifndef __linux__
 	/* freebsd: Allocate an array of fake pages we can populate if user-space mappable */
 	vm_page_t fake_pages;
@@ -84,6 +86,17 @@ extern struct pscnv_bo *pscnv_mem_alloc(struct drm_device *,
  * returned in *vm_base. tile flags are set zero */
 extern struct pscnv_bo*	pscnv_mem_alloc_and_map(struct pscnv_vspace *vs, 
 		uint64_t size, uint32_t flags, uint32_t cookie, uint64_t *vm_base);
+		
+/* calls pscnv_mem_free() */
+extern void pscnv_bo_ref_free(struct kref *ref);
+
+static inline void pscnv_bo_ref(struct pscnv_bo *bo) {
+	kref_get(&bo->ref);
+}
+
+static inline void pscnv_bo_unref(struct pscnv_bo *bo) {
+	kref_put(&bo->ref, pscnv_bo_ref_free);
+}
 
 extern int pscnv_mem_free(struct pscnv_bo *);
 

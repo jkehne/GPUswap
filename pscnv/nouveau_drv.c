@@ -518,6 +518,7 @@ static struct drm_driver driver = {
 	},
 #endif
 
+	.gem_close_object = pscnv_gem_close_object,
 	.gem_free_object = pscnv_gem_free_object,
 
 	.name = DRIVER_NAME,

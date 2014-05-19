@@ -141,6 +141,7 @@ nouveau_debugfs_memory_info(struct seq_file *m, void *data)
 	struct drm_nouveau_private *dev_priv = minor->dev->dev_private;
 
 	seq_printf(m, "VRAM total: %dKiB\n", (int)(dev_priv->vram_size >> 10));
+	seq_printf(m, "VRAM usage: %dKiB\n", (int)(dev_priv->vram_usage >> 10));
 	return 0;
 }
 

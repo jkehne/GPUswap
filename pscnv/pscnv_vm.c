@@ -113,8 +113,8 @@ pscnv_vspace_new (struct drm_device *dev, uint64_t size, uint32_t flags, int fak
 static void
 pscnv_vspace_free_unmap(struct pscnv_mm_node *node) {
 	struct pscnv_bo *bo = node->tag;
-	drm_gem_object_unreference_unlocked(bo->gem);
 	pscnv_mm_free(node);
+	pscnv_bo_unref(bo);
 }
 
 void pscnv_vspace_ref_free(struct kref *ref) {
@@ -140,10 +140,12 @@ pscnv_vspace_unmap_node_unlocked(struct pscnv_mm_node *node) {
 	}
 	dev_priv->vm->do_unmap(vs, node->start, node->size);
 
-	if (vs->vid >= 0) {
-		drm_gem_object_unreference(bo->gem);
-	}
 	pscnv_mm_free(node);
+	
+	if (vs->vid >= 0) {
+		pscnv_bo_unref(bo);
+	}
+	
 	return 0;
 }
 
@@ -155,12 +157,20 @@ pscnv_vspace_map(struct pscnv_vspace *vs, struct pscnv_bo *bo,
 	struct pscnv_mm_node *node;
 	int ret;
 	struct drm_nouveau_private *dev_priv = vs->dev->dev_private;
+	
+	if (vs->vid >= 0) {
+		pscnv_bo_ref(bo);
+	}
+	
 	mutex_lock(&vs->lock);
 	ret = dev_priv->vm->place_map(vs, bo, start, end, back, &node);
 	if (ret) {
 		mutex_unlock(&vs->lock);
 		NV_INFO(vs->dev, "VM: vspace %d: Mapping BO %x/%d:"
 			" place_map failed\n", vs->vid, bo->cookie, bo->serial);
+		if (vs->vid >= 0) {
+			pscnv_bo_unref(bo);
+		}
 		return ret;
 	}
 	node->tag = bo;
@@ -172,7 +182,7 @@ pscnv_vspace_map(struct pscnv_vspace *vs, struct pscnv_bo *bo,
 	if (ret) {
 		NV_ERROR(vs->dev, "VM: vspace %d: Mapping BO %x/%d at %llx-%llx. FAILED \n", vs->vid, bo->cookie, bo->serial, node->start,
 				node->start + node->size);
-		pscnv_vspace_unmap_node_unlocked(node);
+		pscnv_vspace_unmap_node_unlocked(node); // includes unref(bo)
 	}
 	*res = node;
 	mutex_unlock(&vs->lock);
@@ -200,14 +210,44 @@ pscnv_vspace_unmap(struct pscnv_vspace *vs, uint64_t start) {
 
 #ifdef __linux__
 
+static void
+pscnv_gem_vm_open(struct vm_area_struct *vma)
+{
+	struct drm_gem_object *obj = vma->vm_private_data;
+	struct pscnv_bo *bo = obj->driver_private;
+	struct drm_device *dev = obj->dev;
+	
+	if (pscnv_vm_debug >= 1) {
+		NV_INFO(dev, "VM: mmap (open) BO %08x/%d\n", bo->cookie, bo->serial);
+	}
+	
+	/* refcounting is done by drm directly on obj */
+	drm_gem_vm_open(vma);
+}
+
+static void
+pscnv_gem_vm_close(struct vm_area_struct *vma)
+{
+	struct drm_gem_object *obj = vma->vm_private_data;
+	struct pscnv_bo *bo = obj->driver_private;
+	struct drm_device *dev = obj->dev;
+	
+	if (pscnv_vm_debug >= 1) {
+		NV_INFO(dev, "VM: munmap (close) BO %08x/%d\n", bo->cookie, bo->serial);
+	}
+	
+	/* refcounting is done by drm directly on obj */
+	drm_gem_vm_close(vma);
+}
+
 static struct vm_operations_struct pscnv_vram_ops = {
-	.open = drm_gem_vm_open,
-	.close = drm_gem_vm_close,
+	.open = pscnv_gem_vm_open,
+	.close = pscnv_gem_vm_close,
 };	
 
 static struct vm_operations_struct pscnv_sysram_ops = {
-	.open = drm_gem_vm_open,
-	.close = drm_gem_vm_close,
+	.open = pscnv_gem_vm_open,
+	.close = pscnv_gem_vm_close,
 	.fault = pscnv_sysram_vm_fault,
 };	
 
@@ -226,10 +266,15 @@ int pscnv_mmap(struct file *filp, struct vm_area_struct *vma)
 	if (vma->vm_pgoff * PAGE_SIZE < (1ull << 32))
 		return pscnv_chan_mmap(filp, vma);
 
+	/* this increases the refcount on obj! */
 	obj = drm_gem_object_lookup(dev, priv, (vma->vm_pgoff * PAGE_SIZE) >> 32);
 	if (!obj)
 		return -ENOENT;
 	bo = obj->driver_private;
+	
+	if (pscnv_vm_debug >= 1) {
+		NV_INFO(dev, "VM: mmap BO %08x/%d\n", bo->cookie, bo->serial);
+	}
 	
 	if (vma->vm_end - vma->vm_start > bo->size) {
 		NV_ERROR(dev, "vma->vm_end - vma->vm_start > bo->size\n");

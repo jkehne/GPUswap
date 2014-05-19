@@ -558,6 +558,7 @@ struct drm_nouveau_private {
 		NV_MEM_TYPE_GDDR5
 	} vram_type;
 	uint64_t vram_size;
+	uint64_t vram_usage;
 	uint64_t vram_sys_base;
 	bool vram_rank_B;
 	uint32_t crystal;

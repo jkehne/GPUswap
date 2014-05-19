@@ -120,6 +120,8 @@ pscnv_mem_alloc(struct drm_device *dev,
 	res->tile_flags = tile_flags;
 	res->cookie = cookie;
 	res->gem = 0;
+	
+	kref_init(&res->ref);
 
 	/* XXX: another mutex? */
 	mutex_lock(&dev_priv->vram_mutex);
@@ -195,8 +197,13 @@ int
 pscnv_mem_free(struct pscnv_bo *bo)
 {
 	struct drm_nouveau_private *dev_priv = bo->dev->dev_private;
+	
+	if (bo->gem) {
+		NV_ERROR(bo->dev, "Freeing %08x/%d, with DRM- Wrapper still attached!\n", bo->cookie, bo->serial);
+	}
+	
 	if (pscnv_mem_debug >= 1)
-		NV_INFO(bo->dev, "Freeing %d, %#llx-byte %sBO of type %08x, tile_flags %x\n", bo->serial, bo->size,
+		NV_INFO(bo->dev, "Freeing %d, %#llx-byte %sBO cookie=%08x, tile_flags %x\n", bo->serial, bo->size,
 				(bo->flags & PSCNV_GEM_CONTIG ? "contig " : ""), bo->cookie, bo->tile_flags);
 
 	if (dev_priv->vm_ok && bo->map1)
@@ -217,12 +224,20 @@ pscnv_mem_free(struct pscnv_bo *bo)
 	return 0;
 }
 
+void
+pscnv_bo_ref_free(struct kref *ref)
+{
+	struct pscnv_bo *bo = container_of(ref, struct pscnv_bo, ref);
+	pscnv_mem_free(bo);
+}
+
 int
 pscnv_vram_free(struct pscnv_bo *bo)
 {
 	struct drm_nouveau_private *dev_priv = bo->dev->dev_private;
 	mutex_lock(&dev_priv->vram_mutex);
 	pscnv_mm_free(bo->mmnode);
+	dev_priv->vram_usage -= bo->size;
 	mutex_unlock(&dev_priv->vram_mutex);
 	return 0;
 }

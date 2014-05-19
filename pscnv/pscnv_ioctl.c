@@ -131,6 +131,13 @@ int pscnv_ioctl_gem_new(struct drm_device *dev, void *data,
 	info->map_handle = DRM_GEM_MAPPING_OFF(obj->map_list.key) |
 			   DRM_GEM_MAPPING_KEY;
 #endif
+	/* confusing: this immediatly sets obj->handle_count back to 0, so
+	 * the drm_gem_object should loose it's name, but the object (and the
+	 * attached buffer) should stay available 
+	 *
+	 * maybe this is to ensure that the gem can only be mmap'd by the
+	 * returned map_handle through pscnv_mmap() and not through drm_mmap()
+	 */
 	drm_gem_object_handle_unreference_unlocked (obj);
 
 	return ret;
@@ -165,6 +172,7 @@ int pscnv_ioctl_gem_info(struct drm_device *dev, void *data,
 	for (i = 0; i < DRM_ARRAY_SIZE(bo->user); i++)
 		info->user[i] = bo->user[i];
 
+	/* drm_gem_object_lookup increases refcount on object, so decrease */
 	drm_gem_object_unreference_unlocked(obj);
 
 	return 0;
@@ -190,7 +198,7 @@ int pscnv_ioctl_copy_to_host(struct drm_device *dev, void *data,
 	
 	res = pscnv_bo_copy_to_host(bo);
 	
-	drm_gem_object_handle_unreference_unlocked (obj);
+	drm_gem_object_unreference_unlocked (obj);
 	
 	return res;
 }
@@ -278,6 +286,8 @@ int pscnv_ioctl_vspace_map(struct drm_device *dev, void *data,
 	ret = pscnv_vspace_map(vs, bo, req->start, req->end, req->back, &map);
 	if (!ret)
 		req->offset = map->start;
+
+	drm_gem_object_unreference_unlocked(obj);
 
 	pscnv_vspace_unref(vs);
 
@@ -388,8 +398,8 @@ int pscnv_ioctl_chan_free(struct drm_device *dev, void *data,
 		return -ENOENT;
 
 	ch->filp = 0;
-	pscnv_chan_unref(ch);
-	pscnv_chan_unref(ch);
+	pscnv_chan_unref(ch); // <- unref because of get_chan
+	pscnv_chan_unref(ch); // <- unref because the user calls free
 
 	return 0;
 }

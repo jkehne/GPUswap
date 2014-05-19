@@ -31,7 +31,9 @@ pscnv_vram_to_host(struct pscnv_bo* vram)
 	uint32_t cookie = (0xa1de << 16) | (vram->cookie & 0xffff);
 	int res;
 	
-	pscnv_dma_init(dev);
+	if (!dev->dma) {
+		pscnv_dma_init(dev);
+	}
 	
 	sysram = pscnv_mem_alloc(dev, vram->size,
 			    PSCNV_GEM_SYSRAM_NOSNOOP,
