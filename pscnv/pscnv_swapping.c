@@ -106,7 +106,13 @@ pscnv_vram_to_host(struct pscnv_bo* vram)
 		return res;
 	}
 	
+	/* free's the allocated vram, but does not remove the bo itself */
 	pscnv_vram_free(vram);
+	
+	vram->backing_store = sysram;
+	
+	/* refcnt of sysram now belongs to the vram bo, it will unref it,
+	   when it gets free'd itself */
 	
 	return 0;
 }
@@ -114,6 +120,11 @@ pscnv_vram_to_host(struct pscnv_bo* vram)
 int
 pscnv_bo_copy_to_host(struct pscnv_bo* bo)
 {
+	if (bo->backing_store) {
+		/* already swapped out, nothing to do */
+		return 0;
+	}
+	
 	switch (bo->flags & PSCNV_GEM_MEMTYPE_MASK) {
 		case PSCNV_GEM_VRAM_SMALL:
 		case PSCNV_GEM_VRAM_LARGE:

@@ -65,6 +65,8 @@ struct pscnv_bo {
 	/* vm memory node (one continuos area) that will be replaced with
 	 * system RAM. Currently the BO is simply removed from other vspaces */
 	struct pscnv_mm_node *primary_node;
+	/* bo that holds the content of this bo, if it gets swapped out */
+	struct pscnv_bo *backing_store;
 #ifndef __linux__
 	/* freebsd: Allocate an array of fake pages we can populate if user-space mappable */
 	vm_page_t fake_pages;

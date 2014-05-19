@@ -210,6 +210,15 @@ pscnv_mem_free(struct pscnv_bo *bo)
 		pscnv_vspace_unmap_node(bo->map1);
 	if (dev_priv->vm_ok && bo->map3)
 		pscnv_vspace_unmap_node(bo->map3);
+	
+	if (bo->backing_store) {
+		pscnv_bo_unref(bo->backing_store);
+		kfree(bo);
+		/* the memory handled by this bo has already been free'd
+		   on swapping */
+		return 0;
+	}
+	
 	switch (bo->flags & PSCNV_GEM_MEMTYPE_MASK) {
 		case PSCNV_GEM_VRAM_SMALL:
 		case PSCNV_GEM_VRAM_LARGE:
@@ -220,6 +229,7 @@ pscnv_mem_free(struct pscnv_bo *bo)
 			pscnv_sysram_free(bo);
 			break;
 	}
+	
 	kfree (bo);
 	return 0;
 }
