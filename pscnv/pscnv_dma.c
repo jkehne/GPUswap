@@ -107,7 +107,7 @@ pscnv_dma_init(struct drm_device *dev)
 	
 	NV_INFO(dev, "DMA: Initializing...\n");
 	
-	if (dev->dma) {
+	if (dev_priv->dma) {
 		NV_INFO(dev, "DMA: already initialized!\n");
 		return -EINVAL;
 	}

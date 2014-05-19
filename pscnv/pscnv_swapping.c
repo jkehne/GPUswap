@@ -1,9 +1,12 @@
 #include "pscnv_dma.h"
+#include "pscnv_vm.h"
 
+#if 0
 static void
 pscnv_swapping_memdump(struct pscnv_bo *bo)
 {
 	struct drm_device *dev = bo->dev;
+	uint32_t pagenum;
 	uint32_t i;
 	uint32_t *mem;
 	
@@ -13,14 +16,59 @@ pscnv_swapping_memdump(struct pscnv_bo *bo)
 		return;
 	}
 	
-	mem = kmap(bo->pages[0]);
-	
-	NV_INFO(dev, "==== DUMP BO %x\n", bo->cookie);
-	for (i = 0; i < bo->size/4; i += 4) {
-		NV_INFO(dev, "%08x %08x %08x %08x\n", mem[i], mem[i+1], mem[i+2], mem[i+3]);
+	// bo->size is a multiple of page size
+	for (pagenum = 0; pagenum < bo->size >> PAGE_SHIFT; pagenum++) {
+		NV_INFO(dev, "=== DUMP BO %08x/%d page %u\n", bo->cookie, bo->serial, pagenum);
+		mem = kmap(bo->pages[pagenum]);
+		for (i = 0; i < 256; i += 4) {
+			NV_INFO(dev, "%08x %08x %08x %08x\n",
+				mem[i], mem[i+1], mem[i+2], mem[i+3]);
+		}
+		kunmap(bo->pages[pagenum]);
         }
+}
+#endif
+
+static int
+pscnv_swapping_replace(struct pscnv_bo* vram, struct pscnv_bo* sysram)
+{
+	struct drm_device *dev = vram->dev;
+	struct pscnv_mm_node *primary_node = vram->primary_node;
+	struct pscnv_mm_node *swapped_node;
+	struct pscnv_vspace *vs;
+	uint64_t start, end;
+	int res;
 	
-	kunmap(bo->pages[0]);
+	if (!primary_node) {
+		NV_INFO(dev, "pscnv_swapping_replace: BO %08x/%d has no "
+			"primary node attached, nothing to do\n",
+			vram->cookie, vram->serial);
+		return -EINVAL;
+	}
+	
+	BUG_ON(primary_node->tag != vram);
+	vs = primary_node->tag2;
+	
+	start = primary_node->start;
+	end = primary_node->start + primary_node->size;
+	
+	res = pscnv_vspace_unmap_node(primary_node);
+	if (res) {
+		NV_INFO(dev, "pscnv_swapping_replace: vid=%d BO %08x/%d: failed "
+			"to unmap node in range %llx-%llx\n",
+			vs->vid, vram->cookie, vram->serial, start, end);
+		return res;
+	}
+	
+	res = pscnv_vspace_map(vs, sysram, start, end, 0 /* back */, &swapped_node);
+	if (res) {
+		NV_INFO(dev, "pscnv_swapping_replace: vid=%d BO %08x/%d: failed "
+			"to map in range %llx-%llx\n",
+			vs->vid, sysram->cookie, sysram->serial, start, end);
+		return res;
+	}
+	
+	return 0;
 }
 
 static int
@@ -31,9 +79,7 @@ pscnv_vram_to_host(struct pscnv_bo* vram)
 	uint32_t cookie = (0xa1de << 16) | (vram->cookie & 0xffff);
 	int res;
 	
-	if (!dev->dma) {
-		pscnv_dma_init(dev);
-	}
+	pscnv_dma_init(dev);
 	
 	sysram = pscnv_mem_alloc(dev, vram->size,
 			    PSCNV_GEM_SYSRAM_NOSNOOP,
@@ -41,18 +87,26 @@ pscnv_vram_to_host(struct pscnv_bo* vram)
 			    cookie);
 	
 	if (!sysram) {
-		NV_INFO(dev, "pscnv_vram_to_host: failed to allocate SYSRAM!");
+		NV_INFO(dev, "pscnv_vram_to_host: failed to allocate SYSRAM!\n");
 		return -ENOMEM;
 	}
 	
 	res = pscnv_dma_bo_to_bo(sysram, vram);
 	
 	if (res) {
-		NV_INFO(dev, "copy_to_host: failed to DMA- Transfer!");
+		NV_INFO(dev, "copy_to_host: failed to DMA- Transfer!\n");
 		return res;
 	}
 	
-	pscnv_swapping_memdump(sysram);
+	//pscnv_swapping_memdump(sysram);
+	
+	res = pscnv_swapping_replace(vram, sysram);
+	if (res) {
+		NV_INFO(dev, "copy_to_host: failed to replace mapping\n");
+		return res;
+	}
+	
+	pscnv_vram_free(vram);
 	
 	return 0;
 }

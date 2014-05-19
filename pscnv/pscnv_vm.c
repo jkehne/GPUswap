@@ -184,6 +184,11 @@ pscnv_vspace_map(struct pscnv_vspace *vs, struct pscnv_bo *bo,
 				node->start + node->size);
 		pscnv_vspace_unmap_node_unlocked(node); // includes unref(bo)
 	}
+	
+	if (!bo->primary_node) {
+		bo->primary_node = node;
+	}
+	
 	*res = node;
 	mutex_unlock(&vs->lock);
 	return ret;
