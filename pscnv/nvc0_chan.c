@@ -9,6 +9,20 @@ static int nvc0_chan_new (struct pscnv_chan *ch)
 	struct pscnv_vspace *vs = ch->vspace;
 	struct drm_nouveau_private *dev_priv = ch->dev->dev_private;
 	unsigned long flags;
+	
+	/* ch->bo holds the configuration of the channel, including the
+	 * - page directory
+	 * - location and size of the indirect buffer
+	 * - location of the engine configurations (that are available on this
+	 *   channel)
+	 * - location of the so-called fifo-regs.
+	 *
+	 * It does NOT store the PUT/GET- Pointers, these are stored in
+	 * a page of the fifo regs. This page is at:
+	 * dev_priv->fifo->ctrl_bo->start + (ch->cid << 12);
+	 *
+	 * It is this page, not the ch->bo, that can be mmap()'d by the
+	 * user. */
 
 	ch->bo = pscnv_mem_alloc(ch->dev, 0x1000, PSCNV_GEM_CONTIG,
 			0, (ch->cid < 0 ? 0xc5a2ba7 : 0xc5a2f1f0));
