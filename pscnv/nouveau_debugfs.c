@@ -165,17 +165,62 @@ static struct drm_info_list nouveau_debugfs_list[] = {
 };
 #define NOUVEAU_DEBUGFS_ENTRIES ARRAY_SIZE(nouveau_debugfs_list)
 
+static int
+pscnv_debugfs_vram_limit_get(void *data, u64 *val)
+{
+	struct drm_device *dev = data;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	
+	*val = dev_priv->vram_limit;
+	return 0;
+}
+
+static int
+pscnv_debugfs_vram_limit_set(void *data, u64 val)
+{
+	struct drm_device *dev = data;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	
+	dev_priv->vram_limit = val;
+	return 0;
+}
+
+DEFINE_SIMPLE_ATTRIBUTE(fops_vram_limit, pscnv_debugfs_vram_limit_get,
+					 pscnv_debugfs_vram_limit_set,
+					 "%llu");
+
+static struct dentry *pscnv_debugfs_vram_limit_entry = NULL;
+
 int
 nouveau_debugfs_init(struct drm_minor *minor)
 {
+	struct drm_device *dev = minor->dev;
+	
+	// watchout: this code is run, before pscnv gets initialized, so
+	// dev->dev_private == NULL, at this point.
+	// So, we can not use debugfs_create_u32 at this point.
+	
 	drm_debugfs_create_files(nouveau_debugfs_list, NOUVEAU_DEBUGFS_ENTRIES,
 				 minor->debugfs_root, minor);
+	
+	pscnv_debugfs_vram_limit_entry =
+		debugfs_create_file("vram_limit", S_IFREG | S_IRUGO | S_IWUSR,
+				minor->debugfs_root, dev, &fops_vram_limit);
+	
+	if (!pscnv_debugfs_vram_limit_entry) {
+		NV_INFO(dev, "Cannot create /sys/kernel/debug/dri/%s/vram_limit\n",
+				minor->debugfs_root->d_name.name);
+		return -ENOENT;
+	}
+	
 	return 0;
 }
 
 void
 nouveau_debugfs_takedown(struct drm_minor *minor)
 {
+	debugfs_remove(pscnv_debugfs_vram_limit_entry);
+		
 	drm_debugfs_remove_files(nouveau_debugfs_list, NOUVEAU_DEBUGFS_ENTRIES,
 				 minor);
 }

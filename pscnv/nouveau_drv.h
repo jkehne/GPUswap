@@ -560,6 +560,8 @@ struct drm_nouveau_private {
 	uint64_t vram_size;
 	uint64_t vram_usage;
 	uint64_t vram_swapped;
+	uint32_t vram_limit;
+	
 	uint64_t vram_sys_base;
 	bool vram_rank_B;
 	uint32_t crystal;
