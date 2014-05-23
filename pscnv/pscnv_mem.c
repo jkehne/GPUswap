@@ -213,6 +213,7 @@ pscnv_mem_free(struct pscnv_bo *bo)
 	
 	if (bo->backing_store) {
 		pscnv_bo_unref(bo->backing_store);
+		dev_priv->vram_swapped -= bo->size;
 		kfree(bo);
 		/* the memory handled by this bo has already been free'd
 		   on swapping */

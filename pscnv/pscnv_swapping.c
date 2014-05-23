@@ -1,6 +1,8 @@
 #include "pscnv_dma.h"
 #include "pscnv_vm.h"
 
+#include <linux/random.h>
+
 #if 0
 static void
 pscnv_swapping_memdump(struct pscnv_bo *bo)
@@ -75,6 +77,7 @@ static int
 pscnv_vram_to_host(struct pscnv_bo* vram)
 {
 	struct drm_device *dev = vram->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct pscnv_bo *sysram;
 	uint32_t cookie = (0xa1de << 16) | (vram->cookie & 0xffff);
 	int res;
@@ -110,6 +113,7 @@ pscnv_vram_to_host(struct pscnv_bo* vram)
 	pscnv_vram_free(vram);
 	
 	vram->backing_store = sysram;
+	dev_priv->vram_swapped += vram->size;
 	
 	/* refcnt of sysram now belongs to the vram bo, it will unref it,
 	   when it gets free'd itself */
@@ -120,8 +124,32 @@ pscnv_vram_to_host(struct pscnv_bo* vram)
 int
 pscnv_bo_copy_to_host(struct pscnv_bo* bo)
 {
+	struct drm_nouveau_private *dev_priv = bo->dev->dev_private;
+	char rnd;
+	int ret;
+	static atomic_t sync = ATOMIC_INIT(1);
+	
+	if (dev_priv->vram_usage < 512 << 20) { /* 512 MB */
+		/* still more than enough memory */
+		return 0;
+	}
+	
 	if (bo->backing_store) {
 		/* already swapped out, nothing to do */
+		return 0;
+	}
+	
+	get_random_bytes(&rnd, 1);
+	
+	if (rnd > 70) {
+		/* good luck, we choose another one */
+		return 0;
+	}
+	
+	if (!atomic_dec_and_test(&sync)) {
+		atomic_inc(&sync);
+		NV_INFO(bo->dev, "copy_to_host: collision\n");
+		/* already someone else here */
 		return 0;
 	}
 	
@@ -130,16 +158,20 @@ pscnv_bo_copy_to_host(struct pscnv_bo* bo)
 		case PSCNV_GEM_VRAM_LARGE:
 			if (bo->pages) {
 				NV_INFO(bo->dev, "copy_to_host: %x is VRAM, but has Sysram already allocated, wtf\n", bo->cookie);
-				return -EINVAL;
+				ret = -EINVAL;
+			} else {
+				ret =  pscnv_vram_to_host(bo);
 			}
-		
-			return pscnv_vram_to_host(bo);
 		case PSCNV_GEM_SYSRAM_SNOOP:
 		case PSCNV_GEM_SYSRAM_NOSNOOP:
 			NV_INFO(bo->dev, "copy_to_host: %x is already sysram!, doing nothing\n", bo->cookie);
-			return -EINVAL;
+			ret = -EINVAL;
 		default:
 			NV_INFO(bo->dev, "copy_to_host: %x has unknown storage type, doing nothing\n", bo->cookie);
-			return -ENOSYS;
+			ret = -ENOSYS;
 	}
+	
+	atomic_inc(&sync);
+	
+	return ret;
 }
