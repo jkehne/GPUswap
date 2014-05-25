@@ -1,5 +1,7 @@
+#include "pscnv_swapping.h"
 #include "pscnv_dma.h"
 #include "pscnv_vm.h"
+#include "pscnv_client.h"
 
 #include <linux/random.h>
 
@@ -79,6 +81,7 @@ pscnv_vram_to_host(struct pscnv_bo* vram)
 	struct drm_device *dev = vram->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct pscnv_bo *sysram;
+	struct pscnv_client *cl;
 	uint32_t cookie = (0xa1de << 16) | (vram->cookie & 0xffff);
 	int res;
 	
@@ -114,6 +117,12 @@ pscnv_vram_to_host(struct pscnv_bo* vram)
 	
 	vram->backing_store = sysram;
 	dev_priv->vram_swapped += vram->size;
+	cl = pscnv_client_get_current(dev);
+	if (cl) {
+		cl->vram_swapped += vram->size;
+	} else {
+		NV_ERROR(dev, "pscnv_vram_to_host: can not account client vram usage\n");
+	}
 	
 	/* refcnt of sysram now belongs to the vram bo, it will unref it,
 	   when it gets free'd itself */

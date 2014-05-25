@@ -42,6 +42,7 @@
 #include "drm_pciids.h"
 #include "pscnv_kapi.h"
 #include "pscnv_ioctl.h"
+#include "pscnv_client.h"
 
 MODULE_PARM_DESC(agpmode, "AGP mode (0 to disable AGP)");
 int nouveau_agpmode = -1;
@@ -472,6 +473,8 @@ static struct drm_driver driver = {
 	.load = nouveau_load,
 	.firstopen = nouveau_firstopen,
 	.lastclose = nouveau_lastclose,
+	.open = pscnv_client_open,
+	.postclose = pscnv_client_postclose,
 	.unload = nouveau_unload,
 	.preclose = nouveau_preclose,
 #if defined(CONFIG_DRM_NOUVEAU_DEBUG)

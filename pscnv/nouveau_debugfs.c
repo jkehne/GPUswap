@@ -33,6 +33,8 @@
 #include "nouveau_drv.h"
 #include "nouveau_reg.h"
 
+#include "pscnv_client.h"
+
 #if 0
 static int
 nouveau_debugfs_channel_info(struct seq_file *m, void *data)
@@ -139,10 +141,23 @@ nouveau_debugfs_memory_info(struct seq_file *m, void *data)
 	struct drm_info_node *node = (struct drm_info_node *) m->private;
 	struct drm_minor *minor = node->minor;
 	struct drm_nouveau_private *dev_priv = minor->dev->dev_private;
+	struct pscnv_client *cur;
 
 	seq_printf(m, "VRAM total: %dKiB\n", (int)(dev_priv->vram_size >> 10));
 	seq_printf(m, "VRAM usage: %dKiB\n", (int)(dev_priv->vram_usage >> 10));
 	seq_printf(m, "VRAM swapped: %dKiB\n", (int)(dev_priv->vram_swapped >> 10));
+	
+	mutex_lock(&dev_priv->clients->lock);
+	if (!list_empty(&dev_priv->clients->list)) {
+		seq_printf(m, "\n");
+	}
+	
+	list_for_each_entry(cur, &dev_priv->clients->list, clients) {
+		seq_printf(m, "client %d: used %dKiB, swapped %dKiB\n",
+			cur->pid, (int)(cur->vram_usage >> 10),
+			          (int)(cur->vram_swapped >> 10));
+	}
+	mutex_unlock(&dev_priv->clients->lock);
 	return 0;
 }
 

@@ -28,6 +28,7 @@
 #include "nouveau_drv.h"
 #include "nouveau_pm.h"
 #include "pscnv_mem.h"
+#include "pscnv_client.h"
 
 #define NVC0_MEM_CTRLR_COUNT                                         0x00121c74
 #define NVC0_MEM_CTRLR_RAM_AMOUNT                                    0x0010f20c
@@ -93,7 +94,9 @@ nvc0_vram_alloc(struct pscnv_bo *bo)
 {
 	struct drm_device *dev = bo->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct pscnv_client *cl;
 	int flags, ret;
+	
 	if (bo->tile_flags & 0xffffff00)
 		return -EINVAL;
 	flags = 0;
@@ -111,6 +114,13 @@ nvc0_vram_alloc(struct pscnv_bo *bo)
 			bo->start = bo->mmnode->start;
 		bo->mmnode->tag = bo;
 		dev_priv->vram_usage += bo->size;
+		cl = pscnv_client_get_current(dev);
+		if (cl) {
+			cl->vram_usage += bo->size;
+		} else {
+			NV_ERROR(dev, "nvc0_vram_alloc: can not account client vram usage\n");
+		}
+		
 	}
 	mutex_unlock(&dev_priv->vram_mutex);
 	return ret;

@@ -34,6 +34,8 @@
 #include <linux/mutex.h>
 #endif
 
+#include "pscnv_client.h"
+
 int
 pscnv_mem_init(struct drm_device *dev)
 {
@@ -245,10 +247,19 @@ pscnv_bo_ref_free(struct kref *ref)
 int
 pscnv_vram_free(struct pscnv_bo *bo)
 {
-	struct drm_nouveau_private *dev_priv = bo->dev->dev_private;
+	struct drm_device *dev = bo->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct pscnv_client *cl;
+	
 	mutex_lock(&dev_priv->vram_mutex);
 	pscnv_mm_free(bo->mmnode);
 	dev_priv->vram_usage -= bo->size;
+	cl = pscnv_client_get_current(dev);
+	if (cl) {
+		cl->vram_usage -= bo->size;
+	} else {
+		NV_ERROR(dev, "pscnv_vram_free: can not account client vram usage\n");
+	}
 	mutex_unlock(&dev_priv->vram_mutex);
 	return 0;
 }

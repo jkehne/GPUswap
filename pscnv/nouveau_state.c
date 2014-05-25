@@ -44,6 +44,7 @@
 #include "pscnv_fifo.h"
 #include "pscnv_ioctl.h"
 #include "pscnv_dma.h"
+#include "pscnv_client.h"
 
 static void nouveau_stub_takedown(struct drm_device *dev) {}
 static int nouveau_stub_init(struct drm_device *dev) { return 0; }
@@ -612,6 +613,8 @@ int nouveau_load(struct drm_device *dev, unsigned long flags)
 
 	dev_priv->flags = flags/* & NOUVEAU_FLAGS*/;
 	dev_priv->init_state = NOUVEAU_CARD_INIT_DOWN;
+	
+	pscnv_clients_init(dev);
 
 	NV_DEBUG(dev, "vendor: 0x%X device: 0x%X\n",
 		 dev->pci_vendor, dev->pci_device);
