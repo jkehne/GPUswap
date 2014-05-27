@@ -288,7 +288,7 @@ int nv50_graph_chan_alloc(struct pscnv_engine *eng, struct pscnv_chan *ch) {
 		hdr = 0x200;
 	else
 		hdr = 0x20;
-	grch->grctx = pscnv_mem_alloc(dev, graph->grctx_size, PSCNV_GEM_CONTIG, 0, 0x97c07e47);
+	grch->grctx = pscnv_mem_alloc(dev, graph->grctx_size, PSCNV_GEM_CONTIG, 0, 0x97c07e47, NULL);
 	if (!grch->grctx) {
 		NV_ERROR(dev, "PGRAPH: No VRAM for context!\n");
 		kfree(grch);

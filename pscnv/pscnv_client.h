@@ -26,16 +26,22 @@ struct pscnv_client {
 	
 	uint64_t vram_usage;
 	uint64_t vram_swapped;
+	uint64_t vram_swap_pending;
 	
 	/* list the client is in, see pscnv_clients.list */
 	struct list_head clients;
 	
 	/* list of memory areas that meight be taken away from this client */
-	struct list_head possible_swap;
+	struct pscnv_swapping_option_list swapping_options;
+	
+	/* list of memory areas that have been taken away from this client */
+	struct pscnv_swapping_option_list already_swapped;
 	
 	/* list of work to do, next time that this client has an empty fifo */
 	struct list_head on_empty_fifo;
 };
+
+typedef void (*client_workfunc_t)(void *data, struct pscnv_client *cl);
 
 /* setup the clients structure */
 int
@@ -63,7 +69,7 @@ pscnv_client_unref(struct pscnv_client *cl) {
 
 /* get the client instance for the current process, or NULL */
 struct pscnv_client*
-pscnv_client_get_current(struct drm_device *dev);
+pscnv_client_search_pid(struct drm_device *dev, pid_t pid);
 
 /* called every time some application opens a drm device */
 int
@@ -74,5 +80,16 @@ pscnv_client_open(struct drm_device *dev, struct drm_file *file_priv);
    nouveau_preclose() */
 void
 pscnv_client_postclose(struct drm_device *dev, struct drm_file *file_priv);
+
+void
+pscnv_client_do_on_empty_fifo_unlocked(struct pscnv_client *cl, client_workfunc_t func, void *data);
+
+void
+pscnv_client_run_empty_fifo_work(struct pscnv_client *cl);
+
+/* we caught some process, because it trap'd into the driver. Lets use this
+   oportunity and run_empty_fifo_work */
+void
+pscnv_client_wait_for_empty_fifo(struct pscnv_client *cl);
 
 #endif /* end of include guard: PSCNV_CLIENT_H */

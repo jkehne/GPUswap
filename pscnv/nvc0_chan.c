@@ -25,7 +25,7 @@ static int nvc0_chan_new (struct pscnv_chan *ch)
 	 * user. */
 
 	ch->bo = pscnv_mem_alloc(ch->dev, 0x1000, PSCNV_GEM_CONTIG,
-			0, (ch->cid < 0 ? 0xc5a2ba7 : 0xc5a2f1f0));
+			0, (ch->cid < 0 ? 0xc5a2ba7 : 0xc5a2f1f0), NULL);
 	if (!ch->bo)
 		return -ENOMEM;
 

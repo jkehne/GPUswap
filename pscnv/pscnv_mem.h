@@ -32,6 +32,7 @@
 #define PSCNV_MEM_PAGE_SIZE 0x1000
 
 struct pscnv_vspace;
+struct pscnv_client;
 
 /* A VRAM object of any kind. */
 struct pscnv_bo {
@@ -67,6 +68,9 @@ struct pscnv_bo {
 	struct pscnv_mm_node *primary_node;
 	/* bo that holds the content of this bo, if it gets swapped out */
 	struct pscnv_bo *backing_store;
+	/* client who allocated this bo, if it was allocated by a user space process */
+	struct pscnv_client *client;
+	
 #ifndef __linux__
 	/* freebsd: Allocate an array of fake pages we can populate if user-space mappable */
 	vm_page_t fake_pages;
@@ -84,7 +88,7 @@ struct pscnv_vram_engine {
 extern int pscnv_mem_init(struct drm_device *);
 extern void pscnv_mem_takedown(struct drm_device *);
 extern struct pscnv_bo *pscnv_mem_alloc(struct drm_device *,
-		uint64_t size, int flags, int tile_flags, uint32_t cookie);
+		uint64_t size, int flags, int tile_flags, uint32_t cookie, struct pscnv_client *client);
 
 /*
  * convenience function. Allocates and maps to vm. GPU virtual address is

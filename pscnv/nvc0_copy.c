@@ -44,7 +44,7 @@ nvc0_copy_chan_alloc(struct pscnv_engine *eng, struct pscnv_chan *ch)
 	uint32_t cookie = pcopy->fuc;
 	int ret;
 
-	coch->bo = pscnv_mem_alloc(dev, 256, PSCNV_GEM_CONTIG, 0, cookie);
+	coch->bo = pscnv_mem_alloc(dev, 256, PSCNV_GEM_CONTIG, 0, cookie, NULL);
 	if (!coch->bo) {
 		ret = -ENOMEM;
 		goto fail_mem_alloc;

@@ -7,6 +7,7 @@
 #include "pscnv_fifo.h"
 #include "pscnv_gem.h"
 #include "pscnv_swapping.h"
+#include "pscnv_client.h"
 #include "nv50_chan.h"
 #include "nvc0_graph.h"
 #include "pscnv_kapi.h"
@@ -107,11 +108,13 @@ int pscnv_ioctl_gem_new(struct drm_device *dev, void *data,
 	struct drm_pscnv_gem_info *info = data;
 	struct drm_gem_object *obj;
 	struct pscnv_bo *bo;
+	struct pscnv_client *client;
 	int ret;
 
 	NOUVEAU_CHECK_INITIALISED_WITH_RETURN;
 
-	obj = pscnv_gem_new(dev, info->size, info->flags, info->tile_flags, info->cookie, info->user);
+	client = pscnv_client_search_pid(dev, file_priv->pid);
+	obj = pscnv_gem_new(dev, info->size, info->flags, info->tile_flags, info->cookie, info->user, client);
 	if (!obj) {
 		return -ENOMEM;
 	}
@@ -131,6 +134,13 @@ int pscnv_ioctl_gem_new(struct drm_device *dev, void *data,
 	info->map_handle = DRM_GEM_MAPPING_OFF(obj->map_list.key) |
 			   DRM_GEM_MAPPING_KEY;
 #endif
+	
+	switch (bo->flags & PSCNV_GEM_MEMTYPE_MASK) {
+		case PSCNV_GEM_VRAM_SMALL:
+		case PSCNV_GEM_VRAM_LARGE:
+			pscnv_swapping_add_bo(bo);
+	}
+	
 	/* confusing: this immediatly sets obj->handle_count back to 0, so
 	 * the drm_gem_object should loose it's name, but the object (and the
 	 * attached buffer) should stay available 
@@ -178,29 +188,25 @@ int pscnv_ioctl_gem_info(struct drm_device *dev, void *data,
 	return 0;
 }
 
-int pscnv_ioctl_copy_to_host(struct drm_device *dev, void *data,
+int
+pscnv_ioctl_copy_to_host(struct drm_device *dev, void *data,
 						struct drm_file *file_priv)
 {
-	struct drm_pscnv_gem_info *info = data;
-	struct drm_gem_object *obj;
-	struct pscnv_bo *bo;
-	int res;
-
+	struct pscnv_client *cl;
+	
 	NOUVEAU_CHECK_INITIALISED_WITH_RETURN;
 	
-	obj = drm_gem_object_lookup(dev, file_priv, info->handle);
-	if (!obj) {
-		NV_INFO(dev, "GEM Handle %x, cookie %x does not exists\n", info->handle, info->cookie);
-		return -EBADF;
+	cl = pscnv_client_search_pid(dev, file_priv->pid);
+	
+	if (!cl) {
+		NV_ERROR(dev, "process with pid %d called copy_to_host, but "
+			      "has no client record\n", file_priv->pid);
+		return -ENOENT;
 	}
 	
-	bo = obj->driver_private;
+	pscnv_client_run_empty_fifo_work(cl);
 	
-	res = pscnv_bo_copy_to_host(bo);
-	
-	drm_gem_object_unreference_unlocked (obj);
-	
-	return res;
+	return 0;
 }
 
 static struct pscnv_vspace *

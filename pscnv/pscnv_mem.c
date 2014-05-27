@@ -35,6 +35,7 @@
 #endif
 
 #include "pscnv_client.h"
+#include "pscnv_swapping.h"
 
 int
 pscnv_mem_init(struct drm_device *dev)
@@ -99,7 +100,7 @@ pscnv_mem_takedown(struct drm_device *dev)
 
 struct pscnv_bo *
 pscnv_mem_alloc(struct drm_device *dev,
-		uint64_t size, int flags, int tile_flags, uint32_t cookie)
+		uint64_t size, int flags, int tile_flags, uint32_t cookie, struct pscnv_client *client)
 {
 	static int serial = 0;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
@@ -122,6 +123,7 @@ pscnv_mem_alloc(struct drm_device *dev,
 	res->tile_flags = tile_flags;
 	res->cookie = cookie;
 	res->gem = 0;
+	res->client = client;
 	
 	kref_init(&res->ref);
 
@@ -163,7 +165,7 @@ pscnv_mem_alloc_and_map(struct pscnv_vspace *vs, uint64_t size, uint32_t flags, 
 	struct pscnv_bo *bo;
 	int ret;
 	
-	bo = pscnv_mem_alloc(dev, size, flags, 0 /* tile flags */, cookie);
+	bo = pscnv_mem_alloc(dev, size, flags, 0 /* tile flags */, cookie, NULL);
 	
 	if (!bo) {
 		NV_INFO(dev, "Failed to allocate buffer object of size %llx"
@@ -213,6 +215,8 @@ pscnv_mem_free(struct pscnv_bo *bo)
 	if (dev_priv->vm_ok && bo->map3)
 		pscnv_vspace_unmap_node(bo->map3);
 	
+	pscnv_swapping_remove_bo(bo);
+	
 	if (bo->backing_store) {
 		pscnv_bo_unref(bo->backing_store);
 		dev_priv->vram_swapped -= bo->size;
@@ -249,18 +253,18 @@ pscnv_vram_free(struct pscnv_bo *bo)
 {
 	struct drm_device *dev = bo->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct pscnv_client *cl;
 	
 	mutex_lock(&dev_priv->vram_mutex);
 	pscnv_mm_free(bo->mmnode);
-	dev_priv->vram_usage -= bo->size;
-	cl = pscnv_client_get_current(dev);
-	if (cl) {
-		cl->vram_usage -= bo->size;
-	} else {
-		NV_ERROR(dev, "pscnv_vram_free: can not account client vram usage\n");
-	}
 	mutex_unlock(&dev_priv->vram_mutex);
+	
+	dev_priv->vram_usage -= bo->size;
+	if (bo->client) {
+		mutex_lock(&dev_priv->clients->lock);
+		bo->client->vram_usage -= bo->size;
+		mutex_unlock(&dev_priv->clients->lock);
+	}
+	
 	return 0;
 }
 

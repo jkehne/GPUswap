@@ -1,6 +1,9 @@
-#! /bin/sh
+#! /bin/bash
 #KERNELVER=$(uname -r)
 KERNELVER="3.5.7.31"
+
+. /etc/profile
+. ~/.bashrc
 
 cd pscnv
 make clean

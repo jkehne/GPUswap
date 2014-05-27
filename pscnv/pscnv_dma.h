@@ -10,6 +10,7 @@ struct pscnv_dma {
 	struct drm_device *dev;
 	struct pscnv_vspace *vs;
 	struct pscnv_ib_chan *ib_chan;
+	struct mutex lock;
 };
 
 /*

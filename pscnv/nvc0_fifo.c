@@ -52,7 +52,7 @@ int nvc0_fifo_init(struct drm_device *dev)
 	res->base.chan_resume_ib = nvc0_fifo_chan_resume_ib;
 
 	res->ctrl_bo = pscnv_mem_alloc(dev, 128 * 0x1000,
-					     PSCNV_GEM_CONTIG, 0, 0xf1f03e95);
+					     PSCNV_GEM_CONTIG, 0, 0xf1f03e95, NULL);
 
 	if (!res->ctrl_bo) {
 		NV_ERROR(dev, "PFIFO: Couldn't allocate control area!\n");
@@ -60,8 +60,8 @@ int nvc0_fifo_init(struct drm_device *dev)
 		return -ENOMEM;
 	}
 
-	res->playlist[0] = pscnv_mem_alloc(dev, 0x1000, PSCNV_GEM_CONTIG, 0, 0x91a71157);
-	res->playlist[1] = pscnv_mem_alloc(dev, 0x1000, PSCNV_GEM_CONTIG, 0, 0x91a71157);
+	res->playlist[0] = pscnv_mem_alloc(dev, 0x1000, PSCNV_GEM_CONTIG, 0, 0x91a71157, NULL);
+	res->playlist[1] = pscnv_mem_alloc(dev, 0x1000, PSCNV_GEM_CONTIG, 0, 0x91a71157, NULL);
 	if (!res->playlist[0] || !res->playlist[1]) {
 		NV_ERROR(dev, "PFIFO: Couldn't allocate playlists!\n");
 		if (res->playlist[0])

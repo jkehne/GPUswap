@@ -94,8 +94,9 @@ nvc0_vram_alloc(struct pscnv_bo *bo)
 {
 	struct drm_device *dev = bo->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct pscnv_client *cl;
 	int flags, ret;
+	uint64_t will_free;
+	int swap_retries = 0;
 	
 	if (bo->tile_flags & 0xffffff00)
 		return -EINVAL;
@@ -108,19 +109,32 @@ nvc0_vram_alloc(struct pscnv_bo *bo)
 	if (!(bo->flags & PSCNV_GEM_CONTIG))
 		flags |= PSCNV_MM_FRAGOK;
 	mutex_lock(&dev_priv->vram_mutex);
+	while (pscnv_swapping_required(dev, bo->size)) {
+		mutex_unlock(&dev_priv->vram_mutex);
+		if (swap_retries >= 3) {
+			NV_ERROR(dev, "nvc0_vram_alloc: can not get enough vram "
+				      " after %d retries\n", swap_retries);
+			return -EBUSY;
+		}
+		
+		ret = pscnv_swapping_reduce_vram(dev, bo->client, bo->size, &will_free);
+		if (ret) {
+			NV_ERROR(dev, "nvc0_vram_alloc: failed to swap\n");
+			return ret;
+		}
+		mutex_lock(&dev_priv->vram_mutex);
+		/* some one else meight be faster in this lock and steel the
+		   memory right in front of us */
+	}
 	ret = pscnv_mm_alloc(dev_priv->vram_mm, bo->size, flags, 0, dev_priv->vram_size, &bo->mmnode);
 	if (!ret) {
 		if (bo->flags & PSCNV_GEM_CONTIG)
 			bo->start = bo->mmnode->start;
 		bo->mmnode->tag = bo;
 		dev_priv->vram_usage += bo->size;
-		cl = pscnv_client_get_current(dev);
-		if (cl) {
-			cl->vram_usage += bo->size;
-		} else {
-			NV_ERROR(dev, "nvc0_vram_alloc: can not account client vram usage\n");
+		if (bo->client) {
+			bo->client->vram_usage += bo->size;
 		}
-		
 	}
 	mutex_unlock(&dev_priv->vram_mutex);
 	return ret;

@@ -118,6 +118,7 @@ pscnv_dma_init(struct drm_device *dev)
 		return -ENOMEM;
 	}
 	dma->dev = dev;
+	mutex_init(&dma->lock);
 	
 	/*if (!(dma->vs = pscnv_dma_get_vspace(dev))) {
 		res = -ENOENT;
@@ -189,6 +190,8 @@ pscnv_dma_bo_to_bo(struct pscnv_bo *tgt, struct pscnv_bo *src) {
 	
 	BUG_ON(tgt->dev != src->dev);
 	
+	mutex_lock(&dma->lock);
+	
 	if (tgt->size < src->size) {
 		NV_INFO(dev, "DMA: source bo (cookie=%x) has size %lld, but target bo "
 			"(cookie=%x) only has size %lld\n",
@@ -238,6 +241,8 @@ fail_map_src:
 	pscnv_vspace_unmap_node(tgt_node);
 	
 fail_map_tgt:
+	mutex_unlock(&dma->lock);
+
 	return ret;
 }
 

@@ -859,7 +859,7 @@ nv50_crtc_create(struct drm_device *dev, int index)
 	}
 	nv_crtc->lut.depth = 0;
 
-	nv_crtc->lut.nvbo = pscnv_mem_alloc(dev, 4096, PSCNV_GEM_CONTIG, 0, 0xd1517);
+	nv_crtc->lut.nvbo = pscnv_mem_alloc(dev, 4096, PSCNV_GEM_CONTIG, 0, 0xd1517, NULL);
 
 	if (!nv_crtc->lut.nvbo) {
 		kfree(nv_crtc->mode);
@@ -880,7 +880,7 @@ nv50_crtc_create(struct drm_device *dev, int index)
 	drm_crtc_helper_add(&nv_crtc->base, &nv50_crtc_helper_funcs);
 	drm_mode_crtc_set_gamma_size(&nv_crtc->base, 256);
 
-	nv_crtc->cursor.nvbo = pscnv_mem_alloc(dev, 64*64*4, PSCNV_GEM_CONTIG, 0, 0xd15c);
+	nv_crtc->cursor.nvbo = pscnv_mem_alloc(dev, 64*64*4, PSCNV_GEM_CONTIG, 0, 0xd15c, NULL);
 	if (!nv_crtc->cursor.nvbo) {
 		pscnv_mem_free(nv_crtc->lut.nvbo);
 		kfree(nv_crtc->mode);

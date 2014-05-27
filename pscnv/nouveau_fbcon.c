@@ -232,7 +232,7 @@ nouveau_fbcon_create(struct nouveau_fbdev *nfbdev,
 #endif
 	size = roundup(size, PAGE_SIZE);
 
-	obj = pscnv_gem_new(dev, size, PSCNV_GEM_CONTIG, 0, 0xd15fb, 0);
+	obj = pscnv_gem_new(dev, size, PSCNV_GEM_CONTIG, 0, 0xd15fb, 0, NULL);
 	if (!obj) {
 		ret = -ENOMEM;
 		NV_ERROR(dev, "failed to allocate framebuffer\n");

@@ -38,7 +38,7 @@ nv50_vspace_fill_pd_slot (struct pscnv_vspace *vs, uint32_t pdenum) {
 	struct list_head *pos;
 	int i;
 	uint32_t chan_pd;
-	nv50_vs(vs)->pt[pdenum] = pscnv_mem_alloc(vs->dev, NV50_VM_SPTE_COUNT * 8, PSCNV_GEM_CONTIG, 0, 0xa9e7ab1e);
+	nv50_vs(vs)->pt[pdenum] = pscnv_mem_alloc(vs->dev, NV50_VM_SPTE_COUNT * 8, PSCNV_GEM_CONTIG, 0, 0xa9e7ab1e, NULL);
 	if (!nv50_vs(vs)->pt[pdenum]) {
 		return -ENOMEM;
 	}

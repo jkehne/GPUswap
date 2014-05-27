@@ -535,7 +535,7 @@ nvc0_graph_init(struct drm_device *dev)
 	res->base.chan_free = nvc0_graph_chan_free;
 
 	vo = pscnv_mem_alloc(dev, 0x1000, PSCNV_GEM_CONTIG, 0, 
-						 NVC0_PGRAPH_GPC_BROADCAST_FFB_UNK34_ADDR);
+						 NVC0_PGRAPH_GPC_BROADCAST_FFB_UNK34_ADDR, NULL);
 	if (!vo)
 		return -ENOMEM;
 	ret = dev_priv->vm->map_kernel(vo);
@@ -544,7 +544,7 @@ nvc0_graph_init(struct drm_device *dev)
 	res->obj188b4 = vo; /* PGRAPH_GPC_BROADCAST_FFB_UNK32_ADDR */
 
 	vo = pscnv_mem_alloc(dev, 0x1000, PSCNV_GEM_CONTIG, 0,
-						 NVC0_PGRAPH_GPC_BROADCAST_FFB_UNK38_ADDR);
+						 NVC0_PGRAPH_GPC_BROADCAST_FFB_UNK38_ADDR, NULL);
 	if (!vo)
 		return -ENOMEM;
 	ret = dev_priv->vm->map_kernel(vo);
@@ -559,7 +559,7 @@ nvc0_graph_init(struct drm_device *dev)
 	dev_priv->vm->bar_flush(dev);
 
 	vo = pscnv_mem_alloc(dev, 0x2000, PSCNV_GEM_CONTIG | PSCNV_GEM_NOUSER, 0,
-						 NVC0_PGRAPH_CCACHE_HUB2GPC_ADDR);
+						 NVC0_PGRAPH_CCACHE_HUB2GPC_ADDR, NULL);
 	if (!vo)
 		return -ENOMEM;
 	ret = dev_priv->vm->map_kernel(vo);
@@ -568,7 +568,7 @@ nvc0_graph_init(struct drm_device *dev)
 	res->obj08004 = vo; /* PGRAPH_CCACHE_HUB2GPC_ADDR */
 
 	vo = pscnv_mem_alloc(dev, 0x8000, PSCNV_GEM_CONTIG | PSCNV_GEM_NOUSER, 0,
-						 NVC0_PGRAPH_CCACHE_HUB2ESETUP_ADDR);
+						 NVC0_PGRAPH_CCACHE_HUB2ESETUP_ADDR, NULL);
 	if (!vo)
 		return -ENOMEM;
 	ret = dev_priv->vm->map_kernel(vo);
@@ -577,7 +577,7 @@ nvc0_graph_init(struct drm_device *dev)
 	res->obj0800c = vo; /* PGRAPH_CCACHE_HUB2ESETUP_ADDR */
 
 	vo = pscnv_mem_alloc(dev, 3 << 17, PSCNV_GEM_CONTIG, 0, 
-						 GPC_BC(TP_BROADCAST_POLY_POLY2ESETUP));
+						 GPC_BC(TP_BROADCAST_POLY_POLY2ESETUP), NULL);
 	if (!vo)
 		return -ENOMEM;
 	ret = dev_priv->vm->map_kernel(vo);
@@ -677,7 +677,7 @@ nvc0_graph_create_context_mmio_list(struct pscnv_vspace *vs,
 	int i = 0, gpc, tp, ret;
 	u32 magic;
 
-	vo = pscnv_mem_alloc(vs->dev, 0x1000, PSCNV_GEM_CONTIG, 0, 0x33101157);
+	vo = pscnv_mem_alloc(vs->dev, 0x1000, PSCNV_GEM_CONTIG, 0, 0x33101157, NULL);
 	if (!vo)
 		return -ENOMEM;
 	nvc0_vs(vs)->mmio_bo = vo;
@@ -778,7 +778,7 @@ nvc0_graph_chan_alloc(struct pscnv_engine *eng, struct pscnv_chan *chan)
 
 	grch->grctx = pscnv_mem_alloc(dev, graph->grctx_size,
 								  PSCNV_GEM_CONTIG | PSCNV_GEM_NOUSER,
-								  0, 0x93ac0747);
+								  0, 0x93ac0747, NULL);
 	if (!grch->grctx)
 		return -ENOMEM;
 

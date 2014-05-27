@@ -153,9 +153,12 @@ nouveau_debugfs_memory_info(struct seq_file *m, void *data)
 	}
 	
 	list_for_each_entry(cur, &dev_priv->clients->list, clients) {
-		seq_printf(m, "client %d: used %dKiB, swapped %dKiB\n",
+		seq_printf(m, "client %d: used %dKiB, pending %dKiB, swapped %dKiB, swappable bo: %d, swapped bo: %d\n",
 			cur->pid, (int)(cur->vram_usage >> 10),
-			          (int)(cur->vram_swapped >> 10));
+				  (int)(cur->vram_swap_pending >> 10),
+			          (int)(cur->vram_swapped >> 10),
+				  (int)(cur->swapping_options.size),
+				  (int)(cur->already_swapped.size));
 	}
 	mutex_unlock(&dev_priv->clients->lock);
 	return 0;
@@ -186,7 +189,7 @@ pscnv_debugfs_vram_limit_get(void *data, u64 *val)
 	struct drm_device *dev = data;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	
-	*val = dev_priv->vram_limit;
+	*val = dev_priv->vram_limit >> 10;
 	return 0;
 }
 
@@ -196,7 +199,7 @@ pscnv_debugfs_vram_limit_set(void *data, u64 val)
 	struct drm_device *dev = data;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	
-	dev_priv->vram_limit = val;
+	dev_priv->vram_limit = val << 10;
 	return 0;
 }
 

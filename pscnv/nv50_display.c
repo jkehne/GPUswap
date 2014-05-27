@@ -140,7 +140,7 @@ nv50_evo_channel_new(struct drm_device *dev, struct nouveau_channel **pchan)
 	chan->user_put = NV50_PDISPLAY_USER_PUT(0);
 	chan->user_get = NV50_PDISPLAY_USER_GET(0);
 
-	chan->evo_obj = pscnv_mem_alloc(dev, 0x2000, PSCNV_GEM_CONTIG | PSCNV_GEM_VRAM_LARGE, 0, 0xd1501a7);
+	chan->evo_obj = pscnv_mem_alloc(dev, 0x2000, PSCNV_GEM_CONTIG | PSCNV_GEM_VRAM_LARGE, 0, 0xd1501a7, NULL);
 	if (!chan->evo_obj) {
 		nv50_evo_channel_del(pchan);
 		NV_ERROR(dev, "Error allocating EVO channel memory\n");
@@ -187,7 +187,7 @@ nv50_evo_channel_new(struct drm_device *dev, struct nouveau_channel **pchan)
 		return ret;
 	}
 
-	chan->pushbuf = pscnv_mem_alloc(dev, 0x1000, PSCNV_GEM_CONTIG, 0, 0xd15f1f0);
+	chan->pushbuf = pscnv_mem_alloc(dev, 0x1000, PSCNV_GEM_CONTIG, 0, 0xd15f1f0, NULL);
 	if (!chan->pushbuf) {
 		NV_ERROR(dev, "Error creating EVO DMA push buffer: %d\n", ret);
 		nv50_evo_channel_del(pchan);

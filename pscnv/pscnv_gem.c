@@ -110,10 +110,10 @@ struct drm_gem_object *pscnv_gem_wrap(struct drm_device *dev, struct pscnv_bo *v
 }
 
 struct drm_gem_object *pscnv_gem_new(struct drm_device *dev, uint64_t size, uint32_t flags,
-		uint32_t tile_flags, uint32_t cookie, uint32_t *user)
+		uint32_t tile_flags, uint32_t cookie, uint32_t *user, struct pscnv_client *client)
 {
 	int i;
-	struct pscnv_bo *vo = pscnv_mem_alloc(dev, size, flags, tile_flags, cookie);
+	struct pscnv_bo *vo = pscnv_mem_alloc(dev, size, flags, tile_flags, cookie, client);
 	struct drm_gem_object *obj;
 	if (!vo)
 		return 0;

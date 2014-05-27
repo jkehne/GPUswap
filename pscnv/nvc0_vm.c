@@ -65,7 +65,7 @@ nvc0_vspace_fill_pde(struct pscnv_vspace *vs, struct nvc0_pgt *pgt)
 	int i;
 	uint32_t pde[2];
 
-	pgt->bo[1] = pscnv_mem_alloc(vs->dev, size, PSCNV_GEM_CONTIG, 0, 0x59);
+	pgt->bo[1] = pscnv_mem_alloc(vs->dev, size, PSCNV_GEM_CONTIG, 0, 0x59, NULL);
 	if (!pgt->bo[1])
 		return -ENOMEM;
 
@@ -77,7 +77,7 @@ nvc0_vspace_fill_pde(struct pscnv_vspace *vs, struct nvc0_pgt *pgt)
 
 	if (vs->vid != -3) {
 		pgt->bo[0] = pscnv_mem_alloc(vs->dev, NVC0_VM_LPTE_COUNT * 8,
-					      PSCNV_GEM_CONTIG, 0, 0x79);
+					      PSCNV_GEM_CONTIG, 0, 0x79, NULL);
 		if (!pgt->bo[0])
 			return -ENOMEM;
 
@@ -295,7 +295,7 @@ static int nvc0_vspace_new(struct pscnv_vspace *vs) {
 	}
 
 	nvc0_vs(vs)->pd = pscnv_mem_alloc(vs->dev, NVC0_VM_PDE_COUNT * 8,
-			PSCNV_GEM_CONTIG, 0, 0xdeadcafe);
+			PSCNV_GEM_CONTIG, 0, 0xdeadcafe, NULL);
 	if (!nvc0_vs(vs)->pd) {
 		NV_ERROR(vs->dev, "VM: nvc0_vspace_new: pscnv_mem_alloc failed\n");
 		kfree(vs->engdata);

@@ -23,7 +23,7 @@ static int nv50_chan_new (struct pscnv_chan *ch) {
 	else
 		size = 0x5000;
 	ch->bo = pscnv_mem_alloc(vs->dev, size, PSCNV_GEM_CONTIG,
-			0, (ch->cid == -1 ? 0xc5a2ba7 : 0xc5a2f1f0));
+			0, (ch->cid == -1 ? 0xc5a2ba7 : 0xc5a2f1f0), NULL);
 	if (!ch->bo)
 		return -ENOMEM;
 
@@ -69,7 +69,7 @@ static int nv50_chan_new (struct pscnv_chan *ch) {
 			 * simplicity. */
 			ch->ramfc = nv50_chan_iobj_new(ch, 0x100);
 			ch->cache = pscnv_mem_alloc(vs->dev, 0x1000, PSCNV_GEM_CONTIG,
-					0, 0xf1f0cace);
+					0, 0xf1f0cace, NULL);
 			if (!ch->cache) {
 				spin_lock_irqsave(&dev_priv->chan->ch_lock, flags);
 				ch->handle = 0;

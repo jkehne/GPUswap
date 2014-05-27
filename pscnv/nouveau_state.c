@@ -45,6 +45,7 @@
 #include "pscnv_ioctl.h"
 #include "pscnv_dma.h"
 #include "pscnv_client.h"
+#include "pscnv_swapping.h"
 
 static void nouveau_stub_takedown(struct drm_device *dev) {}
 static int nouveau_stub_init(struct drm_device *dev) { return 0; }
@@ -423,12 +424,12 @@ nouveau_card_init(struct drm_device *dev)
 		drm_kms_helper_poll_init(dev);
 	}
 	
-	/*ret = pscnv_dma_init(dev);
+	ret = pscnv_dma_init(dev);
 	if (ret) {
 		NV_ERROR(dev, "DMA: initialization failed with value %d", ret);
 	} else {
 		NV_INFO(dev, "DMA: Initalized\n");
-	}*/
+	}
 
 	NV_INFO(dev, "Card initialized.\n");
 	return 0;
@@ -615,6 +616,7 @@ int nouveau_load(struct drm_device *dev, unsigned long flags)
 	dev_priv->init_state = NOUVEAU_CARD_INIT_DOWN;
 	
 	pscnv_clients_init(dev);
+	pscnv_swapping_init(dev);
 
 	NV_DEBUG(dev, "vendor: 0x%X device: 0x%X\n",
 		 dev->pci_vendor, dev->pci_device);
