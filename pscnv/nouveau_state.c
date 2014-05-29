@@ -412,17 +412,10 @@ nouveau_card_init(struct drm_device *dev)
 
 	dev_priv->init_state = NOUVEAU_CARD_INIT_DONE;
 
-	if (drm_core_check_feature(dev, DRIVER_MODESET)) {
-#ifdef __linux__
+	/*if (drm_core_check_feature(dev, DRIVER_MODESET)) {
 		nouveau_fbcon_init(dev);
-#else
-		// SIGH
-		DRM_UNLOCK();
-		nouveau_fbcon_init(dev);
-		DRM_LOCK();
-#endif
 		drm_kms_helper_poll_init(dev);
-	}
+	}*/
 	
 	ret = pscnv_dma_init(dev);
 	if (ret) {
