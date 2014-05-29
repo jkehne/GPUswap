@@ -350,11 +350,19 @@ static int nvc0_fifo_chan_resume_ib (struct pscnv_chan *ch, uint32_t pb_handle, 
 static const char *pgf_unit_str(int unit)
 {
 	switch (unit) {
-	case 0: return "PGRAPH";
-	case 3: return "PEEPHOLE";
-	case 4: return "FB BAR";
-	case 5: return "RAMIN BAR";
-	case 7: return "PUSHBUF";
+	case 0x00: return "PGRAPH";
+	case 0x03: return "PEEPHOLE";
+	case 0x04: return "FB BAR (BAR1)";
+	case 0x05: return "RAMIN BAR (BAR3)";
+	case 0x07: return "PFIFO";
+	case 0x10: return "PBSP";
+	case 0x11: return "PPPP";
+	case 0x13: return "PCOUNTER";
+	case 0x14: return "PVP";
+	case 0x15: return "PCOPY0";
+	case 0x16: return "PCOPY1";
+	case 0x17: return "PDAEMON";
+	
 	default:
 		break;
 	}
@@ -379,6 +387,16 @@ static const char *pgf_cause_str(uint32_t flags)
 	return "unknown cause";
 }
 
+static const char *fifo_sched_cause_str(uint32_t flags)
+{
+	switch (flags & 0xff) {
+	case 0xa: return "CTXSW_TIMEOUT";
+	default:
+		break;
+	}
+	return "unknown cause";
+}
+
 static void nvc0_pfifo_page_fault(struct drm_device *dev, int unit)
 {
 	uint64_t virt;
@@ -389,8 +407,8 @@ static void nvc0_pfifo_page_fault(struct drm_device *dev, int unit)
 	virt = (virt << 32) | nv_rd32(dev, 0x2804 + unit * 0x10);
 	flags = nv_rd32(dev, 0x280c + unit * 0x10);
 
-	NV_INFO(dev, "%s PAGE FAULT at 0x%010llx (%c, %s)\n",
-		pgf_unit_str(unit), virt,
+	NV_INFO(dev, "channel 0x%x: %s PAGE FAULT at 0x%010llx (%c, %s)\n",
+		chan, pgf_unit_str(unit), virt,
 		(flags & 0x80) ? 'w' : 'r', pgf_cause_str(flags));
 }
 
@@ -442,6 +460,9 @@ static void nvc0_fifo_irq_handler(struct drm_device *dev, int irq)
 		status &= ~0x01000000;
 	}
 	
+	/* for comparsion with nouveau:
+	 * __ffs(0) is undefined, forall n>0: __ffs(n) == ffs(n) - 1 */
+	
 	if (status & 0x10000000) {
 		uint32_t bits = nv_rd32(dev, 0x259c);
 		uint32_t units = bits;
@@ -466,17 +487,40 @@ static void nvc0_fifo_irq_handler(struct drm_device *dev, int irq)
 		nv_wr32(dev, 0x25a0, bits); /* ack */
 		status &= ~0x20000000;
 	}
+	
+	if (status & 0x40000000) {
+		uint32_t intr = nv_rd32(dev, 0x2a00);
+
+		/* nouveau stuff, pscnv doesn't seem to know this
+		if (intr & 0x10000000) {
+			wake_up(&priv->runlist.wait);
+			nv_wr32(priv, 0x002a00, 0x10000000);
+			intr &= ~0x10000000;
+		}*/
+
+		NV_INFO(dev, "RUNLIST 0x%08x\n", intr);
+		status &= ~0x40000000;
+	}
+
+	if (status & 0x80000000) {
+		NV_INFO(dev, "ENGINE INTERRUPT\n");
+		status &= ~0x80000000;
+	}
 
 	if (status & 0x00000100) {
 		uint32_t ibpk[2];
 		uint32_t data = nv_rd32(dev, 0x400c4);
+		uint32_t code = nv_rd32(dev, 0x254c);
+		uint32_t chan_id = nv_rd32(dev, 0x2640) & 0x7f;
+		const char *cause = fifo_sched_cause_str(code);
 
 		ibpk[0] = nv_rd32(dev, 0x40110);
 		ibpk[1] = nv_rd32(dev, 0x40114);
 
-		NV_INFO(dev, "PFIFO FUCKUP: DATA = 0x%08x\n"
-			"IB PACKET = 0x%08x 0x%08x\n", data, ibpk[0], ibpk[1]);
-//		status &= ~0x100;
+		NV_INFO(dev, "channel %d: PFIFO FUCKUP (SCHED_ERROR): %d(%s) DATA = 0x%08x\n"
+			"IB PACKET = 0x%08x 0x%08x\n", chan_id, code, cause, data, ibpk[0], ibpk[1]);
+		
+		status &= ~0x00000100;
 	}
 
 	if (status) {
