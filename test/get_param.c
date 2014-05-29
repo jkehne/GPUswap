@@ -48,6 +48,7 @@ int DoTest(int fd)
 	tmp[4] = PSCNV_GETPARAM_GRAPH_UNITS;
 	tmp[5] = PSCNV_GETPARAM_PTIMER_TIME;
 	tmp[6] = PSCNV_GETPARAM_FB_SIZE;
+	tmp[7] = PSCNV_GETPARAM_MP_COUNT;
 
 	
 	for (i = 0; i < 8; i++) {
