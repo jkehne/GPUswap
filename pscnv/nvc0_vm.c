@@ -35,26 +35,51 @@
 static int nvc0_vm_map_kernel(struct pscnv_bo *bo);
 static void nvc0_vm_takedown(struct drm_device *dev);
 
+static char *
+nvc0_tlb_flush_type_str(uint32_t type)
+{
+	switch (type) {
+		case 0x1: return "PAGE_ALL";
+		case 0x5: return "HUB_ONLY";
+	}
+	return "unknown type";
+}
+
 static int
 nvc0_tlb_flush(struct pscnv_vspace *vs)
 {
 	struct drm_device *dev = vs->dev;
-	uint32_t val;
+	uint32_t type;
+	int ret = 0;
 
 	BUG_ON(!nvc0_vs(vs)->pd);
+	
+	type = 0x1; /* PAGE_ALL */
+	if (vs->vid == -3) {
+		type |= 0x4; /* HUB_ONLY */
+	}
 
 	NV_DEBUG(dev, "nvc0_tlb_flush 0x%010llx\n", nvc0_vs(vs)->pd->start);
 
-	val = nv_rd32(dev, 0x100c80);
+	if (!nv_wait_neq(dev, 0x100c80, 0x00ff0000, 0x00000000)) {
+		NV_ERROR(dev, "TLB FLUSH TIMEOUT 0: vspace=%d 0x%08x %s\n",
+				vs->vid, nv_rd32(dev, 0x100c80),
+				nvc0_tlb_flush_type_str(type));
+		ret = -EBUSY;
+	}
 
 	nv_wr32(dev, 0x100cb8, nvc0_vs(vs)->pd->start >> 8);
-	nv_wr32(dev, 0x100cbc, 0x80000000 | ((vs->vid == -3) ? 0x5 : 0x1));
+	nv_wr32(dev, 0x100cbc, 0x80000000 | type);
 
-	if (!nv_wait(dev, 0x100c80, ~0, val)) {
-		NV_ERROR(vs->dev, "tlb flush timed out\n");
-		return -EBUSY;
+	/* wait for flush to be queued? */
+	if (!nv_wait(dev, 0x100c80, 0x00008000, 0x00008000)) {
+		NV_ERROR(dev, "TLB FLUSH TIMEOUT 1: vspace=%d 0x%08x %s\n",
+			 	vs->vid, nv_rd32(dev, 0x100c80),
+			 	nvc0_tlb_flush_type_str(type));
+		ret = -EBUSY;
 	}
-	return 0;
+	
+	return ret;
 }
 
 static int
@@ -386,6 +411,7 @@ nvc0_vm_init(struct drm_device *dev) {
 		dev_priv->vm = 0;
 		return -ENOMEM;
 	}
+	/* this channel is not yet mapped into it's VS */
 	vme->bar3ch = pscnv_chan_new (dev, vme->bar3vm, 3);
 	if (!vme->bar3ch) {
 		NV_ERROR(dev, "VM: failed to create BAR3 Channel");
