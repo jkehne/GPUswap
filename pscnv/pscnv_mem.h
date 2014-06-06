@@ -70,6 +70,10 @@ struct pscnv_bo {
 	struct pscnv_bo *backing_store;
 	/* client who allocated this bo, if it was allocated by a user space process */
 	struct pscnv_client *client;
+	/* if this pointer is set, use this memory area to access the VRAM contents
+	   of this bo (see nouveau_drv.h: nv_rv32, nv_wv32). This pointer should
+	   be set, if the BO is mapped to BAR 1 */
+	struct drm_local_map *drm_map;
 	
 #ifndef __linux__
 	/* freebsd: Allocate an array of fake pages we can populate if user-space mappable */
@@ -95,7 +99,11 @@ extern struct pscnv_bo *pscnv_mem_alloc(struct drm_device *,
  * returned in *vm_base. tile flags are set zero */
 extern struct pscnv_bo*	pscnv_mem_alloc_and_map(struct pscnv_vspace *vs, 
 		uint64_t size, uint32_t flags, uint32_t cookie, uint64_t *vm_base);
-		
+
+/*
+ * convenience function. Map the buffer in BAR1 and ioremap it via drm_addmap */
+extern int pscnv_bo_map_bar1(struct pscnv_bo* bo);
+
 /* calls pscnv_mem_free() */
 extern void pscnv_bo_ref_free(struct kref *ref);
 

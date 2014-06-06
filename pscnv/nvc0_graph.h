@@ -38,7 +38,7 @@ struct nvc0_graph_engine {
 	uint32_t *grctx_initvals;
 	uint8_t ropc_count;
 	uint8_t gpc_count;
-	uint8_t tp_count;
+	uint8_t tp_count; /* == mp_limit */
 	uint8_t gpc_tp_count[NVC0_GPC_MAX];
 	uint8_t gpc_cx_count[NVC0_GPC_MAX];
 	struct pscnv_bo *obj188b4;

@@ -319,6 +319,10 @@ pscnv_vram_to_host(struct pscnv_bo* vram)
 	int res;
 	
 	if (!dev_priv->dma) {
+		pscnv_dma_init(dev);
+	}
+	
+	if (!dev_priv->dma) {
 		NV_ERROR(dev, "pscnv_vram_to_host: no DMA available\n");
 		return -EINVAL;
 	}

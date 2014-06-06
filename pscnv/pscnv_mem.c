@@ -241,6 +241,39 @@ pscnv_mem_free(struct pscnv_bo *bo)
 	return 0;
 }
 
+int
+pscnv_bo_map_bar1(struct pscnv_bo* bo)
+{
+	struct drm_device *dev = bo->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	int ret;
+	
+	if (bo->map1) {
+		NV_INFO(dev, "pscnv_bo_map_bar1: BO %08x/%d already mapped to BAR1\n",
+			bo->cookie, bo->serial);
+		return -EINVAL;
+	}
+	
+	dev_priv->vm->map_user(bo);
+
+	if (!bo->map1) {
+		NV_ERROR(dev, "pscnv_bo_map_bar1: BO %08x/%d map_user() failed\n",
+			bo->cookie, bo->serial);
+		return -ENOMEM;
+	}
+	
+	ret = drm_addmap(dev, drm_get_resource_start(dev, 1) +	bo->map1->start,
+			bo->size, _DRM_REGISTERS, _DRM_KERNEL | _DRM_DRIVER,
+			&bo->drm_map);
+	if (ret) {
+		NV_ERROR(dev, "pscnv_bo_map_bar1: BO %08x/%d drm_addmap() failed with code %d\n",
+			bo->cookie, bo->serial, ret);
+		return ret;
+	}
+	
+	return 0;
+}
+
 void
 pscnv_bo_ref_free(struct kref *ref)
 {

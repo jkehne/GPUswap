@@ -27,6 +27,7 @@
 #include "nvc0_fifo.h"
 #include "nouveau_reg.h"
 #include "pscnv_chan.h"
+#include "nvc0_vm.h"
 
 static void nvc0_fifo_takedown(struct drm_device *dev);
 static void nvc0_fifo_irq_handler(struct drm_device *dev, int irq);
@@ -97,6 +98,8 @@ int nvc0_fifo_init(struct drm_device *dev)
 		kfree(res);
 		return ret;
 	}
+	
+	res->ctrl_bo->drm_map = res->fifo_ctl;
 	
 	/* reset PFIFO, enable all available PSUBFIFO areas */
 	nv_mask(dev, 0x000200, 0x00000100, 0x00000000);
@@ -222,9 +225,6 @@ static uint64_t nvc0_fifo_get_fifo_regs(struct pscnv_chan *ch)
 	return fifo->ctrl_bo->start + (ch->cid << 12);
 }
 
-#define nvchan_wr32(chan, ofst, val)					\
-	DRM_WRITE32(fifo->fifo_ctl, ((chan)->cid * 0x1000 + ofst), val)
-
 static int nvc0_fifo_chan_init_ib (struct pscnv_chan *ch, uint32_t pb_handle, uint32_t flags, uint32_t slimask, uint64_t ib_start, uint32_t ib_order) {
 	struct drm_device *dev = ch->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
@@ -239,12 +239,16 @@ static int nvc0_fifo_chan_init_ib (struct pscnv_chan *ch, uint32_t pb_handle, ui
 
 	spin_lock_irqsave(&dev_priv->context_switch_lock, irqflags);
 
-	for (i = 0x40; i <= 0x50; i += 4)
+	for (i = 0; i < 0x1000; i += 4) {
+		nv_wv32(fifo->ctrl_bo, (ch->cid << 12) + i, 0);
+	}
+
+	/*for (i = 0x40; i <= 0x50; i += 4)
 		nvchan_wr32(ch, i, 0);
 	for (i = 0x58; i <= 0x60; i += 4)
 		nvchan_wr32(ch, i, 0);
 	nvchan_wr32(ch, 0x88, 0);
-	nvchan_wr32(ch, 0x8c, 0);
+	nvchan_wr32(ch, 0x8c, 0);*/
 
 	for (i = 0; i < 0x100; i += 4)
 		nv_wv32(ch->bo, i, 0);
@@ -261,12 +265,12 @@ static int nvc0_fifo_chan_init_ib (struct pscnv_chan *ch, uint32_t pb_handle, ui
 	nv_wv32(ch->bo, 0x54, 0x2);
 	nv_wv32(ch->bo, 0x9c, 0x100);
 	nv_wv32(ch->bo, 0x84, 0x20400000);
-	nv_wv32(ch->bo, 0x94, 0x30000000 ^ slimask);
+	nv_wv32(ch->bo, 0x94, 0x30000001);
 	nv_wv32(ch->bo, 0xa4, 0x1f1f1f1f);
 	nv_wv32(ch->bo, 0xa8, 0x1f1f1f1f);
 	nv_wv32(ch->bo, 0xac, 0x1f);
 	nv_wv32(ch->bo, 0x30, 0xfffff902);
-	/* nv_wv32(chan->vo, 0xb8, 0xf8000000); */ /* previously omitted */
+	nv_wv32(ch->bo, 0xb8, 0xf8000000); /* previously omitted */
 	nv_wv32(ch->bo, 0xf8, 0x10003080);
 	nv_wv32(ch->bo, 0xfc, 0x10000010);
 	dev_priv->vm->bar_flush(dev);
@@ -399,8 +403,18 @@ static const char *fifo_sched_cause_str(uint32_t flags)
 
 static void nvc0_pfifo_page_fault(struct drm_device *dev, int unit)
 {
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	
 	uint64_t virt;
 	uint32_t chan, flags;
+	
+	/* this forces nv_rv32 to use "slowpath" pramin access. 
+	   Still nv_rv32 (as used by pd_dump) returns seemingly random values,
+	   instead of 0xffffff on fastpath.
+	
+	   I still set vm_ok=false, as nv_rd32 returns much more plausible
+	   values when this is set, but I don't know why */
+	dev_priv->vm_ok = false;
 
 	chan = nv_rd32(dev, 0x2800 + unit * 0x10) << 12;
 	virt = nv_rd32(dev, 0x2808 + unit * 0x10);
@@ -410,6 +424,14 @@ static void nvc0_pfifo_page_fault(struct drm_device *dev, int unit)
 	NV_INFO(dev, "channel 0x%x: %s PAGE FAULT at 0x%010llx (%c, %s)\n",
 		chan, pgf_unit_str(unit), virt,
 		(flags & 0x80) ? 'w' : 'r', pgf_cause_str(flags));
+	
+	if (unit == 0x05 && dev_priv->vm->pd_dump_bar3) {
+		dev_priv->vm->pd_dump_bar3(dev);
+	} else if (unit == 0x04 && dev_priv->vm->pd_dump_bar1) {
+		dev_priv->vm->pd_dump_bar1(dev);
+	} else if (unit == 0x00 && dev_priv->chan->pd_dump_chan) {
+		dev_priv->chan->pd_dump_chan(dev, 126);
+	}
 }
 
 static void nvc0_pfifo_subfifo_fault(struct drm_device *dev, int unit)
@@ -442,6 +464,8 @@ static void nvc0_pfifo_subfifo_fault(struct drm_device *dev, int unit)
 
 static void nvc0_fifo_irq_handler(struct drm_device *dev, int irq)
 {
+	static int num_fuckups = 0;
+	static int num_oxo1 = 0;
 	uint32_t status;
 
 	status = nv_rd32(dev, 0x2100) & nv_rd32(dev, 0x2140);
@@ -449,14 +473,32 @@ static void nvc0_fifo_irq_handler(struct drm_device *dev, int irq)
 	if (status & 0x00000001) {
 		u32 intr = nv_rd32(dev, 0x00252c);
 		NV_INFO(dev, "PFIFO INTR 0x00000001 (Puller error?): 0x%08x\n", intr);
-		nv_wr32(dev, 0x002100, 0x00000001);
+		nv_wr32(dev, 0x002100, 0x00000001); /* ack */
 		status &= ~0x00000001;
 	}
 
+	/* this interrupt meight be thrown with intr==5, when the nvidia card is
+	 * not the primary gpu (BIOS setup). */
 	if (status & 0x01000000) {
 		u32 intr = nv_rd32(dev, 0x00258c);
-		NV_INFO(dev, "INTR 0x01000000: 0x%08x\n", intr);
-		nv_wr32(dev, 0x002100, 0x01000000);
+		
+		num_oxo1++;
+		
+		/* don't pollute the terminal */
+		if (num_oxo1 < 10) {
+			NV_INFO(dev, "INTR 0x01000000: 0x%08x\n", intr);
+		}
+		
+		if (num_oxo1 == 10) {
+			NV_INFO(dev, "too many INTR 0x01000000, disabling this interrupt\n");
+			nv_wr32(dev, 0x2140, nv_rd32(dev, 0x2140) & ~0x01000000);
+		}
+		
+		if (num_oxo1 > 10 && num_oxo1 < 100) {
+			NV_ERROR(dev, "disabled INTR 0x01000000, but still thrown");
+		}
+		
+		nv_wr32(dev, 0x002100, 0x01000000); /* ack */
 		status &= ~0x01000000;
 	}
 	
@@ -511,21 +553,33 @@ static void nvc0_fifo_irq_handler(struct drm_device *dev, int irq)
 		uint32_t ibpk[2];
 		uint32_t data = nv_rd32(dev, 0x400c4);
 		uint32_t code = nv_rd32(dev, 0x254c);
-		uint32_t chan_id = nv_rd32(dev, 0x2640) & 0x7f;
+		uint32_t chan_id = nv_rd32(dev, 0x2640) & 0x7f; /* usual chid */
 		const char *cause = fifo_sched_cause_str(code);
+		
+		num_fuckups++;
 
 		ibpk[0] = nv_rd32(dev, 0x40110);
 		ibpk[1] = nv_rd32(dev, 0x40114);
+		
+		if (num_fuckups > 10 && num_fuckups < 100) {
+			NV_ERROR(dev, "disabled PFIFO FUCKUP interrupt, but still receiving\n");
+		}
 
-		NV_INFO(dev, "channel %d: PFIFO FUCKUP (SCHED_ERROR): %d(%s) DATA = 0x%08x\n"
-			"IB PACKET = 0x%08x 0x%08x\n", chan_id, code, cause, data, ibpk[0], ibpk[1]);
+		// without this, the whole terminal is wiped in seconds
+		if (num_fuckups < 10) {
+			NV_INFO(dev, "channel %d: PFIFO FUCKUP (SCHED_ERROR): %d(%s) DATA = 0x%08x\n"
+				"IB PACKET = 0x%08x 0x%08x\n", chan_id, code, cause, data, ibpk[0], ibpk[1]);
+		} else {
+			NV_INFO(dev, "too many PFIFO FUCKUPs, disabling interrupts\n");
+			nv_wr32(dev, 0x2140, nv_rd32(dev, 0x2140) & ~0x00000100);
+		}
 		
 		status &= ~0x00000100;
 	}
 
 	if (status) {
-		NV_INFO(dev, "unknown PFIFO INTR: 0x%08x\n", status);
-		/* disable interrupts */
+		NV_INFO(dev, "unknown PFIFO INTR: 0x%08x, disabling\n", status);
+		/* disable unknown interrupts */
 		nv_wr32(dev, 0x2140, nv_rd32(dev, 0x2140) & ~status);
 	}
 }

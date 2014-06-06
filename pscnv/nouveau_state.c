@@ -46,6 +46,7 @@
 #include "pscnv_dma.h"
 #include "pscnv_client.h"
 #include "pscnv_swapping.h"
+#include "nvc0_vm.h"
 
 static void nouveau_stub_takedown(struct drm_device *dev) {}
 static int nouveau_stub_init(struct drm_device *dev) { return 0; }
@@ -425,6 +426,10 @@ nouveau_card_init(struct drm_device *dev)
 	}
 
 	NV_INFO(dev, "Card initialized.\n");
+	
+	dev_priv->vm->pd_dump_bar3(dev);
+	dev_priv->vm->pd_dump_bar1(dev);
+	
 	return 0;
 
 #if 0
@@ -741,6 +746,9 @@ int nouveau_load(struct drm_device *dev, unsigned long flags)
 			return ret;
 		}
 	}
+	
+	NV_INFO(dev, "RAMIN_SIZE=0x%08x, FP_SIZE=0x%08llx\n",
+		dev_priv->ramin_size, dev_priv->fb_size);
 
 	nouveau_OF_copy_vbios_to_ramin(dev);
 

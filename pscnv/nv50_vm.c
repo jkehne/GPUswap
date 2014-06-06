@@ -222,12 +222,18 @@ nv50_vm_bar_flush(struct drm_device *dev) {
 	}
 }
 
+/* typically takes 4-6us */
 void
 nv84_vm_bar_flush(struct drm_device *dev) {
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	unsigned long flags;
+	
+	spin_lock_irqsave(&dev_priv->pramin_lock, flags);
 	nv_wr32(dev, 0x70000, 1);
 	if (!nouveau_wait_until(dev, 2000000000ULL, 0x70000, 2, 0)) {
 		NV_ERROR(dev, "BAR flush timeout!\n");
 	}
+	spin_unlock_irqrestore(&dev_priv->pramin_lock, flags);
 }
 
 int

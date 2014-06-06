@@ -9,6 +9,7 @@ static int nvc0_chan_new (struct pscnv_chan *ch)
 	struct pscnv_vspace *vs = ch->vspace;
 	struct drm_nouveau_private *dev_priv = ch->dev->dev_private;
 	unsigned long flags;
+	int i;
 	
 	/* ch->bo holds the configuration of the channel, including the
 	 * - page directory
@@ -35,6 +36,10 @@ static int nvc0_chan_new (struct pscnv_chan *ch)
 
 	if (vs->vid != -3)
 		dev_priv->vm->map_kernel(ch->bo);
+	
+	for (i = 0; i < 0x1000; i += 4) {
+		nv_wv32(ch->bo, i, 0);
+	}
 
 	nv_wv32(ch->bo, 0x200, nvc0_vs(vs)->pd->start);
 	nv_wv32(ch->bo, 0x204, nvc0_vs(vs)->pd->start >> 32);
@@ -70,6 +75,34 @@ nvc0_chan_takedown(struct drm_device *dev)
 	kfree(che);
 }
 
+static void
+nvc0_pd_dump_chan(struct drm_device *dev, int chid)
+{
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	uint64_t chan_bo_addr;
+	uint64_t pd_addr;
+	
+	chan_bo_addr = (uint64_t)(nv_rd32(dev, 0x3000 + chid * 8) & 0x3FFFFF) << 12;
+	
+	if (!chan_bo_addr) {
+		NV_INFO(dev, "nvc0_pd_dump_chan: no channel BO for channel %d\n", chid);
+		return;
+	}
+	
+	pd_addr = nv_rv32_pramin(dev, chan_bo_addr + 0x200);
+	pd_addr |= (uint64_t)(nv_rv32_pramin(dev, chan_bo_addr + 0x204)) << 32;
+	
+	if (!pd_addr) {
+		NV_ERROR(dev, "nvc0_pd_dump_chan: channel BO for channel %d"
+			      "exists, but no PD, wtf\n", chid);
+		return;
+	}
+	
+	NV_INFO(dev, "DUMP PD at %08llx for channel %d\n", pd_addr, chid);
+	
+	dev_priv->vm->pd_dump(dev, pd_addr, chid); 
+}
+
 int
 nvc0_chan_init(struct drm_device *dev)
 {
@@ -84,6 +117,7 @@ nvc0_chan_init(struct drm_device *dev)
 	che->base.takedown = nvc0_chan_takedown;
 	che->base.do_chan_new = nvc0_chan_new;
 	che->base.do_chan_free = nvc0_chan_free;
+	che->base.pd_dump_chan = nvc0_pd_dump_chan;
 	dev_priv->chan = &che->base;
 	spin_lock_init(&dev_priv->chan->ch_lock);
 	dev_priv->chan->ch_min = 1;

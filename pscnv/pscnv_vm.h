@@ -52,6 +52,9 @@ struct pscnv_vm_engine {
 	int (*map_user) (struct pscnv_bo *);
 	int (*map_kernel) (struct pscnv_bo *);
 	void (*bar_flush) (struct drm_device *dev);
+	void (*pd_dump) (struct drm_device *dev, uint64_t pd_addr, int id);
+	void (*pd_dump_bar1) (struct drm_device *dev);
+	void (*pd_dump_bar3) (struct drm_device *dev); 
 	struct pscnv_vspace *fake_vspaces[4];
 	struct pscnv_vspace *vspaces[128];
 	spinlock_t vs_lock;

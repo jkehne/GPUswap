@@ -51,11 +51,24 @@ nvc0_tlb_flush(struct pscnv_vspace *vs)
 	struct drm_device *dev = vs->dev;
 	uint32_t type;
 	int ret = 0;
+	unsigned long flags;
 
 	BUG_ON(!nvc0_vs(vs)->pd);
 	
 	type = 0x1; /* PAGE_ALL */
-	if (vs->vid == -3) {
+	
+	/* in original pscnv this was vs->vid == -3
+	 * I think this is wrong. In nouveau, the same code (vm/nvc0.c) reads:
+	 *
+	 *   type = 0x00000001;
+	 *   if (atomic_read(&vm->engref[NVDEV_SUBDEV_BAR]))
+	 *        type |= 0x00000004;
+	 *
+	 * and NVDEV_SUBDEV_BAR is translated to "BAR1" in fifo/nvc0.c
+	 * if it was BAR3, it should be NVDEV_SUBDEV_INSTMEM
+	 *
+	 * actually, I did not realize any difference however HUB_ONLY was set*/
+	if (vs->vid == -1) {
 		type |= 0x4; /* HUB_ONLY */
 	}
 
@@ -67,17 +80,24 @@ nvc0_tlb_flush(struct pscnv_vspace *vs)
 				nvc0_tlb_flush_type_str(type));
 		ret = -EBUSY;
 	}
+	
+	spin_lock_irqsave(&nvc0_vs(vs)->pd_lock, flags);
 
 	nv_wr32(dev, 0x100cb8, nvc0_vs(vs)->pd->start >> 8);
 	nv_wr32(dev, 0x100cbc, 0x80000000 | type);
 
-	/* wait for flush to be queued? */
+	/* wait for flush to be queued?
+	 * nv_wait does busy waiting on device timer, so it should be safe
+	 * to disable irqs here */
 	if (!nv_wait(dev, 0x100c80, 0x00008000, 0x00008000)) {
+		spin_unlock_irqrestore(&nvc0_vs(vs)->pd_lock, flags);
 		NV_ERROR(dev, "TLB FLUSH TIMEOUT 1: vspace=%d 0x%08x %s\n",
 			 	vs->vid, nv_rd32(dev, 0x100c80),
 			 	nvc0_tlb_flush_type_str(type));
 		ret = -EBUSY;
 	}
+	
+	spin_unlock_irqrestore(&nvc0_vs(vs)->pd_lock, flags);
 	
 	return ret;
 }
@@ -89,6 +109,7 @@ nvc0_vspace_fill_pde(struct pscnv_vspace *vs, struct nvc0_pgt *pgt)
 	const uint32_t size = NVC0_VM_SPTE_COUNT << (3 - pgt->limit);
 	int i;
 	uint32_t pde[2];
+	unsigned long flags;
 
 	pgt->bo[1] = pscnv_mem_alloc(vs->dev, size, PSCNV_GEM_CONTIG, 0, 0x59, NULL);
 	if (!pgt->bo[1])
@@ -115,16 +136,18 @@ nvc0_vspace_fill_pde(struct pscnv_vspace *vs, struct nvc0_pgt *pgt)
 		pde[0] |= (pgt->bo[0]->start >> 8) | 1;
 	}
 	dev_priv->vm->bar_flush(vs->dev);
-
+	
+	spin_lock_irqsave(&nvc0_vs(vs)->pd_lock, flags);
 	nv_wv32(nvc0_vs(vs)->pd, pgt->pde * 8 + 0, pde[0]);
 	nv_wv32(nvc0_vs(vs)->pd, pgt->pde * 8 + 4, pde[1]);
-
+	spin_unlock_irqrestore(&nvc0_vs(vs)->pd_lock, flags);
+	
 	dev_priv->vm->bar_flush(vs->dev);
 	return nvc0_tlb_flush(vs);
 }
 
 static struct nvc0_pgt *
-nvc0_vspace_pgt(struct pscnv_vspace *vs, unsigned int pde)
+nvc0_vspace_pgt_or_null(struct pscnv_vspace *vs, unsigned int pde)
 {
 	struct nvc0_pgt *pt;
 	struct list_head *pts = &nvc0_vs(vs)->ptht[NVC0_PDE_HASH(pde)];
@@ -134,8 +157,23 @@ nvc0_vspace_pgt(struct pscnv_vspace *vs, unsigned int pde)
 	list_for_each_entry(pt, pts, head)
 		if (pt->pde == pde)
 			return pt;
+	
+	return NULL;
+}
 
-	NV_DEBUG(vs->dev, "creating new page table: %i[%u]\n", vs->vid, pde);
+static struct nvc0_pgt *
+nvc0_vspace_pgt(struct pscnv_vspace *vs, unsigned int pde)
+{
+	struct nvc0_pgt *pt;
+	struct list_head *pts = &nvc0_vs(vs)->ptht[NVC0_PDE_HASH(pde)];
+	
+	if ((pt = nvc0_vspace_pgt_or_null(vs, pde))) {
+		return pt;
+	}
+
+	if (pscnv_vm_debug >= 2) {
+		NV_INFO(vs->dev, "creating new page table: %i[%u]\n", vs->vid, pde);
+	}
 
 	pt = kzalloc(sizeof *pt, GFP_KERNEL);
 	if (!pt)
@@ -155,13 +193,17 @@ nvc0_vspace_pgt(struct pscnv_vspace *vs, unsigned int pde)
 static void
 nvc0_pgt_del(struct pscnv_vspace *vs, struct nvc0_pgt *pgt)
 {
+	unsigned long flags;
+	
 	pscnv_vram_free(pgt->bo[1]);
 	if (pgt->bo[0])
 		pscnv_vram_free(pgt->bo[0]);
 	list_del(&pgt->head);
 
+	spin_lock_irqsave(&nvc0_vs(vs)->pd_lock, flags);
 	nv_wv32(nvc0_vs(vs)->pd, pgt->pde * 8 + 0, 0);
 	nv_wv32(nvc0_vs(vs)->pd, pgt->pde * 8 + 4, 0);
+	spin_unlock_irqrestore(&nvc0_vs(vs)->pd_lock, flags);
 
 	kfree(pgt);
 }
@@ -213,6 +255,123 @@ write_pt(struct pscnv_bo *pt, int pte, int count, uint64_t phys,
 	}
 }
 
+static const char *
+nvc0_vm_storage_type_str(int type)
+{
+	switch (type) {
+		case 0x0: return "VRAM";
+		case 0x5: return "SYSRAM_SNOOP";
+		case 0x7: return "SYSRAM_NOSNOOP";
+	}
+	
+	return "UNKNOWN TYPE";
+}
+
+static void
+nvc0_vm_pt_dump(struct drm_device *dev, uint64_t pt_addr, int id, int small, int limit, int pde, int *entrycnt)
+{
+	uint32_t size;
+	const char *type_str = (small) ? "SPT" : "LPT";
+	int i;
+	
+	if (small) {
+		size = NVC0_VM_SPTE_COUNT >> limit;
+	} else {
+		size = NVC0_VM_LPTE_COUNT;
+	}
+	
+	for (i = 0; i < size; ) {
+		
+		unsigned i_start = i;
+		uint32_t a, b;
+		uint64_t start, end;
+		int sysflag, type, valid;
+		
+		uint32_t a_next, b_next;
+		uint64_t addr_next;
+		int sysflag_next, type_next, valid_next;
+		
+		a = nv_rv32_pramin(dev, pt_addr + i * 8);
+		b = nv_rv32_pramin(dev, pt_addr + i * 8 + 4);
+		
+		start = end = a >> 4;
+		sysflag = (a >> 1) & 1;
+		type = b & 7;
+		valid = a & 1;
+		
+		if (!valid) {
+			i++;
+			continue;
+		}
+		
+		do {
+			end += (small) ? 1 : 32;
+			i++;
+			
+			if (i >= size) {
+				break;
+			}
+			
+			a_next = nv_rv32_pramin(dev, pt_addr + i * 8);
+			b_next = nv_rv32_pramin(dev, pt_addr + i * 8 + 4);
+			
+			valid_next = a_next & 1;
+			addr_next = a_next >> 4;
+			sysflag_next = (a_next >> 1) & 1;
+			type_next = b_next & 7;
+			
+		} while (valid_next && addr_next == end && sysflag_next == sysflag && type_next == type);
+		
+		NV_INFO(dev, "%d[%d]%s   %04x: %04llx-%04llx sys=%d %s\n",
+			id, pde, type_str, i_start, start, end, sysflag, nvc0_vm_storage_type_str(type));
+		
+		*entrycnt += 1;
+			
+		/* we seem to read bullshit */
+		if (*entrycnt >= 1000) {
+			return;
+		}
+	}
+}
+
+/* pd_addr = physical address of page directory in VRAM */
+static void
+nvc0_vm_pd_dump(struct drm_device *dev, uint64_t pd_addr, int id)
+{
+	unsigned int i;
+	int entrycnt = 0;
+	
+	for (i = 0; i < NVC0_VM_PDE_COUNT; i++) {
+		uint32_t a, b;
+		uint32_t lpt_addr, spt_addr, spt_limit, spt_valid, lpt_valid;
+		
+		a = nv_rv32_pramin(dev, pd_addr + i * 8);
+		b = nv_rv32_pramin(dev, pd_addr + i * 8 + 4);
+		
+		spt_valid = b & 1;
+		lpt_valid = a & 1;
+		spt_limit = (a >> 2) & 3;
+		lpt_addr = (a >> 4);
+		spt_addr = (b >> 4);
+		
+		if (a != 0 || b != 0) {
+			NV_INFO(dev, "%d[%d] ** LPT=%08x SPT_LIMIT=%d LPT_VALID=%d SPT=%08x SPT_VALID=%d\n",
+				id, i, lpt_addr, spt_limit, lpt_valid, spt_addr, spt_valid);
+		}
+		if (spt_valid) {	
+			nvc0_vm_pt_dump(dev, spt_addr << 12, id, true, spt_limit, i, &entrycnt);
+		}
+		if (lpt_valid) {
+			nvc0_vm_pt_dump(dev, lpt_addr << 12, id, false, 0, i, &entrycnt);
+		}
+		
+		/* we seem to read bullshit */
+		if (entrycnt >= 1000) {
+			return;
+		}
+	}
+}
+
 static int
 nvc0_vspace_place_map (struct pscnv_vspace *vs, struct pscnv_bo *bo,
 		       uint64_t start, uint64_t end, int back,
@@ -236,6 +395,9 @@ nvc0_vspace_do_map(struct pscnv_vspace *vs,
 	uint32_t pfl0, pfl1;
 	struct pscnv_mm_node *reg;
 	int i;
+	unsigned long flags;
+	int s;
+	uint32_t psh, psz;
 
 	pfl0 = 1;
 	if (vs->vid >= 0 && (bo->flags & PSCNV_GEM_NOUSER))
@@ -253,29 +415,33 @@ nvc0_vspace_do_map(struct pscnv_vspace *vs,
 		unsigned int pte = (offset & NVC0_VM_BLOCK_MASK) >> PAGE_SHIFT;
 		struct nvc0_pgt *pt = nvc0_vspace_pgt(vs, pde);
 		pfl1 |= 0x5;
+		spin_lock_irqsave(&nvc0_vs(vs)->pd_lock, flags);
 		for (i = 0; i < (bo->size >> PAGE_SHIFT); ++i) {
 			uint64_t phys = bo->dmapages[i];
 			nv_wv32(pt->bo[1], pte * 8 + 4, pfl1);
 			nv_wv32(pt->bo[1], pte * 8 + 0, (phys >> 8) | pfl0);
 			pte++;
 			if ((pte & (NVC0_VM_BLOCK_MASK >> PAGE_SHIFT)) == 0) {
+				spin_unlock_irqrestore(&nvc0_vs(vs)->pd_lock, flags);
 				pte = 0;
 				pt = nvc0_vspace_pgt(vs, ++pde);
+				spin_lock_irqsave(&nvc0_vs(vs)->pd_lock, flags);
 			}
 		}
+		spin_unlock_irqrestore(&nvc0_vs(vs)->pd_lock, flags);
 	}
 		break;
 	case PSCNV_GEM_VRAM_SMALL:
 	case PSCNV_GEM_VRAM_LARGE:
+		s = (bo->flags & PSCNV_GEM_MEMTYPE_MASK) != PSCNV_GEM_VRAM_LARGE;
+		if (vs->vid == -3)
+			s = 1;
+		psh = s ? NVC0_SPAGE_SHIFT : NVC0_LPAGE_SHIFT;
+		psz = 1 << psh;
+		
 		for (reg = bo->mmnode; reg; reg = reg->next) {
-			uint32_t psh, psz;
-			uint64_t phys = reg->start, size = reg->size;
-
-			int s = (bo->flags & PSCNV_GEM_MEMTYPE_MASK) != PSCNV_GEM_VRAM_LARGE;
-			if (vs->vid == -3)
-				s = 1;
-			psh = s ? NVC0_SPAGE_SHIFT : NVC0_LPAGE_SHIFT;
-			psz = 1 << psh;
+			uint64_t phys = reg->start;
+			uint64_t size = reg->size;
 
 			while (size) {
 				struct nvc0_pgt *pt;
@@ -292,7 +458,9 @@ nvc0_vspace_do_map(struct pscnv_vspace *vs,
 				count = space >> psh;
 				pt = nvc0_vspace_pgt(vs, NVC0_PDE(offset));
 
+				spin_lock_irqsave(&nvc0_vs(vs)->pd_lock, flags);
 				write_pt(pt->bo[s], pte, count, phys, psz, pfl0, pfl1);
+				spin_unlock_irqrestore(&nvc0_vs(vs)->pd_lock, flags);
 
 				offset += space;
 				phys += space;
@@ -308,6 +476,7 @@ nvc0_vspace_do_map(struct pscnv_vspace *vs,
 }
 
 static int nvc0_vspace_new(struct pscnv_vspace *vs) {
+	unsigned long flags;
 	int i, ret;
 
 	if (vs->size > 1ull << 40)
@@ -318,6 +487,8 @@ static int nvc0_vspace_new(struct pscnv_vspace *vs) {
 		NV_ERROR(vs->dev, "VM: Couldn't alloc vspace eng\n");
 		return -ENOMEM;
 	}
+	
+	spin_lock_init(&nvc0_vs(vs)->pd_lock);
 
 	nvc0_vs(vs)->pd = pscnv_mem_alloc(vs->dev, NVC0_VM_PDE_COUNT * 8,
 			PSCNV_GEM_CONTIG, 0, 0xdeadcafe, NULL);
@@ -329,11 +500,15 @@ static int nvc0_vspace_new(struct pscnv_vspace *vs) {
 
 	if (vs->vid != -3)
 		nvc0_vm_map_kernel(nvc0_vs(vs)->pd);
-
-	for (i = 0; i < NVC0_VM_PDE_COUNT; i++) {
+	
+	/* this is causing the RAMIN BAR fault!!! */
+	//for (i = 0; i < NVC0_VM_PDE_COUNT; i++) {
+	spin_lock_irqsave(&nvc0_vs(vs)->pd_lock, flags);
+	for (i = NVC0_VM_PDE_COUNT-1; i >= 0; i--) {
 		nv_wv32(nvc0_vs(vs)->pd, i * 8, 0);
 		nv_wv32(nvc0_vs(vs)->pd, i * 8 + 4, 0);
 	}
+	spin_unlock_irqrestore(&nvc0_vs(vs)->pd_lock, flags);
 	
 	for (i = 0; i < NVC0_PDE_HT_SIZE; ++i)
 		INIT_LIST_HEAD(&nvc0_vs(vs)->ptht[i]);
@@ -376,6 +551,45 @@ static int nvc0_vm_map_kernel(struct pscnv_bo *bo) {
 	return pscnv_vspace_map(vme->bar3vm, bo, 0, dev_priv->ramin_size, 0, &bo->map3);
 }
 
+static void
+nvc0_vm_pd_dump_bar(struct drm_device *dev, int bar, uint32_t reg)
+{
+	uint64_t pd_addr;
+	uint64_t chan_bo_addr;
+	
+	chan_bo_addr = (uint64_t)(nv_rd32(dev, reg) & 0x3FFFFF) << 12;
+	
+	if (!chan_bo_addr) {
+		NV_INFO(dev, "nvc0_vm_pd_dump_bar%d: no channel BO\n", bar);
+		return;
+	}
+	
+	pd_addr = nv_rv32_pramin(dev, chan_bo_addr + 0x200);
+	pd_addr |= (uint64_t)(nv_rv32_pramin(dev, chan_bo_addr + 0x204)) << 32;
+	
+	if (!pd_addr) {
+		NV_ERROR(dev, "nvc0_vm_pd_dump_bar%d: channel BO exists at 0x%08llx"
+			      ", but no PD, wtf\n", bar, chan_bo_addr);
+		return;
+	}
+	
+	NV_INFO(dev, "DUMP BAR%d PD at 0x%08llx\n", bar, pd_addr);
+	
+	nvc0_vm_pd_dump(dev, pd_addr, -bar);
+}
+
+static void
+nvc0_vm_pd_dump_bar3(struct drm_device *dev)
+{
+	nvc0_vm_pd_dump_bar(dev, 3, 0x1714);
+}
+
+static void
+nvc0_vm_pd_dump_bar1(struct drm_device *dev)
+{
+	nvc0_vm_pd_dump_bar(dev, 1, 0x1704);
+}
+
 int
 nvc0_vm_init(struct drm_device *dev) {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
@@ -394,15 +608,18 @@ nvc0_vm_init(struct drm_device *dev) {
 	vme->base.map_user = nvc0_vm_map_user;
 	vme->base.map_kernel = nvc0_vm_map_kernel;
 	vme->base.bar_flush = nv84_vm_bar_flush;
+	vme->base.pd_dump = nvc0_vm_pd_dump;
+	vme->base.pd_dump_bar1 = nvc0_vm_pd_dump_bar1;
+	vme->base.pd_dump_bar3 = nvc0_vm_pd_dump_bar3;
 	dev_priv->vm = &vme->base;
 
 	dev_priv->vm_ramin_base = 0;
 	spin_lock_init(&dev_priv->vm->vs_lock);
 
-	nv_wr32(dev, 0x200, 0xfffffeff);
+	/*nv_wr32(dev, 0x200, 0xfffffeff);
 	nv_wr32(dev, 0x200, 0xffffffff);
 
-	nv_wr32(dev, 0x100c80, 0x00208000);
+	nv_wr32(dev, 0x100c80, 0x00208000);*/
 
 	vme->bar3vm = pscnv_vspace_new (dev, dev_priv->ramin_size, 0, 3);
 	if (!vme->bar3vm) {
@@ -420,6 +637,11 @@ nvc0_vm_init(struct drm_device *dev) {
 		dev_priv->vm = 0;
 		return -ENOMEM;
 	}
+	
+	nv_mask(dev, 0x000200, 0x00000100, 0x00000000);
+	nv_mask(dev, 0x000200, 0x00000100, 0x00000100);
+	nv_mask(dev, 0x100c80, 0x00000001, 0x00000000);
+	
 	nv_wr32(dev, 0x1714, 0xc0000000 | vme->bar3ch->bo->start >> 12);
 
 	dev_priv->vm_ok = 1;
@@ -472,4 +694,3 @@ nvc0_vm_takedown(struct drm_device *dev) {
 	kfree(vme);
 	dev_priv->vm = 0;
 }
-

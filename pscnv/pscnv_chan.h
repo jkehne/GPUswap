@@ -56,6 +56,7 @@ struct pscnv_chan_engine {
 	void (*takedown) (struct drm_device *dev);
 	int (*do_chan_new) (struct pscnv_chan *ch);
 	void (*do_chan_free) (struct pscnv_chan *ch);
+	void (*pd_dump_chan) (struct drm_device *dev, int chid);
 	struct pscnv_chan *fake_chans[4];
 	struct pscnv_chan *chans[128];
 	spinlock_t ch_lock;

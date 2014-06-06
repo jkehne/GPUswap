@@ -1361,22 +1361,59 @@ nv_match_device(struct drm_device *dev, unsigned device,
 
 /* object access */
 
+/* slowpath, called "instmem" by nouveau, same for nv50, nvc0.
+   PRAMIN seems to be 1MB (nouveau) though, not just 16kB as used by pscnv.
+   I guess pscnv does not map a large enough io memory region
+*/
+
+static inline uint32_t nv_rv32_pramin(struct drm_device *dev, uint64_t addr)
+{
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	unsigned long flags;
+	uint64_t base = addr &   0xfffffff0000ULL;
+	uint64_t offset = addr & 0x0000000ffffULL;
+	uint32_t data;
+
+	spin_lock_irqsave(&dev_priv->pramin_lock, flags);
+	if (unlikely(dev_priv->pramin_start != base)) {
+		nv_wr32(dev, 0x001700, base >> 16);
+		dev_priv->pramin_start = base;
+	}
+	data = nv_rd32(dev, 0x700000 + offset);
+	spin_unlock_irqrestore(&dev_priv->pramin_lock, flags);
+	return data;
+}
+
+static inline void nv_wv32_pramin(struct drm_device *dev, uint64_t addr, uint32_t val)
+{
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	unsigned long flags;
+	uint64_t base = addr   & 0xfffffff0000ULL;
+	uint64_t offset = addr & 0x0000000ffffULL;
+
+	spin_lock_irqsave(&dev_priv->pramin_lock, flags);
+	if (unlikely(dev_priv->pramin_start != base)) {
+		nv_wr32(dev, 0x001700, base >> 16);
+		dev_priv->pramin_start = base;
+	}
+	nv_wr32(dev, 0x700000 + offset, val);
+	spin_unlock_irqrestore(&dev_priv->pramin_lock, flags);
+}
+
 static inline uint32_t nv_rv32(struct pscnv_bo *bo,
 				unsigned offset)
 {
 	struct drm_nouveau_private *dev_priv = bo->dev->dev_private;
-	uint32_t res;
 	uint64_t addr = bo->start + offset;
-	if (bo->map3 && dev_priv->vm && dev_priv->vm_ok)
-		return le32_to_cpu(DRM_READ32(dev_priv->ramin, bo->map3->start - dev_priv->vm_ramin_base + offset));
-	spin_lock(&dev_priv->pramin_lock);
-	if (addr >> 16 != dev_priv->pramin_start) {
-		dev_priv->pramin_start = addr >> 16;
-		nv_wr32(bo->dev, 0x1700, addr >> 16);
+	if (dev_priv->vm && dev_priv->vm_ok) {
+		if (bo->drm_map) {
+			return le32_to_cpu(DRM_READ32(bo->drm_map, offset));
+		} else if (bo->map3) {
+			return le32_to_cpu(DRM_READ32(dev_priv->ramin, bo->map3->start - dev_priv->vm_ramin_base + offset));
+		}
 	}
-	res = nv_rd32(bo->dev, 0x700000 + (addr & 0xffff));
-	spin_unlock(&dev_priv->pramin_lock);
-	return res;
+	/* fallback to slowpath */
+	return nv_rv32_pramin(bo->dev, addr);
 }
 
 static inline void nv_wv32(struct pscnv_bo *bo,
@@ -1384,17 +1421,17 @@ static inline void nv_wv32(struct pscnv_bo *bo,
 {
 	struct drm_nouveau_private *dev_priv = bo->dev->dev_private;
 	uint64_t addr = bo->start + offset;
-	if (bo->map3 && dev_priv->vm && dev_priv->vm_ok) {
-		DRM_WRITE32(dev_priv->ramin, bo->map3->start - dev_priv->vm_ramin_base + offset, cpu_to_le32(val));
-		return;
+	if (dev_priv->vm && dev_priv->vm_ok) {
+		if (bo->drm_map) {
+			DRM_WRITE32(bo->drm_map, offset, cpu_to_le32(val));
+			return;
+		} else if (bo->map3) {
+			DRM_WRITE32(dev_priv->ramin, bo->map3->start - dev_priv->vm_ramin_base + offset, cpu_to_le32(val));
+			return;
+		}
 	}
-	spin_lock(&dev_priv->pramin_lock);
-	if (addr >> 16 != dev_priv->pramin_start) {
-		dev_priv->pramin_start = addr >> 16;
-		nv_wr32(bo->dev, 0x1700, addr >> 16);
-	}
-	nv_wr32(bo->dev, 0x700000 + (addr & 0xffff), val);
-	spin_unlock(&dev_priv->pramin_lock);
+	/* fallback to slowpath */
+	nv_wv32_pramin(bo->dev, addr, val);	
 }
 
 #endif /* __NOUVEAU_DRV_H__ */

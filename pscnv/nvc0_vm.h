@@ -51,6 +51,7 @@ struct nvc0_vspace {
 	struct pscnv_bo *mmio_bo;
 	struct pscnv_mm_node *mmio_vm;
 	uint32_t mmio_count;
+	spinlock_t pd_lock;
 };
 
 #endif /* __NVC0_VM_H__ */

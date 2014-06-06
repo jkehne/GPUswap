@@ -60,50 +60,13 @@ static void nvc0_memcpy_m2mf(struct pscnv_ib_chan *chan, const uint64_t dst_addr
 	FIRE_RING(chan);
 }
 
-#if 0
-static struct pscnv_vspace*
-pscnv_dma_get_vspace(struct drm_device *dev)
-{
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	
-	struct pscnv_vspace *vs = dev_priv->vm->fake_vspaces[-(PSCNV_DMA_VSPACE)];
-	
-	if (vs == NULL) {
-		NV_INFO(dev, "DMA: PSCNV_DMA_VSPACE %d does not exists!\n", PSCNV_DMA_VSPACE);
-		return NULL;
-	}
-	
-	if (vs->vid != PSCNV_DMA_VSPACE) {
-		NV_INFO(dev, "DMA: PSCNV_DMA_VSPACE has vid %d but should have %d\n",
-				vs->vid, PSCNV_DMA_VSPACE);
-		return NULL;
-	}
-	
-	return vs;
-}
-#endif
-
-static void
-pscnv_dma_init_m2mf(struct pscnv_dma* dma)
-{
-	struct pscnv_ib_chan *chan = dma->ib_chan;
-	int i;
-	
-	for (i = 0; i < 128/4; i++) {
-		OUT_RING(chan, 0);
-	}
-	FIRE_RING(chan);
-	BEGIN_NVC0(chan, GDEV_SUBCH_NV_M2MF, 0, 1);
-	OUT_RING(chan, 0x9039); /* M2MF */
-	FIRE_RING(chan);
-}
-
 int
 pscnv_dma_init(struct drm_device *dev)
 {	
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct pscnv_dma *dma;
 	int res = 0;
+	int subch;
 	
 	NV_INFO(dev, "DMA: Initializing...\n");
 	
@@ -151,7 +114,8 @@ pscnv_dma_init(struct drm_device *dev)
 		goto fail_fence;
         }
 	
-	pscnv_dma_init_m2mf(dma);
+	subch = GDEV_SUBCH_NV_COMPUTE | GDEV_SUBCH_NV_M2MF;
+	pscnv_ib_init_subch(dma->ib_chan, subch);
 	
 	dev_priv->dma = dma;
 	
@@ -221,6 +185,8 @@ pscnv_dma_bo_to_bo(struct pscnv_bo *tgt, struct pscnv_bo *src) {
 		goto fail_map_src;
 	}
 	
+	pscnv_ib_membar(dma->ib_chan);
+	
 	pscnv_ib_fence_write(dma->ib_chan, GDEV_SUBCH_NV_M2MF);
 	
 	nvc0_memcpy_m2mf(dma->ib_chan, tgt_node->start, src_node->start, size);
@@ -246,75 +212,3 @@ fail_map_tgt:
 	return ret;
 }
 
-#if 0
-int pscnv_dma_test(struct pscnv_dma *dma) {
-	int ret;
-	struct pscnv_ib_bo *src;
-	uint64_t write_start = 0;
-	uint64_t write_end = 0;
-	uint64_t read_start = 0;
-	uint64_t read_end = 0;
-	uint64_t dma_start = 0;
-	uint64_t dma_end = 0;
-	uint64_t read_dma_start = 0;
-	uint64_t read_dma_end = 0;
-	uint64_t size = 0x1000000;
-	void *read_buffer = malloc(size);
-	void *copy;
-	double read, write, dma_copy, read_dma;
-
-	ret = pscnv_ib_bo_alloc(dma->drm_fd, 0, 0, PSCNV_GEM_MAPPABLE, 0,
-							size, 0, &src);
-	if (ret) {
-		fprintf(stderr, "pscnv_virt: Could not create test data.\n");
-		return -1;
-	}
-	write_start = get_time();
-	memset(src->map, 0x12, size);
-	write_end = get_time();
-	read_start = get_time();
-	memcpy(read_buffer, src->map, size);
-	read_end = get_time();
-
-	dma_start = get_time();
-	copy = pscnv_dma_to_sysram(dma, src->handle, size);
-	if (copy == NULL) {
-		fprintf(stderr, "pscnv_virt: DMA test failed.\n");
-		return -1;
-	}
-	dma_end = get_time();
-	read_dma_start = get_time();
-	memcpy(read_buffer, copy, size);
-	read_dma_end = get_time();
-	
-	read = (double)(read_end - read_start) / 1000;
-	write = (double)(write_end - write_start) / 1000;
-	fprintf(stderr, "without DMA: %lf ms write, %lf ms read\n", write, read);
-	dma_copy = (double)(dma_end - dma_start) / 1000;
-	read_dma = (double)(read_dma_end - read_dma_start) / 1000;
-	fprintf(stderr, "DMA: %lf ms copy, %lf ms read\n", dma_copy, read_dma);
-
-	fprintf(stderr, "data: %08x, %08x\n", ((uint32_t*)read_buffer)[0], ((uint32_t*)read_buffer)[0xffffff / 4]);
-
-	pscnv_ib_bo_free(src);
-	munmap(copy, size);
-	free(read_buffer);
-	return -1;
-}
-
-int
-pscnv_dma_vram_to_host(struct pscnv_bo* bo)
-{
-	// unfortunately bo->chan == NULL, usually
-	struct pscnv_mm_node* n = bo->map1;
-
-	if (!n) {
-		NV_INFO(bo->dev, "bo->map1 == NULL\n");
-		return -EINVAL;
-	}
-
-	NV_INFO(bo->dev, "n.start == %llx, n.size == %llx\n", n->start, n->size);
-	
-	return 0;
-}
-#endif

@@ -6,8 +6,8 @@
 
 #define GDEV_SUBCH_NV_COMPUTE 1
 #define GDEV_SUBCH_NV_M2MF    2
-#define GDEV_SUBCH_NV_PCOPY0  3
-#define GDEV_SUBCH_NV_PCOPY1  4
+#define GDEV_SUBCH_NV_PCOPY0  4
+#define GDEV_SUBCH_NV_PCOPY1  8
 
 #define PSCNV_IB_COOKIE 0xf1f01b
 #define PSCNV_PB_COOKIE 0xf1f0
@@ -25,27 +25,24 @@ struct pscnv_ib_chan {
 	struct pscnv_chan *chan;
 	
 	/* Channel Control */
-	struct drm_local_map *ctrl;
+	struct pscnv_bo *ctrl_bo;
 	uint32_t ctrl_offset;
 
 	/* FIFO indirect buffer setup. */
 	struct pscnv_bo *ib;
 	uint64_t ib_vm_base;
-	volatile uint32_t *ib_map;
 	uint32_t ib_put;
 	uint32_t ib_get;
 
 	/* FIFO push buffer setup. */
 	struct pscnv_bo *pb;
 	uint64_t pb_vm_base;
-	volatile uint32_t *pb_map;
 	uint32_t pb_pos;
 	uint32_t pb_put;
 	uint32_t pb_get;
 	
 	/* Fence buffer */
 	struct pscnv_bo *fence;
-	volatile uint32_t *fence_map;
 	uint64_t fence_addr;
 	uint32_t fence_seq;
 
@@ -60,11 +57,18 @@ pscnv_ib_chan_free(struct pscnv_ib_chan *ib_chan);
 int
 pscnv_ib_add_fence(struct pscnv_ib_chan *ib_chan);
 
+/* call once at initialization time, can accept multiple subchannels or'd together*/
+void
+pscnv_ib_init_subch(struct pscnv_ib_chan *ib_chan, int subch);
+
 void
 pscnv_ib_fence_write(struct pscnv_ib_chan *chan, const int subch);
 
 int
 pscnv_ib_fence_wait(struct pscnv_ib_chan *chan);
+
+void
+pscnv_ib_membar(struct pscnv_ib_chan *chan);
 
 int
 pscnv_ib_push(struct pscnv_ib_chan *ch, uint32_t start, uint32_t len, int flags);
@@ -72,30 +76,29 @@ pscnv_ib_push(struct pscnv_ib_chan *ch, uint32_t start, uint32_t len, int flags)
 void
 pscnv_ib_update_pb_get(struct pscnv_ib_chan *ch);
 
-#if 0
-static inline void
-pscnv_ib_w32(struct pscnv_ib_chan *chan_ib, uint32_t offset, uint32_t val)
-{
-	nv_wv32(chan_ib->chan->bo, offset, val);
-}
-
-static inline uint32_t
-pscnv_ib_r32(struct pscnv_ib_chan *chan_ib, uint32_t offset)	
-{
-	return nv_rv32(chan_ib->chan->bo, offset);
-}
-#endif
-
 static inline void
 pscnv_ib_ctrl_w32(struct pscnv_ib_chan *chan_ib, uint32_t offset, uint32_t val)
 {
-	DRM_WRITE32(chan_ib->ctrl, chan_ib->ctrl_offset + offset, val);
+	nv_wv32(chan_ib->ctrl_bo, chan_ib->ctrl_offset + offset, val);
 }
 
 static inline uint32_t
 pscnv_ib_ctrl_r32(struct pscnv_ib_chan *chan_ib, uint32_t offset)	
 {
-	return DRM_READ32(chan_ib->ctrl, offset + chan_ib->ctrl_offset);
+	return nv_rv32(chan_ib->ctrl_bo, chan_ib->ctrl_offset + offset);
+}
+
+static inline int
+pscnv_ib_subch_idx(int subch)
+{
+	switch (subch)
+	{
+		case GDEV_SUBCH_NV_COMPUTE: return 1;
+		case GDEV_SUBCH_NV_M2MF:    return 2;
+		case GDEV_SUBCH_NV_PCOPY0:  return 3;
+		case GDEV_SUBCH_NV_PCOPY1:  return 4;
+		default: BUG();
+	}
 }
 
 static inline void
@@ -106,7 +109,7 @@ FIRE_RING(struct pscnv_ib_chan *ch)
 			pscnv_ib_push(ch, ch->pb_put, ch->pb_pos - ch->pb_put, 0);
 		} else {
 			pscnv_ib_push(ch, ch->pb_put, PSCNV_PB_SIZE - ch->pb_put, 0);
-			if (ch->pb_pos) {
+			if (ch->pb_pos > 0) {
 				pscnv_ib_push(ch, 0, ch->pb_pos, 0);
 			}
 		}
@@ -119,7 +122,6 @@ static inline void
 OUT_RING(struct pscnv_ib_chan *ch, uint32_t word)
 {
 	struct drm_device *dev = ch->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	
 	const unsigned long timeout = jiffies + 2*HZ;
 		
@@ -138,19 +140,23 @@ OUT_RING(struct pscnv_ib_chan *ch, uint32_t word)
 		}
 	}
 	
-	//ch->pb_map[ch->pb_pos/4] = word;
 	nv_wv32(ch->pb, ch->pb_pos, word);
 	ch->pb_pos += 4;
 	ch->pb_pos &= PSCNV_PB_MASK;
-	
-	dev_priv->vm->bar_flush(dev);
 }
 
 static inline void
-BEGIN_NVC0(struct pscnv_ib_chan *ch, int subc, int mthd, int len)
+BEGIN_NVC0(struct pscnv_ib_chan *ch, int subch, int mthd, int len)
 {
-	OUT_RING(ch, (0x2<<28) | (len<<16) | (subc<<13) | (mthd>>2));
+	int subch_idx = pscnv_ib_subch_idx(subch);
+	OUT_RING(ch, (0x2<<28) | (len<<16) | (subch_idx<<13) | (mthd>>2));
 }
 
+static inline void
+BEGIN_NVC0_CONST(struct pscnv_ib_chan *ch, int subch, int mthd, int len)
+{
+	int subch_idx = pscnv_ib_subch_idx(subch);
+	OUT_RING(ch, (0x6<<28) | (len<<16) | (subch_idx<<13) | (mthd>>2));
+}
 
 #endif /* end of include guard: PSCNV_IB_CHAN_H */
