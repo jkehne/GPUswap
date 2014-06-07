@@ -206,7 +206,7 @@ pscnv_ib_get_mp_count(struct pscnv_ib_chan *ch)
 	struct nvc0_graph_engine *nvc0_graph;
 	
 	nvc0_graph = NVC0_GRAPH(dev_priv->engines[PSCNV_ENGINE_GRAPH]);
-	return nvc0_graph->tp_count; /* MPs == TPs */
+	return nvc0_graph->tpc_total; /* MPs == TPs */
 }
 
 /* call once at initialization time, can except multiple subchannels or'd together*/

@@ -37,6 +37,15 @@
 #include "pscnv_client.h"
 #include "pscnv_swapping.h"
 
+void pscnv_bo_memset(struct pscnv_bo* bo, uint32_t val)
+{
+	uint64_t i = 0;
+	
+	for (i = 0; i < bo->size; i += 4) {
+		nv_wv32(bo, i, val);
+	}
+}
+
 int
 pscnv_mem_init(struct drm_device *dev)
 {
@@ -106,6 +115,7 @@ pscnv_mem_alloc(struct drm_device *dev,
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct pscnv_bo *res;
 	int ret;
+
 	/* avoid all sorts of integer overflows possible otherwise. */
 	if (size >= (1ULL << 40))
 		return 0;
@@ -154,6 +164,28 @@ pscnv_mem_alloc(struct drm_device *dev,
 		kfree(res);
 		return 0;
 	}
+	
+	if (res->flags & PSCNV_MAP_KERNEL) {
+		dev_priv->vm->map_kernel(res);
+
+		if (!res->map3) {
+			NV_ERROR(dev, "pscnv_mem_alloc: BO %08x/%d map_kernel() failed\n",
+				res->cookie, res->serial);
+			pscnv_mem_free(res);
+			return NULL;
+		}
+	}
+	if (res->flags & PSCNV_MAP_USER) {
+		if (!pscnv_bo_map_bar1(res)) {
+			pscnv_mem_free(res);
+			return NULL;
+		}
+	}
+	if (res->flags & PSCNV_ZEROFILL) {
+		pscnv_bo_memset(res, 0);
+		dev_priv->vm->bar_flush(dev);
+	}
+	
 	return res;
 }
 

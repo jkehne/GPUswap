@@ -36,7 +36,7 @@ int pscnv_ioctl_getparam(struct drm_device *dev, void *data,
 		if (dev_priv->chipset < 0xc0)
 			goto fail;
 		nvc0_graph = NVC0_GRAPH(dev_priv->engines[PSCNV_ENGINE_GRAPH]);
-		getparam->value = nvc0_graph->tp_count; /* MPs == TPs */
+		getparam->value = nvc0_graph->tpc_total; /* MPs == TPs */
 		break;
 	case PSCNV_GETPARAM_CHIPSET_ID:
 		getparam->value = dev_priv->chipset;

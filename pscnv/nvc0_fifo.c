@@ -243,13 +243,6 @@ static int nvc0_fifo_chan_init_ib (struct pscnv_chan *ch, uint32_t pb_handle, ui
 		nv_wv32(fifo->ctrl_bo, (ch->cid << 12) + i, 0);
 	}
 
-	/*for (i = 0x40; i <= 0x50; i += 4)
-		nvchan_wr32(ch, i, 0);
-	for (i = 0x58; i <= 0x60; i += 4)
-		nvchan_wr32(ch, i, 0);
-	nvchan_wr32(ch, 0x88, 0);
-	nvchan_wr32(ch, 0x8c, 0);*/
-
 	for (i = 0; i < 0x100; i += 4)
 		nv_wv32(ch->bo, i, 0);
 
@@ -406,31 +399,31 @@ static void nvc0_pfifo_page_fault(struct drm_device *dev, int unit)
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	
 	uint64_t virt;
-	uint32_t chan, flags;
+	uint32_t inst, flags;
+	int chid;
 	
 	/* this forces nv_rv32 to use "slowpath" pramin access. 
-	   Still nv_rv32 (as used by pd_dump) returns seemingly random values,
-	   instead of 0xffffff on fastpath.
-	
-	   I still set vm_ok=false, as nv_rd32 returns much more plausible
-	   values when this is set, but I don't know why */
+	 *
+	 * this ensures that we can still read the contents of BOs, even if
+	 * one of the BAR's pagefaulted  */
 	dev_priv->vm_ok = false;
 
-	chan = nv_rd32(dev, 0x2800 + unit * 0x10) << 12;
+	inst = nv_rd32(dev, 0x2800 + unit * 0x10);
+	chid = pscnv_chan_handle_lookup(dev, inst);
 	virt = nv_rd32(dev, 0x2808 + unit * 0x10);
 	virt = (virt << 32) | nv_rd32(dev, 0x2804 + unit * 0x10);
 	flags = nv_rd32(dev, 0x280c + unit * 0x10);
 
-	NV_INFO(dev, "channel 0x%x: %s PAGE FAULT at 0x%010llx (%c, %s)\n",
-		chan, pgf_unit_str(unit), virt,
+	NV_INFO(dev, "channel %d: %s PAGE FAULT at 0x%010llx (%c, %s)\n",
+		chid, pgf_unit_str(unit), virt,
 		(flags & 0x80) ? 'w' : 'r', pgf_cause_str(flags));
 	
-	if (unit == 0x05 && dev_priv->vm->pd_dump_bar3) {
+	if ((unit == 0x05 || chid == -3) && dev_priv->vm->pd_dump_bar3) {
 		dev_priv->vm->pd_dump_bar3(dev);
-	} else if (unit == 0x04 && dev_priv->vm->pd_dump_bar1) {
+	} else if ((unit == 0x04 || chid == -1) && dev_priv->vm->pd_dump_bar1) {
 		dev_priv->vm->pd_dump_bar1(dev);
-	} else if (unit == 0x00 && dev_priv->chan->pd_dump_chan) {
-		dev_priv->chan->pd_dump_chan(dev, 126);
+	} else if (1 <= chid && chid <= 127 && dev_priv->chan->pd_dump_chan) {
+		dev_priv->chan->pd_dump_chan(dev, chid);
 	}
 }
 
@@ -591,11 +584,3 @@ uint64_t nvc0_fifo_ctrl_offs(struct drm_device *dev, int cid)
 	return fifo->ctrl_bo->map1->start + cid * 0x1000;
 }
 
-#if 0
-static volatile uint32_t *nvc0_fifo_ctrl_ptr(struct drm_device *dev, struct pscnv_chan *chan) 
-{
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nvc0_fifo_engine *fifo = nvc0_fifo(dev_priv->fifo);
-	return &fifo->fifo_ctl[chan->cid * 0x1000 / 4];
-}
-#endif

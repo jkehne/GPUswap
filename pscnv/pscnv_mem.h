@@ -81,6 +81,9 @@ struct pscnv_bo {
 #endif
 };
 #define PSCNV_GEM_NOUSER	0x10
+#define PSCNV_ZEROFILL		0x20
+#define PSCNV_MAP_KERNEL	0x40
+#define PSCNV_MAP_USER		0x80
 
 struct pscnv_vram_engine {
 	void (*takedown) (struct drm_device *);
@@ -103,6 +106,11 @@ extern struct pscnv_bo*	pscnv_mem_alloc_and_map(struct pscnv_vspace *vs,
 /*
  * convenience function. Map the buffer in BAR1 and ioremap it via drm_addmap */
 extern int pscnv_bo_map_bar1(struct pscnv_bo* bo);
+
+/*
+ * fill the whole bo to val with 32bit write operations
+ * You likely wan't to do a bar flush after this */
+extern void pscnv_bo_memset(struct pscnv_bo* bo, uint32_t val);
 
 /* calls pscnv_mem_free() */
 extern void pscnv_bo_ref_free(struct kref *ref);

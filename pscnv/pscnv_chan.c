@@ -144,8 +144,6 @@ void pscnv_chan_ref_free(struct kref *ref) {
 	kfree(ch);
 }
 
-#ifdef __linux__
-
 static void pscnv_chan_vm_open(struct vm_area_struct *vma) {
 	struct pscnv_chan *ch = vma->vm_private_data;
 	pscnv_chan_ref(ch);
@@ -216,8 +214,6 @@ int pscnv_chan_mmap(struct file *filp, struct vm_area_struct *vma)
 	}
 	return -EINVAL;
 }
-
-#endif
 
 int pscnv_chan_handle_lookup(struct drm_device *dev, uint32_t handle) {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;

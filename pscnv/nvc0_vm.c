@@ -501,10 +501,8 @@ static int nvc0_vspace_new(struct pscnv_vspace *vs) {
 	if (vs->vid != -3)
 		nvc0_vm_map_kernel(nvc0_vs(vs)->pd);
 	
-	/* this is causing the RAMIN BAR fault!!! */
-	//for (i = 0; i < NVC0_VM_PDE_COUNT; i++) {
 	spin_lock_irqsave(&nvc0_vs(vs)->pd_lock, flags);
-	for (i = NVC0_VM_PDE_COUNT-1; i >= 0; i--) {
+	for (i = 0; i < NVC0_VM_PDE_COUNT; i++) {
 		nv_wv32(nvc0_vs(vs)->pd, i * 8, 0);
 		nv_wv32(nvc0_vs(vs)->pd, i * 8 + 4, 0);
 	}
@@ -530,8 +528,6 @@ static void nvc0_vspace_free(struct pscnv_vspace *vs) {
 	}
 	pscnv_mem_free(nvc0_vs(vs)->pd);
 
-	if (nvc0_vs(vs)->mmio_bo)
-		pscnv_mem_free(nvc0_vs(vs)->mmio_bo);
 	kfree(vs->engdata);
 }
 

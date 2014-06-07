@@ -76,6 +76,12 @@ static inline void pscnv_chan_unref(struct pscnv_chan *ch) {
 }
 
 extern int pscnv_chan_mmap(struct file *filp, struct vm_area_struct *vma);
+
+/*
+ * some interrupts return an 'inst' code. This is the page frame number in
+ * vspace of the ch->bo which caused the fault.
+ *
+ * This function searches for the channel witch ch->bo starting at handle << 12 */
 extern int pscnv_chan_handle_lookup(struct drm_device *dev, uint32_t handle);
 
 int nv50_chan_init(struct drm_device *dev);
