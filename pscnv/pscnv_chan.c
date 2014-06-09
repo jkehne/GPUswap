@@ -58,12 +58,161 @@ pscnv_chan_fail(struct pscnv_chan *ch)
 {
 	struct drm_device *dev = ch->dev;
 	
+	if (pscnv_chan_get_state(ch) == PSCNV_CHAN_FAILED) {
+		return; /* an error message has already been issued */
+	}
+	
 	pscnv_chan_set_state(ch, PSCNV_CHAN_FAILED);
 	
 	NV_ERROR(dev, "channel %d FAILED\n", ch->cid);
 }
 
+int
+pscnv_chan_pause(struct pscnv_chan *ch)
+{
+	struct drm_device *dev = ch->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	
+	unsigned long flags;
+	
+	if (pscnv_pause_debug >= 2) {
+		char comm[TASK_COMM_LEN];
+		
+		get_task_comm(comm, current);
+		
+		NV_INFO(dev, "%s (%d) requested channel pause for channel %d\n",
+			comm, current->pid, ch->cid);
+	}
+	
+	if (!dev_priv->chan->do_chan_pause) {
+		NV_INFO(dev, "channel pausing not supported for this device\n");
+		return -ENOSYS;
+	}
+	
+	spin_lock_irqsave(&ch->state_lock, flags);
+	if (ch->state == PSCNV_CHAN_PAUSING || ch->state == PSCNV_CHAN_PAUSED) {
+		/* someone else was faster, good for us, nothing to do... */
+		atomic_inc(&ch->pausing_threads);
+		spin_unlock_irqrestore(&ch->state_lock, flags);
+		return -EALREADY;
+	}
+	if (ch->state != PSCNV_CHAN_RUNNING) {
+		spin_unlock_irqrestore(&ch->state_lock, flags);
+		NV_ERROR(dev, "pscnv_chan_pause: channel %d is in unexpected "
+			"state %s\n", ch->cid, pscnv_chan_state_str(ch->state));
+		return -EINVAL;
+	}
+	
+	atomic_inc(&ch->pausing_threads);
+	init_completion(&ch->pause_completion);
+	ch->state = PSCNV_CHAN_PAUSING;
+	spin_unlock_irqrestore(&ch->state_lock, flags);
+	
+	return dev_priv->chan->do_chan_pause(ch);
+}
 
+int
+pscnv_chan_pause_wait(struct pscnv_chan *ch)
+{
+	struct drm_device *dev = ch->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	enum pscnv_chan_state st;
+	unsigned long flags;
+	int res;
+	
+	if (!dev_priv->chan->do_chan_pause) {
+		NV_INFO(dev, "channel pausing not supported for this device\n");
+		return -ENOSYS;
+	}
+	
+	spin_lock_irqsave(&ch->state_lock, flags);
+	if (ch->state == PSCNV_CHAN_PAUSED) {
+		/* oh. nothing to do... */
+		spin_unlock_irqrestore(&ch->state_lock, flags);
+		return 0;
+	}
+	if (ch->state != PSCNV_CHAN_PAUSING) {
+		spin_unlock_irqrestore(&ch->state_lock, flags);
+		NV_ERROR(dev, "pscnv_chan_pause_wait: channel %d is in unexpected "
+			"state %s\n", ch->cid, pscnv_chan_state_str(ch->state));
+		return -EINVAL;
+	}
+	spin_unlock_irqrestore(&ch->state_lock, flags);
+	
+	if (pscnv_pause_debug >= 2) {
+		char comm[TASK_COMM_LEN];
+		
+		get_task_comm(comm, current);
+		
+		NV_INFO(dev, "%s (%d) is waiting for channel %d to pause\n",
+			comm, current->pid, ch->cid);
+	}
+	
+	res = wait_for_completion_interruptible_timeout(&ch->pause_completion, 5*HZ);
+	
+	if (res == -ERESTARTSYS) {
+		NV_INFO(dev, "pscnv_chan_pause_wait: channel %d: interrupted\n",
+				ch->cid);
+		return -EINTR;
+	}
+	if (res == 0) {
+		NV_INFO(dev, "pscnv_chan_pause_wait: channel %d: timeout\n",
+				ch->cid);
+		return -EBUSY;
+	}
+	
+	st = pscnv_chan_get_state(ch); 
+	if (st != PSCNV_CHAN_PAUSED) {
+		NV_ERROR(dev, "pscnv_chan_pause_wait: channel %d: pause failed"
+				" channel is in unexpected state %s\n",
+				ch->cid, pscnv_chan_state_str(st));
+		return -EFAULT;
+	}
+	
+	return 0;
+}
+
+int
+pscnv_chan_continue(struct pscnv_chan *ch)
+{
+	struct drm_device *dev = ch->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	
+	unsigned long flags;
+	int res = 0;
+	
+	if (!dev_priv->chan->do_chan_pause) {
+		NV_INFO(dev, "channel pausing not supported for this device\n");
+		return -ENOSYS;
+	}
+	
+	spin_lock_irqsave(&ch->state_lock, flags);
+	if (ch->state != PSCNV_CHAN_PAUSED) {
+		spin_unlock_irqrestore(&ch->state_lock, flags);
+		NV_ERROR(dev, "pscnv_chan_continue: channel %d is in unexpected "
+			"state %s\n", ch->cid, pscnv_chan_state_str(ch->state));
+		return -EINVAL;
+	}
+	
+	if (atomic_dec_and_test(&ch->pausing_threads)) {
+		/* ch->pausing_threads == 0 -> do the work */
+		
+		/* this should not take long */
+		res = dev_priv->chan->do_chan_continue(ch);
+		
+		if (!res) {
+			ch->state = PSCNV_CHAN_RUNNING;
+		}
+		
+	}
+	spin_unlock_irqrestore(&ch->state_lock, flags);
+	
+	if (res) {
+		pscnv_chan_fail(ch);
+	}
+	
+	return res;
+}
 
 /*******************************************************************************
  * Channel initialization and freeing
@@ -137,6 +286,7 @@ pscnv_chan_new (struct drm_device *dev, struct pscnv_vspace *vs, int fake) {
 	spin_lock_init(&res->instlock);
 	spin_lock_init(&res->ramht.lock);
 	kref_init(&res->ref);
+	atomic_set(&res->pausing_threads, 0);
 	
 	if (fake) {
 		res->flags |= PSCNV_CHAN_KERNEL;

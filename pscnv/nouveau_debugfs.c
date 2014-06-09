@@ -33,6 +33,7 @@
 
 #include "pscnv_client.h"
 #include "pscnv_vm.h"
+#include "pscnv_chan.h"
 
 #if 0
 static int
@@ -236,11 +237,70 @@ pscnv_debugfs_vram_limit_set(void *data, u64 val)
 	return 0;
 }
 
+static int
+pscnv_debugfs_pause_set(void *data, u64 val)
+{
+	struct drm_device *dev = data;
+	struct pscnv_chan *chans[128];
+	int i;
+	int n_chans = 0;
+	int res;
+	
+	if (val != 1) {
+		return 0;
+	}
+	
+	for (i = 0; i < 128; i++) {
+		struct pscnv_chan *ch = pscnv_chan_chid_lookup(dev, i);
+
+		if (ch && !(ch->flags & PSCNV_CHAN_KERNEL)) {
+			chans[n_chans] = ch;
+			n_chans++;
+			
+			pscnv_chan_ref(ch);
+			res = pscnv_chan_pause(ch);
+			if (res) {
+				NV_INFO(dev, "pscnv_chan_pause returned %d on "
+					" channel %d\n", res, ch->cid);
+			}
+		}
+	}
+	
+	
+	for (i = 0; i < n_chans; i++) {
+		struct pscnv_chan *ch = chans[i];
+		
+		res = pscnv_chan_pause_wait(chans[i]);
+		if (res) {
+			NV_INFO(dev, "pscnv_chan_pause_wait returned %d on "
+				" channel %d\n", res, ch->cid);
+		}
+	}
+	
+	ssleep(3);
+	
+	for (i = 0; i < n_chans; i++) {
+		struct pscnv_chan *ch = chans[i];
+		
+		res = pscnv_chan_continue(ch);
+		if (res) {
+			NV_INFO(dev, "pscnv_chan_continue returned %d on "
+				" channel %d\n", res, ch->cid);
+		}
+		pscnv_chan_unref(ch);
+	}
+	
+	return 0;
+}
+
 DEFINE_SIMPLE_ATTRIBUTE(fops_vram_limit, pscnv_debugfs_vram_limit_get,
 					 pscnv_debugfs_vram_limit_set,
 					 "%llu");
 
+DEFINE_SIMPLE_ATTRIBUTE(fops_pause, NULL, pscnv_debugfs_pause_set, "%llu");
+
 static struct dentry *pscnv_debugfs_vram_limit_entry = NULL;
+static struct dentry *pscnv_debugfs_pause_entry = NULL;
 
 int
 nouveau_debugfs_init(struct drm_minor *minor)
@@ -264,6 +324,16 @@ nouveau_debugfs_init(struct drm_minor *minor)
 		return -ENOENT;
 	}
 	
+	pscnv_debugfs_pause_entry =
+		debugfs_create_file("pause", S_IFREG | S_IRUGO | S_IWUSR,
+				minor->debugfs_root, dev, &fops_pause);
+	
+	if (!pscnv_debugfs_pause_entry) {
+		NV_INFO(dev, "Cannot create /sys/kernel/debug/dri/%s/pause\n",
+				minor->debugfs_root->d_name.name);
+		return -ENOENT;
+	}
+	
 	return 0;
 }
 
@@ -271,6 +341,7 @@ void
 nouveau_debugfs_takedown(struct drm_minor *minor)
 {
 	debugfs_remove(pscnv_debugfs_vram_limit_entry);
+	debugfs_remove(pscnv_debugfs_pause_entry);
 		
 	drm_debugfs_remove_files(nouveau_debugfs_list, NOUVEAU_DEBUGFS_ENTRIES,
 				 minor);

@@ -56,6 +56,8 @@ struct pscnv_chan {
 	uint32_t flags;
 	enum pscnv_chan_state state;
 	spinlock_t state_lock;
+	atomic_t pausing_threads;
+	struct completion pause_completion;
 	struct pscnv_vspace *vspace;
 	struct list_head vspace_list;
 	struct pscnv_bo *bo;
@@ -74,6 +76,10 @@ struct pscnv_chan_engine {
 	int (*do_chan_new) (struct pscnv_chan *ch);
 	void (*do_chan_free) (struct pscnv_chan *ch);
 	void (*pd_dump_chan) (struct drm_device *dev, struct seq_file *m, int chid);
+	/* when done, set channel state to PAUSED and fire pause_completion */
+	int (*do_chan_pause) (struct pscnv_chan *ch);
+	/* when done, don't make any modification to the channel state */
+	int (*do_chan_continue) (struct pscnv_chan *ch);
 	struct pscnv_chan *fake_chans[4];
 	struct pscnv_chan *chans[128];
 	spinlock_t ch_lock;
@@ -126,14 +132,28 @@ pscnv_chan_state_str(enum pscnv_chan_state st);
  *
  * You still have to wait for the pause to complete.
  *
+ * This function returns -EALREADY if the channel is already pausing or paused.
+ *
+ * In any case, the counter for pausing threads will be increased.
+ *
  * be aware that a paused channel will not be removed from the fifo runqueue.
  * Instead it is available for command submission by the kernel at this point.*/
 int
 pscnv_chan_pause(struct pscnv_chan *ch);
 
+/* wait for the pausing to complete
+ *
+ * this returns 0, even if the channel is already paused */
 int
 pscnv_chan_pause_wait(struct pscnv_chan *ch);
 
+/* let the channel run again
+ *
+ * This decreases the number of pausing threads, and only if this thread is
+ * the last one, who want's this channel to continue, it wall actually be
+ * allowed to continue.
+ *
+ * Don't call this unless you called pscnv_chan_pause before! */
 int
 pscnv_chan_continue(struct pscnv_chan *ch);
 
