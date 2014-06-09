@@ -34,6 +34,41 @@
 #include "pscnv_ioctl.h"
 #include "pscnv_dma.h"
 
+/*******************************************************************************
+ * Channel state management
+ ******************************************************************************/
+
+const char *
+pscnv_chan_state_str(enum pscnv_chan_state st)
+{
+	switch (st) {
+		case PSCNV_CHAN_NEW:		return "NEW";
+		case PSCNV_CHAN_INITIALIZED:	return "INITIALIZED";
+		case PSCNV_CHAN_RUNNING:	return "RUNNING";
+		case PSCNV_CHAN_PAUSING:	return "PAUSING";
+		case PSCNV_CHAN_PAUSED:		return "PAUSED";
+		case PSCNV_CHAN_FAILED:		return "FAILED";
+	}
+	
+	return "UNKNOWN";
+}
+
+void
+pscnv_chan_fail(struct pscnv_chan *ch)
+{
+	struct drm_device *dev = ch->dev;
+	
+	pscnv_chan_set_state(ch, PSCNV_CHAN_FAILED);
+	
+	NV_ERROR(dev, "channel %d FAILED\n", ch->cid);
+}
+
+
+
+/*******************************************************************************
+ * Channel initialization and freeing
+ ******************************************************************************/
+
 static int pscnv_chan_bind (struct pscnv_chan *ch, int fake) {
 	struct drm_nouveau_private *dev_priv = ch->dev->dev_private;
 	unsigned long flags;
@@ -102,12 +137,18 @@ pscnv_chan_new (struct drm_device *dev, struct pscnv_vspace *vs, int fake) {
 	spin_lock_init(&res->instlock);
 	spin_lock_init(&res->ramht.lock);
 	kref_init(&res->ref);
+	
+	if (fake) {
+		res->flags |= PSCNV_CHAN_KERNEL;
+	}
+	
 	if (pscnv_chan_bind(res, fake)) {
 		if (vs)
 			pscnv_vspace_unref(vs);
 		kfree(res);
 		return 0;
 	}
+	
 	NV_INFO(vs->dev, "CHAN: Allocating channel %d in vspace %d\n", res->cid, vs->vid);
 	if (dev_priv->chan->do_chan_new(res)) {
 		if (vs)
@@ -118,6 +159,9 @@ pscnv_chan_new (struct drm_device *dev, struct pscnv_vspace *vs, int fake) {
 	}
 
 	res->bo->chan = res;
+	
+	pscnv_chan_set_state(res, PSCNV_CHAN_INITIALIZED);
+	
 	return res;
 }
 
@@ -143,6 +187,10 @@ void pscnv_chan_ref_free(struct kref *ref) {
 		pscnv_vspace_unref(ch->vspace);
 	kfree(ch);
 }
+
+/*******************************************************************************
+ * Channel userspace support
+ ******************************************************************************/
 
 static void pscnv_chan_vm_open(struct vm_area_struct *vma) {
 	struct pscnv_chan *ch = vma->vm_private_data;
@@ -241,4 +289,26 @@ int pscnv_chan_handle_lookup(struct drm_device *dev, uint32_t handle) {
 	}
 	spin_unlock_irqrestore(&dev_priv->chan->ch_lock, flags);
 	return 128;
+}
+
+struct pscnv_chan *
+pscnv_chan_chid_lookup(struct drm_device *dev, int chid)
+{
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	
+	struct pscnv_chan *ret = NULL;
+	unsigned long flags;
+	
+	spin_lock_irqsave(&dev_priv->chan->ch_lock, flags);
+	
+	if (0 <= chid && chid <= 127) {
+		ret = dev_priv->chan->chans[chid];
+	}
+	if (-3 <= chid && chid < 0) {
+		ret = dev_priv->chan->fake_chans[-chid];
+	}
+	
+	spin_unlock_irqrestore(&dev_priv->chan->ch_lock, flags);
+	
+	return ret;
 }

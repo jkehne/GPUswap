@@ -196,7 +196,7 @@ pscnv_ib_dump_ib(struct pscnv_ib_chan *ch)
 		
 		if (offset >= PSCNV_PB_SIZE) {
 			NV_ERROR(dev, "channel %d: PB OUT OF RANGE\n", ch->chan->cid);
-			pscnv_ib_fail(ch);
+			pscnv_chan_fail(ch->chan);
 			return;
 		}
 		
@@ -413,8 +413,8 @@ pscnv_ib_push(struct pscnv_ib_chan *ch, uint32_t start, uint32_t len, int flags)
 	const uint64_t base = ch->pb_vm_base + start;
 	const uint64_t w = base | (uint64_t)len << 40 | (uint64_t)flags << 40;
 	
-	if (ch->failed) {
-		return -EFAULT;
+	if (pscnv_chan_get_state(ch->chan) == PSCNV_CHAN_FAILED) {
+		return -EFAULT; /* an error message has already been issued */
 	}
 	
 	while (((ch->ib_put + 1) & PSCNV_IB_MASK) == ch->ib_get) {
@@ -423,7 +423,7 @@ pscnv_ib_push(struct pscnv_ib_chan *ch, uint32_t start, uint32_t len, int flags)
 		
 		if (ch->ib_get * 8 > PSCNV_IB_SIZE) {
 			NV_ERROR(dev, "pscnv_ib_push: IB=%0x OUT OF RANGE\n", ch->ib_get);
-			pscnv_ib_fail(ch);
+			pscnv_chan_fail(ch->chan);
 			ch->ib_get = 0;
 			return -EFAULT;
 		}
@@ -439,9 +439,7 @@ pscnv_ib_push(struct pscnv_ib_chan *ch, uint32_t start, uint32_t len, int flags)
 	}
 	
 	
-	//ch->ib_map[ch->ib_put * 2] = w;
 	nv_wv32(ch->ib, 4*(ch->ib_put * 2), w);
-	//ch->ib_map[ch->ib_put * 2 + 1] = w >> 32;
 	nv_wv32(ch->ib, 4*(ch->ib_put * 2 + 1), w >> 32);
 	nv_rv32(ch->ib, 4*(ch->ib_put * 2 + 1));
 	ch->ib_put++;
@@ -479,7 +477,7 @@ pscnv_ib_update_pb_get(struct pscnv_ib_chan *ch)
 	if (ch->pb_get >= PSCNV_PB_SIZE) {
 		NV_ERROR(dev, "channel %d: PB=%0x OUT OF RANGE\n",
 			ch->chan->cid, ch->pb_get);
-		pscnv_ib_fail(ch);
+		pscnv_chan_fail(ch->chan);
 		ch->pb_get = 0;
 	}
 	
@@ -597,21 +595,10 @@ pscnv_ib_chan_free(struct pscnv_ib_chan *ib_chan)
 }
 
 void
-pscnv_ib_fail(struct pscnv_ib_chan *ch)
-{
-	struct drm_device *dev = ch->dev;
-	
-	ch->failed = true;
-	NV_ERROR(dev, "channel %d, IB CHANNEL FAILED\n", ch->chan->cid);
-	
-	/* TODO some recovery?? */	
-}
-
-void
 FIRE_RING(struct pscnv_ib_chan *ch)
 {
-	if (ch->failed) {
-		return;
+	if (pscnv_chan_get_state(ch->chan) == PSCNV_CHAN_FAILED) {
+		return; /* an error message has already been issued */
 	}
 	
 	if (ch->pb_pos != ch->pb_put) {
@@ -635,8 +622,8 @@ OUT_RING(struct pscnv_ib_chan *ch, uint32_t word)
 	
 	const unsigned long timeout = jiffies + 2*HZ;
 	
-	if (ch->failed) {
-		return;
+	if (pscnv_chan_get_state(ch->chan) == PSCNV_CHAN_FAILED) {
+		return; /* an error message has already been issued */
 	}
 		
 	while (((ch->pb_pos + 4) & PSCNV_PB_MASK) == ch->pb_get) {

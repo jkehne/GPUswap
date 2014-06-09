@@ -10,7 +10,7 @@ static int nvc0_chan_new (struct pscnv_chan *ch)
 	struct drm_nouveau_private *dev_priv = ch->dev->dev_private;
 	unsigned long flags;
 	int i;
-	
+
 	/* ch->bo holds the configuration of the channel, including the
 	 * - page directory
 	 * - location and size of the indirect buffer

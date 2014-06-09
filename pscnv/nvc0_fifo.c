@@ -230,12 +230,23 @@ static int nvc0_fifo_chan_init_ib (struct pscnv_chan *ch, uint32_t pb_handle, ui
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct nvc0_fifo_engine *fifo = nvc0_fifo(dev_priv->fifo);
 	unsigned long irqflags;
+	enum pscnv_chan_state st;
 
 	int i;
 	uint64_t fifo_regs = nvc0_fifo_get_fifo_regs(ch);
 
-	if (ib_order > 29)
+	if (ib_order != 9) {
+		NV_ERROR(dev, "nvc0_fifo_chan_init_ib: ib_order=%d requested, "
+			"but only ib_order=9 supported atm\n", ib_order);
 		return -EINVAL;
+	}
+	
+	st = pscnv_chan_get_state(ch);
+	if (st != PSCNV_CHAN_INITIALIZED) {
+		NV_ERROR(dev, "nvc0_fifo_chan_init_ib: channel %d in unexpected"
+			" state %s\n", ch->cid, pscnv_chan_state_str(st));
+		return -EINVAL;
+	}
 
 	spin_lock_irqsave(&dev_priv->context_switch_lock, irqflags);
 
@@ -284,6 +295,8 @@ static int nvc0_fifo_chan_init_ib (struct pscnv_chan *ch, uint32_t pb_handle, ui
 		dev_priv->engines[PSCNV_ENGINE_COPY1]->
 			chan_alloc(dev_priv->engines[PSCNV_ENGINE_COPY1], ch);
 
+	pscnv_chan_set_state(ch, PSCNV_CHAN_RUNNING);
+	
 	return 0;
 }
 
@@ -401,6 +414,7 @@ static void nvc0_pfifo_page_fault(struct drm_device *dev, int unit)
 	uint64_t virt;
 	uint32_t inst, flags;
 	int chid;
+	struct pscnv_chan* ch;
 	
 	/* this forces nv_rv32 to use "slowpath" pramin access. 
 	 *
@@ -417,6 +431,11 @@ static void nvc0_pfifo_page_fault(struct drm_device *dev, int unit)
 	NV_INFO(dev, "channel %d: %s PAGE FAULT at 0x%010llx (%c, %s)\n",
 		chid, pgf_unit_str(unit), virt,
 		(flags & 0x80) ? 'w' : 'r', pgf_cause_str(flags));
+	
+	ch = pscnv_chan_chid_lookup(dev, chid);
+	if (!ch) {
+		pscnv_chan_fail(ch);
+	}
 	
 	if ((unit == 0x05 || chid == -3) && dev_priv->vm->pd_dump_bar3) {
 		dev_priv->vm->pd_dump_bar3(dev, NULL);

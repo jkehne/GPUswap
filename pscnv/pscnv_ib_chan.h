@@ -24,9 +24,6 @@ struct pscnv_ib_chan {
 	struct drm_device *dev;
 	struct pscnv_chan *chan;
 	
-	/* if set, refuse to do any memory write */
-	bool failed;
-	
 	/* Channel Control */
 	struct pscnv_bo *ctrl_bo;
 	uint32_t ctrl_offset;
