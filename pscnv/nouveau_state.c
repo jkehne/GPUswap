@@ -427,9 +427,6 @@ nouveau_card_init(struct drm_device *dev)
 
 	NV_INFO(dev, "Card initialized.\n");
 	
-	dev_priv->vm->pd_dump_bar3(dev);
-	dev_priv->vm->pd_dump_bar1(dev);
-	
 	return 0;
 
 #if 0

@@ -28,12 +28,11 @@
  *  Ben Skeggs <bskeggs@redhat.com>
  */
 
-#include <linux/debugfs.h>
-
-#include "nouveau_drv.h"
+#include "nouveau_debugfs.h"
 #include "nouveau_reg.h"
 
 #include "pscnv_client.h"
+#include "pscnv_vm.h"
 
 #if 0
 static int
@@ -176,10 +175,44 @@ nouveau_debugfs_vbios_image(struct seq_file *m, void *data)
 	return 0;
 }
 
+static int
+nouveau_debugfs_pd_dump_bar1(struct seq_file *m, void *data)
+{
+	struct drm_info_node *node = (struct drm_info_node *) m->private;
+	struct drm_device *dev = node->minor->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	
+	if (dev_priv->vm->pd_dump_bar1) {
+		dev_priv->vm->pd_dump_bar1(dev, m);
+	} else {
+		seq_printf(m, "PD dump not available\n");
+	}
+	
+	return 0;
+}
+
+static int
+nouveau_debugfs_pd_dump_bar3(struct seq_file *m, void *data)
+{
+	struct drm_info_node *node = (struct drm_info_node *) m->private;
+	struct drm_device *dev = node->minor->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	
+	if (dev_priv->vm->pd_dump_bar3) {
+		dev_priv->vm->pd_dump_bar3(dev, m);
+	} else {
+		seq_printf(m, "PD dump not available\n");
+	}
+	
+	return 0;
+}
+
 static struct drm_info_list nouveau_debugfs_list[] = {
 	{ "chipset", nouveau_debugfs_chipset_info, 0, NULL },
 	{ "memory", nouveau_debugfs_memory_info, 0, NULL },
 	{ "vbios.rom", nouveau_debugfs_vbios_image, 0, NULL },
+	{ "bar1_pd", nouveau_debugfs_pd_dump_bar1, 0, NULL },
+	{ "bar3_pd", nouveau_debugfs_pd_dump_bar3, 0, NULL },
 };
 #define NOUVEAU_DEBUGFS_ENTRIES ARRAY_SIZE(nouveau_debugfs_list)
 

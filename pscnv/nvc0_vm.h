@@ -30,7 +30,7 @@
 struct nvc0_pgt {
 	struct list_head head;
 	unsigned int pde;
-	unsigned int limit; /* virtual range = NVC0_VM_BLOCK_SIZE >> limit */
+	//unsigned int limit; /* virtual range = NVC0_VM_BLOCK_SIZE >> limit */
 	struct pscnv_bo *bo[2]; /* 128 KiB and 4 KiB page tables */
 };
 

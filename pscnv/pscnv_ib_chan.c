@@ -18,7 +18,7 @@ pscnv_ib_dump_fence(struct pscnv_ib_chan *ch)
 		return;
 	}
 	
-	NV_INFO(dev, "channel %d: fence_addr=%08llx fence_seq=%x read(fence)=%x\n",
+	NV_INFO(dev, "channel %d: fence_addr=%08llx fence_seq=0x%x read(fence)=0x%x\n",
 		ch->chan->cid, ch->fence_addr, ch->fence_seq, nv_rv32(ch->fence, 0));
 }
 
@@ -184,16 +184,24 @@ pscnv_ib_dump_ib(struct pscnv_ib_chan *ch)
 	for (i = start; i < ch->ib_put; i++) {
 		uint32_t lo, hi, len;
 		uint64_t pb_begin;
+		uint64_t offset;
 		lo = nv_rv32(ch->ib, 4*(i * 2));
 		hi = nv_rv32(ch->ib, 4*(i * 2 + 1));
 		
 		pb_begin = ((uint64_t)hi & 0xff) << 32 | lo;
+		offset = pb_begin - ch->pb_vm_base;
 		len = hi >> 10;
 		NV_INFO(dev, "channel %d IB[0x%x]: 0x%llx  +%u\n", ch->chan->cid, 
 			start + i, pb_begin, len);
 		
+		if (offset >= PSCNV_PB_SIZE) {
+			NV_ERROR(dev, "channel %d: PB OUT OF RANGE\n", ch->chan->cid);
+			pscnv_ib_fail(ch);
+			return;
+		}
+		
 		if (pb_begin != 0) {
-			pscnv_ib_dump_pb(ch, pb_begin - ch->pb_vm_base, len);
+			pscnv_ib_dump_pb(ch, offset, len);
 		}
 	}
 }
@@ -404,10 +412,21 @@ pscnv_ib_push(struct pscnv_ib_chan *ch, uint32_t start, uint32_t len, int flags)
 	
 	const uint64_t base = ch->pb_vm_base + start;
 	const uint64_t w = base | (uint64_t)len << 40 | (uint64_t)flags << 40;
+	
+	if (ch->failed) {
+		return -EFAULT;
+	}
+	
 	while (((ch->ib_put + 1) & PSCNV_IB_MASK) == ch->ib_get) {
 		uint32_t old = ch->ib_get;
-		//ch->ib_get = pscnv_ib_r32(ch, 0x88);
 		ch->ib_get = pscnv_ib_ctrl_r32(ch, 0x88);
+		
+		if (ch->ib_get * 8 > PSCNV_IB_SIZE) {
+			NV_ERROR(dev, "pscnv_ib_push: IB=%0x OUT OF RANGE\n", ch->ib_get);
+			pscnv_ib_fail(ch);
+			ch->ib_get = 0;
+			return -EFAULT;
+		}
 		if (old == ch->ib_get) {
 			schedule();
 		}
@@ -443,6 +462,8 @@ pscnv_ib_push(struct pscnv_ib_chan *ch, uint32_t start, uint32_t len, int flags)
 void
 pscnv_ib_update_pb_get(struct pscnv_ib_chan *ch)
 {
+	struct drm_device *dev = ch->dev;
+	
 	uint32_t lo = pscnv_ib_ctrl_r32(ch, 0x58);
 	uint32_t hi = pscnv_ib_ctrl_r32(ch, 0x5c);
 	
@@ -452,7 +473,17 @@ pscnv_ib_update_pb_get(struct pscnv_ib_chan *ch)
 	} else {
 		ch->pb_get = 0;
 	}
+	
 	NV_INFO(ch->dev, "pb_vm_base=%llx, pb_get==%x\n", ch->pb_vm_base, ch->pb_get);
+	
+	if (ch->pb_get >= PSCNV_PB_SIZE) {
+		NV_ERROR(dev, "channel %d: PB=%0x OUT OF RANGE\n",
+			ch->chan->cid, ch->pb_get);
+		pscnv_ib_fail(ch);
+		ch->pb_get = 0;
+	}
+	
+	return;
 }
 
 struct pscnv_ib_chan*
@@ -563,4 +594,67 @@ void
 pscnv_ib_chan_free(struct pscnv_ib_chan *ib_chan)
 {
 	/* TODO */
+}
+
+void
+pscnv_ib_fail(struct pscnv_ib_chan *ch)
+{
+	struct drm_device *dev = ch->dev;
+	
+	ch->failed = true;
+	NV_ERROR(dev, "channel %d, IB CHANNEL FAILED\n", ch->chan->cid);
+	
+	/* TODO some recovery?? */	
+}
+
+void
+FIRE_RING(struct pscnv_ib_chan *ch)
+{
+	if (ch->failed) {
+		return;
+	}
+	
+	if (ch->pb_pos != ch->pb_put) {
+		if (ch->pb_pos > ch->pb_put) {
+			pscnv_ib_push(ch, ch->pb_put, ch->pb_pos - ch->pb_put, 0);
+		} else {
+			pscnv_ib_push(ch, ch->pb_put, PSCNV_PB_SIZE - ch->pb_put, 0);
+			if (ch->pb_pos > 0) {
+				pscnv_ib_push(ch, 0, ch->pb_pos, 0);
+			}
+		}
+		ch->pb_put = ch->pb_pos;
+	}
+	// else: nothing to fire
+}
+
+void
+OUT_RING(struct pscnv_ib_chan *ch, uint32_t word)
+{
+	struct drm_device *dev = ch->dev;
+	
+	const unsigned long timeout = jiffies + 2*HZ;
+	
+	if (ch->failed) {
+		return;
+	}
+		
+	while (((ch->pb_pos + 4) & PSCNV_PB_MASK) == ch->pb_get) {
+		uint32_t old = ch->pb_get;
+		FIRE_RING(ch);
+		pscnv_ib_update_pb_get(ch);
+		if (old == ch->pb_get) {
+			schedule();
+		}
+		if (time_after(jiffies, timeout)) {
+			NV_INFO(dev, "OUT_RING: timeout waiting for PB "
+				"get pointer, seems frozen at %x on channel %d\n",
+				ch->pb_get, ch->chan->cid);
+			return;
+		}
+	}
+	
+	nv_wv32(ch->pb, ch->pb_pos, word);
+	ch->pb_pos += 4;
+	ch->pb_pos &= PSCNV_PB_MASK;
 }

@@ -51,6 +51,7 @@
 #include "pscnv_mem.h"
 #include "pscnv_ramht.h"
 #include "pscnv_engine.h"
+
 struct nouveau_grctx;
 
 typedef void (*nouveau_irqhandler_t) (struct drm_device *dev, int irq);
@@ -577,38 +578,7 @@ struct drm_nouveau_private {
 	struct pscnv_dma *dma;
 	struct pscnv_clients *clients;
 };
-#if 0
-static inline struct drm_nouveau_private *
-nouveau_private(struct drm_device *dev)
-{
-	return dev->dev_private;
-}
 
-static inline struct drm_nouveau_private *
-nouveau_bdev(struct ttm_bo_device *bd)
-{
-	return container_of(bd, struct drm_nouveau_private, ttm.bdev);
-}
-
-static inline int
-nouveau_bo_ref(struct nouveau_bo *ref, struct nouveau_bo **pnvbo)
-{
-	struct nouveau_bo *prev;
-
-	if (!pnvbo)
-		return -EINVAL;
-	prev = *pnvbo;
-
-	*pnvbo = ref ? nouveau_bo(ttm_bo_reference(&ref->bo)) : NULL;
-	if (prev) {
-		struct ttm_buffer_object *bo = &prev->bo;
-
-		ttm_bo_unref(&bo);
-	}
-
-	return 0;
-}
-#endif
 #define NOUVEAU_CHECK_INITIALISED_WITH_RETURN do {            \
 	struct drm_nouveau_private *nv = dev->dev_private;    \
 	if (nv->init_state != NOUVEAU_CARD_INIT_DONE) {       \
@@ -1120,6 +1090,8 @@ static inline void nv_wv32_pramin(struct drm_device *dev, uint64_t addr, uint32_
 	spin_unlock_irqrestore(&dev_priv->pramin_lock, flags);
 }
 
+/* bo->start == 0, if GEM_CONTIG is not set */
+
 static inline uint32_t nv_rv32(struct pscnv_bo *bo,
 				unsigned offset)
 {
@@ -1132,6 +1104,14 @@ static inline uint32_t nv_rv32(struct pscnv_bo *bo,
 			return le32_to_cpu(DRM_READ32(dev_priv->ramin, bo->map3->start - dev_priv->vm_ramin_base + offset));
 		}
 	}
+	
+	/* GEM_CONTIG not set?? */
+	if (!bo->start) {
+		NV_ERROR(bo->dev, "nv_rv32: can not read from BO %08x/%d at offset=0x%x\n",
+			bo->cookie, bo->serial, offset);
+			return 0;
+	}
+	
 	/* fallback to slowpath */
 	return nv_rv32_pramin(bo->dev, addr);
 }
@@ -1150,6 +1130,15 @@ static inline void nv_wv32(struct pscnv_bo *bo,
 			return;
 		}
 	}
+	
+	/* GEM_CONTIG not set?? */
+	if (!bo->start) {
+		NV_ERROR(bo->dev, "nv_wv32: can not write to BO %08x/%d at offset=0x%x,"
+			" value=0x%08x\n",
+			bo->cookie, bo->serial, offset, val);
+			return;
+	}
+	
 	/* fallback to slowpath */
 	nv_wv32_pramin(bo->dev, addr, val);	
 }

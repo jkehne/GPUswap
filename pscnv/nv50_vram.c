@@ -121,7 +121,7 @@ nv50_vram_init(struct drm_device *dev)
 				dev_priv->vram_size, rblock_size);
 	}
 
-	ret = pscnv_mm_init(dev, 0x40000, dev_priv->vram_size - 0x20000, 0x1000, 0x10000, rblock_size, &dev_priv->vram_mm);
+	ret = pscnv_mm_init(dev, "VRAM", 0x40000, dev_priv->vram_size - 0x20000, 0x1000, 0x10000, rblock_size, &dev_priv->vram_mm);
 	if (ret) {
 		kfree(dev_priv->vram);
 		return ret;

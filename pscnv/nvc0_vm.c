@@ -29,6 +29,7 @@
 #include "pscnv_vm.h"
 #include "pscnv_chan.h"
 #include "nvc0_vm.h"
+#include "nouveau_debugfs.h"
 
 #define PSCNV_GEM_NOUSER 0x10 /* XXX */
 
@@ -102,48 +103,21 @@ nvc0_tlb_flush(struct pscnv_vspace *vs)
 	return ret;
 }
 
-static int
-nvc0_vspace_fill_pde(struct pscnv_vspace *vs, struct nvc0_pgt *pgt)
+static void
+nvc0_vspace_insert_pde_unlocked(struct pscnv_vspace *vs, struct nvc0_pgt *pgt)
 {
-	struct drm_nouveau_private *dev_priv = vs->dev->dev_private;
-	const uint32_t size = NVC0_VM_SPTE_COUNT << (3 - pgt->limit);
-	int i;
-	uint32_t pde[2];
-	unsigned long flags;
+	uint32_t pde[2] = {0, 0};
 
-	pgt->bo[1] = pscnv_mem_alloc(vs->dev, size, PSCNV_GEM_CONTIG, 0, 0x59, NULL);
-	if (!pgt->bo[1])
-		return -ENOMEM;
-
-	for (i = 0; i < size; i += 4)
-		nv_wv32(pgt->bo[1], i, 0);
-
-	pde[0] = pgt->limit << 2;
-	pde[1] = (pgt->bo[1]->start >> 8) | 1;
-
-	if (vs->vid != -3) {
-		pgt->bo[0] = pscnv_mem_alloc(vs->dev, NVC0_VM_LPTE_COUNT * 8,
-					      PSCNV_GEM_CONTIG, 0, 0x79, NULL);
-		if (!pgt->bo[0])
-			return -ENOMEM;
-
-		nvc0_vm_map_kernel(pgt->bo[0]);
-		nvc0_vm_map_kernel(pgt->bo[1]);
-
-		for (i = 0; i < NVC0_VM_LPTE_COUNT * 8; i += 4)
-			nv_wv32(pgt->bo[0], i, 0);
-
-		pde[0] |= (pgt->bo[0]->start >> 8) | 1;
+	if (pgt->bo[0]) {
+		pde[0] = (pgt->bo[0]->start >> 8) | 1;
 	}
-	dev_priv->vm->bar_flush(vs->dev);
 	
-	spin_lock_irqsave(&nvc0_vs(vs)->pd_lock, flags);
+	if (pgt->bo[1]) {
+		pde[1] = (pgt->bo[1]->start >> 8) | 1;
+	}
+	
 	nv_wv32(nvc0_vs(vs)->pd, pgt->pde * 8 + 0, pde[0]);
 	nv_wv32(nvc0_vs(vs)->pd, pgt->pde * 8 + 4, pde[1]);
-	spin_unlock_irqrestore(&nvc0_vs(vs)->pd_lock, flags);
-	
-	dev_priv->vm->bar_flush(vs->dev);
-	return nvc0_tlb_flush(vs);
 }
 
 static struct nvc0_pgt *
@@ -151,42 +125,126 @@ nvc0_vspace_pgt_or_null(struct pscnv_vspace *vs, unsigned int pde)
 {
 	struct nvc0_pgt *pt;
 	struct list_head *pts = &nvc0_vs(vs)->ptht[NVC0_PDE_HASH(pde)];
+	unsigned long flags;
 
 	BUG_ON(pde >= NVC0_VM_PDE_COUNT);
 
+	spin_lock_irqsave(&nvc0_vs(vs)->pd_lock, flags);
 	list_for_each_entry(pt, pts, head)
-		if (pt->pde == pde)
+		if (pt->pde == pde) {
+			spin_unlock_irqrestore(&nvc0_vs(vs)->pd_lock, flags);
 			return pt;
+		}
+	spin_unlock_irqrestore(&nvc0_vs(vs)->pd_lock, flags);
 	
 	return NULL;
 }
 
 static struct nvc0_pgt *
+nvc0_vspace_pgt_new(struct pscnv_vspace *vs, unsigned int pde)
+{
+	struct drm_device *dev = vs->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct list_head *pts = &nvc0_vs(vs)->ptht[NVC0_PDE_HASH(pde)];
+	struct nvc0_pgt *pgt;
+	unsigned long irq_flags;
+	int bo_flags;
+	uint32_t tmp;
+	
+	if (pscnv_vm_debug >= 2) {
+		NV_INFO(dev, "creating new page table: %i[%u]\n", vs->vid, pde);
+	}
+	
+	spin_lock_irqsave(&nvc0_vs(vs)->pd_lock, irq_flags);
+	tmp = nv_rv32(nvc0_vs(vs)->pd, pde * 8 + 4);
+	if (tmp) {
+		spin_unlock_irqrestore(&nvc0_vs(vs)->pd_lock, irq_flags);
+		NV_ERROR(dev, "there seems to be already a page table at %i[%u]\n",
+				vs->vid, pde);
+		return NULL;
+	}
+	spin_unlock_irqrestore(&nvc0_vs(vs)->pd_lock, irq_flags);
+	
+	pgt = kzalloc(sizeof(*pgt), GFP_KERNEL);
+	if (!pgt) {
+		NV_ERROR(dev, "could not allocate pgt struct\n");
+		goto fail_kzalloc;
+	}
+	
+	INIT_LIST_HEAD(&pgt->head);
+	pgt->pde = pde;
+	
+	bo_flags = PSCNV_GEM_CONTIG | PSCNV_ZEROFILL;
+	if (vs->vid != -3) {
+		bo_flags |= PSCNV_MAP_KERNEL;
+	}
+	
+	pgt->bo[1] = pscnv_mem_alloc(dev, NVC0_VM_SPTE_COUNT * 8, bo_flags, 0, 0x59, NULL);
+	if (!pgt->bo[1]) {
+		NV_ERROR(dev, "could not allocate small page table: %i[%u]\n",
+				vs->vid, pde);
+		goto fail_spt;
+	}
+
+	if (vs->vid != -3) {
+		pgt->bo[0] = pscnv_mem_alloc(dev, NVC0_VM_LPTE_COUNT * 8,
+			PSCNV_GEM_CONTIG | PSCNV_ZEROFILL | PSCNV_MAP_KERNEL,
+			0, 0x79, NULL);
+			
+		if (!pgt->bo[0]) {
+			NV_ERROR(dev, "could not allocate large page table: %i[%u]\n",
+					vs->vid, pde);
+			goto fail_lpt;
+		}
+	}
+	
+	dev_priv->vm->bar_flush(vs->dev);
+	
+	spin_lock_irqsave(&nvc0_vs(vs)->pd_lock, irq_flags);
+	tmp = nv_rv32(nvc0_vs(vs)->pd, pde * 8 + 4);
+	if (tmp) {
+		spin_unlock_irqrestore(&nvc0_vs(vs)->pd_lock, irq_flags);
+		NV_ERROR(dev, "someone has inserted a pde at %i[%u] before us\n",
+				vs->vid, pde);
+		goto fail_race;
+	}
+
+	nvc0_vspace_insert_pde_unlocked(vs, pgt);
+	list_add_tail(&pgt->head, pts);
+	spin_unlock_irqrestore(&nvc0_vs(vs)->pd_lock, irq_flags);
+	
+	dev_priv->vm->bar_flush(vs->dev);
+	nvc0_tlb_flush(vs);
+	
+	return pgt;
+	
+fail_race:
+	if (pgt->bo[0]) {
+		pscnv_mem_free(pgt->bo[0]);
+	}
+
+fail_lpt:	
+	pscnv_mem_free(pgt->bo[1]);
+	
+fail_spt:
+	kfree(pgt);
+
+fail_kzalloc:
+	return NULL;
+	
+}
+
+static inline struct nvc0_pgt *
 nvc0_vspace_pgt(struct pscnv_vspace *vs, unsigned int pde)
 {
 	struct nvc0_pgt *pt;
-	struct list_head *pts = &nvc0_vs(vs)->ptht[NVC0_PDE_HASH(pde)];
 	
-	if ((pt = nvc0_vspace_pgt_or_null(vs, pde))) {
-		return pt;
+	pt = nvc0_vspace_pgt_or_null(vs, pde);
+	
+	if (!pt) {
+		pt = nvc0_vspace_pgt_new(vs, pde);
 	}
-
-	if (pscnv_vm_debug >= 2) {
-		NV_INFO(vs->dev, "creating new page table: %i[%u]\n", vs->vid, pde);
-	}
-
-	pt = kzalloc(sizeof *pt, GFP_KERNEL);
-	if (!pt)
-		return NULL;
-	pt->pde = pde;
-	pt->limit = 0;
-
-	if (nvc0_vspace_fill_pde(vs, pt)) {
-		kfree(pt);
-		return NULL;
-	}
-
-	list_add_tail(&pt->head, pts);
+	
 	return pt;
 }
 
@@ -194,16 +252,16 @@ static void
 nvc0_pgt_del(struct pscnv_vspace *vs, struct nvc0_pgt *pgt)
 {
 	unsigned long flags;
-	
-	pscnv_vram_free(pgt->bo[1]);
-	if (pgt->bo[0])
-		pscnv_vram_free(pgt->bo[0]);
-	list_del(&pgt->head);
 
 	spin_lock_irqsave(&nvc0_vs(vs)->pd_lock, flags);
-	nv_wv32(nvc0_vs(vs)->pd, pgt->pde * 8 + 0, 0);
+	list_del(&pgt->head);
 	nv_wv32(nvc0_vs(vs)->pd, pgt->pde * 8 + 4, 0);
+	nv_wv32(nvc0_vs(vs)->pd, pgt->pde * 8 + 0, 0);
 	spin_unlock_irqrestore(&nvc0_vs(vs)->pd_lock, flags);
+	
+	pscnv_mem_free(pgt->bo[1]);
+	if (pgt->bo[0])
+		pscnv_mem_free(pgt->bo[0]);
 
 	kfree(pgt);
 }
@@ -236,7 +294,9 @@ nvc0_vspace_do_unmap(struct pscnv_vspace *vs, uint64_t offset, uint64_t size)
 			nv_wv32(pt->bo[0], pte * 8 + i, 0);
 	}
 	dev_priv->vm->bar_flush(vs->dev);
-	return nvc0_tlb_flush(vs);
+	nvc0_tlb_flush(vs);
+	
+	return 0;
 }
 
 static inline void
@@ -268,7 +328,7 @@ nvc0_vm_storage_type_str(int type)
 }
 
 static void
-nvc0_vm_pt_dump(struct drm_device *dev, uint64_t pt_addr, int id, int small, int limit, int pde, int *entrycnt)
+nvc0_vm_pt_dump(struct drm_device *dev, struct seq_file *m, uint64_t pt_addr, int id, int small, int limit, int pde, int *entrycnt)
 {
 	uint32_t size;
 	const char *type_str = (small) ? "SPT" : "LPT";
@@ -322,7 +382,7 @@ nvc0_vm_pt_dump(struct drm_device *dev, uint64_t pt_addr, int id, int small, int
 			
 		} while (valid_next && addr_next == end && sysflag_next == sysflag && type_next == type);
 		
-		NV_INFO(dev, "%d[%d]%s   %04x: %04llx-%04llx sys=%d %s\n",
+		NV_DUMP(dev, m, "%d[%d]%s   %04x: %04llx-%04llx sys=%d %s\n",
 			id, pde, type_str, i_start, start, end, sysflag, nvc0_vm_storage_type_str(type));
 		
 		*entrycnt += 1;
@@ -336,7 +396,7 @@ nvc0_vm_pt_dump(struct drm_device *dev, uint64_t pt_addr, int id, int small, int
 
 /* pd_addr = physical address of page directory in VRAM */
 static void
-nvc0_vm_pd_dump(struct drm_device *dev, uint64_t pd_addr, int id)
+nvc0_vm_pd_dump(struct drm_device *dev, struct seq_file *m, uint64_t pd_addr, int id)
 {
 	unsigned int i;
 	int entrycnt = 0;
@@ -355,14 +415,14 @@ nvc0_vm_pd_dump(struct drm_device *dev, uint64_t pd_addr, int id)
 		spt_addr = (b >> 4);
 		
 		if (a != 0 || b != 0) {
-			NV_INFO(dev, "%d[%d] ** LPT=%08x SPT_LIMIT=%d LPT_VALID=%d SPT=%08x SPT_VALID=%d\n",
+			NV_DUMP(dev, m, "%d[%d] ** LPT=%08x SPT_LIMIT=%d LPT_VALID=%d SPT=%08x SPT_VALID=%d\n",
 				id, i, lpt_addr, spt_limit, lpt_valid, spt_addr, spt_valid);
 		}
 		if (spt_valid) {	
-			nvc0_vm_pt_dump(dev, spt_addr << 12, id, true, spt_limit, i, &entrycnt);
+			nvc0_vm_pt_dump(dev, m, spt_addr << 12, id, true, spt_limit, i, &entrycnt);
 		}
 		if (lpt_valid) {
-			nvc0_vm_pt_dump(dev, lpt_addr << 12, id, false, 0, i, &entrycnt);
+			nvc0_vm_pt_dump(dev, m, lpt_addr << 12, id, false, 0, i, &entrycnt);
 		}
 		
 		/* we seem to read bullshit */
@@ -391,7 +451,8 @@ static int
 nvc0_vspace_do_map(struct pscnv_vspace *vs,
 		   struct pscnv_bo *bo, uint64_t offset)
 {
-	struct drm_nouveau_private *dev_priv = vs->dev->dev_private;
+	struct drm_device *dev = vs->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	uint32_t pfl0, pfl1;
 	struct pscnv_mm_node *reg;
 	int i;
@@ -457,6 +518,12 @@ nvc0_vspace_do_map(struct pscnv_vspace *vs,
 				pte = (offset & NVC0_VM_BLOCK_MASK) >> psh;
 				count = space >> psh;
 				pt = nvc0_vspace_pgt(vs, NVC0_PDE(offset));
+				
+				if (!pt) {
+					NV_ERROR(dev, "vspace_map: can't get pt %i[%llu]\n",
+						vs->vid, NVC0_PDE(offset));
+					return -ENOMEM;
+				}
 
 				spin_lock_irqsave(&nvc0_vs(vs)->pd_lock, flags);
 				write_pt(pt->bo[s], pte, count, phys, psz, pfl0, pfl1);
@@ -472,12 +539,27 @@ nvc0_vspace_do_map(struct pscnv_vspace *vs,
 		return -ENOSYS;
 	}
 	dev_priv->vm->bar_flush(vs->dev);
-	return nvc0_tlb_flush(vs);
+	nvc0_tlb_flush(vs);
+	
+	return 0;
 }
+
+static const char *nvc0_num_str[] = {"BAR3", "??", "BAR1", "0", "1", "2", "3",
+"4", "5", "6", "7", "8","9", "10", "11", "12", "13", "14", "15", "16", "17",
+"18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30",
+"31", "32", "33", "34", "35", "36", "37", "38", "39", "40", "41", "42", "43",
+"44", "45", "46", "47", "48", "49", "50", "51", "52", "53", "54", "55", "56",
+"57", "58", "59", "60", "61", "62", "63", "64", "65", "66", "67", "68", "69",
+"70", "71", "72", "73", "74", "75", "76", "77", "78", "79", "80", "81", "82",
+"83", "84", "85", "86", "87", "88", "89", "90", "91", "92", "93", "94", "95",
+"96", "97", "98", "99", "100", "101", "102", "103", "104", "105", "106", "107",
+"108", "109", "110", "111", "112", "113", "114", "115", "116", "117", "118",
+"119", "120", "121", "122", "123", "124", "125", "126", "127"};
 
 static int nvc0_vspace_new(struct pscnv_vspace *vs) {
 	unsigned long flags;
 	int i, ret;
+	const char *mm_name = nvc0_num_str[vs->vid + 3];
 
 	if (vs->size > 1ull << 40)
 		return -EINVAL;
@@ -511,7 +593,7 @@ static int nvc0_vspace_new(struct pscnv_vspace *vs) {
 	for (i = 0; i < NVC0_PDE_HT_SIZE; ++i)
 		INIT_LIST_HEAD(&nvc0_vs(vs)->ptht[i]);
 
-	ret = pscnv_mm_init(vs->dev, 0, vs->size, 0x1000, 0x20000, 1, &vs->mm);
+	ret = pscnv_mm_init(vs->dev, mm_name, 0, vs->size, 0x1000, 0x20000, 1, &vs->mm);
 	if (ret) {
 		pscnv_mem_free(nvc0_vs(vs)->pd);
 		kfree(vs->engdata);
@@ -521,13 +603,14 @@ static int nvc0_vspace_new(struct pscnv_vspace *vs) {
 
 static void nvc0_vspace_free(struct pscnv_vspace *vs) {
 	int i;
+	
 	for (i = 0; i < NVC0_PDE_HT_SIZE; i++) {
 		struct nvc0_pgt *pgt, *save;
 		list_for_each_entry_safe(pgt, save, &nvc0_vs(vs)->ptht[i], head)
 			nvc0_pgt_del(vs, pgt);
 	}
 	pscnv_mem_free(nvc0_vs(vs)->pd);
-
+	
 	kfree(vs->engdata);
 }
 
@@ -548,7 +631,7 @@ static int nvc0_vm_map_kernel(struct pscnv_bo *bo) {
 }
 
 static void
-nvc0_vm_pd_dump_bar(struct drm_device *dev, int bar, uint32_t reg)
+nvc0_vm_pd_dump_bar(struct drm_device *dev, struct seq_file *m, int bar, uint32_t reg)
 {
 	uint64_t pd_addr;
 	uint64_t chan_bo_addr;
@@ -569,21 +652,21 @@ nvc0_vm_pd_dump_bar(struct drm_device *dev, int bar, uint32_t reg)
 		return;
 	}
 	
-	NV_INFO(dev, "DUMP BAR%d PD at 0x%08llx\n", bar, pd_addr);
+	NV_DUMP(dev, m, "DUMP BAR%d PD at 0x%08llx\n", bar, pd_addr);
 	
-	nvc0_vm_pd_dump(dev, pd_addr, -bar);
+	nvc0_vm_pd_dump(dev, m, pd_addr, -bar);
 }
 
 static void
-nvc0_vm_pd_dump_bar3(struct drm_device *dev)
+nvc0_vm_pd_dump_bar3(struct drm_device *dev, struct seq_file *m)
 {
-	nvc0_vm_pd_dump_bar(dev, 3, 0x1714);
+	nvc0_vm_pd_dump_bar(dev, m, 3, 0x1714);
 }
 
 static void
-nvc0_vm_pd_dump_bar1(struct drm_device *dev)
+nvc0_vm_pd_dump_bar1(struct drm_device *dev, struct seq_file *m)
 {
-	nvc0_vm_pd_dump_bar(dev, 1, 0x1704);
+	nvc0_vm_pd_dump_bar(dev, m, 1, 0x1704);
 }
 
 int
@@ -642,7 +725,7 @@ nvc0_vm_init(struct drm_device *dev) {
 
 	dev_priv->vm_ok = 1;
 
-	nvc0_vm_map_kernel(vme->bar3ch->bo);
+	nvc0_vm_map_kernel(vme->bar3ch->bo); /* pt is already allocated here!*/
 	nvc0_vm_map_kernel(nvc0_vs(vme->bar3vm)->pd);
 	pt = nvc0_vspace_pgt(vme->bar3vm, 0);
 	if (!pt) {

@@ -24,6 +24,9 @@ struct pscnv_ib_chan {
 	struct drm_device *dev;
 	struct pscnv_chan *chan;
 	
+	/* if set, refuse to do any memory write */
+	bool failed;
+	
 	/* Channel Control */
 	struct pscnv_bo *ctrl_bo;
 	uint32_t ctrl_offset;
@@ -76,6 +79,9 @@ pscnv_ib_push(struct pscnv_ib_chan *ch, uint32_t start, uint32_t len, int flags)
 void
 pscnv_ib_update_pb_get(struct pscnv_ib_chan *ch);
 
+void
+pscnv_ib_fail(struct pscnv_ib_chan *ch);
+
 static inline void
 pscnv_ib_ctrl_w32(struct pscnv_ib_chan *chan_ib, uint32_t offset, uint32_t val)
 {
@@ -101,49 +107,11 @@ pscnv_ib_subch_idx(int subch)
 	}
 }
 
-static inline void
-FIRE_RING(struct pscnv_ib_chan *ch)
-{
-	if (ch->pb_pos != ch->pb_put) {
-		if (ch->pb_pos > ch->pb_put) {
-			pscnv_ib_push(ch, ch->pb_put, ch->pb_pos - ch->pb_put, 0);
-		} else {
-			pscnv_ib_push(ch, ch->pb_put, PSCNV_PB_SIZE - ch->pb_put, 0);
-			if (ch->pb_pos > 0) {
-				pscnv_ib_push(ch, 0, ch->pb_pos, 0);
-			}
-		}
-		ch->pb_put = ch->pb_pos;
-	}
-	// else: nothing to fire
-}
+void
+FIRE_RING(struct pscnv_ib_chan *ch);
 
-static inline void
-OUT_RING(struct pscnv_ib_chan *ch, uint32_t word)
-{
-	struct drm_device *dev = ch->dev;
-	
-	const unsigned long timeout = jiffies + 2*HZ;
-		
-	while (((ch->pb_pos + 4) & PSCNV_PB_MASK) == ch->pb_get) {
-		uint32_t old = ch->pb_get;
-		FIRE_RING(ch);
-		pscnv_ib_update_pb_get(ch);
-		if (old == ch->pb_get) {
-			schedule();
-		}
-		if (time_after(jiffies, timeout)) {
-			NV_INFO(dev, "OUT_RING: timeout waiting for PB "
-				"get pointer, seems frozen at %x on channel %d\n",
-				ch->pb_get, ch->chan->cid);
-			return;
-		}
-	}
-	
-	nv_wv32(ch->pb, ch->pb_pos, word);
-	ch->pb_pos += 4;
-	ch->pb_pos &= PSCNV_PB_MASK;
-}
+void
+OUT_RING(struct pscnv_ib_chan *ch, uint32_t word);
 
 static inline void
 BEGIN_NVC0(struct pscnv_ib_chan *ch, int subch, int mthd, int len)

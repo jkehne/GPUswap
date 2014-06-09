@@ -41,10 +41,10 @@ static int nvc0_chan_new (struct pscnv_chan *ch)
 		nv_wv32(ch->bo, i, 0);
 	}
 
-	nv_wv32(ch->bo, 0x200, nvc0_vs(vs)->pd->start);
-	nv_wv32(ch->bo, 0x204, nvc0_vs(vs)->pd->start >> 32);
-	nv_wv32(ch->bo, 0x208, vs->size - 1);
-	nv_wv32(ch->bo, 0x20c, (vs->size - 1) >> 32);
+	nv_wv32(ch->bo, 0x200, lower_32_bits(nvc0_vs(vs)->pd->start));
+	nv_wv32(ch->bo, 0x204, upper_32_bits(nvc0_vs(vs)->pd->start));
+	nv_wv32(ch->bo, 0x208, lower_32_bits(vs->size - 1));
+	nv_wv32(ch->bo, 0x20c, upper_32_bits(vs->size - 1));
 
 	if (ch->cid >= 0) {
 		nv_wr32(ch->dev, 0x3000 + ch->cid * 8, (0x4 << 28) | ch->bo->start >> 12);
@@ -76,7 +76,7 @@ nvc0_chan_takedown(struct drm_device *dev)
 }
 
 static void
-nvc0_pd_dump_chan(struct drm_device *dev, int chid)
+nvc0_pd_dump_chan(struct drm_device *dev, struct seq_file *m, int chid)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	uint64_t chan_bo_addr;
@@ -100,7 +100,7 @@ nvc0_pd_dump_chan(struct drm_device *dev, int chid)
 	
 	NV_INFO(dev, "DUMP PD at %08llx for channel %d\n", pd_addr, chid);
 	
-	dev_priv->vm->pd_dump(dev, pd_addr, chid); 
+	dev_priv->vm->pd_dump(dev, m, pd_addr, chid); 
 }
 
 int

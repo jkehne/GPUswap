@@ -419,11 +419,11 @@ static void nvc0_pfifo_page_fault(struct drm_device *dev, int unit)
 		(flags & 0x80) ? 'w' : 'r', pgf_cause_str(flags));
 	
 	if ((unit == 0x05 || chid == -3) && dev_priv->vm->pd_dump_bar3) {
-		dev_priv->vm->pd_dump_bar3(dev);
+		dev_priv->vm->pd_dump_bar3(dev, NULL);
 	} else if ((unit == 0x04 || chid == -1) && dev_priv->vm->pd_dump_bar1) {
-		dev_priv->vm->pd_dump_bar1(dev);
+		dev_priv->vm->pd_dump_bar1(dev, NULL);
 	} else if (1 <= chid && chid <= 127 && dev_priv->chan->pd_dump_chan) {
-		dev_priv->chan->pd_dump_chan(dev, chid);
+		dev_priv->chan->pd_dump_chan(dev, NULL, chid);
 	}
 }
 

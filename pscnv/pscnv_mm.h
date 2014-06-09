@@ -9,6 +9,7 @@ PSCNV_RB_HEAD(pscnv_mm_head, pscnv_mm_node);
 struct pscnv_mm {
 	struct drm_device *dev;
 	struct pscnv_mm_head head;
+	const char *name;
 	uint32_t spsize;
 	uint32_t lpsize;
 	uint32_t tssize;
@@ -38,7 +39,7 @@ struct pscnv_mm_node {
 #define PSCNV_MM_FRAGOK		4
 #define PSCNV_MM_FROMBACK	8
 
-int pscnv_mm_init(struct drm_device *dev, uint64_t start, uint64_t end, uint32_t spsize, uint32_t lpsize, uint32_t tssize, struct pscnv_mm **res);
+int pscnv_mm_init(struct drm_device *dev, const char *name, uint64_t start, uint64_t end, uint32_t spsize, uint32_t lpsize, uint32_t tssize, struct pscnv_mm **res);
 int pscnv_mm_alloc(struct pscnv_mm *mm, uint64_t size, uint32_t flags, uint64_t start, uint64_t end, struct pscnv_mm_node **res);
 void pscnv_mm_free(struct pscnv_mm_node *node);
 void pscnv_mm_takedown(struct pscnv_mm *mm, void (*free_callback)(struct pscnv_mm_node *));
