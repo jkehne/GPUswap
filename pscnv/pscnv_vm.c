@@ -212,6 +212,22 @@ pscnv_vspace_unmap(struct pscnv_vspace *vs, uint64_t start) {
 	mutex_unlock(&vs->lock);
 	return ret;
 }
+
+struct pscnv_bo *
+pscnv_vspace_vm_addr_lookup(struct pscnv_vspace *vs, uint64_t addr)
+{
+	struct pscnv_mm_node *mm_node;
+	
+	mutex_lock(&vs->lock);
+	mm_node = pscnv_mm_find_node(vs->mm, addr);
+	mutex_unlock(&vs->lock);
+	
+	if (mm_node) {
+		return mm_node->bo;
+	}
+	
+	return NULL;
+}
 	
 static void
 pscnv_gem_vm_open(struct vm_area_struct *vma)

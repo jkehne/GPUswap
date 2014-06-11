@@ -323,7 +323,8 @@ void pscnv_chan_ref_free(struct kref *ref) {
 	NV_INFO(dev, "CHAN: Freeing channel %d\n", ch->cid);
 	if (ch->cid >= 0) {
 		int i;
-		dev_priv->fifo->chan_kill(ch);
+		/* dev_priv->engines[0] is FIFO and it will stop channel in its
+		 * chan_kill */
 		for (i = 0; i < PSCNV_ENGINES_NUM; i++)
 			if (ch->engdata[i]) {
 				struct pscnv_engine *eng = dev_priv->engines[i];

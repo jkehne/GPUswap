@@ -17,7 +17,7 @@ nvc0_chan_ctrl_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 	struct drm_device *dev = ch->base.dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	
-	struct nvc0_fifo_engine *fifo = nvc0_fifo(dev_priv->fifo);
+	struct nvc0_fifo_engine *fifo = nvc0_fifo_eng(dev_priv->fifo);
 	unsigned long flags;
 	uint32_t ib_put;
 	
@@ -72,7 +72,7 @@ nvc0_chan_pause_ctrl_shadow(struct nvc0_chan *ch)
 	struct drm_device *dev = ch->base.dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	
-	struct nvc0_fifo_engine *fifo = nvc0_fifo(dev_priv->fifo);
+	struct nvc0_fifo_engine *fifo = nvc0_fifo_eng(dev_priv->fifo);
 	struct vm_area_struct *vma = ch->base.vma;
 	unsigned long flags;
 	uint32_t ib_get, ib_put;
@@ -122,7 +122,7 @@ nvc0_chan_continue_ctrl_shadow(struct nvc0_chan *ch)
 	struct drm_device *dev = ch->base.dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	
-	struct nvc0_fifo_engine *fifo = nvc0_fifo(dev_priv->fifo);
+	struct nvc0_fifo_engine *fifo = nvc0_fifo_eng(dev_priv->fifo);
 	struct vm_area_struct *vma = ch->base.vma;
 	uint32_t ib_put;
 	unsigned long flags;

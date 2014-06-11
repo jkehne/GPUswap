@@ -487,7 +487,7 @@ pscnv_ib_chan_new(struct pscnv_vspace *vs, int fake)
 {
 	struct drm_device *dev = vs->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nvc0_fifo_engine *fifo = nvc0_fifo(dev_priv->fifo);
+	struct nvc0_fifo_engine *fifo = nvc0_fifo_eng(dev_priv->fifo);
 	struct pscnv_ib_chan *rr;
 	int res;
 	int i;

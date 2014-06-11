@@ -448,8 +448,6 @@ out_fifo:
 			dev_priv->engines[i]->takedown(dev_priv->engines[i]);
 			dev_priv->engines[i] = 0;
 		}
-	if (dev_priv->fifo)
-		dev_priv->fifo->takedown(dev);
 out_gpio:
 	engine->gpio.takedown(dev);
 out_vm:
@@ -492,8 +490,6 @@ static void nouveau_card_takedown(struct drm_device *dev)
 				dev_priv->engines[i]->takedown(dev_priv->engines[i]);
 				dev_priv->engines[i] = 0;
 			}
-		if (dev_priv->fifo)
-			dev_priv->fifo->takedown(dev);
 		dev_priv->vm->takedown(dev);
 		dev_priv->chan->takedown(dev);
 		pscnv_mem_takedown(dev);

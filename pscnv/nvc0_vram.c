@@ -127,15 +127,24 @@ nvc0_vram_alloc(struct pscnv_bo *bo)
 		   memory right in front of us */
 	}
 	ret = pscnv_mm_alloc(dev_priv->vram_mm, bo->size, flags, 0, dev_priv->vram_size, &bo->mmnode);
-	if (!ret) {
-		if (bo->flags & PSCNV_GEM_CONTIG)
-			bo->start = bo->mmnode->start;
-		bo->mmnode->bo = bo;
-		dev_priv->vram_usage += bo->size;
-		if (bo->client) {
-			bo->client->vram_usage += bo->size;
-		}
+	if (ret) {
+		mutex_unlock(&dev_priv->vram_mutex);
+		NV_INFO(dev, "nvc0_vram_alloc: unable to allocate 0x%llx bytes "
+			"for BO %08x/%d. Failed with code %d\n",
+			bo->size, bo->cookie, bo->serial, ret);
+		return ret;
 	}
+	
+	if (bo->flags & PSCNV_GEM_CONTIG) {
+		bo->start = bo->mmnode->start;
+	}
+	
+	bo->mmnode->bo = bo;
+	dev_priv->vram_usage += bo->size;
+	if (bo->client) {
+		bo->client->vram_usage += bo->size;
+	}
+	
 	mutex_unlock(&dev_priv->vram_mutex);
 	return ret;
 }

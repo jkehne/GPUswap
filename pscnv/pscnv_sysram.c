@@ -1,12 +1,12 @@
 #include "drm.h"
 #include "nouveau_drv.h"
 #include "pscnv_mem.h"
-#ifdef __linux__
+
 #include <linux/list.h>
 #include <linux/kernel.h>
 #include <linux/mutex.h>
 #include <linux/gfp.h>
-#endif
+
 
 int
 pscnv_sysram_alloc(struct pscnv_bo *bo)
@@ -24,7 +24,7 @@ pscnv_sysram_alloc(struct pscnv_bo *bo)
 		kfree(bo->pages);
 		return -ENOMEM;
 	}
-#ifdef __linux__
+
 	for (i = 0; i < numpages; i++) {
 		bo->pages[i] = alloc_pages(dev_priv->dma_mask > 0xffffffff ? GFP_DMA32 : GFP_KERNEL, 0);
 		if (!bo->pages[i]) {
@@ -47,19 +47,7 @@ pscnv_sysram_alloc(struct pscnv_bo *bo)
 			return -ENOMEM;
 		}
 	}
-#else
-	for (i = 0; i < numpages; i++) {
-		bo->pages[i] = (void*)kmem_alloc_contig(kmem_map, PAGE_SIZE, M_WAITOK, 0, dev_priv->dma_mask, PAGE_SIZE, 0, VM_MEMATTR_DEFAULT);
-		if (!bo->pages[i]) {
-			for (j = 0; j < i; j++)
-				kmem_free(kmem_map, (vm_offset_t)bo->pages[j], PAGE_SIZE);
-			kfree(bo->pages);
-			kfree(bo->dmapages);
-			return -ENOMEM;
-		}
-		bo->dmapages[i] = vtophys(bo->pages[i]);
-	}
-#endif
+	
 	return 0;
 }
 
@@ -68,21 +56,17 @@ pscnv_sysram_free(struct pscnv_bo *bo)
 {
 	int numpages, i;
 	numpages = bo->size >> PAGE_SHIFT;
-#ifdef __linux__
+
 	for (i = 0; i < numpages; i++)
 		pci_unmap_page(bo->dev->pdev, bo->dmapages[i], PAGE_SIZE, PCI_DMA_BIDIRECTIONAL);
 	for (i = 0; i < numpages; i++)
 		put_page(bo->pages[i]);
-#else
-	for (i = 0; i < numpages; i++)
-		kmem_free(kmem_map, (vm_offset_t)bo->pages[i], PAGE_SIZE);
-#endif
+
 	kfree(bo->pages);
 	kfree(bo->dmapages);
 	return 0;
 }
 
-#ifdef __linux__ // TODO
 extern int pscnv_sysram_vm_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 {
 	struct drm_gem_object *obj = vma->vm_private_data;
@@ -96,4 +80,3 @@ extern int pscnv_sysram_vm_fault(struct vm_area_struct *vma, struct vm_fault *vm
 	vmf->page = res;
 	return 0;
 }
-#endif

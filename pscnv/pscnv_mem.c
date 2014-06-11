@@ -176,7 +176,7 @@ pscnv_mem_alloc(struct drm_device *dev,
 		}
 	}
 	if (res->flags & PSCNV_MAP_USER) {
-		if (!pscnv_bo_map_bar1(res)) {
+		if (pscnv_bo_map_bar1(res)) {
 			pscnv_mem_free(res);
 			return NULL;
 		}
@@ -232,7 +232,8 @@ fail_map:
 int
 pscnv_mem_free(struct pscnv_bo *bo)
 {
-	struct drm_nouveau_private *dev_priv = bo->dev->dev_private;
+	struct drm_device *dev = bo->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	
 	if (bo->gem) {
 		NV_ERROR(bo->dev, "Freeing %08x/%d, with DRM- Wrapper still attached!\n", bo->cookie, bo->serial);
@@ -242,12 +243,17 @@ pscnv_mem_free(struct pscnv_bo *bo)
 		NV_INFO(bo->dev, "Freeing %d, %#llx-byte %sBO cookie=%08x, tile_flags %x\n", bo->serial, bo->size,
 				(bo->flags & PSCNV_GEM_CONTIG ? "contig " : ""), bo->cookie, bo->tile_flags);
 
+	pscnv_swapping_remove_bo(bo);
+
+	if (bo->drm_map) {
+		drm_rmmap(dev, bo->drm_map);
+	}
+
 	if (dev_priv->vm_ok && bo->map1)
 		pscnv_vspace_unmap_node(bo->map1);
 	if (dev_priv->vm_ok && bo->map3)
 		pscnv_vspace_unmap_node(bo->map3);
 	
-	pscnv_swapping_remove_bo(bo);
 	
 	if (bo->backing_store) {
 		pscnv_bo_unref(bo->backing_store);

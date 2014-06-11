@@ -77,6 +77,9 @@ static inline void pscnv_vspace_unref(struct pscnv_vspace *vs) {
 
 extern int pscnv_mmap(struct file *filp, struct vm_area_struct *vma);
 
+/* get the bo at addr in this vs or NULL */
+struct pscnv_bo *
+pscnv_vspace_vm_addr_lookup(struct pscnv_vspace *vs, uint64_t addr);
 
 int nv50_vm_init(struct drm_device *dev);
 int nvc0_vm_init(struct drm_device *dev);

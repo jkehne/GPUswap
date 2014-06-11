@@ -74,12 +74,8 @@ struct pscnv_bo {
 	   of this bo (see nouveau_drv.h: nv_rv32, nv_wv32). This pointer should
 	   be set, if the BO is mapped to BAR 1 */
 	struct drm_local_map *drm_map;
-	
-#ifndef __linux__
-	/* freebsd: Allocate an array of fake pages we can populate if user-space mappable */
-	vm_page_t fake_pages;
-#endif
 };
+
 #define PSCNV_GEM_NOUSER	0x10
 #define PSCNV_ZEROFILL		0x20
 #define PSCNV_MAP_KERNEL	0x40
