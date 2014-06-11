@@ -30,9 +30,7 @@ pscnv_ib_dump_pointers(struct pscnv_ib_chan *ch)
 	
 	dev_priv->vm->bar_flush(dev);
 	
-	//ch->ib_get = pscnv_ib_r32(ch, 0x88);
 	ch->ib_get = pscnv_ib_ctrl_r32(ch, 0x88);
-	//ch->ib_put = pscnv_ib_r32(ch, 0x8c);
 	ch->ib_put = pscnv_ib_ctrl_r32(ch, 0x8c);
 	pscnv_ib_update_pb_get(ch);
 	

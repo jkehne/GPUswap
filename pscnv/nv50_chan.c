@@ -4,7 +4,14 @@
 #include "pscnv_chan.h"
 #include "nv50_vm.h"
 
-static int nv50_chan_new (struct pscnv_chan *ch) {
+static struct pscnv_chan *
+nv50_chan_alloc(struct drm_device *dev)
+{
+	return kzalloc(sizeof(struct pscnv_chan), GFP_KERNEL);
+}
+
+static int
+nv50_chan_new (struct pscnv_chan *ch) {
 	struct pscnv_vspace *vs = ch->vspace;
 	struct drm_nouveau_private *dev_priv = ch->dev->dev_private;
 	uint64_t size;
@@ -169,6 +176,7 @@ nv50_chan_init(struct drm_device *dev) {
 		return -ENOMEM;
 	}
 	che->base.takedown = nv50_chan_takedown;
+	che->base.do_chan_alloc = nv50_chan_alloc;
 	che->base.do_chan_new = nv50_chan_new;
 	che->base.do_chan_free = nv50_chan_free;
 	dev_priv->chan = &che->base;

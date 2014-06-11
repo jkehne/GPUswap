@@ -58,6 +58,8 @@ struct pscnv_chan {
 	spinlock_t state_lock;
 	atomic_t pausing_threads;
 	struct completion pause_completion;
+	/* pointer to the vma that remaps the fifo-regs for this channel */
+	struct vm_area_struct *vma;
 	struct pscnv_vspace *vspace;
 	struct list_head vspace_list;
 	struct pscnv_bo *bo;
@@ -73,6 +75,11 @@ struct pscnv_chan {
 
 struct pscnv_chan_engine {
 	void (*takedown) (struct drm_device *dev);
+	
+	/* allocate a struct pscnv_chan or a "subclass" of it */
+	struct pscnv_chan* (*do_chan_alloc) (struct drm_device *dev);
+	
+	/* engine specific initialization code */
 	int (*do_chan_new) (struct pscnv_chan *ch);
 	void (*do_chan_free) (struct pscnv_chan *ch);
 	void (*pd_dump_chan) (struct drm_device *dev, struct seq_file *m, int chid);
@@ -83,6 +90,7 @@ struct pscnv_chan_engine {
 	struct pscnv_chan *fake_chans[4];
 	struct pscnv_chan *chans[128];
 	spinlock_t ch_lock;
+	const struct vm_operations_struct *vm_ops;
 	int ch_min, ch_max;
 };
 
@@ -177,5 +185,10 @@ pscnv_chan_chid_lookup(struct drm_device *dev, int chid);
 
 int nv50_chan_init(struct drm_device *dev);
 int nvc0_chan_init(struct drm_device *dev);
+
+/* for vm_operations_struct */
+void pscnv_chan_vm_open(struct vm_area_struct *vma);
+
+void pscnv_chan_vm_close(struct vm_area_struct *vma);
 
 #endif

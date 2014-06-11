@@ -273,7 +273,7 @@ pscnv_debugfs_pause_set(void *data, u64 val)
 		res = pscnv_chan_pause_wait(chans[i]);
 		if (res) {
 			NV_INFO(dev, "pscnv_chan_pause_wait returned %d on "
-				" channel %d\n", res, ch->cid);
+				"channel %d\n", res, ch->cid);
 		}
 	}
 	
@@ -285,7 +285,7 @@ pscnv_debugfs_pause_set(void *data, u64 val)
 		res = pscnv_chan_continue(ch);
 		if (res) {
 			NV_INFO(dev, "pscnv_chan_continue returned %d on "
-				" channel %d\n", res, ch->cid);
+				"channel %d\n", res, ch->cid);
 		}
 		pscnv_chan_unref(ch);
 	}

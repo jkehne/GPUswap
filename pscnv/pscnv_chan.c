@@ -273,7 +273,7 @@ static void pscnv_chan_unbind (struct pscnv_chan *ch) {
 struct pscnv_chan *
 pscnv_chan_new (struct drm_device *dev, struct pscnv_vspace *vs, int fake) {
 	struct drm_nouveau_private *dev_priv = vs->dev->dev_private;
-	struct pscnv_chan *res = kzalloc(sizeof *res, GFP_KERNEL);
+	struct pscnv_chan *res = dev_priv->chan->do_chan_alloc(dev);
 	if (!res) {
 		NV_ERROR(vs->dev, "CHAN: Couldn't alloc channel\n");
 		return 0;
@@ -342,20 +342,15 @@ void pscnv_chan_ref_free(struct kref *ref) {
  * Channel userspace support
  ******************************************************************************/
 
-static void pscnv_chan_vm_open(struct vm_area_struct *vma) {
+void pscnv_chan_vm_open(struct vm_area_struct *vma) {
 	struct pscnv_chan *ch = vma->vm_private_data;
 	pscnv_chan_ref(ch);
 }
 
-static void pscnv_chan_vm_close(struct vm_area_struct *vma) {
+void pscnv_chan_vm_close(struct vm_area_struct *vma) {
 	struct pscnv_chan *ch = vma->vm_private_data;
 	pscnv_chan_unref(ch);
-}
-
-static struct vm_operations_struct pscnv_chan_vm_ops = {
-	.open = pscnv_chan_vm_open,
-	.close = pscnv_chan_vm_close,
-};	
+}	
 
 int pscnv_chan_mmap(struct file *filp, struct vm_area_struct *vma)
 {
@@ -364,22 +359,32 @@ int pscnv_chan_mmap(struct file *filp, struct vm_area_struct *vma)
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	int cid;
 	struct pscnv_chan *ch;
+	enum pscnv_chan_state st;
+	
+	if (vma->vm_end - vma->vm_start > 0x1000)
+		return -EINVAL;
+	cid = (vma->vm_pgoff * PAGE_SIZE >> 16) & 0x7f;
+	ch = pscnv_get_chan(dev, filp->private_data, cid);
+	if (!ch)
+		return -ENOENT;
+	
+	st = pscnv_chan_get_state(ch);
+	if (ch->state != PSCNV_CHAN_RUNNING && ch->state != PSCNV_CHAN_INITIALIZED) {
+		NV_ERROR(dev, "pscnv_chan_pause: channel %d is in unexpected "
+			"state %s\n", ch->cid, pscnv_chan_state_str(ch->state));
+		return -EINVAL;
+	}
 
 	switch (dev_priv->card_type) {
 	case NV_50:
 		if ((vma->vm_pgoff * PAGE_SIZE & ~0x7f0000ull) == 0xc0000000) {
-			if (vma->vm_end - vma->vm_start > 0x2000)
-				return -EINVAL;
-			cid = (vma->vm_pgoff * PAGE_SIZE >> 16) & 0x7f;
-			ch = pscnv_get_chan(dev, filp->private_data, cid);
-			if (!ch)
-				return -ENOENT;
 
 			vma->vm_flags |= VM_RESERVED | VM_IO | VM_PFNMAP | VM_DONTEXPAND;
-			vma->vm_ops = &pscnv_chan_vm_ops;
+			vma->vm_ops = dev_priv->chan->vm_ops;
 			vma->vm_private_data = ch;
 
 			vma->vm_file = filp;
+			ch->vma = vma;
 
 			return remap_pfn_range(vma, vma->vm_start, 
 				(dev_priv->mmio_phys + 0xc00000 + cid * 0x2000) >> PAGE_SHIFT,
@@ -389,19 +394,14 @@ int pscnv_chan_mmap(struct file *filp, struct vm_area_struct *vma)
 	case NV_D0:
 	case NV_C0:
 		if ((vma->vm_pgoff * PAGE_SIZE & ~0x7f0000ull) == 0xc0000000) {
-			if (vma->vm_end - vma->vm_start > 0x1000)
-				return -EINVAL;
-			cid = (vma->vm_pgoff * PAGE_SIZE >> 16) & 0x7f;
-			ch = pscnv_get_chan(dev, filp->private_data, cid);
-			if (!ch)
-				return -ENOENT;
 
 			vma->vm_flags |= VM_RESERVED | VM_IO | VM_PFNMAP | VM_DONTEXPAND;
-			vma->vm_ops = &pscnv_chan_vm_ops;
+			vma->vm_ops = dev_priv->chan->vm_ops;
 			vma->vm_private_data = ch;
 			vma->vm_page_prot = pgprot_writecombine(vm_get_page_prot(vma->vm_flags));
 
 			vma->vm_file = filp;
+			ch->vma = vma;
 
 			return remap_pfn_range(vma, vma->vm_start, 
 					(dev_priv->fb_phys + nvc0_fifo_ctrl_offs(dev, ch->cid)) >> PAGE_SHIFT,
