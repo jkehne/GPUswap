@@ -283,8 +283,8 @@ pscnv_swapping_replace(struct pscnv_bo* vram, struct pscnv_bo* sysram)
 		return -EINVAL;
 	}
 	
-	BUG_ON(primary_node->tag != vram);
-	vs = primary_node->tag2;
+	BUG_ON(primary_node->bo != vram);
+	vs = primary_node->vspace;
 	
 	start = primary_node->start;
 	end = primary_node->start + primary_node->size;

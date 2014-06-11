@@ -334,7 +334,7 @@ pscnv_vram_free(struct pscnv_bo *bo)
 }
 
 static void pscnv_vram_takedown_free(struct pscnv_mm_node *node) {
-	struct pscnv_bo *bo = node->tag;
+	struct pscnv_bo *bo = node->bo;
 	NV_ERROR(bo->dev, "BO %d of type %08x still exists at takedown!\n",
 			bo->serial, bo->cookie);
 	pscnv_mem_free(bo);

@@ -112,7 +112,7 @@ pscnv_vspace_new (struct drm_device *dev, uint64_t size, uint32_t flags, int fak
 
 static void
 pscnv_vspace_free_unmap(struct pscnv_mm_node *node) {
-	struct pscnv_bo *bo = node->tag;
+	struct pscnv_bo *bo = node->bo;
 	pscnv_mm_free(node);
 	pscnv_bo_unref(bo);
 }
@@ -132,9 +132,9 @@ void pscnv_vspace_ref_free(struct kref *ref) {
 
 static int
 pscnv_vspace_unmap_node_unlocked(struct pscnv_mm_node *node) {
-	struct pscnv_vspace *vs = node->tag2;
+	struct pscnv_vspace *vs = node->vspace;
 	struct drm_nouveau_private *dev_priv = vs->dev->dev_private;
-	struct pscnv_bo *bo = node->tag;
+	struct pscnv_bo *bo = node->bo;
 	if (pscnv_vm_debug >= 1) {
 		NV_INFO(vs->dev, "VM: vspace %d: Unmapping range %llx-%llx.\n", vs->vid, node->start, node->start + node->size);
 	}
@@ -173,8 +173,8 @@ pscnv_vspace_map(struct pscnv_vspace *vs, struct pscnv_bo *bo,
 		}
 		return ret;
 	}
-	node->tag = bo;
-	node->tag2 = vs;
+	node->bo = bo;
+	node->vspace = vs;
 	if (pscnv_vm_debug >= 1)
 		NV_INFO(vs->dev, "VM: vspace %d: Mapping BO %x/%d at %llx-%llx.\n", vs->vid, bo->cookie, bo->serial, node->start,
 				node->start + node->size);
@@ -196,7 +196,7 @@ pscnv_vspace_map(struct pscnv_vspace *vs, struct pscnv_bo *bo,
 
 int
 pscnv_vspace_unmap_node(struct pscnv_mm_node *node) {
-	struct pscnv_vspace *vs = node->tag2;
+	struct pscnv_vspace *vs = node->vspace;
 	int ret;
 	mutex_lock(&vs->lock);
 	ret = pscnv_vspace_unmap_node_unlocked(node);
@@ -212,9 +212,7 @@ pscnv_vspace_unmap(struct pscnv_vspace *vs, uint64_t start) {
 	mutex_unlock(&vs->lock);
 	return ret;
 }
-
-#ifdef __linux__
-
+	
 static void
 pscnv_gem_vm_open(struct vm_area_struct *vma)
 {
@@ -319,5 +317,3 @@ int pscnv_mmap(struct file *filp, struct vm_area_struct *vma)
 		return -ENOSYS;
 	}
 }
-
-#endif

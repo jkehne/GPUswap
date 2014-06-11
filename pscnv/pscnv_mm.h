@@ -30,8 +30,8 @@ struct pscnv_mm_node {
 	uint64_t size;
 	struct pscnv_mm_node *next;
 	struct pscnv_mm_node *prev;
-	void *tag;
-	void *tag2;
+	struct pscnv_bo *bo;
+	struct pscnv_vspace *vspace;
 };
 
 #define PSCNV_MM_T1		1

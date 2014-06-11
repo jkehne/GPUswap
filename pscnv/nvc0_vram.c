@@ -130,7 +130,7 @@ nvc0_vram_alloc(struct pscnv_bo *bo)
 	if (!ret) {
 		if (bo->flags & PSCNV_GEM_CONTIG)
 			bo->start = bo->mmnode->start;
-		bo->mmnode->tag = bo;
+		bo->mmnode->bo = bo;
 		dev_priv->vram_usage += bo->size;
 		if (bo->client) {
 			bo->client->vram_usage += bo->size;
