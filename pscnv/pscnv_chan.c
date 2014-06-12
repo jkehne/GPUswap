@@ -31,7 +31,6 @@
 #include "pscnv_ramht.h"
 #include "pscnv_chan.h"
 #include "pscnv_fifo.h"
-#include "pscnv_ioctl.h"
 #include "pscnv_dma.h"
 
 /*******************************************************************************
@@ -342,77 +341,6 @@ void pscnv_chan_ref_free(struct kref *ref) {
 /*******************************************************************************
  * Channel userspace support
  ******************************************************************************/
-
-void pscnv_chan_vm_open(struct vm_area_struct *vma) {
-	struct pscnv_chan *ch = vma->vm_private_data;
-	pscnv_chan_ref(ch);
-}
-
-void pscnv_chan_vm_close(struct vm_area_struct *vma) {
-	struct pscnv_chan *ch = vma->vm_private_data;
-	pscnv_chan_unref(ch);
-}	
-
-int pscnv_chan_mmap(struct file *filp, struct vm_area_struct *vma)
-{
-	struct drm_file *priv = filp->private_data;
-	struct drm_device *dev = priv->minor->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	int cid;
-	struct pscnv_chan *ch;
-	enum pscnv_chan_state st;
-	
-	if (vma->vm_end - vma->vm_start > 0x1000)
-		return -EINVAL;
-	cid = (vma->vm_pgoff * PAGE_SIZE >> 16) & 0x7f;
-	ch = pscnv_get_chan(dev, filp->private_data, cid);
-	if (!ch)
-		return -ENOENT;
-	
-	st = pscnv_chan_get_state(ch);
-	if (ch->state != PSCNV_CHAN_RUNNING && ch->state != PSCNV_CHAN_INITIALIZED) {
-		NV_ERROR(dev, "pscnv_chan_pause: channel %d is in unexpected "
-			"state %s\n", ch->cid, pscnv_chan_state_str(ch->state));
-		return -EINVAL;
-	}
-
-	switch (dev_priv->card_type) {
-	case NV_50:
-		if ((vma->vm_pgoff * PAGE_SIZE & ~0x7f0000ull) == 0xc0000000) {
-
-			vma->vm_flags |= VM_RESERVED | VM_IO | VM_PFNMAP | VM_DONTEXPAND;
-			vma->vm_ops = dev_priv->chan->vm_ops;
-			vma->vm_private_data = ch;
-
-			vma->vm_file = filp;
-			ch->vma = vma;
-
-			return remap_pfn_range(vma, vma->vm_start, 
-				(dev_priv->mmio_phys + 0xc00000 + cid * 0x2000) >> PAGE_SHIFT,
-				vma->vm_end - vma->vm_start, PAGE_SHARED);
-		}
-		break;
-	case NV_D0:
-	case NV_C0:
-		if ((vma->vm_pgoff * PAGE_SIZE & ~0x7f0000ull) == 0xc0000000) {
-
-			vma->vm_flags |= VM_RESERVED | VM_IO | VM_PFNMAP | VM_DONTEXPAND;
-			vma->vm_ops = dev_priv->chan->vm_ops;
-			vma->vm_private_data = ch;
-			vma->vm_page_prot = pgprot_writecombine(vm_get_page_prot(vma->vm_flags));
-
-			vma->vm_file = filp;
-			ch->vma = vma;
-
-			return remap_pfn_range(vma, vma->vm_start, 
-					(dev_priv->fb_phys + nvc0_fifo_ctrl_offs(dev, ch->cid)) >> PAGE_SHIFT,
-					vma->vm_end - vma->vm_start, PAGE_SHARED);
-		}
-	default:
-		return -ENOSYS;
-	}
-	return -EINVAL;
-}
 
 int pscnv_chan_handle_lookup(struct drm_device *dev, uint32_t handle) {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;

@@ -71,6 +71,9 @@ struct pscnv_chan {
 	struct drm_file *filp;
 	struct kref ref;
 	void *engdata[PSCNV_ENGINES_NUM];
+	/* page fault handler to call, if user accesses the ctrl_bo of this channel
+	 * without present pte */
+	int (*vm_fault)(struct pscnv_chan *ch, struct vm_area_struct *vma, struct vm_fault *vmf);
 };
 
 struct pscnv_chan_engine {
@@ -90,7 +93,6 @@ struct pscnv_chan_engine {
 	struct pscnv_chan *fake_chans[4];
 	struct pscnv_chan *chans[128];
 	spinlock_t ch_lock;
-	const struct vm_operations_struct *vm_ops;
 	int ch_min, ch_max;
 };
 
@@ -165,10 +167,6 @@ pscnv_chan_pause_wait(struct pscnv_chan *ch);
 int
 pscnv_chan_continue(struct pscnv_chan *ch);
 
-
-extern int pscnv_chan_mmap(struct file *filp, struct vm_area_struct *vma);
-
-
 /*
  * some interrupts return an 'inst' code. This is the page frame number in
  * vspace of the ch->bo which caused the fault.
@@ -186,9 +184,5 @@ pscnv_chan_chid_lookup(struct drm_device *dev, int chid);
 int nv50_chan_init(struct drm_device *dev);
 int nvc0_chan_init(struct drm_device *dev);
 
-/* for vm_operations_struct */
-void pscnv_chan_vm_open(struct vm_area_struct *vma);
-
-void pscnv_chan_vm_close(struct vm_area_struct *vma);
 
 #endif

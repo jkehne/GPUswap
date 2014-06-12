@@ -7,6 +7,17 @@
 #include <linux/mutex.h>
 #include <linux/gfp.h>
 
+static int
+pscnv_sysram_vm_fault(struct pscnv_bo *bo, struct vm_area_struct *vma, struct vm_fault *vmf)
+{
+	uint64_t offset = (uint64_t)vmf->virtual_address - vma->vm_start;
+	struct page *res;
+
+	res = bo->pages[offset >> PAGE_SHIFT];
+	get_page(res);
+	vmf->page = res;
+	return 0;
+}
 
 int
 pscnv_sysram_alloc(struct pscnv_bo *bo)
@@ -48,6 +59,13 @@ pscnv_sysram_alloc(struct pscnv_bo *bo)
 		}
 	}
 	
+	if (!bo->vm_fault) {
+		/* we should be the first to touch this BO anyways, but we
+		 * definetly don't want to overwrite a more specific fault
+		 * handler */
+		bo->vm_fault = pscnv_sysram_vm_fault;
+	}
+	
 	return 0;
 }
 
@@ -67,16 +85,3 @@ pscnv_sysram_free(struct pscnv_bo *bo)
 	return 0;
 }
 
-extern int pscnv_sysram_vm_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
-{
-	struct drm_gem_object *obj = vma->vm_private_data;
-	struct pscnv_bo *bo = obj->driver_private;
-	uint64_t offset = (uint64_t)vmf->virtual_address - vma->vm_start;
-	struct page *res;
-	if (offset > bo->size)
-		return VM_FAULT_SIGBUS;
-	res = bo->pages[offset >> PAGE_SHIFT];
-	get_page(res);
-	vmf->page = res;
-	return 0;
-}

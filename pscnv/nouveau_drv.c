@@ -43,6 +43,7 @@
 #include "pscnv_kapi.h"
 #include "pscnv_ioctl.h"
 #include "pscnv_client.h"
+#include "pscnv_mmap.h"
 
 MODULE_PARM_DESC(agpmode, "AGP mode (0 to disable AGP)");
 int nouveau_agpmode = -1;

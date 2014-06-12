@@ -11,9 +11,9 @@
  ******************************************************************************/
 
 static int
-nvc0_chan_ctrl_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
+nvc0_chan_ctrl_fault(struct pscnv_chan *ch_base, struct vm_area_struct *vma, struct vm_fault *vmf)
 {
-	struct nvc0_chan *ch = vma->vm_private_data;
+	struct nvc0_chan *ch = nvc0_ch(ch_base);
 	struct drm_device *dev = ch->base.dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	
@@ -287,6 +287,10 @@ nvc0_chan_new(struct pscnv_chan *ch)
 		spin_unlock_irqrestore(&dev_priv->chan->ch_lock, flags);
 	}
 	dev_priv->vm->bar_flush(ch->dev);
+	
+	/* install the nvc0 fault handler */
+	ch->vm_fault = nvc0_chan_ctrl_fault;
+	
 	return 0;
 
 fail_shadow:
@@ -350,12 +354,6 @@ nvc0_pd_dump_chan(struct drm_device *dev, struct seq_file *m, int chid)
 	dev_priv->vm->pd_dump(dev, m, pd_addr, chid); 
 }
 
-static const struct vm_operations_struct nvc0_chan_ctrl_vm_ops = {
-	.open = pscnv_chan_vm_open,
-	.close = pscnv_chan_vm_close,
-	.fault = nvc0_chan_ctrl_fault,
-};
-
 int
 nvc0_chan_init(struct drm_device *dev)
 {
@@ -374,7 +372,6 @@ nvc0_chan_init(struct drm_device *dev)
 	che->base.pd_dump_chan = nvc0_pd_dump_chan;
 	che->base.do_chan_pause = nvc0_chan_pause;
 	che->base.do_chan_continue = nvc0_chan_continue;
-	che->base.vm_ops = &nvc0_chan_ctrl_vm_ops;
 	dev_priv->chan = &che->base;
 	spin_lock_init(&dev_priv->chan->ch_lock);
 	dev_priv->chan->ch_min = 1;

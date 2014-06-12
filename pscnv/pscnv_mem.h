@@ -74,6 +74,11 @@ struct pscnv_bo {
 	   of this bo (see nouveau_drv.h: nv_rv32, nv_wv32). This pointer should
 	   be set, if the BO is mapped to BAR 1 */
 	struct drm_local_map *drm_map;
+	/* page fault handler to call, if userspace has mapped this bo but no
+	 * pte is set up for it */
+	int (*vm_fault)(struct pscnv_bo *bo, struct vm_area_struct *vma, struct vm_fault *vmf);
+	/* vma area that this BO is mapped at */
+	struct vm_area_struct *vma;
 };
 
 #define PSCNV_GEM_NOUSER	0x10
@@ -129,6 +134,5 @@ extern int nvc0_vram_init(struct drm_device *);
 
 extern int pscnv_sysram_alloc(struct pscnv_bo *);
 extern int pscnv_sysram_free(struct pscnv_bo *);
-extern int pscnv_sysram_vm_fault(struct vm_area_struct *vma, struct vm_fault *vmf);
 
 #endif

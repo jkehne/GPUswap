@@ -18,7 +18,7 @@ pscnv-y := nouveau_drv.o nouveau_state.o \
 	     nvc0_graph.o nvc0_grctx.o \
 	     nv40_counter.o \
 	     pscnv_swapping.o pscnv_dma.o pscnv_ib_chan.o pscnv_client.o \
-		 nouveau_enum.o
+		 nouveau_enum.o pscnv_mmap.o
 
 pscnv-$(CONFIG_DRM_NOUVEAU_DEBUG) += nouveau_debugfs.o
 pscnv-$(CONFIG_COMPAT) += nouveau_ioc32.o
