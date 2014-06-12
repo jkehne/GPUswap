@@ -19,6 +19,7 @@ struct nvc0_chan {
 	uint32_t *ctrl_shadow;
 	spinlock_t ctrl_shadow_lock;
 	bool ctrl_is_shadowed;
+	bool ctrl_pte_present;
 	
 };
 

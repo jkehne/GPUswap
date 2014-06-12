@@ -33,11 +33,14 @@ nvc0_chan_ctrl_fault(struct pscnv_chan *ch_base, struct vm_area_struct *vma, str
 	 * the page to shadow */
 	spin_lock_irqsave(&ch->ctrl_shadow_lock, flags);
 	
+	BUG_ON(ch->ctrl_pte_present);
+	
 	if (ch->ctrl_is_shadowed) {
 		remap_pfn_range(vma, vma->vm_start,
 			virt_to_phys(ch->ctrl_shadow) >> 12,
 			vma->vm_end - vma->vm_start, PAGE_SHARED);
 		
+		ch->ctrl_pte_present = true;
 		spin_unlock_irqrestore(&ch->ctrl_shadow_lock, flags);
 	} else {
 		/* restore mapping to device memory */
@@ -45,6 +48,7 @@ nvc0_chan_ctrl_fault(struct pscnv_chan *ch_base, struct vm_area_struct *vma, str
 			(dev_priv->fb_phys + nvc0_fifo_ctrl_offs(dev, ch->base.cid)) >> 12,
 			vma->vm_end - vma->vm_start, PAGE_SHARED);
 		
+		ch->ctrl_pte_present = true;
 		/* again copy ib_put. Just in case that this process wrote to
 		 * it, after the continue call */
 		ib_put = ch->ctrl_shadow[0x8c/4];
@@ -90,12 +94,15 @@ nvc0_chan_pause_ctrl_shadow(struct nvc0_chan *ch)
 	
 	spin_lock_irqsave(&ch->ctrl_shadow_lock, flags);
 	
-	/* make process pagefault on next access to the fifo regs */
-	ret = zap_vma_ptes(vma, vma->vm_start, vma->vm_end - vma->vm_start);	
-	if (ret) {
-		spin_unlock_irqrestore(&ch->ctrl_shadow_lock, flags);
-		NV_INFO(dev, "nvc0_chan_pause: zap_vma_ptes failed\n");
-		return ret;
+	if (ch->ctrl_pte_present) {
+		/* make process pagefault on next access to the fifo regs */
+		ret = zap_vma_ptes(vma, vma->vm_start, vma->vm_end - vma->vm_start);	
+		if (ret) {
+			spin_unlock_irqrestore(&ch->ctrl_shadow_lock, flags);
+			NV_INFO(dev, "nvc0_chan_pause: zap_vma_ptes failed\n");
+			return ret;
+		}
+		ch->ctrl_pte_present = false;
 	}
 	
 	for (i = 0; i < 0x1000; i += 4) {
@@ -136,14 +143,19 @@ nvc0_chan_continue_ctrl_shadow(struct nvc0_chan *ch)
 	
 	spin_lock_irqsave(&ch->ctrl_shadow_lock, flags);
 	
-	/* make process pagefault on next access to the fifo regs */
-	ret = zap_vma_ptes(vma, vma->vm_start, vma->vm_end - vma->vm_start);	
-	if (ret) {
-		spin_unlock_irqrestore(&ch->ctrl_shadow_lock, flags);
-		NV_INFO(dev, "nvc0_chan_continue: zap_vma_ptes failed\n");
-		return ret;
+	if (ch->ctrl_pte_present) {
+		/* zap_vma_ptes results in 'freeing invalid memtype' if pte's
+		 * are still zero. So if process has not pagefaulted yet, we
+		 * must not call it again */
+		ret = zap_vma_ptes(vma, vma->vm_start, vma->vm_end - vma->vm_start);	
+		if (ret) {
+			spin_unlock_irqrestore(&ch->ctrl_shadow_lock, flags);
+			NV_INFO(dev, "nvc0_chan_continue: zap_vma_ptes failed\n");
+			return ret;
+		}
+		ch->ctrl_pte_present = false;
 	}
-	
+
 	/* we copy the ib_put pointer once here, to get the GPU running again
 	 * as quickly as possible (process may not access (=pagefault) the 
 	 * ctrl_bo for long time and instead spinlock on fence....)
@@ -289,6 +301,7 @@ nvc0_chan_new(struct pscnv_chan *ch)
 	dev_priv->vm->bar_flush(ch->dev);
 	
 	/* install the nvc0 fault handler */
+	nvc0_ch(ch)->ctrl_pte_present = true;
 	ch->vm_fault = nvc0_chan_ctrl_fault;
 	
 	return 0;
