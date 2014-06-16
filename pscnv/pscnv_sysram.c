@@ -85,3 +85,25 @@ pscnv_sysram_free(struct pscnv_bo *bo)
 	return 0;
 }
 
+uint32_t
+nv_rv32_sysram(struct pscnv_bo *bo, unsigned offset)
+{
+	uint32_t *mem;
+	uint32_t val;
+
+	mem = kmap_atomic(bo->pages[offset >> PAGE_SHIFT], KM_USER0);
+	val = mem[(offset & 0xfff) >> 2];
+	kunmap_atomic(mem, KM_USER0);
+
+	return val;
+}
+
+void
+nv_wv32_sysram(struct pscnv_bo *bo, unsigned offset, uint32_t val)
+{
+	uint32_t *mem;
+	
+	mem = kmap_atomic(bo->pages[offset >> PAGE_SHIFT], KM_USER0);
+	mem[(offset & 0xfff) >> 2] = val;
+	kunmap_atomic(mem, KM_USER0);
+}

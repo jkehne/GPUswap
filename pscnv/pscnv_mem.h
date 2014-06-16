@@ -135,4 +135,10 @@ extern int nvc0_vram_init(struct drm_device *);
 extern int pscnv_sysram_alloc(struct pscnv_bo *);
 extern int pscnv_sysram_free(struct pscnv_bo *);
 
+extern uint32_t
+nv_rv32_sysram(struct pscnv_bo *bo, unsigned offset);
+
+extern void
+nv_wv32_sysram(struct pscnv_bo *bo, unsigned offset, uint32_t val);
+
 #endif

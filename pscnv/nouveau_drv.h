@@ -1098,6 +1098,13 @@ static inline uint32_t nv_rv32(struct pscnv_bo *bo,
 {
 	struct drm_nouveau_private *dev_priv = bo->dev->dev_private;
 	uint64_t addr = bo->start + offset;
+	
+	switch (bo->flags & PSCNV_GEM_MEMTYPE_MASK) {
+	case PSCNV_GEM_SYSRAM_SNOOP:
+	case PSCNV_GEM_SYSRAM_NOSNOOP:
+		return nv_rv32_sysram(bo, offset);
+	}
+	
 	if (dev_priv->vm && dev_priv->vm_ok) {
 		if (bo->drm_map) {
 			return le32_to_cpu(DRM_READ32(bo->drm_map, offset));
@@ -1122,6 +1129,13 @@ static inline void nv_wv32(struct pscnv_bo *bo,
 {
 	struct drm_nouveau_private *dev_priv = bo->dev->dev_private;
 	uint64_t addr = bo->start + offset;
+	
+	switch (bo->flags & PSCNV_GEM_MEMTYPE_MASK) {
+	case PSCNV_GEM_SYSRAM_SNOOP:
+	case PSCNV_GEM_SYSRAM_NOSNOOP:
+		return nv_wv32_sysram(bo, offset, val);
+	}
+	
 	if (dev_priv->vm && dev_priv->vm_ok) {
 		if (bo->drm_map) {
 			DRM_WRITE32(bo->drm_map, offset, cpu_to_le32(val));
