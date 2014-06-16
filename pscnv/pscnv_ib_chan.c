@@ -362,7 +362,6 @@ int
 pscnv_ib_add_fence(struct pscnv_ib_chan *ib_chan)
 {
 	struct drm_device *dev = ib_chan->dev;
-	int ret;
 	int i;
 	
 	if (ib_chan->fence) {
@@ -373,7 +372,7 @@ pscnv_ib_add_fence(struct pscnv_ib_chan *ib_chan)
 	
         ib_chan->fence = pscnv_mem_alloc_and_map(ib_chan->chan->vspace,
 			0x1000, /* size */
-			PSCNV_GEM_CONTIG,
+			PSCNV_GEM_CONTIG | PSCNV_MAP_USER,
 			0xa4de77,
 			&ib_chan->fence_addr);
 	
@@ -384,19 +383,13 @@ pscnv_ib_add_fence(struct pscnv_ib_chan *ib_chan)
 		return -ENOSPC;
 	}
 	
-	ret = pscnv_bo_map_bar1(ib_chan->fence);
-	if (ret) {
-		NV_ERROR(dev, "pscnv_ib_add_fence: failed to map fence buffer to BAR1\n");
-		return ret;
-	}
-	
 	for (i = 0; i < 0x1000; i += 4) {
 		nv_wv32(ib_chan->fence, i, 0);
 	}
 	
 	ib_chan->fence_seq = 0;
 	
-	return ret;
+	return 0;
 }
 
 int
@@ -447,14 +440,9 @@ pscnv_ib_move_ib_get(struct pscnv_ib_chan *ch, int pos)
 	int i;
 	
 	BUG_ON(pos < 0 || pos * 8 >= PSCNV_IB_SIZE); /* out of range */
-	
-	ret = pscnv_ib_wait_steady(ch);
-	if (ret) {
-		NV_ERROR(dev, "pscnv_ib_move_ib_get: failed to wait before move\n");
-		return ret;
-	}
-	
-	n_nops = pos - ch->ib_get;
+
+	/* use ib_put here, we may still have something else waiting */
+	n_nops = pos - ch->ib_put;
 	
 	if (n_nops < 0) {
 		n_nops += 512;
@@ -471,9 +459,7 @@ pscnv_ib_move_ib_get(struct pscnv_ib_chan *ch, int pos)
 		NV_ERROR(dev, "pscnv_ib_move_ib_get: failed to wait after move\n");
 		return ret;
 	}
-	
-	pscnv_ib_dump_pointers(ch);
-	
+
 	return 0;
 }
 
@@ -682,6 +668,10 @@ fail_get_chan:
 void
 pscnv_ib_chan_kill(struct pscnv_ib_chan *ib_chan)
 {
+	if (ib_chan->fence) {
+		pscnv_mem_free(ib_chan->fence);
+	}
+	
 	pscnv_mem_free(ib_chan->pb);
 	kfree(ib_chan);
 }

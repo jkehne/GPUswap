@@ -18,6 +18,9 @@ struct nvc0_fifo_engine {
 struct nvc0_fifo_ctx {
 	/* indirect buffer for this channel */
 	struct pscnv_bo *ib;
+	
+	/* driver data structure to manipulate this ib */
+	struct pscnv_ib_chan *ib_chan;
 };
 
 #define nvc0_fifo_eng(x) container_of(x, struct nvc0_fifo_engine, base)

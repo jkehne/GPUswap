@@ -27,6 +27,10 @@ struct nvc0_chan {
 	bool ib_is_shadowed;
 	bool ib_pte_present;
 	
+	struct work_struct pause_work;
+	
+	/* == ib_put just after pausing the channel */
+	int old_ib_get;
 };
 
 #endif /* __NVC0_CHAN_H__ */

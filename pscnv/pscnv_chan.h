@@ -111,14 +111,8 @@ static inline void pscnv_chan_unref(struct pscnv_chan *ch) {
 static inline enum pscnv_chan_state
 pscnv_chan_get_state(struct pscnv_chan *ch)
 {
-	unsigned long flags;
-	enum pscnv_chan_state ret;
-	
-	spin_lock_irqsave(&ch->state_lock, flags);
-	ret = ch->state;
-	spin_unlock_irqrestore(&ch->state_lock, flags);
-	
-	return ret;
+	/* removed spinlock here, should be atomic read anyhow */
+	return ch->state;
 }
 
 /* if in doubt, use the specialized functions below */

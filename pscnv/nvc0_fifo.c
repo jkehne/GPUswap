@@ -28,6 +28,7 @@
 #include "nouveau_reg.h"
 #include "pscnv_chan.h"
 #include "nvc0_vm.h"
+#include "pscnv_ib_chan.h"
 
 static void
 nvc0_fifo_takedown(struct pscnv_engine *eng);
@@ -70,6 +71,7 @@ nvc0_fifo_chan_init_ib (struct pscnv_chan *ch, uint32_t pb_handle, uint32_t flag
 	struct pscnv_bo *ib;
 	unsigned long irqflags;
 	enum pscnv_chan_state st;
+	int ret;
 
 	int i;
 	uint64_t fifo_regs = nvc0_fifo_get_fifo_regs(ch);
@@ -162,6 +164,22 @@ nvc0_fifo_chan_init_ib (struct pscnv_chan *ch, uint32_t pb_handle, uint32_t flag
 
 	pscnv_chan_set_state(ch, PSCNV_CHAN_RUNNING);
 	
+	fifo_ctx->ib_chan = pscnv_ib_chan_init(ch);
+	if (!fifo_ctx->ib_chan) {
+		NV_ERROR(dev, "nvc0_fifo_chan_init_ib: failed to allocate "
+			"ib_chan on channel %d\n", ch->cid);
+		pscnv_chan_fail(ch);
+		return -EFAULT;
+	}
+	
+	ret = pscnv_ib_add_fence(fifo_ctx->ib_chan);
+	if (ret) {
+		NV_ERROR(dev, "nvc0_fifo_chan_init_ib: failed to allocate "
+			"fence on channel %d\n", ch->cid);
+		pscnv_chan_fail(ch);
+		return ret;
+	}
+	
 	return 0;
 }
 
@@ -170,13 +188,20 @@ nvc0_fifo_chan_kill(struct pscnv_engine *eng, struct pscnv_chan *ch)
 {
 	struct drm_device *dev = ch->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-		
+	
+	struct nvc0_fifo_ctx *fifo_ctx = ch->engdata[PSCNV_ENGINE_FIFO];
+	
+	uint32_t status;
+	unsigned long flags;
+	
+	BUG_ON(!fifo_ctx);
+	
 	/* bit 28: active,
 	 * bit 12: loaded,
 	 * bit  0: enabled
 	 */
-	uint32_t status;
-	unsigned long flags;
+	
+	pscnv_ib_chan_kill(fifo_ctx->ib_chan);
 
 	spin_lock_irqsave(&dev_priv->context_switch_lock, flags);
 	status = nv_rd32(dev, 0x3004 + ch->cid * 8);

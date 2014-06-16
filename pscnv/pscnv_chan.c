@@ -207,6 +207,7 @@ pscnv_chan_continue(struct pscnv_chan *ch)
 	spin_unlock_irqrestore(&ch->state_lock, flags);
 	
 	if (res) {
+		NV_ERROR(dev, "do_chan_continue returned %d\n", res);
 		pscnv_chan_fail(ch);
 	}
 	

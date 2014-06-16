@@ -2,13 +2,52 @@
 #include "nouveau_drv.h"
 #include "nvc0_chan.h"
 #include "pscnv_chan.h"
+#include "pscnv_ib_chan.h"
 #include "nvc0_vm.h"
 #include "nvc0_fifo.h"
 #include <linux/mm.h>
 
 /*******************************************************************************
- * Channel pause continue
+ * Channel pause / continue
  ******************************************************************************/
+
+/* this is run in a workqueue */
+static void
+nvc0_chan_pause_fence(struct work_struct *ws)
+{
+	struct nvc0_chan *ch = container_of(ws, struct nvc0_chan, pause_work);
+	struct drm_device *dev = ch->base.dev;
+	struct nvc0_fifo_ctx *fifo_ctx = ch->base.engdata[PSCNV_ENGINE_FIFO];
+	int ret;
+	
+	struct pscnv_ib_chan *ibch = fifo_ctx->ib_chan;
+	
+	ret = pscnv_ib_wait_steady(ibch);
+	if (ret) {
+		goto fail;
+	}
+	
+	/* we save the ib_get here and restore on continue operation */
+	ch->old_ib_get = ibch->ib_get;
+	
+	pscnv_ib_membar(ibch);
+	pscnv_ib_fence_write(ibch, GDEV_SUBCH_NV_COMPUTE);
+		
+	ret = pscnv_ib_fence_wait(ibch);
+	if (ret) {
+		NV_ERROR(dev, "nvc0_chan_pause_fence: fence_wait returned %d\n",
+			ret);
+		goto fail;
+	}
+		
+	pscnv_chan_set_state(&ch->base, PSCNV_CHAN_PAUSED);
+	complete(&ch->base.pause_completion);
+	return;
+	
+fail:
+	pscnv_chan_fail(&ch->base);
+	complete(&ch->base.pause_completion);
+}
 
 static int
 nvc0_chan_ctrl_fault(struct pscnv_chan *ch_base, struct vm_area_struct *vma, struct vm_fault *vmf)
@@ -452,6 +491,8 @@ static int
 nvc0_chan_pause(struct pscnv_chan *ch)
 {
 	struct drm_device *dev = ch->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	int ret;
 	
 	if (ch->flags & PSCNV_CHAN_KERNEL) {
 		NV_INFO(dev, "channel %d is a special channel managed by kernel, "
@@ -468,11 +509,22 @@ nvc0_chan_pause(struct pscnv_chan *ch)
 			comm, current->pid, ch->cid);
 	}
 	
-	nvc0_chan_pause_ctrl_shadow(nvc0_ch(ch));
-	nvc0_chan_pause_ib_shadow(nvc0_ch(ch));
+	ret = nvc0_chan_pause_ctrl_shadow(nvc0_ch(ch));
+	if (ret) {
+		NV_ERROR(dev, "nvc0_chan_pause: pause_ctrl_shadow failed "
+			"for channel %d\n", ch->cid);
+		return ret;
+	}
+	ret = nvc0_chan_pause_ib_shadow(nvc0_ch(ch));
+	if (ret) {
+		NV_ERROR(dev, "nvc0_chan_pause: pause_ib_shadow failed "
+			"for channel %d\n", ch->cid);
+		return ret;
+	}
 	
-	pscnv_chan_set_state(ch, PSCNV_CHAN_PAUSED);
-	complete(&ch->pause_completion);
+	/* we do the rest in a workqueue as we may have to wait some time */
+	INIT_WORK(&nvc0_ch(ch)->pause_work, nvc0_chan_pause_fence);
+	queue_work(dev_priv->wq, &nvc0_ch(ch)->pause_work);
 	
 	return 0;
 }
@@ -483,8 +535,48 @@ nvc0_chan_continue(struct pscnv_chan *ch)
 	struct drm_device *dev = ch->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	
-	nvc0_chan_continue_ib_shadow(nvc0_ch(ch));
-	nvc0_chan_continue_ctrl_shadow(nvc0_ch(ch));
+	struct nvc0_fifo_ctx *fifo_ctx = ch->engdata[PSCNV_ENGINE_FIFO];
+	int ret;
+	
+	if (!fifo_ctx) {
+		goto no_fifo_ctx;
+	}
+	
+	if (pscnv_pause_debug >= 2) {
+		NV_INFO(dev, "nvc0_chan_continue: moving ib_get of channel %d "
+			"from %x to %x\n",
+			ch->cid, fifo_ctx->ib_chan->ib_get,
+			nvc0_ch(ch)->old_ib_get);
+	}
+	
+	ret = pscnv_ib_wait_steady(fifo_ctx->ib_chan);
+	if (ret) {
+		NV_ERROR(dev, "nvc0_chan_continue: wait_steady returned %d", ret);
+		return ret;
+	}
+	
+	ret = pscnv_ib_move_ib_get(fifo_ctx->ib_chan, nvc0_ch(ch)->old_ib_get);
+	if (ret) {
+		NV_ERROR(dev, "nvc0_chan_continue: failed to move ib_get of "
+			"channel %d to %x\n",
+			ch->cid, nvc0_ch(ch)->old_ib_get);
+		return ret;
+	}
+	
+	ret = nvc0_chan_continue_ib_shadow(nvc0_ch(ch));
+	if (ret) {
+		NV_ERROR(dev, "nvc0_chan_continue: continue_ib_shadow failed for "
+			"channel %d\n", ch->cid);
+		return ret;
+	}
+
+no_fifo_ctx:
+	ret = nvc0_chan_continue_ctrl_shadow(nvc0_ch(ch));
+	if (ret) {
+		NV_ERROR(dev, "nvc0_chan_continue: continue_ctrl_shadow failed "
+			"for channel %d\n", ch->cid);
+		return ret;
+	}
 	
 	dev_priv->vm->bar_flush(dev);
 	
