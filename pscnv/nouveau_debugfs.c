@@ -277,7 +277,7 @@ pscnv_debugfs_pause_set(void *data, u64 val)
 		}
 	}
 	
-	ssleep(3);
+	ssleep(1);
 	
 	for (i = 0; i < n_chans; i++) {
 		struct pscnv_chan *ch = chans[i];
