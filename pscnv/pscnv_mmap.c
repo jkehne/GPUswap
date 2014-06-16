@@ -130,9 +130,16 @@ pscnv_mmap(struct file *filp, struct vm_area_struct *vma)
 		vma->vm_file = filp;
 		bo->vma = vma;
 		
-		/* pte are filled in pscnv_sysram_vm_fault */
+		if (bo->size <= 0x1000) {
+			/* we directly PFNMAP page here. Only this way, we are
+			 * able to steal control to it later, as it may be used
+			 * as indirect buffer */
+			return remap_pfn_range(vma, vma->vm_start, 
+				page_to_pfn(bo->pages[0]),
+				vma->vm_end - vma->vm_start, PAGE_SHARED);
+		}
 
-		return 0;
+		return 0; /* else: pte are filled in pscnv_sysram_vm_fault */
 	default:
 		drm_gem_object_unreference_unlocked(obj);
 		return -ENOSYS;
