@@ -20,6 +20,12 @@ struct nvc0_chan {
 	spinlock_t ctrl_shadow_lock;
 	bool ctrl_is_shadowed;
 	bool ctrl_pte_present;
+	bool ctrl_restore_delayed;
+	
+	uint32_t *ib_shadow;
+	spinlock_t ib_shadow_lock;
+	bool ib_is_shadowed;
+	bool ib_pte_present;
 	
 };
 
