@@ -30,7 +30,6 @@ struct pscnv_ib_chan {
 
 	/* FIFO indirect buffer setup. */
 	struct pscnv_bo *ib;
-	uint64_t ib_vm_base;
 	uint32_t ib_put;
 	uint32_t ib_get;
 
@@ -48,11 +47,23 @@ struct pscnv_ib_chan {
 
 };
 
-struct pscnv_ib_chan*
+/* initialize channel, IB, everything,... For drivers own channels, e.g. DMA */
+struct pscnv_ib_chan *
 pscnv_ib_chan_new(struct pscnv_vspace *vs, int fake);
 
+/* counterpart to new */
 void
 pscnv_ib_chan_free(struct pscnv_ib_chan *ib_chan);
+
+/* setup an ib_chan for an already existing and initialized channel after
+ * init_ib has been called on it. Allows driver to work with channels allocated
+ * by userspace */
+struct pscnv_ib_chan *
+pscnv_ib_chan_init(struct pscnv_chan *ch);
+
+/* counterpart to init */
+void
+pscnv_ib_chan_kill(struct pscnv_ib_chan *ib_chan);
 
 int
 pscnv_ib_add_fence(struct pscnv_ib_chan *ib_chan);
@@ -73,6 +84,7 @@ pscnv_ib_membar(struct pscnv_ib_chan *chan);
 int
 pscnv_ib_push(struct pscnv_ib_chan *ch, uint32_t start, uint32_t len, int flags);
 
+/* be careful with this! The pointer meight still be set to the userspace's PB */
 void
 pscnv_ib_update_pb_get(struct pscnv_ib_chan *ch);
 

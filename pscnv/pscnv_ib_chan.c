@@ -482,110 +482,134 @@ pscnv_ib_update_pb_get(struct pscnv_ib_chan *ch)
 	return;
 }
 
+
+struct pscnv_ib_chan *
+pscnv_ib_chan_init(struct pscnv_chan *ch)
+{
+	struct drm_device *dev = ch->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nvc0_fifo_engine *fifo = nvc0_fifo_eng(dev_priv->fifo);
+	
+	struct nvc0_fifo_ctx *fifo_ctx = ch->engdata[PSCNV_ENGINE_FIFO];
+	struct pscnv_ib_chan *ibch;
+	
+	if (!fifo_ctx) {
+		NV_ERROR(dev, "pscnv_ib_chan_init: on channel %d: no fifo "
+			"context! fifo_init_ib() not yet called?\n", ch->cid);
+		goto fail_fifo_ctx;
+	}
+	
+	BUG_ON(!fifo_ctx->ib);
+	
+	ibch = kzalloc(sizeof(struct pscnv_ib_chan), GFP_KERNEL);
+	if (!ibch) {
+		NV_ERROR(dev, "pscnv_ib_chan_init: on channel %d: could not allocate"
+			" memory for pscnv_ib_chan\n", ch->cid);
+		goto fail_kzalloc;
+	}
+	
+	ibch->dev = dev;
+	ibch->chan = ch;
+	
+	ibch->ctrl_bo = fifo->ctrl_bo;
+	ibch->ctrl_offset = ch->cid << 12;
+	
+	ibch->ib = fifo_ctx->ib;
+	
+	ibch->pb = pscnv_mem_alloc_and_map(ch->vspace,
+			PSCNV_PB_SIZE,
+			PSCNV_GEM_CONTIG | PSCNV_MAP_USER,
+			PSCNV_PB_COOKIE,
+			&ibch->pb_vm_base);
+	
+	if (!ibch->pb) {
+		NV_ERROR(dev, "pscnv_ib_chan_new: on vspace %d: could not allocate "
+			"push buffer\n", ch->vspace->vid);
+		goto fail_pb;
+	}
+	
+	return ibch;
+	
+fail_pb:
+	kfree(ibch);
+
+fail_kzalloc:
+fail_fifo_ctx:
+	return NULL;
+}
+
 struct pscnv_ib_chan*
 pscnv_ib_chan_new(struct pscnv_vspace *vs, int fake)
 {
 	struct drm_device *dev = vs->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nvc0_fifo_engine *fifo = nvc0_fifo_eng(dev_priv->fifo);
-	struct pscnv_ib_chan *rr;
+
+	uint64_t ib_vm_base;
+	struct pscnv_bo *ib;
+	struct pscnv_chan *ch;
+	struct pscnv_ib_chan *ibch;
 	int res;
-	int i;
-    
-	rr = kzalloc(sizeof(struct pscnv_ib_chan), GFP_KERNEL);
-	if (!rr) {
-		NV_INFO(dev, "pscnv_ib_chan_new: on vspace %d: could not allocate"
-			" memory for pscnv_ib_chan\n", vs->vid);
-		return NULL;
-	}
-	
-	rr->dev = dev;
-	
-	if (!(rr->chan = pscnv_chan_new(dev, vs, fake))) {
+
+	if (!(ch = pscnv_chan_new(dev, vs, fake))) {
 		NV_INFO(dev, "pscnv_ib_chan_new: on vspace %d: could not create "
 			"channel\n", vs->vid);
 		goto fail_get_chan;
 	}
-	
-	pscnv_chan_ref(rr->chan);
-	
-	rr->ctrl_bo = fifo->ctrl_bo;
-	rr->ctrl_offset = rr->chan->cid << 12;
-    
-	rr->ib = pscnv_mem_alloc_and_map(vs,
-			PSCNV_IB_SIZE,
-			PSCNV_GEM_CONTIG,
-			PSCNV_IB_COOKIE,
-			&rr->ib_vm_base);
 
-	if (!rr->ib) {
+	ib = pscnv_mem_alloc_and_map(vs,
+			PSCNV_IB_SIZE,
+			PSCNV_GEM_CONTIG | PSCNV_MAP_USER,
+			PSCNV_IB_COOKIE,
+			&ib_vm_base);
+
+	if (!ib) {
 		NV_INFO(dev, "pscnv_ib_chan_new: on vspace %d: could not allocate "
 			"indirect buffer\n", vs->vid);
 		goto fail_ib;
 	}
-	
-	res = pscnv_bo_map_bar1(rr->ib);
-	if (res) {
-		NV_INFO(dev, "pscnv_ib_chan_new: on vspace %d, channel %d, could "
-			"not map indirect buffer to BAR1", vs->vid, rr->chan->cid);
-		goto fail_ib_bar1;
-	}
-		
 
-	rr->pb = pscnv_mem_alloc_and_map(vs,
-			PSCNV_PB_SIZE,
-			PSCNV_GEM_CONTIG,
-			PSCNV_PB_COOKIE,
-			&rr->pb_vm_base);
-	
-	if (!rr->pb) {
-		NV_INFO(dev, "pscnv_ib_chan_new: on vspace %d: could not allocate "
-			"push buffer\n", vs->vid);
-		goto fail_pb;
-	}
-	
-	res = pscnv_bo_map_bar1(rr->pb);
-	if (res) {
-		NV_INFO(dev, "pscnv_ib_chan_new: on vspace %d, channel %d, could "
-			"not map push buffer to BAR1", vs->vid, rr->chan->cid);
-		goto fail_pb_bar1;
-	}
-	
-	for (i = 0; i < PSCNV_PB_SIZE; i += 4) {
-		nv_wv32(rr->pb, i, 0x42424242);
-	}
-
-	res = dev_priv->fifo->chan_init_ib(rr->chan,
+	res = dev_priv->fifo->chan_init_ib(ch,
 	 		0, /* pb_handle ??, ignored */
 			0, /* flags */
 			0, /* slimask */
-			rr->ib_vm_base, PSCNV_IB_ORDER);
-	
+			ib_vm_base, PSCNV_IB_ORDER);
+
 	if (res) {
 		NV_INFO(dev, "pscnv_ib_chan_new: on vspace %d: failed to start "
-			"channel %d", vs->vid, rr->chan->cid);
+			"channel %d", vs->vid, ch->cid);
 		goto fail_init_ib;
 	}
-	
-	return rr;
 
+	ibch = pscnv_ib_chan_init(ch);
+
+	if (!ibch) {
+		NV_INFO(dev, "pscnv_ib_chan_new: pscnv_ib_chan_init failed for "
+			"channel %d\n", ch->cid);
+		goto fail_init_ibch;
+	}
+
+	return ibch;
+
+fail_init_ibch:
 fail_init_ib:
-fail_pb_bar1:
-	pscnv_mem_free(rr->pb);
-	
-fail_pb:
-fail_ib_bar1:
-	pscnv_mem_free(rr->ib);
+	pscnv_mem_free(ib);
 
 fail_ib:
-	pscnv_chan_unref(rr->chan);
+	pscnv_chan_unref(ch);
 
 fail_get_chan:
-	kfree(rr);
-
 	return NULL;
 }
 
+/* this is the counterpart to pscnv_ib_chan_init */
+void
+pscnv_ib_chan_kill(struct pscnv_ib_chan *ib_chan)
+{
+	pscnv_mem_free(ib_chan->pb);
+	kfree(ib_chan);
+}
+
+/* this is the counterpart to pscnv_ib_chan_new */
 void
 pscnv_ib_chan_free(struct pscnv_ib_chan *ib_chan)
 {
