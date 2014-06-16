@@ -88,6 +88,14 @@ pscnv_ib_push(struct pscnv_ib_chan *ch, uint32_t start, uint32_t len, int flags)
 void
 pscnv_ib_update_pb_get(struct pscnv_ib_chan *ch);
 
+/* wait until ib_get == ib_put again */
+int
+pscnv_ib_wait_steady(struct pscnv_ib_chan *ch);
+
+/* set ib_get to pos */
+int
+pscnv_ib_move_ib_get(struct pscnv_ib_chan *ch, int pos);
+
 void
 pscnv_ib_fail(struct pscnv_ib_chan *ch);
 

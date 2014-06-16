@@ -1,6 +1,5 @@
 #include "pscnv_ib_chan.h"
 
-#include <linux/highmem.h>
 #include <linux/jiffies.h>
 
 #include "pscnv_mem.h"
@@ -401,6 +400,84 @@ pscnv_ib_add_fence(struct pscnv_ib_chan *ib_chan)
 }
 
 int
+pscnv_ib_wait_steady(struct pscnv_ib_chan *ch)
+{
+	struct drm_device *dev = ch->dev;
+	
+	/* relax polling after 10ms */
+	const unsigned long time_relax = jiffies + HZ/100;
+	/* give up after 2s */
+	const unsigned long timeout = jiffies + 2*HZ;
+	
+	do {
+		ch->ib_get = pscnv_ib_ctrl_r32(ch, 0x88);
+		ch->ib_put = pscnv_ib_ctrl_r32(ch, 0x8c);
+		
+		if (ch->ib_get * 8 >= PSCNV_IB_SIZE) {
+			NV_ERROR(dev, "pscnv_ib_wait_steady: IB=%0x OUT OF RANGE\n", ch->ib_get);
+			pscnv_chan_fail(ch->chan);
+			ch->ib_get = 0;
+			return -EFAULT;
+		}
+		
+		if (time_after(jiffies, time_relax)) {
+			schedule();
+		}
+		
+		if (time_after(jiffies, timeout)) {
+			pscnv_ib_dump_pointers(ch);
+			pscnv_ib_dump_ib(ch);
+			pscnv_ib_dump_fence(ch);
+			NV_INFO(dev, "pscnv_ib_wait_steady: timeout on channel %d\n",
+				ch->chan->cid);
+			return -ETIME;
+		}
+	} while (ch->ib_get != ch->ib_put);
+	
+	return 0;
+}
+
+int
+pscnv_ib_move_ib_get(struct pscnv_ib_chan *ch, int pos)
+{
+	struct drm_device *dev = ch->dev;
+	
+	int ret;
+	int n_nops;
+	int i;
+	
+	BUG_ON(pos < 0 || pos * 8 >= PSCNV_IB_SIZE); /* out of range */
+	
+	ret = pscnv_ib_wait_steady(ch);
+	if (ret) {
+		NV_ERROR(dev, "pscnv_ib_move_ib_get: failed to wait before move\n");
+		return ret;
+	}
+	
+	n_nops = pos - ch->ib_get;
+	
+	if (n_nops < 0) {
+		n_nops += 512;
+	}
+	
+	for (i = 0; i < n_nops; i++) {
+		BEGIN_NVC0(ch, GDEV_SUBCH_NV_COMPUTE, 0x100, 1); /* 0x100 = NOP */
+		OUT_RING(ch, 0);
+		FIRE_RING(ch);
+	}
+	
+	ret = pscnv_ib_wait_steady(ch);
+	if (ret) {
+		NV_ERROR(dev, "pscnv_ib_move_ib_get: failed to wait after move\n");
+		return ret;
+	}
+	
+	pscnv_ib_dump_pointers(ch);
+	
+	return 0;
+}
+
+int
 pscnv_ib_push(struct pscnv_ib_chan *ch, uint32_t start, uint32_t len, int flags)
 {
 	struct drm_device *dev = ch->dev;
@@ -419,7 +496,7 @@ pscnv_ib_push(struct pscnv_ib_chan *ch, uint32_t start, uint32_t len, int flags)
 		uint32_t old = ch->ib_get;
 		ch->ib_get = pscnv_ib_ctrl_r32(ch, 0x88);
 		
-		if (ch->ib_get * 8 > PSCNV_IB_SIZE) {
+		if (ch->ib_get * 8 >= PSCNV_IB_SIZE) {
 			NV_ERROR(dev, "pscnv_ib_push: IB=%0x OUT OF RANGE\n", ch->ib_get);
 			pscnv_chan_fail(ch->chan);
 			ch->ib_get = 0;
