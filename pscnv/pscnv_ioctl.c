@@ -358,9 +358,8 @@ int pscnv_ioctl_chan_new(struct drm_device *dev, void *data,
 	struct drm_pscnv_chan_new *req = data;
 	struct pscnv_vspace *vs;
 	struct pscnv_chan *ch;
-#ifndef __linux__
-	struct drm_gem_object *obj;
-#endif
+	struct pscnv_client *client;
+
 	NOUVEAU_CHECK_INITIALISED_WITH_RETURN;
 
 	vs = pscnv_get_vspace(dev, file_priv, req->vid);
@@ -373,20 +372,17 @@ int pscnv_ioctl_chan_new(struct drm_device *dev, void *data,
 		return -ENOMEM;
 	}
 	pscnv_vspace_unref(vs);
-#ifndef __linux__
-	if (!(obj = pscnv_gem_wrap(dev, ch->bo))) {
-		pscnv_chan_unref(ch);
-		return -ENOMEM;
-	}
-	req->map_handle = DRM_GEM_MAPPING_OFF(obj->map_list.key) |
-			  DRM_GEM_MAPPING_KEY;
-#else
+
 	req->map_handle = 0xc0000000 | ch->cid << 16;
-#endif
 
 	req->cid = ch->cid;
 
 	ch->filp = file_priv;
+	
+	client = pscnv_client_search_pid(dev, file_priv->pid);
+	if (client) {
+		list_add_tail(&ch->client_list, &client->channels);
+	}
 	
 	return 0;
 }

@@ -31,6 +31,9 @@ struct pscnv_client {
 	/* list the client is in, see pscnv_clients.list */
 	struct list_head clients;
 	
+	/* list of all channels held by this client */
+	struct list_head channels;
+	
 	/* list of memory areas that meight be taken away from this client */
 	struct pscnv_swapping_option_list swapping_options;
 	

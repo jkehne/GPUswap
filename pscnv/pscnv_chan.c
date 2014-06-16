@@ -281,28 +281,32 @@ pscnv_chan_new (struct drm_device *dev, struct pscnv_vspace *vs, int fake) {
 	res->dev = dev;
 	res->vspace = vs;
 	res->handle = 0xffffffff;
-	if (vs)
+	if (vs) {
 		pscnv_vspace_ref(vs);
+	}
 	spin_lock_init(&res->instlock);
 	spin_lock_init(&res->ramht.lock);
 	kref_init(&res->ref);
 	atomic_set(&res->pausing_threads, 0);
+	INIT_LIST_HEAD(&res->client_list);
 	
 	if (fake) {
 		res->flags |= PSCNV_CHAN_KERNEL;
 	}
 	
 	if (pscnv_chan_bind(res, fake)) {
-		if (vs)
+		if (vs) {
 			pscnv_vspace_unref(vs);
+		}
 		kfree(res);
 		return 0;
 	}
 	
 	NV_INFO(vs->dev, "CHAN: Allocating channel %d in vspace %d\n", res->cid, vs->vid);
 	if (dev_priv->chan->do_chan_new(res)) {
-		if (vs)
+		if (vs) {
 			pscnv_vspace_unref(vs);
+		}
 		pscnv_chan_unbind(res);
 		kfree(res);
 		return 0;
@@ -321,6 +325,9 @@ void pscnv_chan_ref_free(struct kref *ref) {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 
 	NV_INFO(dev, "CHAN: Freeing channel %d\n", ch->cid);
+	
+	list_del(&ch->client_list);
+	
 	if (ch->cid >= 0) {
 		int i;
 		/* dev_priv->engines[0] is FIFO and it will stop channel in its

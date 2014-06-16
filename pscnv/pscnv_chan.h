@@ -74,6 +74,8 @@ struct pscnv_chan {
 	/* page fault handler to call, if user accesses the ctrl_bo of this channel
 	 * without present pte */
 	int (*vm_fault)(struct pscnv_chan *ch, struct vm_area_struct *vma, struct vm_fault *vmf);
+	/* list of all channels that belong to the same client */
+	struct list_head client_list;
 };
 
 struct pscnv_chan_engine {

@@ -114,6 +114,7 @@ pscnv_client_new_unlocked(struct drm_device *dev, pid_t pid)
 	new->pid = pid;
 	kref_init(&new->ref);
 	INIT_LIST_HEAD(&new->clients);
+	INIT_LIST_HEAD(&new->channels);
 	INIT_LIST_HEAD(&new->on_empty_fifo);
 	pscnv_swapping_option_list_init(&new->swapping_options);
 	pscnv_swapping_option_list_init(&new->already_swapped);
