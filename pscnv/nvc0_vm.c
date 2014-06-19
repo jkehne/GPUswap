@@ -327,6 +327,40 @@ nvc0_vm_storage_type_str(int type)
 	return "UNKNOWN TYPE";
 }
 
+struct pte_values {
+	uint32_t pfn;
+	uint32_t present;
+	uint32_t sysflag;
+	uint32_t flag2;
+	uint32_t flag3;
+	uint32_t type;
+	uint32_t tile;
+};
+
+static void
+nvc0_vm_read_pte_values(struct pte_values *v, uint32_t lo, uint32_t hi)
+{
+	v->pfn = lo >> 4;
+	v->present = lo & 1;
+	v->sysflag = (lo >> 1) & 1;
+	v->flag2 = (lo >> 2) & 1;
+	v->flag3 = (lo >> 3) & 1;
+	v->type = hi & 7;
+	v->tile = hi >> 3;
+}
+
+static bool
+nvc0_vm_pte_values_eq(struct pte_values *a, struct pte_values *b)
+{
+	return a->pfn == b->pfn &&
+	       a->present == b->present &&
+	       a->sysflag == b->sysflag &&
+	       a->flag2 == b->flag2 &&
+	       a->flag3 == b->flag3 &&
+	       a->type == b->type &&
+	       a->tile == b->tile;
+}
+
 static void
 nvc0_vm_pt_dump(struct drm_device *dev, struct seq_file *m, uint64_t pt_addr, int id, int small, int limit, int pde, int *entrycnt)
 {
@@ -343,47 +377,39 @@ nvc0_vm_pt_dump(struct drm_device *dev, struct seq_file *m, uint64_t pt_addr, in
 	for (i = 0; i < size; ) {
 		
 		unsigned i_start = i;
-		uint32_t a, b;
-		uint64_t start, end;
-		int sysflag, type, valid;
+		uint32_t lo, hi;
+		struct pte_values first, cur, expected;
 		
-		uint32_t a_next, b_next;
-		uint64_t addr_next;
-		int sysflag_next, type_next, valid_next;
+		lo = nv_rv32_pramin(dev, pt_addr + i * 8);
+		hi = nv_rv32_pramin(dev, pt_addr + i * 8 + 4);
 		
-		a = nv_rv32_pramin(dev, pt_addr + i * 8);
-		b = nv_rv32_pramin(dev, pt_addr + i * 8 + 4);
+		nvc0_vm_read_pte_values(&cur, lo, hi);
 		
-		start = end = a >> 4;
-		sysflag = (a >> 1) & 1;
-		type = b & 7;
-		valid = a & 1;
-		
-		if (!valid) {
+		if (!cur.present) {
 			i++;
 			continue;
 		}
 		
+		first = cur;
 		do {
-			end += (small) ? 1 : 32;
+			expected = cur;
+			expected.pfn += (small) ? 1 : 32;
 			i++;
 			
 			if (i >= size) {
 				break;
 			}
 			
-			a_next = nv_rv32_pramin(dev, pt_addr + i * 8);
-			b_next = nv_rv32_pramin(dev, pt_addr + i * 8 + 4);
+			lo = nv_rv32_pramin(dev, pt_addr + i * 8);
+			hi = nv_rv32_pramin(dev, pt_addr + i * 8 + 4);
 			
-			valid_next = a_next & 1;
-			addr_next = a_next >> 4;
-			sysflag_next = (a_next >> 1) & 1;
-			type_next = b_next & 7;
-			
-		} while (valid_next && addr_next == end && sysflag_next == sysflag && type_next == type);
+			nvc0_vm_read_pte_values(&cur, lo, hi);
+		} while (nvc0_vm_pte_values_eq(&cur, &expected));
 		
-		NV_DUMP(dev, m, "%d[%d]%s   %04x: %04llx-%04llx sys=%d %s\n",
-			id, pde, type_str, i_start, start, end, sysflag, nvc0_vm_storage_type_str(type));
+		NV_DUMP(dev, m, "%d[%d]%s   %04x: %04x-%04x sys=%d f2=%d f3=%d tile=0x%x %s\n",
+			id, pde, type_str, i_start, first.pfn, expected.pfn,
+			first.sysflag, first.flag2, first.flag3, first.tile,
+			nvc0_vm_storage_type_str(first.type));
 		
 		*entrycnt += 1;
 			
