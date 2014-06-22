@@ -51,6 +51,7 @@ enum pscnv_chan_state {
 struct pscnv_chan {
 	struct drm_device *dev;
 	int cid;
+	char name[8];
 	/* protected by ch_lock below, used for lookup */
 	uint32_t handle;
 	uint32_t flags;
@@ -76,6 +77,9 @@ struct pscnv_chan {
 	int (*vm_fault)(struct pscnv_chan *ch, struct vm_area_struct *vma, struct vm_fault *vmf);
 	/* list of all channels that belong to the same client */
 	struct list_head client_list;
+	
+	struct dentry *debugfs_dir;
+	struct dentry *debugfs_pd;
 };
 
 struct pscnv_chan_engine {

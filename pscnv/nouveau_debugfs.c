@@ -119,7 +119,7 @@ nouveau_debugfs_channel_fini(struct nouveau_channel *chan)
 }
 #endif
 static int
-nouveau_debugfs_chipset_info(struct seq_file *m, void *data)
+nouveau_debugfs_chipset_info(struct seq_file *m, void *pos)
 {
 	struct drm_info_node *node = (struct drm_info_node *) m->private;
 	struct drm_minor *minor = node->minor;
@@ -136,7 +136,7 @@ nouveau_debugfs_chipset_info(struct seq_file *m, void *data)
 }
 
 static int
-nouveau_debugfs_memory_info(struct seq_file *m, void *data)
+nouveau_debugfs_memory_info(struct seq_file *m, void *pos)
 {
 	struct drm_info_node *node = (struct drm_info_node *) m->private;
 	struct drm_minor *minor = node->minor;
@@ -165,7 +165,7 @@ nouveau_debugfs_memory_info(struct seq_file *m, void *data)
 }
 
 static int
-nouveau_debugfs_channels_info(struct seq_file *m, void *data)
+nouveau_debugfs_channels_info(struct seq_file *m, void *pos)
 {
 	struct drm_info_node *node = (struct drm_info_node *) m->private;
 	struct drm_minor *minor = node->minor;
@@ -188,7 +188,7 @@ nouveau_debugfs_channels_info(struct seq_file *m, void *data)
 }
 
 static int
-nouveau_debugfs_vbios_image(struct seq_file *m, void *data)
+nouveau_debugfs_vbios_image(struct seq_file *m, void *pos)
 {
 	struct drm_info_node *node = (struct drm_info_node *) m->private;
 	struct drm_nouveau_private *dev_priv = node->minor->dev->dev_private;
@@ -200,7 +200,7 @@ nouveau_debugfs_vbios_image(struct seq_file *m, void *data)
 }
 
 static int
-nouveau_debugfs_pd_dump_bar1(struct seq_file *m, void *data)
+nouveau_debugfs_pd_dump_bar1(struct seq_file *m, void *pos)
 {
 	struct drm_info_node *node = (struct drm_info_node *) m->private;
 	struct drm_device *dev = node->minor->dev;
@@ -216,7 +216,7 @@ nouveau_debugfs_pd_dump_bar1(struct seq_file *m, void *data)
 }
 
 static int
-nouveau_debugfs_pd_dump_bar3(struct seq_file *m, void *data)
+nouveau_debugfs_pd_dump_bar3(struct seq_file *m, void *pos)
 {
 	struct drm_info_node *node = (struct drm_info_node *) m->private;
 	struct drm_device *dev = node->minor->dev;
@@ -323,8 +323,80 @@ DEFINE_SIMPLE_ATTRIBUTE(fops_vram_limit, pscnv_debugfs_vram_limit_get,
 
 DEFINE_SIMPLE_ATTRIBUTE(fops_pause, NULL, pscnv_debugfs_pause_set, "%llu");
 
+static int
+pscnv_debugfs_chan_pd_show(struct seq_file *m, void *data)
+{
+	struct pscnv_chan *ch = m->private;
+	struct drm_device *dev;
+	struct drm_nouveau_private *dev_priv;
+	
+	if (!ch) {
+		seq_printf(m, "Oops, ch == NULL\n");
+		return 0;
+	}
+	
+	dev = ch->dev;
+	dev_priv = dev->dev_private;
+	
+	if (!dev_priv->chan->pd_dump_chan) {
+		seq_printf(m, "page table dump not supported on this device\n");
+		return 0;
+	}
+	
+	dev_priv->chan->pd_dump_chan(dev, m, ch->cid);
+	
+	return 0;
+}
+
+static int
+pscnv_debugfs_single_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, pscnv_debugfs_chan_pd_show, inode->i_private);
+}
+
+static const struct file_operations pscnv_debugfs_single_fops = {
+	.owner = THIS_MODULE,
+	.open = pscnv_debugfs_single_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+
 static struct dentry *pscnv_debugfs_vram_limit_entry = NULL;
 static struct dentry *pscnv_debugfs_pause_entry = NULL;
+static struct dentry *pscnv_debugfs_chan_dir = NULL;
+
+void
+pscnv_debugfs_add_chan(struct pscnv_chan *ch)
+{
+	struct drm_device *dev = ch->dev;
+	
+	if (!pscnv_debugfs_chan_dir) {
+		return;
+	}
+	
+	if (!ch->name[0]) {
+		NV_ERROR(dev, "debugfs: channel %d lacks a name\n", ch->cid);
+		return;
+	}
+	
+	ch->debugfs_dir = debugfs_create_dir(ch->name, pscnv_debugfs_chan_dir);
+	if (!ch->debugfs_dir) {
+		NV_ERROR(dev, "debugfs: can not create chan/%s\n", ch->name);
+		return;
+	}
+	ch->debugfs_pd = debugfs_create_file("pd", S_IFREG | S_IRUGO,
+				ch->debugfs_dir, ch, &pscnv_debugfs_single_fops);
+}
+
+void
+pscnv_debugfs_remove_chan(struct pscnv_chan *ch)
+{
+	debugfs_remove(ch->debugfs_pd);
+	ch->debugfs_pd = NULL;
+	debugfs_remove(ch->debugfs_dir);
+	ch->debugfs_dir = NULL;
+}
 
 int
 nouveau_debugfs_init(struct drm_minor *minor)
@@ -358,6 +430,15 @@ nouveau_debugfs_init(struct drm_minor *minor)
 		return -ENOENT;
 	}
 	
+	pscnv_debugfs_chan_dir =
+		debugfs_create_dir("chan", minor->debugfs_root);
+	
+	if (!pscnv_debugfs_chan_dir) {
+		NV_INFO(dev, "Cannot create /sys/kernel/debug/dri/%s/chan",
+				minor->debugfs_root->d_name.name);
+		return -ENOENT;
+	}
+	
 	return 0;
 }
 
@@ -366,6 +447,7 @@ nouveau_debugfs_takedown(struct drm_minor *minor)
 {
 	debugfs_remove(pscnv_debugfs_vram_limit_entry);
 	debugfs_remove(pscnv_debugfs_pause_entry);
+	debugfs_remove(pscnv_debugfs_chan_dir);
 		
 	drm_debugfs_remove_files(nouveau_debugfs_list, NOUVEAU_DEBUGFS_ENTRIES,
 				 minor);

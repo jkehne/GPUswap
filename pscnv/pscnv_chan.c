@@ -32,6 +32,7 @@
 #include "pscnv_chan.h"
 #include "pscnv_fifo.h"
 #include "pscnv_dma.h"
+#include "nouveau_debugfs.h"
 
 /*******************************************************************************
  * Channel state management
@@ -302,7 +303,12 @@ pscnv_chan_new (struct drm_device *dev, struct pscnv_vspace *vs, int fake) {
 		return 0;
 	}
 	
-	NV_INFO(vs->dev, "CHAN: Allocating channel %d in vspace %d\n", res->cid, vs->vid);
+	switch (res->cid) {
+		case -3: strlcpy(res->name, "bar3", 8); break;
+		case -1: strlcpy(res->name, "bar1", 8); break;
+		default: snprintf(res->name, 8, "%d", res->cid); break;
+	}
+	NV_INFO(vs->dev, "CHAN: Allocating channel %s in vspace %d\n", res->name, vs->vid);
 	if (dev_priv->chan->do_chan_new(res)) {
 		if (vs) {
 			pscnv_vspace_unref(vs);
@@ -316,6 +322,10 @@ pscnv_chan_new (struct drm_device *dev, struct pscnv_vspace *vs, int fake) {
 	
 	pscnv_chan_set_state(res, PSCNV_CHAN_INITIALIZED);
 	
+	if (res->cid >= 0) {
+		pscnv_debugfs_add_chan(res);
+	}
+	
 	return res;
 }
 
@@ -324,7 +334,9 @@ void pscnv_chan_ref_free(struct kref *ref) {
 	struct drm_device *dev = ch->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 
-	NV_INFO(dev, "CHAN: Freeing channel %d\n", ch->cid);
+	NV_INFO(dev, "CHAN: Freeing channel %s\n", ch->name);
+	
+	pscnv_debugfs_remove_chan(ch);
 	
 	list_del(&ch->client_list);
 	

@@ -10,4 +10,10 @@
 	NV_INFO(d, fmt, ##arg);                                          \
 }
 
+void
+pscnv_debugfs_add_chan(struct pscnv_chan *ch);
+
+void
+pscnv_debugfs_remove_chan(struct pscnv_chan *ch);
+
 #endif /* end of include guard: NOUVEAU_DEBUGFS_H */
