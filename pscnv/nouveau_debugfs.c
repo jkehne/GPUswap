@@ -34,6 +34,7 @@
 #include "pscnv_client.h"
 #include "pscnv_vm.h"
 #include "pscnv_chan.h"
+#include "pscnv_dma.h"
 
 #if 0
 static int
@@ -265,7 +266,8 @@ static int
 pscnv_debugfs_pause_set(void *data, u64 val)
 {
 	struct drm_device *dev = data;
-	struct pscnv_chan *chans[128];
+	/* don't grow the kernel stack too much */
+	struct pscnv_chan *chans[32];
 	int i;
 	int n_chans = 0;
 	int res;
@@ -288,8 +290,18 @@ pscnv_debugfs_pause_set(void *data, u64 val)
 					" channel %d\n", res, ch->cid);
 			}
 		}
+		
+		if (n_chans == 32) {
+			NV_INFO(dev, "pscnv_debugfs_pause: too many pausable "
+				"channels");
+			break;
+		}
 	}
 	
+	if (n_chans == 0) {
+		NV_INFO(dev, "pscnv_debugfs_pause: no channels to pause!\n");
+		return 0;
+	}
 	
 	for (i = 0; i < n_chans; i++) {
 		struct pscnv_chan *ch = chans[i];
@@ -317,11 +329,95 @@ pscnv_debugfs_pause_set(void *data, u64 val)
 	return 0;
 }
 
+static int
+pscnv_debugfs_memacc_test_set(void *data, u64 val)
+{
+	struct drm_device *dev = data;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	
+	struct pscnv_bo *src, *dst;
+	uint32_t word[4];
+	int i, res;
+	
+	if (val != 1) {
+		return 0;
+	}
+	
+	NV_INFO(dev, "=== memacc_test: begin\n");
+	
+	if (!dev_priv->dma) {
+		pscnv_dma_init(dev);
+	}
+	
+	if (!dev_priv->dma) {
+		NV_ERROR(dev, "memacc_test: no DMA available\n");
+		res = -EINVAL;
+		goto fail;
+	}
+	
+	src = pscnv_mem_alloc(dev, 0x1000,
+			    PSCNV_MAP_KERNEL,
+			    0 /* tile flags */,
+			    0xa1de0000,
+			    NULL /*client */);
+	
+	if (!src) {
+		NV_ERROR(dev, "memacc_test: failed to allocate src\n");
+		res = -ENOMEM;
+		goto fail;
+	}
+	
+	for (i = 0; i < src->size; i+= 4) {
+		nv_wv32(src, i, 0x42);
+	}
+	
+	src->flags |= PSCNV_GEM_READONLY;
+	
+	dst = pscnv_mem_alloc(dev, 0x1000,
+			    PSCNV_MAP_KERNEL,
+			    0 /* tile flags */,
+			    0xa1de0001,
+			    NULL /*client */);
+	
+	if (!dst) {
+		NV_ERROR(dev, "memacc_test: failed to allocate dst\n");
+		res = -ENOMEM;
+		goto fail_dst;
+	}
+
+	res = pscnv_dma_bo_to_bo(dst, src, PSCNV_DMA_DEBUG);
+	
+	if (res) {
+		NV_INFO(dev, "memacc_test: failed to DMA- Transfer!\n");
+		goto fail_dma;
+	}
+	
+	for (i = 0; i < 16; i+= 4) {
+		word[i/4] = nv_rv32(dst, i);
+	}
+	
+	NV_INFO(dev, "memacc_test: dst = %08x %08x %08x %08x...\n",
+		word[0], word[1], word[2], word[3]);
+	
+	/* fall through and cleanup */
+fail_dma:
+	pscnv_mem_free(dst);
+
+fail_dst:
+	pscnv_mem_free(src);
+
+fail:	
+	NV_INFO(dev, "=== memacc_test: end\n");
+	
+	return res;
+}
+
 DEFINE_SIMPLE_ATTRIBUTE(fops_vram_limit, pscnv_debugfs_vram_limit_get,
 					 pscnv_debugfs_vram_limit_set,
 					 "%llu");
 
 DEFINE_SIMPLE_ATTRIBUTE(fops_pause, NULL, pscnv_debugfs_pause_set, "%llu");
+DEFINE_SIMPLE_ATTRIBUTE(fops_memacc_test, NULL, pscnv_debugfs_memacc_test_set, "%llu");
 
 static int
 pscnv_debugfs_chan_pd_show(struct seq_file *m, void *data)
@@ -365,6 +461,7 @@ static const struct file_operations pscnv_debugfs_single_fops = {
 static struct dentry *pscnv_debugfs_vram_limit_entry = NULL;
 static struct dentry *pscnv_debugfs_pause_entry = NULL;
 static struct dentry *pscnv_debugfs_chan_dir = NULL;
+static struct dentry *pscnv_debugfs_memacc_test_entry = NULL;
 
 void
 pscnv_debugfs_add_chan(struct pscnv_chan *ch)
@@ -430,6 +527,16 @@ nouveau_debugfs_init(struct drm_minor *minor)
 		return -ENOENT;
 	}
 	
+	pscnv_debugfs_memacc_test_entry =
+		debugfs_create_file("memacc_test", S_IFREG | S_IRUGO | S_IWUSR,
+				minor->debugfs_root, dev, &fops_memacc_test);
+	
+	if (!pscnv_debugfs_memacc_test_entry) {
+		NV_INFO(dev, "Cannot create /sys/kernel/debug/dri/%s/memacc_test\n",
+				minor->debugfs_root->d_name.name);
+		return -ENOENT;
+	}
+	
 	pscnv_debugfs_chan_dir =
 		debugfs_create_dir("chan", minor->debugfs_root);
 	
@@ -448,6 +555,7 @@ nouveau_debugfs_takedown(struct drm_minor *minor)
 	debugfs_remove(pscnv_debugfs_vram_limit_entry);
 	debugfs_remove(pscnv_debugfs_pause_entry);
 	debugfs_remove(pscnv_debugfs_chan_dir);
+	debugfs_remove(pscnv_debugfs_memacc_test_entry);
 		
 	drm_debugfs_remove_files(nouveau_debugfs_list, NOUVEAU_DEBUGFS_ENTRIES,
 				 minor);

@@ -135,7 +135,7 @@ fail_alloc_vs:
 }
 
 int
-pscnv_dma_bo_to_bo(struct pscnv_bo *tgt, struct pscnv_bo *src) {
+pscnv_dma_bo_to_bo(struct pscnv_bo *tgt, struct pscnv_bo *src, int flags) {
 	
 	struct drm_device *dev = tgt->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
@@ -183,6 +183,10 @@ pscnv_dma_bo_to_bo(struct pscnv_bo *tgt, struct pscnv_bo *src) {
 	if (ret) {
 		NV_INFO(dev, "DMA: failed to map source bo\n");
 		goto fail_map_src;
+	}
+	
+	if (flags & PSCNV_DMA_DEBUG) {
+		dev_priv->chan->pd_dump_chan(dev, NULL /* seq_file */, PSCNV_DMA_CHAN);
 	}
 	
 	pscnv_ib_membar(dma->ib_chan);

@@ -338,7 +338,7 @@ pscnv_vram_to_host(struct pscnv_bo* vram)
 		return -ENOMEM;
 	}
 	
-	res = pscnv_dma_bo_to_bo(sysram, vram);
+	res = pscnv_dma_bo_to_bo(sysram, vram, 0 /* flags */);
 	
 	if (res) {
 		NV_INFO(dev, "copy_to_host: failed to DMA- Transfer!\n");

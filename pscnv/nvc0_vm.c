@@ -331,7 +331,7 @@ struct pte_values {
 	uint32_t pfn;
 	uint32_t present;
 	uint32_t sysflag;
-	uint32_t flag2;
+	uint32_t ro;
 	uint32_t flag3;
 	uint32_t type;
 	uint32_t tile;
@@ -343,7 +343,7 @@ nvc0_vm_read_pte_values(struct pte_values *v, uint32_t lo, uint32_t hi)
 	v->pfn = lo >> 4;
 	v->present = lo & 1;
 	v->sysflag = (lo >> 1) & 1;
-	v->flag2 = (lo >> 2) & 1;
+	v->ro = (lo >> 2) & 1;
 	v->flag3 = (lo >> 3) & 1;
 	v->type = hi & 7;
 	v->tile = hi >> 3;
@@ -355,10 +355,30 @@ nvc0_vm_pte_values_eq(struct pte_values *a, struct pte_values *b)
 	return a->pfn == b->pfn &&
 	       a->present == b->present &&
 	       a->sysflag == b->sysflag &&
-	       a->flag2 == b->flag2 &&
+	       a->ro == b->ro &&
 	       a->flag3 == b->flag3 &&
 	       a->type == b->type &&
 	       a->tile == b->tile;
+}
+
+static void
+nvc0_vm_set_flag_str(struct pte_values *v, char *buf)
+{
+	int pos = 0;
+	
+	if (v->sysflag) {
+		pos += snprintf(buf + pos, 16 - pos, "SYS,");
+	}
+	
+	if (v->flag3) {
+		pos += snprintf(buf + pos, 16 - pos, "FLAG3,");
+	}
+	
+	if (v->ro) {
+		pos += snprintf(buf + pos, 16 - pos, "RO");
+	} else {
+		pos += snprintf(buf + pos, 16 -pos, "RW");
+	}
 }
 
 static void
@@ -366,6 +386,7 @@ nvc0_vm_pt_dump(struct drm_device *dev, struct seq_file *m, uint64_t pt_addr, in
 {
 	uint32_t size;
 	const char *type_str = (small) ? "SPT" : "LPT";
+	char flag_str_buf[16];
 	int i;
 	
 	if (small) {
@@ -406,10 +427,11 @@ nvc0_vm_pt_dump(struct drm_device *dev, struct seq_file *m, uint64_t pt_addr, in
 			nvc0_vm_read_pte_values(&cur, lo, hi);
 		} while (nvc0_vm_pte_values_eq(&cur, &expected));
 		
-		NV_DUMP(dev, m, "%d[%d]%s   %04x: %04x-%04x sys=%d f2=%d f3=%d tile=0x%x %s\n",
+		nvc0_vm_set_flag_str(&first, flag_str_buf);
+		NV_DUMP(dev, m, "%d[%d]%s   %04x: %04x-%04x tile=0x%x %s %s\n",
 			id, pde, type_str, i_start, first.pfn, expected.pfn,
-			first.sysflag, first.flag2, first.flag3, first.tile,
-			nvc0_vm_storage_type_str(first.type));
+			first.tile, nvc0_vm_storage_type_str(first.type),
+			flag_str_buf);
 		
 		*entrycnt += 1;
 			
@@ -489,6 +511,9 @@ nvc0_vspace_do_map(struct pscnv_vspace *vs,
 	pfl0 = 1;
 	if (vs->vid >= 0 && (bo->flags & PSCNV_GEM_NOUSER))
 		pfl0 |= 2;
+	
+	if (bo->flags & PSCNV_GEM_READONLY)
+		pfl0 |= 4;
 
 	pfl1 = bo->tile_flags << 4;
 
@@ -580,7 +605,7 @@ static const char *nvc0_num_str[] = {"BAR3", "??", "BAR1", "0", "1", "2", "3",
 "83", "84", "85", "86", "87", "88", "89", "90", "91", "92", "93", "94", "95",
 "96", "97", "98", "99", "100", "101", "102", "103", "104", "105", "106", "107",
 "108", "109", "110", "111", "112", "113", "114", "115", "116", "117", "118",
-"119", "120", "121", "122", "123", "124", "125", "126", "127"};
+"119", "120", "121", "122", "123", "124", "125", "DMA", "127"};
 
 static int nvc0_vspace_new(struct pscnv_vspace *vs) {
 	unsigned long flags;

@@ -304,8 +304,9 @@ pscnv_chan_new (struct drm_device *dev, struct pscnv_vspace *vs, int fake) {
 	}
 	
 	switch (res->cid) {
-		case -3: strlcpy(res->name, "bar3", 8); break;
-		case -1: strlcpy(res->name, "bar1", 8); break;
+		case -3:  strlcpy(res->name, "bar3", 8); break;
+		case -1:  strlcpy(res->name, "bar1", 8); break;
+		case 126: strlcpy(res->name, "dma", 8); break;
 		default: snprintf(res->name, 8, "%d", res->cid); break;
 	}
 	NV_INFO(vs->dev, "CHAN: Allocating channel %s in vspace %d\n", res->name, vs->vid);
