@@ -345,8 +345,8 @@ nvc0_vm_read_pte_values(struct pte_values *v, uint32_t lo, uint32_t hi)
 	v->sysflag = (lo >> 1) & 1;
 	v->ro = (lo >> 2) & 1;
 	v->flag3 = (lo >> 3) & 1;
-	v->type = hi & 7;
-	v->tile = hi >> 3;
+	v->type = hi & 0xf;
+	v->tile = hi >> 4;
 }
 
 static bool
@@ -429,9 +429,9 @@ nvc0_vm_pt_dump(struct drm_device *dev, struct seq_file *m, uint64_t pt_addr, in
 		
 		nvc0_vm_set_flag_str(&first, flag_str_buf);
 		NV_DUMP(dev, m, "%d[%d]%s   %04x: %04x-%04x tile=0x%x %s %s\n",
-			id, pde, type_str, i_start, first.pfn, expected.pfn,
-			first.tile, nvc0_vm_storage_type_str(first.type),
-			flag_str_buf);
+			id, pde, type_str, (small) ? i_start : 32*i_start,
+			first.pfn, expected.pfn, first.tile,
+			nvc0_vm_storage_type_str(first.type), flag_str_buf);
 		
 		*entrycnt += 1;
 			
@@ -514,6 +514,9 @@ nvc0_vspace_do_map(struct pscnv_vspace *vs,
 	
 	if (bo->flags & PSCNV_GEM_READONLY)
 		pfl0 |= 4;
+	
+	if (bo->flags & PSCNV_GEM_FLAG3)
+		pfl0 |= 8;
 
 	pfl1 = bo->tile_flags << 4;
 

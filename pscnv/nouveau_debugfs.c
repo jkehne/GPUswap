@@ -335,7 +335,8 @@ pscnv_debugfs_memacc_test_set(void *data, u64 val)
 	struct drm_device *dev = data;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	
-	struct pscnv_bo *src, *dst;
+	struct pscnv_bo *src, *src2, *dst;
+	struct pscnv_vspace *vs = dev_priv->vm->vspaces[126];
 	uint32_t word[4];
 	int i, res;
 	
@@ -355,8 +356,8 @@ pscnv_debugfs_memacc_test_set(void *data, u64 val)
 		goto fail;
 	}
 	
-	src = pscnv_mem_alloc(dev, 0x1000,
-			    PSCNV_MAP_KERNEL,
+	src = pscnv_mem_alloc(dev, 0x32000,
+			    PSCNV_MAP_KERNEL | PSCNV_GEM_VRAM_LARGE,
 			    0 /* tile flags */,
 			    0xa1de0000,
 			    NULL /*client */);
@@ -373,8 +374,28 @@ pscnv_debugfs_memacc_test_set(void *data, u64 val)
 	
 	src->flags |= PSCNV_GEM_READONLY;
 	
-	dst = pscnv_mem_alloc(dev, 0x1000,
+	src2 = pscnv_mem_alloc(dev, 0x1000,
 			    PSCNV_MAP_KERNEL,
+			    0 /* tile flags */,
+			    0xa1de0002,
+			    NULL /*client */);
+	
+	if (!src2) {
+		NV_ERROR(dev, "memacc_test: failed to allocate src2\n");
+		res = -ENOMEM;
+		goto fail_src2;
+	}
+	
+	for (i = 0; i < src2->size; i+= 4) {
+		nv_wv32(src2, i, 0xa1de);
+	}
+	
+	src2->flags |= PSCNV_GEM_READONLY;
+	
+	dev_priv->vm->do_map(vs, src2, 0x20300000);
+	
+	dst = pscnv_mem_alloc(dev, 0x32000,
+			    PSCNV_MAP_KERNEL | PSCNV_GEM_VRAM_LARGE,
 			    0 /* tile flags */,
 			    0xa1de0001,
 			    NULL /*client */);
@@ -396,7 +417,14 @@ pscnv_debugfs_memacc_test_set(void *data, u64 val)
 		word[i/4] = nv_rv32(dst, i);
 	}
 	
-	NV_INFO(dev, "memacc_test: dst = %08x %08x %08x %08x...\n",
+	NV_INFO(dev, "memacc_test: dst[0] = %08x %08x %08x %08x...\n",
+		word[0], word[1], word[2], word[3]);
+	
+	for (i = 0; i < 16; i+= 4) {
+		word[i/4] = nv_rv32(dst, i + 0x1000);
+	}
+	
+	NV_INFO(dev, "memacc_test: dst[1] = %08x %08x %08x %08x...\n",
 		word[0], word[1], word[2], word[3]);
 	
 	/* fall through and cleanup */
@@ -404,6 +432,9 @@ fail_dma:
 	pscnv_mem_free(dst);
 
 fail_dst:
+	pscnv_mem_free(src2);
+
+fail_src2:
 	pscnv_mem_free(src);
 
 fail:	

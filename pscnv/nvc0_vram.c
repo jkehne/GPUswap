@@ -98,8 +98,8 @@ nvc0_vram_alloc(struct pscnv_bo *bo)
 	uint64_t will_free;
 	int swap_retries = 0;
 	
-	if (bo->tile_flags & 0xffffff00)
-		return -EINVAL;
+	/*if (bo->tile_flags & 0xffffff00)
+		return -EINVAL;*/
 	flags = 0;
 	bo->size = roundup(bo->size, 0x1000);
 	if ((bo->flags & PSCNV_GEM_MEMTYPE_MASK) == PSCNV_GEM_VRAM_LARGE) {
