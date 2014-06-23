@@ -85,6 +85,8 @@ struct pscnv_bo {
 #define PSCNV_ZEROFILL		0x20
 #define PSCNV_MAP_KERNEL	0x40
 #define PSCNV_MAP_USER		0x80
+#define PSCNV_GEM_READONLY  0x100
+#define PSCNV_GEM_FLAG3     0x200
 
 struct pscnv_vram_engine {
 	void (*takedown) (struct drm_device *);
