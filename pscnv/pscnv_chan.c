@@ -93,6 +93,14 @@ pscnv_chan_pause(struct pscnv_chan *ch)
 		/* someone else was faster, good for us, nothing to do... */
 		atomic_inc(&ch->pausing_threads);
 		spin_unlock_irqrestore(&ch->state_lock, flags);
+		if (pscnv_pause_debug >= 2) {
+			char comm[TASK_COMM_LEN];
+		
+			get_task_comm(comm, current);
+		
+			NV_INFO(dev, "%s (%d) pause already in progress on %d\n",
+				comm, current->pid, ch->cid);
+		}
 		return -EALREADY;
 	}
 	if (ch->state != PSCNV_CHAN_RUNNING) {

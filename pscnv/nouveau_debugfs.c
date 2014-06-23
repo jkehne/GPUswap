@@ -283,9 +283,9 @@ pscnv_debugfs_pause_set(void *data, u64 val)
 			
 			pscnv_chan_ref(ch);
 			res = pscnv_chan_pause(ch);
-			if (res) {
+			if (res && res != -EALREADY) {
 				NV_INFO(dev, "pscnv_chan_pause returned %d on "
-					" channel %d\n", res, ch->cid);
+					"channel %d\n", res, ch->cid);
 			}
 		}
 	}

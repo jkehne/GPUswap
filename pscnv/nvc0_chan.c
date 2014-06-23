@@ -41,12 +41,14 @@ nvc0_chan_pause_fence(struct work_struct *ws)
 	}
 		
 	pscnv_chan_set_state(&ch->base, PSCNV_CHAN_PAUSED);
-	complete(&ch->base.pause_completion);
+	complete_all(&ch->base.pause_completion); /* destroys completion */
+	init_completion(&ch->base.pause_completion);
 	return;
 	
 fail:
 	pscnv_chan_fail(&ch->base);
-	complete(&ch->base.pause_completion);
+	complete_all(&ch->base.pause_completion);
+	init_completion(&ch->base.pause_completion);
 }
 
 static int
