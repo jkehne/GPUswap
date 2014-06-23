@@ -1,4 +1,7 @@
 #include "pscnv_client.h"
+#include "pscnv_chan.h"
+
+#include <linux/kthread.h>
 
 struct pscnv_client_work {
 	struct list_head entry;
@@ -9,6 +12,109 @@ struct pscnv_client_work {
 /* pscnv_client_work structures are short lived and small, we use the
    slab allocator here */
 static struct kmem_cache *client_work_cache = NULL;
+
+static void
+pscnv_client_pause_all_channels_of_client(struct pscnv_client *cl)
+{
+	struct drm_device *dev = cl->dev;
+	struct pscnv_chan *ch;
+	int res;
+	
+	list_for_each_entry(ch, &cl->channels, client_list) {
+		pscnv_chan_ref(ch);
+		res = pscnv_chan_pause(ch);
+		if (res && res != -EALREADY) {
+			NV_ERROR(dev, "pscnv_chan_pause returned %d on "
+				"channel %d\n", res, ch->cid);	
+		}
+		res = pscnv_chan_pause_wait(ch);
+		if (res) {
+			NV_ERROR(dev, "pscnv_chan_pause_wait returned %d"
+				" on channel %d\n", res, ch->cid);
+		}
+	}
+}
+
+static void
+pscnv_client_continue_all_channels_of_client(struct pscnv_client *cl)
+{
+	struct drm_device *dev = cl->dev;
+	struct pscnv_chan *ch;
+	int res;
+	
+	list_for_each_entry(ch, &cl->channels, client_list) {
+		res = pscnv_chan_continue(ch);
+		if (res) {
+			NV_INFO(dev, "pscnv_chan_continue returned %d on "
+				"channel %d\n", res, ch->cid);
+		}
+		pscnv_chan_unref(ch);
+	}
+	
+}
+
+static int
+pscnv_client_pause_thread(void *data)
+{
+	struct drm_device *dev = data;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	
+	struct pscnv_client *cl;
+	struct pscnv_client *cl_to_pause = NULL;
+	
+	if (pscnv_pause_debug >= 2) {
+		NV_INFO(dev, "pscnv_client_pause_thread: init\n");
+	}
+	
+	while (!kthread_should_stop()) {
+		if (down_trylock(&dev_priv->clients->need_pause)) {
+			if (pscnv_pause_debug >= 2) {
+				NV_INFO(dev, "pscnv_client_pause_thread: sleep\n");
+			}
+			down_interruptible(&dev_priv->clients->need_pause);
+			if (pscnv_pause_debug >= 2) {
+				NV_INFO(dev, "pscnv_client_pause_thread: wakeup");
+			}
+			if (kthread_should_stop()) {
+				break;
+			}
+		}
+		
+		mutex_lock(&dev_priv->clients->lock);
+		
+		list_for_each_entry(cl, &dev_priv->clients->list, clients) {
+			if (list_empty(&cl->on_empty_fifo)) {
+				continue;
+			} else {
+				cl_to_pause = cl;
+				break;
+			}
+		}
+		
+		mutex_unlock(&dev_priv->clients->lock);
+		
+		if (!cl_to_pause) {
+			/* this happens, if two process add work to the
+			 * on_empty_fifo list, but this theard handles them in
+			 * one run */
+			continue;
+		}
+		
+		/* TODO: proper error handling in case pausing fails */
+		pscnv_client_pause_all_channels_of_client(cl_to_pause);
+		
+		pscnv_client_run_empty_fifo_work(cl_to_pause);
+		
+		pscnv_client_continue_all_channels_of_client(cl_to_pause);
+		
+		cl_to_pause = NULL;
+	}
+	
+	if (pscnv_pause_debug >= 2) {
+		NV_INFO(dev, "pscnv_client_pause_thread: shutdown\n");
+	}
+	return 0;
+}
 
 static void
 pscnv_client_work_ctor(void *data)
@@ -49,6 +155,15 @@ pscnv_clients_init(struct drm_device *dev)
 	
 	if (!client_work_cache) {
 		NV_INFO(dev, "Clients: failed to init client_work cache\n");
+		kfree(clients);
+		return -ENOMEM;
+	}
+	
+	sema_init(&clients->need_pause, 0);
+	clients->pause_thread = kthread_run(pscnv_client_pause_thread, dev, "pscnv_pause");
+	
+	if (IS_ERR_OR_NULL(clients->pause_thread)) {
+		NV_INFO(dev, "Clients: failed to start pause thread\n");
 		kfree(clients);
 		return -ENOMEM;
 	}
@@ -222,7 +337,11 @@ pscnv_client_postclose(struct drm_device *dev, struct drm_file *file_priv)
 void
 pscnv_client_do_on_empty_fifo_unlocked(struct pscnv_client *cl, client_workfunc_t func, void *data)
 {
+	struct drm_device *dev = cl->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	
 	struct pscnv_client_work *work;
+	bool need_pause = list_empty(&cl->on_empty_fifo);
 	
 	work = kmem_cache_alloc(client_work_cache, GFP_KERNEL);
 	BUG_ON(!work);
@@ -231,6 +350,10 @@ pscnv_client_do_on_empty_fifo_unlocked(struct pscnv_client *cl, client_workfunc_
 	work->data = data;
 	
 	list_add_tail(&work->entry, &cl->on_empty_fifo);
+	
+	if (need_pause) {
+		up(&dev_priv->clients->need_pause);
+	}
 }
 
 void

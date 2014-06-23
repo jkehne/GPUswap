@@ -14,6 +14,12 @@ struct pscnv_clients {
 	
 	/* lock on all clients */
 	struct mutex lock;
+	
+	/* thread that pauses channels and performs the empty fifo work */
+	struct task_struct *pause_thread;
+	
+	/* up on every call to do on empty_fifo and down on every operation */
+	struct semaphore need_pause;
 };
 
 /* instance per pid */
