@@ -59,8 +59,6 @@ nvc0_chan_ctrl_fault(struct pscnv_chan *ch_base, struct vm_area_struct *vma, str
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	
 	struct nvc0_fifo_engine *fifo = nvc0_fifo_eng(dev_priv->fifo);
-	unsigned long flags;
-	unsigned long flags2;
 	uint32_t ib_put;
 	
 	if (pscnv_pause_debug >= 2) {
@@ -72,8 +70,11 @@ nvc0_chan_ctrl_fault(struct pscnv_chan *ch_base, struct vm_area_struct *vma, str
 	}
 	
 	/* we may spin here for a little while, while the other process copies
-	 * the page to shadow */
-	spin_lock_irqsave(&ch->ctrl_shadow_lock, flags);
+	 * the page to shadow
+	 * Note that we do not use the irqsave version here, als zap_vma_ptes
+	 * causes a tlb_flush and tlb_flushing with disabled interrupts may
+	 * cause deadlocks on smp systems, due to ipi */
+	spin_lock(&ch->ctrl_shadow_lock);
 	
 	BUG_ON(ch->ctrl_pte_present);
 	
@@ -83,7 +84,7 @@ nvc0_chan_ctrl_fault(struct pscnv_chan *ch_base, struct vm_area_struct *vma, str
 			vma->vm_end - vma->vm_start, PAGE_SHARED);
 		
 		ch->ctrl_pte_present = true;
-		spin_unlock_irqrestore(&ch->ctrl_shadow_lock, flags);
+		spin_unlock(&ch->ctrl_shadow_lock);
 	} else {
 		if (!ch->ib_pte_present) {
 			/* process hit this fault handler before the ib fault
@@ -95,15 +96,15 @@ nvc0_chan_ctrl_fault(struct pscnv_chan *ch_base, struct vm_area_struct *vma, str
 			 * ib fault handler will zap the page again as soon
 			 * as it runs and then we finally can restore the
 			 * correct mapping */
-			spin_lock_irqsave(&ch->ib_shadow_lock, flags2);
+			spin_lock(&ch->ib_shadow_lock);
 			remap_pfn_range(vma, vma->vm_start,
 				virt_to_phys(ch->ctrl_shadow) >> 12,
 				vma->vm_end - vma->vm_start, PAGE_SHARED);
 		
 			ch->ctrl_pte_present = true;
 			ch->ctrl_restore_delayed = true;
-			spin_unlock_irqrestore(&ch->ib_shadow_lock, flags2);
-			spin_unlock_irqrestore(&ch->ctrl_shadow_lock, flags);
+			spin_unlock(&ch->ib_shadow_lock);
+			spin_unlock(&ch->ctrl_shadow_lock);
 			
 			if (pscnv_pause_debug >= 2) {
 				NV_INFO(dev, "nvc0_chan_ctrl_fault: delaying "
@@ -123,7 +124,7 @@ nvc0_chan_ctrl_fault(struct pscnv_chan *ch_base, struct vm_area_struct *vma, str
 			ib_put = ch->ctrl_shadow[0x8c/4];
 			nv_wv32(fifo->ctrl_bo, (ch->base.cid << 12) + 0x8c, ib_put);
 		
-			spin_unlock_irqrestore(&ch->ctrl_shadow_lock, flags);
+			spin_unlock(&ch->ctrl_shadow_lock);
 		
 			if (pscnv_pause_debug >= 2) {
 				NV_INFO(dev, "nvc0_chan_ctrl_fault: writing ib_put=0x%x"
@@ -148,10 +149,9 @@ nvc0_chan_lookup_ib(struct pscnv_bo *ib)
 	
 	struct pscnv_chan *ch = NULL;
 	struct nvc0_fifo_ctx *fifo_ctx = NULL;
-	unsigned long flags;
 	int chid;
 	
-	spin_lock_irqsave(&dev_priv->chan->ch_lock, flags);
+	spin_lock(&dev_priv->chan->ch_lock);
 	
 	
 	for (chid = 0; chid < 128; chid++) {
@@ -167,13 +167,13 @@ nvc0_chan_lookup_ib(struct pscnv_bo *ib)
 		}
 		
 		if (fifo_ctx->ib == ib) {
-			spin_unlock_irqrestore(&dev_priv->chan->ch_lock, flags);
+			spin_unlock(&dev_priv->chan->ch_lock);
 			return nvc0_ch(ch);
 		}
 		
 	}
 	
-	spin_unlock_irqrestore(&dev_priv->chan->ch_lock, flags);
+	spin_unlock(&dev_priv->chan->ch_lock);
 
 	return NULL;
 }
@@ -187,7 +187,6 @@ nvc0_chan_ib_fault(struct pscnv_bo *ib, struct vm_area_struct *vma, struct vm_fa
 	struct nvc0_chan *ch;
 	struct vm_area_struct *ctrl_vma;
 	struct nvc0_fifo_ctx *fifo_ctx;
-	unsigned long flags;
 	int i, ret;
 	
 	BUG_ON(!ib);
@@ -215,7 +214,7 @@ nvc0_chan_ib_fault(struct pscnv_bo *ib, struct vm_area_struct *vma, struct vm_fa
 	}
 	
 	
-	spin_lock_irqsave(&ch->ib_shadow_lock, flags);
+	spin_lock(&ch->ib_shadow_lock);
 	
 	BUG_ON(ch->ib_pte_present);
 	
@@ -225,7 +224,7 @@ nvc0_chan_ib_fault(struct pscnv_bo *ib, struct vm_area_struct *vma, struct vm_fa
 			vma->vm_end - vma->vm_start, PAGE_SHARED);
 		
 		ch->ib_pte_present = true;
-		spin_unlock_irqrestore(&ch->ib_shadow_lock, flags);
+		spin_unlock(&ch->ib_shadow_lock);
 	} else {
 		/* be aware that the ib may be sysram or vram */
 		switch (ib->flags & PSCNV_GEM_MEMTYPE_MASK) {
@@ -242,7 +241,7 @@ nvc0_chan_ib_fault(struct pscnv_bo *ib, struct vm_area_struct *vma, struct vm_fa
 				vma->vm_end - vma->vm_start, PAGE_SHARED);
 			break;
 		default:
-			spin_unlock_irqrestore(&ch->ib_shadow_lock, flags);
+			spin_unlock(&ch->ib_shadow_lock);
 			BUG();
 		}
 
@@ -253,11 +252,11 @@ nvc0_chan_ib_fault(struct pscnv_bo *ib, struct vm_area_struct *vma, struct vm_fa
 			nv_wv32(ib, i, ch->ib_shadow[i/4]);
 		}
 		
-		spin_unlock_irqrestore(&ch->ib_shadow_lock, flags);
+		spin_unlock(&ch->ib_shadow_lock);
 		
 		dev_priv->vm->bar_flush(dev);
 		
-		spin_lock_irqsave(&ch->ctrl_shadow_lock, flags);
+		spin_lock(&ch->ctrl_shadow_lock);
 		if (ctrl_vma && ch->ctrl_restore_delayed && ch->ctrl_pte_present) {
 			if (pscnv_pause_debug >= 2) {
 				NV_INFO(dev, "nvc0_chan_ib_fault: again clearing"
@@ -266,13 +265,13 @@ nvc0_chan_ib_fault(struct pscnv_bo *ib, struct vm_area_struct *vma, struct vm_fa
 			ret = zap_vma_ptes(ctrl_vma, ctrl_vma->vm_start,
 					   ctrl_vma->vm_end - ctrl_vma->vm_start);	
 			if (ret) {
-				spin_unlock_irqrestore(&ch->ctrl_shadow_lock, flags);
+				spin_unlock(&ch->ctrl_shadow_lock);
 				NV_INFO(dev, "nvc0_chan_ib_fault: zap_vma_ptes failed\n");
 				return ret;
 			}
 			ch->ctrl_pte_present = false;
 		}
-		spin_unlock_irqrestore(&ch->ctrl_shadow_lock, flags);
+		spin_unlock(&ch->ctrl_shadow_lock);
 	}
 	
 	return VM_FAULT_NOPAGE;
@@ -286,7 +285,6 @@ nvc0_chan_pause_ctrl_shadow(struct nvc0_chan *ch)
 	
 	struct nvc0_fifo_engine *fifo = nvc0_fifo_eng(dev_priv->fifo);
 	struct vm_area_struct *vma = ch->base.vma;
-	unsigned long flags;
 	uint32_t ib_get, ib_put;
 	int i, ret;
 	
@@ -300,13 +298,13 @@ nvc0_chan_pause_ctrl_shadow(struct nvc0_chan *ch)
 		return 0; /* nothing to do */
 	}
 	
-	spin_lock_irqsave(&ch->ctrl_shadow_lock, flags);
+	spin_lock(&ch->ctrl_shadow_lock);
 	
 	if (ch->ctrl_pte_present) {
 		/* make process pagefault on next access to the fifo regs */
 		ret = zap_vma_ptes(vma, vma->vm_start, vma->vm_end - vma->vm_start);	
 		if (ret) {
-			spin_unlock_irqrestore(&ch->ctrl_shadow_lock, flags);
+			spin_unlock(&ch->ctrl_shadow_lock);
 			NV_INFO(dev, "nvc0_chan_pause: zap_vma_ptes failed\n");
 			return ret;
 		}
@@ -321,7 +319,7 @@ nvc0_chan_pause_ctrl_shadow(struct nvc0_chan *ch)
 
 	ch->ctrl_is_shadowed = true;
 	
-	spin_unlock_irqrestore(&ch->ctrl_shadow_lock, flags);
+	spin_unlock(&ch->ctrl_shadow_lock);
 	
 	if (pscnv_pause_debug >= 2) {
 		NV_INFO(dev, "nvc0_chan_pause: pausing channel %d at ib_get=0x%x"
@@ -339,7 +337,6 @@ nvc0_chan_pause_ib_shadow(struct nvc0_chan *ch)
 	struct nvc0_fifo_ctx *fifo_ctx = ch->base.engdata[PSCNV_ENGINE_FIFO];
 	struct pscnv_bo *ib;
 	struct vm_area_struct *vma;
-	unsigned long flags;
 	int i, ret;
 	
 	BUG_ON(ch->ib_is_shadowed);
@@ -359,13 +356,13 @@ nvc0_chan_pause_ib_shadow(struct nvc0_chan *ch)
 	
 	ib->vm_fault = nvc0_chan_ib_fault;
 	
-	spin_lock_irqsave(&ch->ib_shadow_lock, flags);
+	spin_lock(&ch->ib_shadow_lock);
 	
 	if (ch->ib_pte_present) {
 		/* make process pagefault on next access to the IB */
 		ret = zap_vma_ptes(vma, vma->vm_start, vma->vm_end - vma->vm_start);	
 		if (ret) {
-			spin_unlock_irqrestore(&ch->ib_shadow_lock, flags);
+			spin_unlock(&ch->ib_shadow_lock);
 			NV_INFO(dev, "nvc0_chan_pause: zap_vma_ptes failed\n");
 			return ret;
 		}
@@ -378,7 +375,7 @@ nvc0_chan_pause_ib_shadow(struct nvc0_chan *ch)
 
 	ch->ib_is_shadowed = true;
 	
-	spin_unlock_irqrestore(&ch->ib_shadow_lock, flags);
+	spin_unlock(&ch->ib_shadow_lock);
 
 	return 0;
 }
@@ -391,7 +388,6 @@ nvc0_chan_continue_ctrl_shadow(struct nvc0_chan *ch)
 	
 	struct nvc0_fifo_engine *fifo = nvc0_fifo_eng(dev_priv->fifo);
 	struct vm_area_struct *vma = ch->base.vma;
-	unsigned long flags;
 	uint32_t ib_put;
 	int ret;
 	
@@ -401,7 +397,7 @@ nvc0_chan_continue_ctrl_shadow(struct nvc0_chan *ch)
 		return 0; /* nothing to do, message already issued */
 	}
 	
-	spin_lock_irqsave(&ch->ctrl_shadow_lock, flags);
+	spin_lock(&ch->ctrl_shadow_lock);
 	
 	if (ch->ctrl_pte_present) {
 		/* zap_vma_ptes results in 'freeing invalid memtype' if pte's
@@ -409,7 +405,7 @@ nvc0_chan_continue_ctrl_shadow(struct nvc0_chan *ch)
 		 * must not call it again */
 		ret = zap_vma_ptes(vma, vma->vm_start, vma->vm_end - vma->vm_start);	
 		if (ret) {
-			spin_unlock_irqrestore(&ch->ctrl_shadow_lock, flags);
+			spin_unlock(&ch->ctrl_shadow_lock);
 			NV_INFO(dev, "nvc0_chan_continue: zap_vma_ptes failed\n");
 			return ret;
 		}
@@ -428,7 +424,7 @@ nvc0_chan_continue_ctrl_shadow(struct nvc0_chan *ch)
 
 	ch->ctrl_is_shadowed = false;
 
-	spin_unlock_irqrestore(&ch->ctrl_shadow_lock, flags);
+	spin_unlock(&ch->ctrl_shadow_lock);
 	
 	if (pscnv_pause_debug >= 2) {
 		NV_INFO(dev, "nvc0_chan_continue: writing ib_put=0x%x into "
@@ -447,7 +443,6 @@ nvc0_chan_continue_ib_shadow(struct nvc0_chan *ch)
 	struct nvc0_fifo_ctx *fifo_ctx = ch->base.engdata[PSCNV_ENGINE_FIFO];
 	struct vm_area_struct *vma = ch->base.vma;
 	struct pscnv_bo *ib;
-	unsigned long flags;
 	int i, ret;
 	
 	BUG_ON(!ch->ib_is_shadowed);
@@ -461,12 +456,12 @@ nvc0_chan_continue_ib_shadow(struct nvc0_chan *ch)
 		return 0; /* nothing to do, message already issued */
 	}
 	
-	spin_lock_irqsave(&ch->ib_shadow_lock, flags);
+	spin_lock(&ch->ib_shadow_lock);
 	
 	if (ch->ib_pte_present) {
 		ret = zap_vma_ptes(vma, vma->vm_start, vma->vm_end - vma->vm_start);	
 		if (ret) {
-			spin_unlock_irqrestore(&ch->ib_shadow_lock, flags);
+			spin_unlock(&ch->ib_shadow_lock);
 			NV_INFO(dev, "nvc0_chan_continue: zap_vma_ptes failed\n");
 			return ret;
 		}
@@ -484,7 +479,7 @@ nvc0_chan_continue_ib_shadow(struct nvc0_chan *ch)
 
 	ch->ib_is_shadowed = false;
 
-	spin_unlock_irqrestore(&ch->ib_shadow_lock, flags);
+	spin_unlock(&ch->ib_shadow_lock);
 
 	return 0;
 }
@@ -673,9 +668,9 @@ nvc0_chan_new(struct pscnv_chan *ch)
 
 	if (ch->cid >= 0) {
 		nv_wr32(ch->dev, 0x3000 + ch->cid * 8, (0x4 << 28) | ch->bo->start >> 12);
-		spin_lock_irqsave(&dev_priv->chan->ch_lock, flags);
+		spin_lock(&dev_priv->chan->ch_lock);
 		ch->handle = ch->bo->start >> 12;
-		spin_unlock_irqrestore(&dev_priv->chan->ch_lock, flags);
+		spin_unlock(&dev_priv->chan->ch_lock);
 	}
 	dev_priv->vm->bar_flush(ch->dev);
 	
