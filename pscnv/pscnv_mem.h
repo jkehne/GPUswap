@@ -66,7 +66,9 @@ struct pscnv_bo {
 	/* vm memory node (one continuos area) that will be replaced with
 	 * system RAM. Currently the BO is simply removed from other vspaces */
 	struct pscnv_mm_node *primary_node;
-	/* bo that holds the content of this bo, if it gets swapped out */
+	/* bo that holds the content of this bo, if it gets swapped out. In some
+	 * cases, this can be the bo itself, if it is allocated as SYSRAM because
+	 * of memory pressure */
 	struct pscnv_bo *backing_store;
 	/* client who allocated this bo, if it was allocated by a user space process */
 	struct pscnv_client *client;
@@ -87,6 +89,7 @@ struct pscnv_bo {
 #define PSCNV_MAP_USER		0x80
 #define PSCNV_GEM_READONLY  0x100
 #define PSCNV_GEM_FLAG3     0x200
+#define PSCNV_GEM_USER      0x400  /* < swappable */
 
 struct pscnv_vram_engine {
 	void (*takedown) (struct drm_device *);

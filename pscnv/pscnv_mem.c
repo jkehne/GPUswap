@@ -141,6 +141,14 @@ pscnv_mem_alloc(struct drm_device *dev,
 	mutex_lock(&dev_priv->vram_mutex);
 	res->serial = serial++;
 	mutex_unlock(&dev_priv->vram_mutex);
+	
+	if (res->client) {
+		switch (res->flags & PSCNV_GEM_MEMTYPE_MASK) {
+			case PSCNV_GEM_VRAM_SMALL:
+			case PSCNV_GEM_VRAM_LARGE:
+				pscnv_swapping_add_bo(res);
+		}
+	}
 
 	if (pscnv_mem_debug >= 1)
 		NV_INFO(dev, "Allocating %d, %#llx-byte %sBO of type %08x, tile_flags %x\n", res->serial, size,
@@ -256,17 +264,28 @@ pscnv_mem_free(struct pscnv_bo *bo)
 	
 	
 	if (bo->backing_store) {
-		pscnv_bo_unref(bo->backing_store);
-		dev_priv->vram_swapped -= bo->size;
-		kfree(bo);
-		/* the memory handled by this bo has already been free'd
-		   on swapping */
-		return 0;
+		atomic64_sub(bo->size, &dev_priv->vram_swapped);
+		if (bo->client) {
+			atomic64_sub(bo->size, &bo->client->vram_swapped);
+		}
+		if (bo->backing_store != bo) {
+			pscnv_bo_unref(bo->backing_store);
+		
+			kfree(bo);
+			/* the memory handled by this bo has already been free'd
+			   on swapping */
+			return 0;
+		}
 	}
 	
 	switch (bo->flags & PSCNV_GEM_MEMTYPE_MASK) {
 		case PSCNV_GEM_VRAM_SMALL:
 		case PSCNV_GEM_VRAM_LARGE:
+			atomic64_sub(bo->size, &dev_priv->vram_demand);
+			if (bo->client) {
+				atomic64_sub(bo->size, &bo->client->vram_demand);
+			}
+		
 			dev_priv->vram->free(bo);
 			break;
 		case PSCNV_GEM_SYSRAM_SNOOP:
@@ -329,11 +348,9 @@ pscnv_vram_free(struct pscnv_bo *bo)
 	pscnv_mm_free(bo->mmnode);
 	mutex_unlock(&dev_priv->vram_mutex);
 	
-	dev_priv->vram_usage -= bo->size;
+	atomic64_sub(bo->size, &dev_priv->vram_usage);
 	if (bo->client) {
-		mutex_lock(&dev_priv->clients->lock);
-		bo->client->vram_usage -= bo->size;
-		mutex_unlock(&dev_priv->clients->lock);
+		atomic64_sub(bo->size, &bo->client->vram_usage);
 	}
 	
 	return 0;

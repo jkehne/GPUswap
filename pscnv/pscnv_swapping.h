@@ -63,7 +63,7 @@ pscnv_swapping_reduce_vram(struct drm_device *dev, struct pscnv_client *me, uint
 /*
  * decide weather pscnv_swapping_reduce_vram needs to be run to satisfy request */
 int
-pscnv_swapping_required(struct drm_device *dev, uint64_t req);
+pscnv_swapping_required(struct drm_device *dev);
 
 
 #endif /* end of include guard: PSCNV_SWAPPING_H */

@@ -108,8 +108,14 @@ nvc0_vram_alloc(struct pscnv_bo *bo)
 	}
 	if (!(bo->flags & PSCNV_GEM_CONTIG))
 		flags |= PSCNV_MM_FRAGOK;
+	
 	mutex_lock(&dev_priv->vram_mutex);
-	while (pscnv_swapping_required(dev, bo->size)) {
+	atomic64_add(bo->size, &dev_priv->vram_demand);
+	if (bo->client) {
+		atomic64_add(bo->size, &bo->client->vram_demand);
+	}
+	
+	while ((bo->flags & PSCNV_GEM_USER) && pscnv_swapping_required(dev)) {
 		mutex_unlock(&dev_priv->vram_mutex);
 		if (swap_retries >= 3) {
 			NV_ERROR(dev, "nvc0_vram_alloc: can not get enough vram "
@@ -126,6 +132,34 @@ nvc0_vram_alloc(struct pscnv_bo *bo)
 		/* some one else meight be faster in this lock and steel the
 		   memory right in front of us */
 	}
+	
+	switch (bo->flags & PSCNV_GEM_MEMTYPE_MASK) {
+	case PSCNV_GEM_SYSRAM_SNOOP:
+	case PSCNV_GEM_SYSRAM_NOSNOOP:
+		/* bo itself has been selected as victim */
+		
+		mutex_unlock(&dev_priv->vram_mutex);
+		
+		NV_INFO(dev, "nvc0_vram_alloc: memory pressure! allocating BO "
+			"%08x/%d as SYSRAM, because of memory pressure",
+			bo->cookie, bo->serial);
+	
+		if (dev_priv->vram->sysram_tiling_ok(bo)) {
+			ret = pscnv_sysram_alloc(bo);
+			if (ret) {
+				return ret;
+			}
+			atomic64_add(bo->size, &dev_priv->vram_swapped);
+			if (bo->client) {
+				atomic64_add(bo->size, &bo->client->vram_swapped);
+			}
+				
+			return 0;
+		} else {
+			return -EINVAL;
+		}
+	}
+	
 	ret = pscnv_mm_alloc(dev_priv->vram_mm, bo->size, flags, 0, dev_priv->vram_size, &bo->mmnode);
 	if (ret) {
 		mutex_unlock(&dev_priv->vram_mutex);
@@ -140,9 +174,10 @@ nvc0_vram_alloc(struct pscnv_bo *bo)
 	}
 	
 	bo->mmnode->bo = bo;
-	dev_priv->vram_usage += bo->size;
+	
+	atomic64_add(bo->size, &dev_priv->vram_usage);
 	if (bo->client) {
-		bo->client->vram_usage += bo->size;
+		atomic64_add(bo->size, &bo->client->vram_usage);;
 	}
 	
 	mutex_unlock(&dev_priv->vram_mutex);

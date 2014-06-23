@@ -114,7 +114,8 @@ int pscnv_ioctl_gem_new(struct drm_device *dev, void *data,
 	NOUVEAU_CHECK_INITIALISED_WITH_RETURN;
 
 	client = pscnv_client_search_pid(dev, file_priv->pid);
-	obj = pscnv_gem_new(dev, info->size, info->flags, info->tile_flags, info->cookie, info->user, client);
+	obj = pscnv_gem_new(dev, info->size, info->flags | PSCNV_GEM_USER,
+			info->tile_flags, info->cookie, info->user, client);
 	if (!obj) {
 		return -ENOMEM;
 	}
@@ -134,12 +135,6 @@ int pscnv_ioctl_gem_new(struct drm_device *dev, void *data,
 	info->map_handle = DRM_GEM_MAPPING_OFF(obj->map_list.key) |
 			   DRM_GEM_MAPPING_KEY;
 #endif
-	
-	switch (bo->flags & PSCNV_GEM_MEMTYPE_MASK) {
-		case PSCNV_GEM_VRAM_SMALL:
-		case PSCNV_GEM_VRAM_LARGE:
-			pscnv_swapping_add_bo(bo);
-	}
 	
 	/* confusing: this immediatly sets obj->handle_count back to 0, so
 	 * the drm_gem_object should loose it's name, but the object (and the

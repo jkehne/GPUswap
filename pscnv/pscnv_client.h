@@ -30,9 +30,9 @@ struct pscnv_client {
 	
 	struct kref ref;
 	
-	uint64_t vram_usage;
-	uint64_t vram_swapped;
-	uint64_t vram_swap_pending;
+	atomic64_t vram_usage;
+	atomic64_t vram_swapped;
+	atomic64_t vram_demand;
 	
 	/* list the client is in, see pscnv_clients.list */
 	struct list_head clients;

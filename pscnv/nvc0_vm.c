@@ -188,7 +188,7 @@ nvc0_vspace_pgt_new(struct pscnv_vspace *vs, unsigned int pde)
 
 	if (vs->vid != -3) {
 		pgt->bo[0] = pscnv_mem_alloc(dev, NVC0_VM_LPTE_COUNT * 8,
-			PSCNV_GEM_CONTIG | PSCNV_ZEROFILL | PSCNV_MAP_KERNEL,
+			bo_flags,
 			0, 0x79, NULL);
 			
 		if (!pgt->bo[0]) {

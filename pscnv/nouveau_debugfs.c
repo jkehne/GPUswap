@@ -145,8 +145,9 @@ nouveau_debugfs_memory_info(struct seq_file *m, void *pos)
 	struct pscnv_client *cur;
 
 	seq_printf(m, "VRAM total: %dKiB\n", (int)(dev_priv->vram_size >> 10));
-	seq_printf(m, "VRAM usage: %dKiB\n", (int)(dev_priv->vram_usage >> 10));
-	seq_printf(m, "VRAM swapped: %dKiB\n", (int)(dev_priv->vram_swapped >> 10));
+	seq_printf(m, "VRAM usage: %dKiB\n", (int)atomic64_read(&dev_priv->vram_usage) >> 10);
+	seq_printf(m, "VRAM swapped: %dKiB\n", (int)atomic64_read(&dev_priv->vram_swapped) >> 10);
+	seq_printf(m, "VRAM demand: %dKiB\n", (int)atomic64_read(&dev_priv->vram_demand) >> 10);
 	
 	mutex_lock(&dev_priv->clients->lock);
 	if (!list_empty(&dev_priv->clients->list)) {
@@ -154,10 +155,10 @@ nouveau_debugfs_memory_info(struct seq_file *m, void *pos)
 	}
 	
 	list_for_each_entry(cur, &dev_priv->clients->list, clients) {
-		seq_printf(m, "client %d: used %dKiB, pending %dKiB, swapped %dKiB, swappable bo: %d, swapped bo: %d\n",
-			cur->pid, (int)(cur->vram_usage >> 10),
-				  (int)(cur->vram_swap_pending >> 10),
-			          (int)(cur->vram_swapped >> 10),
+		seq_printf(m, "client %d: used %dKiB, demand %dKiB, swapped %dKiB, swappable bo: %d, swapped bo: %d\n",
+			cur->pid, (int)atomic64_read(&cur->vram_usage) >> 10,
+				  (int)atomic64_read(&cur->vram_demand) >> 10,
+			          (int)atomic64_read(&cur->vram_swapped) >> 10,
 				  (int)(cur->swapping_options.size),
 				  (int)(cur->already_swapped.size));
 	}

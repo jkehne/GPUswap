@@ -42,13 +42,12 @@ nvc0_chan_pause_fence(struct work_struct *ws)
 		
 	pscnv_chan_set_state(&ch->base, PSCNV_CHAN_PAUSED);
 	complete_all(&ch->base.pause_completion); /* destroys completion */
-	init_completion(&ch->base.pause_completion);
+	
 	return;
 	
 fail:
 	pscnv_chan_fail(&ch->base);
 	complete_all(&ch->base.pause_completion);
-	init_completion(&ch->base.pause_completion);
 }
 
 static int
@@ -505,6 +504,8 @@ nvc0_chan_pause(struct pscnv_chan *ch)
 		NV_INFO(dev, "%s (%d) pausing channel %d\n",
 			comm, current->pid, ch->cid);
 	}
+	
+	init_completion(&ch->pause_completion);
 	
 	ret = nvc0_chan_pause_ctrl_shadow(nvc0_ch(ch));
 	if (ret) {

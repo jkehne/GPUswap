@@ -202,6 +202,11 @@ pscnv_swapping_add_bo(struct pscnv_bo *bo)
 		return;
 	}
 	
+	if (!(bo->flags & PSCNV_GEM_USER)) {
+		/* do not try to swap any system resources like pagetable */
+		return;
+	}
+	
 	if (bo->size < SWAPPING_OPTION_MIN_SIZE) {
 		/* we ignore small bo's at the moment */
 		return;
@@ -258,12 +263,8 @@ pscnv_swapping_remove_bo(struct pscnv_bo *bo)
 		return;
 	}
 	
-	switch (bo->flags & PSCNV_GEM_MEMTYPE_MASK) {
-		case PSCNV_GEM_VRAM_SMALL:
-		case PSCNV_GEM_VRAM_LARGE:
-			/* NV_INFO(dev, "pscnv_swapping_remove_bo: removing %08x/%d to the swapping options of client %d\n", bo->cookie, bo->serial, bo->client->pid);*/
-			pscnv_swapping_remove_bo_internal(bo);
-	}
+	/* NV_INFO(dev, "pscnv_swapping_remove_bo: removing %08x/%d to the swapping options of client %d\n", bo->cookie, bo->serial, bo->client->pid);*/
+	pscnv_swapping_remove_bo_internal(bo);
 }
 
 static int
@@ -354,15 +355,14 @@ pscnv_vram_to_host(struct pscnv_bo* vram)
 	}
 	
 	/* free's the allocated vram, but does not remove the bo itself
-	 * aslo updates vram_usage */
+	 * also updates vram_usage */
 	pscnv_vram_free(vram);
 	
 	vram->backing_store = sysram;
-	dev_priv->vram_swapped += vram->size;
+	atomic64_add(vram->size, &dev_priv->vram_swapped);
 	cl = vram->client;
 	if (cl) {
-		cl->vram_swap_pending -= vram->size;
-		cl->vram_swapped += vram->size;
+		atomic64_add(vram->size, &cl->vram_swapped);
 	} else {
 		NV_ERROR(dev, "pscnv_vram_to_host: can not account client vram usage\n");
 	}
@@ -409,7 +409,13 @@ pscnv_swapping_swap_out(void *data, struct pscnv_client *cl)
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct pscnv_swapping_option *opt = data;
 	
-	pscnv_vram_to_host(opt->bo);
+	if (opt->bo->mmnode) {
+		pscnv_vram_to_host(opt->bo);
+	} else {
+		opt->bo->flags &= ~PSCNV_GEM_MEMTYPE_MASK;
+		opt->bo->flags |= PSCNV_GEM_SYSRAM_NOSNOOP;
+		opt->bo->backing_store = opt->bo;
+	}
 	
 	mutex_lock(&dev_priv->clients->lock);
 	pscnv_swapping_option_list_add_unlocked(&cl->already_swapped, opt);
@@ -427,6 +433,8 @@ static void
 pscnv_swapping_reduce_vram_of_client_unlocked(struct pscnv_client *victim, uint64_t req, uint64_t *will_free, struct completion *completion)
 {
 	struct drm_device *dev = victim->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	
 	struct pscnv_swapping_option *opt;
 	int ops = 0;
 	
@@ -439,7 +447,8 @@ pscnv_swapping_reduce_vram_of_client_unlocked(struct pscnv_client *victim, uint6
 		pscnv_client_do_on_empty_fifo_unlocked(victim,
 			pscnv_swapping_swap_out, opt);
 		
-		victim->vram_swap_pending += opt->bo->size;
+		atomic64_sub(opt->bo->size, &victim->vram_demand);
+		atomic64_sub(opt->bo->size, &dev_priv->vram_demand);
 		*will_free += opt->bo->size;
 		
 		ops++;
@@ -459,12 +468,15 @@ pscnv_swapping_choose_victim_unlocked(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct pscnv_client *cur, *victim = NULL;
+	uint64_t cur_demand;
 	uint64_t max = 0;
 	
 	list_for_each_entry(cur, &dev_priv->clients->list, clients) {
-		if (cur->vram_usage - cur->vram_swap_pending > max &&
+		cur_demand = atomic64_read(&cur->vram_demand);
+		if (cur_demand > max &&
 		    !pscnv_swapping_option_list_empty(&cur->swapping_options)) {
 			victim = cur;
+			max = cur_demand;
 		}
 	}
 	
@@ -518,15 +530,18 @@ pscnv_swapping_reduce_vram(struct drm_device *dev, struct pscnv_client *me, uint
 }
 
 int
-pscnv_swapping_required(struct drm_device *dev, uint64_t req)
+pscnv_swapping_required(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	
-	if (dev_priv->vram_limit == 0) {
+	uint64_t limit = dev_priv->vram_limit;
+	uint64_t demand = atomic64_read(&dev_priv->vram_demand);
+	
+	if (limit == 0) {
 		/* swapping disabled */
 		return false;
 	} else {	
-		return dev_priv->vram_usage + req > dev_priv->vram_limit;
+		return demand > limit;
 	}
 }
 
