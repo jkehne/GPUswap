@@ -19,7 +19,7 @@ make
 mkdir -p /lib/modules/$KERNELVER/extra
 cp pscnv/pscnv.ko /lib/modules/$KERNELVER/extra
 depmod
-cd ../test
-make clean
-make
-cd ..
+#cd ../test
+#make clean
+#make
+#cd ..
