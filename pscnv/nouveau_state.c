@@ -263,7 +263,7 @@ nouveau_card_init(struct drm_device *dev)
 	}
 
 	/* Parse BIOS tables / Run init tables if card not POSTed */
-	if (drm_core_check_feature(dev, DRIVER_MODESET)) {
+	//if (drm_core_check_feature(dev, DRIVER_MODESET)) {
 		ret = nouveau_bios_init(dev);
 		if (ret)
 			goto out_display_early;
@@ -275,7 +275,7 @@ nouveau_card_init(struct drm_device *dev)
 		if (dev_priv->chipset == 0xc1) {
 			nv_mask(dev, 0x00088080, 0x00000800, 0x00000000);
 		}
-	}
+	//}
 
 	ret = pscnv_mem_init(dev);
 	if (ret)
@@ -752,11 +752,11 @@ int nouveau_load(struct drm_device *dev, unsigned long flags)
 		dev_priv->flags |= NV_NFORCE2;
 
 	/* For kernel modesetting, init card now and bring up fbcon */
-	if (drm_core_check_feature(dev, DRIVER_MODESET)) {
-		int ret = nouveau_card_init(dev);
+	//if (drm_core_check_feature(dev, DRIVER_MODESET)) {
+		ret = nouveau_card_init(dev);
 		if (ret)
 			return ret;
-	}
+	//}
 
 	return 0;
 }
@@ -773,10 +773,10 @@ static void nouveau_close(struct drm_device *dev)
 /* KMS: we need mmio at load time, not when the first drm client opens. */
 void nouveau_lastclose(struct drm_device *dev)
 {
-	if (drm_core_check_feature(dev, DRIVER_MODESET))
+	/*if (drm_core_check_feature(dev, DRIVER_MODESET))
 		return;
 
-	nouveau_close(dev);
+	nouveau_close(dev);*/
 }
 
 int nouveau_unload(struct drm_device *dev)

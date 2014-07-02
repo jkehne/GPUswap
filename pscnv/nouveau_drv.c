@@ -50,7 +50,7 @@ int nouveau_agpmode = -1;
 module_param_named(agpmode, nouveau_agpmode, int, 0400);
 
 MODULE_PARM_DESC(modeset, "Enable kernel modesetting");
-static int nouveau_modeset = 1; /* kms */
+static int nouveau_modeset = 0; /* kms */
 module_param_named(modeset, nouveau_modeset, int, 0400);
 
 MODULE_PARM_DESC(vbios, "Override default VBIOS location");
