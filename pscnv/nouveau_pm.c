@@ -261,8 +261,8 @@ nouveau_pm_profile_set(struct drm_device *dev, const char *profile)
 	char string[16], *cur = string, *ptr;
 
 	/* safety precaution, for now */
-	if (nouveau_perflvl_wr != 7777)
-		return -EPERM;
+	/*if (nouveau_perflvl_wr != 7777)
+		return -EPERM;*/
 
 	strncpy(string, profile, sizeof(string));
 	if ((ptr = strchr(string, '\n')))
