@@ -155,7 +155,7 @@ nouveau_debugfs_memory_info(struct seq_file *m, void *pos)
 	}
 	
 	list_for_each_entry(cur, &dev_priv->clients->list, clients) {
-		seq_printf(m, "client %d: used %dKiB, demand %dKiB, swapped %dKiB, swappable bo: %d, swapped bo: %d\n",
+		seq_printf(m, "client %d: used %dKiB, demand %dKiB, swapped %dKiB, swappable bo %d, swapped bo %d\n",
 			cur->pid, (int)atomic64_read(&cur->vram_usage) >> 10,
 				  (int)atomic64_read(&cur->vram_demand) >> 10,
 			          (int)atomic64_read(&cur->vram_swapped) >> 10,

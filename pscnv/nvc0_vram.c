@@ -177,7 +177,7 @@ nvc0_vram_alloc(struct pscnv_bo *bo)
 	
 	atomic64_add(bo->size, &dev_priv->vram_usage);
 	if (bo->client) {
-		atomic64_add(bo->size, &bo->client->vram_usage);;
+		atomic64_add(bo->size, &bo->client->vram_usage);
 	}
 	
 	mutex_unlock(&dev_priv->vram_mutex);
