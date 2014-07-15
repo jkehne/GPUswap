@@ -145,6 +145,9 @@ pscnv_dma_bo_to_bo(struct pscnv_bo *tgt, struct pscnv_bo *src, int flags) {
 	struct pscnv_mm_node *src_node;
 	const uint32_t size = tgt->size;
 	
+	struct timespec start, end;
+	s64 duration;
+	
 	int ret;
 	
 	if (!dma) {
@@ -155,6 +158,8 @@ pscnv_dma_bo_to_bo(struct pscnv_bo *tgt, struct pscnv_bo *src, int flags) {
 	BUG_ON(tgt->dev != src->dev);
 	
 	mutex_lock(&dma->lock);
+	
+	getnstimeofday(&start);
 	
 	if (tgt->size < src->size) {
 		NV_INFO(dev, "DMA: source bo (cookie=%x) has size %lld, but target bo "
@@ -201,6 +206,12 @@ pscnv_dma_bo_to_bo(struct pscnv_bo *tgt, struct pscnv_bo *src, int flags) {
 		NV_INFO(dev, "DMA: failed to wait for fence completion\n");
 		goto fail_fence_wait;
 	}
+	
+	getnstimeofday(&end);
+	
+	duration = timespec_to_ns(&end) - timespec_to_ns(&start);
+	NV_INFO(dev, "DMA: took %lld.%04lld ms\n", duration / NSEC_PER_SEC,
+		(duration % NSEC_PER_SEC) / 100000);
 	
 	/* no return here, always unmap memory */
 

@@ -59,6 +59,7 @@ struct pscnv_chan {
 	spinlock_t state_lock;
 	atomic_t pausing_threads;
 	struct completion pause_completion;
+	s64 pause_start; /* getnstimeofday in ns for start of pause operation */
 	/* pointer to the vma that remaps the fifo-regs for this channel */
 	struct vm_area_struct *vma;
 	struct pscnv_vspace *vspace;

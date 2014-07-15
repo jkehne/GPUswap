@@ -73,6 +73,8 @@ pscnv_chan_pause(struct pscnv_chan *ch)
 	struct drm_device *dev = ch->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	
+	struct timespec now;
+	
 	unsigned long flags;
 	
 	if (pscnv_pause_debug >= 2) {
@@ -115,6 +117,9 @@ pscnv_chan_pause(struct pscnv_chan *ch)
 	init_completion(&ch->pause_completion);
 	ch->state = PSCNV_CHAN_PAUSING;
 	spin_unlock_irqrestore(&ch->state_lock, flags);
+	
+	getnstimeofday(&now);
+	ch->pause_start = timespec_to_ns(&now);
 	
 	return dev_priv->chan->do_chan_pause(ch);
 }
@@ -180,6 +185,25 @@ pscnv_chan_pause_wait(struct pscnv_chan *ch)
 	return 0;
 }
 
+void
+pscnv_chan_continue_stop_time(struct pscnv_chan *ch)
+{
+	struct drm_device *dev = ch->dev;
+
+	struct timespec now;
+	s64 duration;
+	
+	getnstimeofday(&now);
+	duration = timespec_to_ns(&now) - ch->pause_start;
+	
+	if (pscnv_pause_debug >= 1) {
+		NV_INFO(dev, "channel %d was paused for %lld.%04lld ms\n",
+			ch->cid,
+			duration / NSEC_PER_SEC,
+			(duration % NSEC_PER_SEC) / 100000);
+	}
+}
+
 int
 pscnv_chan_continue(struct pscnv_chan *ch)
 {
@@ -210,10 +234,14 @@ pscnv_chan_continue(struct pscnv_chan *ch)
 		
 		if (!res) {
 			ch->state = PSCNV_CHAN_RUNNING;
+			spin_unlock_irqrestore(&ch->state_lock, flags);
+			
+			pscnv_chan_continue_stop_time(ch);
 		}
 		
+	} else {
+		spin_unlock_irqrestore(&ch->state_lock, flags);
 	}
-	spin_unlock_irqrestore(&ch->state_lock, flags);
 	
 	if (res) {
 		NV_ERROR(dev, "do_chan_continue returned %d\n", res);
