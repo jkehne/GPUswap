@@ -350,7 +350,7 @@ nvc0_pfifo_page_fault(struct drm_device *dev, int unit)
 		(flags & 0x80) ? 'w' : 'r', pgf_cause_str(flags));
 	
 	ch = pscnv_chan_chid_lookup(dev, chid);
-	if (!ch) {
+	if (ch) {
 		pscnv_chan_fail(ch);
 	}
 	
