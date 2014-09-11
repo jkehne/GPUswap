@@ -365,8 +365,8 @@ nvc0_grctx_generate(struct nvc0_graph_engine *graph)
 	nv_wr32(dev, 0x409000, 0x00000100);
 	if (!nv_wait(dev, 0x409b00, 0x80000000, 0x00000000)) {
 		NV_ERROR(dev, "grctx template channel unload timeout\n");
-		//ret = -EBUSY;
-		//goto done;
+		ret = -EBUSY;
+		goto done;
 	}
 	
 	/* now all the context values should be available. Save a copy to
