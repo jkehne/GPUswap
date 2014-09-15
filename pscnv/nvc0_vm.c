@@ -384,7 +384,7 @@ nvc0_vm_set_flag_str(struct pte_values *v, char *buf)
 static void
 nvc0_vm_pt_dump(struct drm_device *dev, struct seq_file *m, uint64_t pt_addr, int id, int small, int limit, int pde, int *entrycnt)
 {
-	uint32_t size;
+	uint32_t size, offset;
 	const char *type_str = (small) ? "SPT" : "LPT";
 	char flag_str_buf[16];
 	int i;
@@ -394,6 +394,8 @@ nvc0_vm_pt_dump(struct drm_device *dev, struct seq_file *m, uint64_t pt_addr, in
 	} else {
 		size = NVC0_VM_LPTE_COUNT;
 	}
+	
+	offset = pde * 128 * 1024 * 1024;
 	
 	for (i = 0; i < size; ) {
 		
@@ -428,9 +430,13 @@ nvc0_vm_pt_dump(struct drm_device *dev, struct seq_file *m, uint64_t pt_addr, in
 		} while (nvc0_vm_pte_values_eq(&cur, &expected));
 		
 		nvc0_vm_set_flag_str(&first, flag_str_buf);
-		NV_DUMP(dev, m, "%d[%d]%s   %04x: %04x-%04x tile=0x%x %s %s\n",
-			id, pde, type_str, (small) ? i_start : 32*i_start,
-			first.pfn, expected.pfn, first.tile,
+		NV_DUMP(dev, m, "%d[%d]%s   0x%x-0x%x -> 0x%x-0x%x tile=0x%x %s %s\n",
+			id, pde, type_str,  
+			(small) ? offset + i_start * 0x1000 : offset + i_start * 0x20000, 
+			(small) ? offset + (i-1) * 0x1000 : offset + (i-1) * 0x20000, 
+			(small) ? first.pfn*0x1000 : first.pfn*0x20000, 
+			(small) ? (expected.pfn - 1) * 0x1000 : (expected.pfn - 32) * 0x20000, 
+			first.tile,
 			nvc0_vm_storage_type_str(first.type), flag_str_buf);
 		
 		*entrycnt += 1;
