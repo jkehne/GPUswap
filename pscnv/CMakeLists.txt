@@ -123,8 +123,8 @@ add_custom_command(OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/pscnv.ko"
                    DEPENDS ${real_sources}
                            "${CMAKE_CURRENT_SOURCE_DIR}/pscnv_kapi.h"
                            "${CMAKE_CURRENT_SOURCE_DIR}/nv98_crypt.fuc.h"
-                           "${CMAKE_CURRENT_SOURCE_DIR}/nvc0_grhub.fuc.h"
-                           "${CMAKE_CURRENT_SOURCE_DIR}/nvc0_grgpc.fuc.h"
+                           #"${CMAKE_CURRENT_SOURCE_DIR}/nvc0_grhub.fuc.h"
+                           #"${CMAKE_CURRENT_SOURCE_DIR}/nvc0_grgpc.fuc.h"
                            "${CMAKE_CURRENT_SOURCE_DIR}/nvc0_copy.fuc.h"
                            "${CMAKE_CURRENT_SOURCE_DIR}/nvc0_pdaemon.fuc.h"
                    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
