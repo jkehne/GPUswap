@@ -432,10 +432,10 @@ nvc0_vm_pt_dump(struct drm_device *dev, struct seq_file *m, uint64_t pt_addr, in
 		nvc0_vm_set_flag_str(&first, flag_str_buf);
 		NV_DUMP(dev, m, "%d[%d]%s   0x%x-0x%x -> 0x%x-0x%x tile=0x%x %s %s\n",
 			id, pde, type_str,  
-			(small) ? offset + i_start * 0x1000 : offset + i_start * 0x20000, 
-			(small) ? offset + (i-1) * 0x1000 : offset + (i-1) * 0x20000, 
-			(small) ? first.pfn*0x1000 : first.pfn*0x20000, 
-			(small) ? (expected.pfn - 1) * 0x1000 : (expected.pfn - 32) * 0x20000, 
+			offset + i_start * ((small) ? 0x1000 : 0x20000), 
+			offset + i * ((small) ? 0x1000 : 0x20000) - 1, 
+			first.pfn*0x1000, 
+			expected.pfn * 0x1000 - 1, 
 			first.tile,
 			nvc0_vm_storage_type_str(first.type), flag_str_buf);
 		
