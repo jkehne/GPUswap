@@ -100,7 +100,7 @@ pscnv_dma_init(struct drm_device *dev)
 		goto fail_alloc_vs;
 	}
 	
-	pscnv_vspace_ref(dma->vs);
+	//pscnv_vspace_ref(dma->vs); // TODO: Why do this? Might have reprecussions on cleanup in pscnv_dma_exit()
 	
 	if (!(dma->ib_chan = pscnv_ib_chan_new(dma->vs, PSCNV_DMA_CHAN))) {
 		NV_INFO(dev, "DMA: Could not create Indirect Buffer Channel\n");
@@ -132,6 +132,30 @@ fail_alloc_vs:
 	kfree(dma);
 	
 	return res;
+}
+
+
+void
+pscnv_dma_exit(struct drm_device *dev)
+{
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct pscnv_dma *dma = dev_priv->dma;
+
+	if (!dma) {
+		NV_WARN(dev, "DMA: pscnv_dma_exit() called but DMA was never initialized!\n");
+		return;
+	}
+
+	NV_INFO(dev, "DMA: Exiting...\n");
+
+    //No need to undo pscnv_ib_init_subch, since it only seems to do some basic channel setup on the card (?)
+    //No need to undo pscnv_ib_add_fence(), as pscnv_ib_chan_kill() inside pscnv_ib_chan_free() takes care of this
+	pscnv_ib_chan_free(dma->ib_chan);
+	pscnv_vspace_unref(dma->vs);
+	//Undo pscnv_vspace_new should not be necessary, as pscnv_vspace_unref() does freeing, unless we have one reference too many
+	mutex_destroy(&dma->lock);
+
+	kfree(dma); dev_priv->dma = dma = 0;
 }
 
 int

@@ -358,6 +358,7 @@ nouveau_card_init(struct drm_device *dev)
 		default:
 			break;
 	}
+
 	switch (dev_priv->chipset) {
 		case 0x84:
 		case 0x86:
@@ -373,6 +374,9 @@ nouveau_card_init(struct drm_device *dev)
 			nv98_crypt_init(dev);
 			break;
 	}
+
+	if(ret)
+		goto out_fifo;
 
 	if (drm_core_check_feature(dev, DRIVER_MODESET)) {
 		ret = nouveau_display_create(dev);
@@ -482,6 +486,7 @@ static void nouveau_card_takedown(struct drm_device *dev)
 
 	if (dev_priv->init_state == NOUVEAU_CARD_INIT_DONE) {
 		NV_INFO(dev, "Stopping card...\n");
+		pscnv_dma_exit(dev);
 		nouveau_backlight_exit(dev);
 		drm_irq_uninstall(dev);
 		flush_workqueue(dev_priv->wq);
@@ -786,8 +791,8 @@ int nouveau_unload(struct drm_device *dev)
 	if (drm_core_check_feature(dev, DRIVER_MODESET)) {
 		nouveau_fbcon_fini(dev);
 		nouveau_display_destroy(dev);
-		nouveau_close(dev);
 	}
+	nouveau_close(dev);
 	destroy_workqueue(dev_priv->wq);
 
 	drm_rmmap(dev, dev_priv->mmio);
