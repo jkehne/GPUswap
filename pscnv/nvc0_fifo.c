@@ -208,12 +208,13 @@ nvc0_fifo_chan_kill(struct pscnv_engine *eng, struct pscnv_chan *ch)
 	nv_wr32(dev, 0x3004 + ch->cid * 8, status & ~1);
 	nv_wr32(dev, 0x2634, ch->cid);
 	if (!nv_wait(dev, 0x2634, ~0, ch->cid))
-		NV_WARN(dev, "WARNING: 2634 = 0x%08x\n", nv_rd32(dev, 0x2634));
+		NV_WARN(dev, "WARNING: PFIFO.KICK_CHID 2634 = 0x%08x (instead of kicked channel id: %08x)\n", nv_rd32(dev, 0x2634), ch->cid);
 
 	nvc0_fifo_playlist_update(dev);
 
-	if (nv_rd32(dev, 0x3004 + ch->cid * 8) & 0x1110) {
-		NV_WARN(dev, "WARNING: PFIFO kickoff fail :(\n");
+	if (nv_rd32(dev, 0x3004 + ch->cid * 8) & 0x1110) { // 0x1110 mask contains ACQUIRE_PENDING, UNK8, LOADED bits
+		NV_WARN(dev, "WARNING: PFIFO kickoff fail: PFIFO.CHAN_TABLE[%d].STATE = %08x has ACQUIRE_PENDING, UNK8 or LOADED still set!\n",
+			    ch->cid, nv_rd32(dev, 0x3004 + ch->cid * 8));
 	}
 	spin_unlock_irqrestore(&dev_priv->context_switch_lock, flags);
 }
@@ -262,7 +263,7 @@ nvc0_fifo_playlist_update(struct drm_device *dev)
 	nv_wr32(dev, 0x2274, 0x1f00000 | pos / 8);
 
 	if (!nv_wait(dev, 0x227c, (1 << 20), 0))
-		NV_WARN(dev, "WARNING: PFIFO 227c = 0x%08x\n",
+		NV_WARN(dev, "WARNING: PFIFO.PLAYLIST_RD_LEN 227c = 0x%08x (bits 0-11: LEN, bit 20: UNK20)\n",
 			nv_rd32(dev, 0x227c));
 }
 
