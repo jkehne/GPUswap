@@ -2,11 +2,21 @@
 # -e: Exit immediately if a command exits with a non-zero status.
 # -u: Treat unset variables as an error when substituting.
 
-: ${PSCNV_NEEDS_KERNEL:="3.5.0-54-generic"}
+: ${PSCNV_NEEDS_KERNEL:="3.5.0-54-generic"} # To make sure you do not try to build against a modern kernel without
+                                            # noticing that it's risky first.
+: ${PSCNV_KO_INSMOD_ARGS:="vm_debug=0 pause_debug=2"} # the *_debug=? driver options just control pscnv's verbosity
+: ${GPU_APP_WORKING_DIR:="/home/jens/gdev/test/cuda/bfs"} # Directory to cd into before running the GPU app for reclocking
+: ${GPU_APP_EXECUTABLE_FILE:="/home/jens/gdev/test/cuda/bfs/bfs_nvidia"} # Absolute, or relative to GPU_APP_WORKING_DIR;
+                                                                    # use ./ if executable is inside the working dir
+: ${PSCNV_BUILD_DIR:="$HOME/pscnv/build"}
+# TODO: Automatically find out the parameters for nvafakebios from vbios.rom.dump
+#       instead of hardcoding them here
+: ${NVAFAKEBIOS_PARAMS:="-e 613c:ff -e 6180:ff -e 61c4:ff"}
+
 # Parse options ( http://stackoverflow.com/questions/192249/how-do-i-parse-command-line-arguments-in-bash )
 # -f Try inserting pscnv even if a possibly incompatible kernel is detected
 # -x If pscnv happens to be already loaded, do nothing.
-# -r Reclock
+# -r Perform reclock via patching the BIOS and starting a GPU application with the blob driver
 FORCE=0
 DONOTRELOAD=0
 RECLOCK=0
@@ -64,20 +74,25 @@ echo -n "$(tput sgr0)"
 # Remove pscnv if it's currently loaded
 if lsmod | grep -q pscnv; then
     echo "Pscnv is already loaded! Will attempt to remove now."
-    if test "$(cat /sys/class/vtconsole/vtcon1/bind)" = "1"; then
-      echo "Unbinding driver from console..."
-      sudo bash -c 'echo 0 > /sys/class/vtconsole/vtcon1/bind'
+    if test -e /sys/class/vtconsole/vtcon1/bind; then
+      if test "$(cat /sys/class/vtconsole/vtcon1/bind)" = "1"; then
+        echo "Unbinding driver from console..."
+        sudo bash -c 'echo 0 > /sys/class/vtconsole/vtcon1/bind'
+      fi
     fi
     echo "Removing module (rmmod pscnv)..."
     sudo rmmod pscnv && echo "Pscnv successfully unloaded!"
+    #/etc/init.d/consolefont restart
 fi
 
 # Remove Nouveau if it's loaded
 if lsmod | grep -q nouveau; then
     echo "Nouveau is loaded! Will attempt to remove now."
-    if test "$(cat /sys/class/vtconsole/vtcon1/bind)" = "1"; then
-      echo "Unbinding driver from console..."
-      sudo bash -c 'echo 0 > /sys/class/vtconsole/vtcon1/bind'
+    if test -e /sys/class/vtconsole/vtcon1/bind; then
+      if test "$(cat /sys/class/vtconsole/vtcon1/bind)" = "1"; then
+        echo "Unbinding driver from console..."
+        sudo bash -c 'echo 0 > /sys/class/vtconsole/vtcon1/bind'
+      fi
     fi
     echo "Removing module (modprobe -r nouveau)..."
     sudo modprobe -rv nouveau && echo "Nouveau successfully unloaded!"
@@ -104,14 +119,12 @@ if [[ $RECLOCK == 1 ]]; then
     echo -n "$(tput sgr0)"
     sudo nvagetbios > vbios.rom
     nvbios vbios.rom > vbios.rom.dump
-    # TODO: Automatically find out the parameters for nvafakebios from vbios.rom.dump
-    NVAFAKEBIOS_PARAMS="-e 613c:ff -e 6180:ff -e 61c4:ff"
     rm vbios.rom.dump
     sudo nvafakebios $NVAFAKEBIOS_PARAMS vbios.rom
     rm vbios.rom
 
     echo -n "$(tput bold)"
-    echo "~~~ Loading blob driver..."
+    echo "~~~ Loading blob driver (insmod /lib/modules/$(uname -r)/updates/dkms/nvidia{_340,-340-uvm}.ko)..."
     echo -n "$(tput sgr0)"
     #sudo modprobe -vf nvidia
     sudo insmod /lib/modules/$(uname -r)/updates/dkms/nvidia_340.ko
@@ -120,16 +133,26 @@ if [[ $RECLOCK == 1 ]]; then
     echo -n "$(tput bold)"
     echo "~~~ Starting a GPU application to force reclocking..."
     echo -n "$(tput sgr0)"
-    PREVDIR=`pwd`
-    cd ~jens/gdev/test/cuda/bfs
-    ./bfs_nvidia
-    cd $PREVDIR
+    if test -d "$GPU_APP_WORKING_DIR" -a -x "$GPU_APP_EXECUTABLE_FILE"; then
+        PREVDIR=`pwd`
+        cd "$GPU_APP_WORKING_DIR"
+        $GPU_APP_EXECUTABLE_FILE
+        cd $PREVDIR
+    else
+        echo "Please adjust the \$GPU_APP_WORKING_DIR and \$GPU_APP_EXECUTABLE_FILE"
+        echo "environment variables (or modify the default values at the top of this"
+        echo "script ($0)."
+    fi
 
     echo -n "$(tput bold)"
     echo "~~~ Unloading blob after reclocking..."
     echo -n "$(tput sgr0)"
     sudo rmmod nvidia-uvm
     sudo rmmod nvidia
+    echo "Keep in mind that the GPU is left in a funny state by the blob:"
+    echo "Unpatched nouveau and pscnv versions might fail to initialize a display,"
+    echo "so you need to make sure they do not even try to do that (assuming you"
+    echo "are only interested in GPGPU functionality, of course)."
 fi
 
 # Load dependencies
@@ -143,13 +166,12 @@ sudo modprobe -v drm_kms_helper
 sudo modprobe -v video
 sudo modprobe -v i2c-algo-bit
 
-: ${PSCNV_BUILD_DIR:="$HOME/pscnv/build"}
 PSCNV_KO_PATH="$PSCNV_BUILD_DIR/pscnv/pscnv.ko"
 echo
 echo -n "$(tput bold)"
-echo    "~~~ Loading pscnv module (sudo insmod \"$PSCNV_KO_PATH\")..."
+echo    "~~~ Loading pscnv module (sudo insmod \"$PSCNV_KO_PATH\" $PSCNV_KO_INSMOD_ARGS)..."
 echo -n "$(tput sgr0)"
-sudo insmod "$PSCNV_KO_PATH"
+sudo insmod "$PSCNV_KO_PATH" $PSCNV_KO_INSMOD_ARGS
 
 echo "Information from /sys/module/pscnv/sections:"
 echo -n ".text: ";   sudo cat /sys/module/pscnv/sections/.text
