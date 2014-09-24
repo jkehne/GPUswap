@@ -104,6 +104,8 @@ nvc0_fifo_chan_init_ib (struct pscnv_chan *ch, uint32_t pb_handle, uint32_t flag
 		return -EINVAL;
 	}
 	
+	ib->flags |= PSCNV_GEM_IB;
+	
 	fifo_ctx = kmalloc(sizeof(*fifo_ctx), GFP_KERNEL);
 	if (!fifo_ctx) {
 		NV_ERROR(dev, "nvc0_fifo_chan_init_ib: out of memory\n");

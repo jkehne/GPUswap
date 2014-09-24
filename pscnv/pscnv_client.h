@@ -4,6 +4,13 @@
 #include "nouveau_drv.h"
 #include "pscnv_swapping.h"
 
+struct pscnv_client_timetrack {
+	struct list_head list;
+	const char *type;
+	s64 start;
+	s64 duration;
+};
+
 /* main structure for all the client related code, one instance per
    driver instance */
 struct pscnv_clients {
@@ -48,6 +55,9 @@ struct pscnv_client {
 	
 	/* list of work to do, next time that this client has an empty fifo */
 	struct list_head on_empty_fifo;
+	
+	/* list of times that have been tracked for this client */
+	struct list_head time_trackings;
 };
 
 typedef void (*client_workfunc_t)(void *data, struct pscnv_client *cl);
@@ -100,5 +110,7 @@ pscnv_client_run_empty_fifo_work(struct pscnv_client *cl);
    oportunity and run_empty_fifo_work */
 void
 pscnv_client_wait_for_empty_fifo(struct pscnv_client *cl);
+
+
 
 #endif /* end of include guard: PSCNV_CLIENT_H */

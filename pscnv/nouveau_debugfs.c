@@ -190,6 +190,30 @@ nouveau_debugfs_channels_info(struct seq_file *m, void *pos)
 }
 
 static int
+nouveau_debugfs_timetrack_info(struct seq_file *m, void *pos)
+{
+	struct drm_info_node *node = (struct drm_info_node *) m->private;
+	struct drm_minor *minor = node->minor;
+	struct drm_nouveau_private *dev_priv = minor->dev->dev_private;
+	struct pscnv_client *client;
+	struct pscnv_client_timetrack *tt;
+
+	
+	mutex_lock(&dev_priv->clients->lock);
+	
+	list_for_each_entry(client, &dev_priv->clients->list, clients) {
+		seq_printf(m, "== client %d\n", client->pid);
+		list_for_each_entry(tt, &client->time_trackings, list) {
+			seq_printf(m, " %s: start=%lld duration=%lld ns\n", 
+				tt->type, tt->start, tt->duration);
+		}
+		seq_printf(m, "\n");
+	}
+	mutex_unlock(&dev_priv->clients->lock);
+	return 0;
+}
+
+static int
 nouveau_debugfs_vbios_image(struct seq_file *m, void *pos)
 {
 	struct drm_info_node *node = (struct drm_info_node *) m->private;
@@ -240,6 +264,7 @@ static struct drm_info_list nouveau_debugfs_list[] = {
 	{ "bar1_pd", nouveau_debugfs_pd_dump_bar1, 0, NULL },
 	{ "bar3_pd", nouveau_debugfs_pd_dump_bar3, 0, NULL },
 	{ "channels", nouveau_debugfs_channels_info, 0, NULL },
+	{ "timetrack", nouveau_debugfs_timetrack_info, 0, NULL }
 };
 #define NOUVEAU_DEBUGFS_ENTRIES ARRAY_SIZE(nouveau_debugfs_list)
 

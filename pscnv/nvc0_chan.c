@@ -5,11 +5,45 @@
 #include "pscnv_ib_chan.h"
 #include "nvc0_vm.h"
 #include "nvc0_fifo.h"
+#include "pscnv_client.h"
 #include <linux/mm.h>
 
 /*******************************************************************************
  * Channel pause / continue
  ******************************************************************************/
+
+void
+nvc0_chan_pause_fence_stop_time(struct pscnv_chan *ch)
+{
+	struct drm_device *dev = ch->dev;
+
+	struct pscnv_client *cl = ch->client;
+	struct pscnv_client_timetrack *tt;
+	struct timespec now;
+	s64 duration;
+	
+	getnstimeofday(&now);
+	duration = timespec_to_ns(&now) - ch->pause_start;
+	
+	if (pscnv_pause_debug >= 1) {
+		NV_INFO(dev, "channel %d was fenced for %lld.%04lld ms\n",
+			ch->cid,
+			duration / 1000000,
+			(duration % 1000000) / 100);
+	}
+	
+	if (cl) {
+		tt = kzalloc(sizeof(struct pscnv_client_timetrack), GFP_KERNEL);
+		if (!tt)
+			return;
+	
+		INIT_LIST_HEAD(&tt->list);
+		tt->type = "FENCE";
+		tt->start = ch->pause_start;
+		tt->duration = duration;
+		list_add_tail(&tt->list, &cl->time_trackings);
+	}
+}
 
 /* this is run in a workqueue */
 static void
@@ -41,6 +75,7 @@ nvc0_chan_pause_fence(struct work_struct *ws)
 	}
 		
 	pscnv_chan_set_state(&ch->base, PSCNV_CHAN_PAUSED);
+	nvc0_chan_pause_fence_stop_time(&ch->base);
 	complete_all(&ch->base.pause_completion); /* destroys completion */
 	
 	return;
@@ -692,8 +727,10 @@ fail_ch_bo:
 
 static void nvc0_chan_free(struct pscnv_chan *ch)
 {
-	struct drm_nouveau_private *dev_priv = ch->dev->dev_private;
+	struct drm_device *dev = ch->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	unsigned long flags;
+	
 	spin_lock_irqsave(&dev_priv->chan->ch_lock, flags);
 	ch->handle = 0;
 	spin_unlock_irqrestore(&dev_priv->chan->ch_lock, flags);

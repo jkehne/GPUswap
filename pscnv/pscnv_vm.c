@@ -185,7 +185,7 @@ pscnv_vspace_map(struct pscnv_vspace *vs, struct pscnv_bo *bo,
 		pscnv_vspace_unmap_node_unlocked(node); // includes unref(bo)
 	}
 	
-	if (vs->vid >= 0 && !bo->primary_node) {
+	if (vs->vid >= 0 && vs->vid != 126 && !bo->primary_node) {
 		bo->primary_node = node;
 	}
 	

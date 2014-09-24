@@ -3,6 +3,7 @@
 #include "pscnv_vm.h"
 #include "pscnv_chan.h"
 #include "pscnv_ib_chan.h"
+#include "pscnv_client.h"
 
 static void nvc0_memcpy_m2mf(struct pscnv_ib_chan *chan, const uint64_t dst_addr,
 							 const uint64_t src_addr, const uint32_t size)
@@ -134,6 +135,23 @@ fail_alloc_vs:
 	return res;
 }
 
+static void
+pscnv_dma_track_time(struct pscnv_client *cl, s64 start, s64 duration)
+{
+	struct pscnv_client_timetrack *tt;
+	
+	tt = kzalloc(sizeof(struct pscnv_client_timetrack), GFP_KERNEL);
+	if (!tt) {
+		return;
+	}
+	
+	INIT_LIST_HEAD(&tt->list);
+	tt->type = "DMA";
+	tt->start = start;
+	tt->duration = duration;
+	list_add_tail(&tt->list, &cl->time_trackings);
+}
+
 int
 pscnv_dma_bo_to_bo(struct pscnv_bo *tgt, struct pscnv_bo *src, int flags) {
 	
@@ -146,7 +164,7 @@ pscnv_dma_bo_to_bo(struct pscnv_bo *tgt, struct pscnv_bo *src, int flags) {
 	const uint32_t size = tgt->size;
 	
 	struct timespec start, end;
-	s64 duration;
+	s64 start_ns, duration;
 	
 	int ret;
 	
@@ -160,6 +178,7 @@ pscnv_dma_bo_to_bo(struct pscnv_bo *tgt, struct pscnv_bo *src, int flags) {
 	mutex_lock(&dma->lock);
 	
 	getnstimeofday(&start);
+	start_ns = timespec_to_ns(&start);
 	
 	if (tgt->size < src->size) {
 		NV_INFO(dev, "DMA: source bo (cookie=%x) has size %lld, but target bo "
@@ -209,9 +228,13 @@ pscnv_dma_bo_to_bo(struct pscnv_bo *tgt, struct pscnv_bo *src, int flags) {
 	
 	getnstimeofday(&end);
 	
-	duration = timespec_to_ns(&end) - timespec_to_ns(&start);
-	NV_INFO(dev, "DMA: took %lld.%04lld ms\n", duration / NSEC_PER_SEC,
-		(duration % NSEC_PER_SEC) / 100000);
+	duration = timespec_to_ns(&end) - start_ns;
+	NV_INFO(dev, "DMA: took %lld.%04lld ms\n", duration / 1000000,
+		(duration % 1000000) / 100);
+	
+	if (src->client) {
+		pscnv_dma_track_time(src->client, start_ns, duration);
+	}
 	
 	/* no return here, always unmap memory */
 

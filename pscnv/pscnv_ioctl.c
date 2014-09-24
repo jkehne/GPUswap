@@ -300,6 +300,7 @@ int pscnv_ioctl_vspace_unmap(struct drm_device *dev, void *data,
 {
 	struct drm_pscnv_vspace_unmap *req = data;
 	struct pscnv_vspace *vs;
+	struct pscnv_bo *bo;
 	int ret;
 
 	NOUVEAU_CHECK_INITIALISED_WITH_RETURN;
@@ -308,6 +309,12 @@ int pscnv_ioctl_vspace_unmap(struct drm_device *dev, void *data,
 	vs = pscnv_get_vspace(dev, file_priv, req->vid);
 	if (!vs)
 		return -ENOENT;
+	
+	bo = pscnv_vspace_vm_addr_lookup(vs, req->offset);
+	if (bo && (bo->flags & PSCNV_GEM_IB)) {
+		/* we do not allow userspace to unmap the IB */
+		return 0;
+	}
 
 	ret = pscnv_vspace_unmap(vs, req->offset);
 
@@ -376,6 +383,7 @@ int pscnv_ioctl_chan_new(struct drm_device *dev, void *data,
 	
 	client = pscnv_client_search_pid(dev, file_priv->pid);
 	if (client) {
+		ch->client = client;
 		list_add_tail(&ch->client_list, &client->channels);
 	}
 	

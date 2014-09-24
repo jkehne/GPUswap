@@ -95,7 +95,7 @@ pscnv_client_pause_thread(void *data)
 		
 		if (!cl_to_pause) {
 			/* this happens, if two process add work to the
-			 * on_empty_fifo list, but this theard handles them in
+			 * on_empty_fifo list, but this thread handles them in
 			 * one run */
 			continue;
 		}
@@ -231,6 +231,7 @@ pscnv_client_new_unlocked(struct drm_device *dev, pid_t pid)
 	INIT_LIST_HEAD(&new->clients);
 	INIT_LIST_HEAD(&new->channels);
 	INIT_LIST_HEAD(&new->on_empty_fifo);
+	INIT_LIST_HEAD(&new->time_trackings);
 	pscnv_swapping_option_list_init(&new->swapping_options);
 	pscnv_swapping_option_list_init(&new->already_swapped);
 	
@@ -262,11 +263,18 @@ pscnv_client_free_unlocked(struct pscnv_client *cl)
 	struct drm_device *dev = cl->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	
+	struct pscnv_client_timetrack *tt, *tt_tmp;
+	
 	BUG_ON(!dev_priv->clients);
 	BUG_ON(!mutex_is_locked(&dev_priv->clients->lock));
 	
 	/* remove from clients->list */
 	list_del(&cl->clients);
+	
+	list_for_each_entry_safe(tt, tt_tmp, &cl->time_trackings, list) {
+		list_del(&tt->list);
+		kfree(tt);
+	}
 	
 	pscnv_swapping_option_list_free(&cl->swapping_options);
 	pscnv_swapping_option_list_free(&cl->already_swapped);

@@ -78,6 +78,7 @@ struct pscnv_chan {
 	int (*vm_fault)(struct pscnv_chan *ch, struct vm_area_struct *vma, struct vm_fault *vmf);
 	/* list of all channels that belong to the same client */
 	struct list_head client_list;
+	struct pscnv_client *client;
 	
 	struct dentry *debugfs_dir;
 	struct dentry *debugfs_pd;

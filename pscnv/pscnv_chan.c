@@ -33,6 +33,7 @@
 #include "pscnv_fifo.h"
 #include "pscnv_dma.h"
 #include "nouveau_debugfs.h"
+#include "pscnv_client.h"
 
 /*******************************************************************************
  * Channel state management
@@ -190,6 +191,8 @@ pscnv_chan_continue_stop_time(struct pscnv_chan *ch)
 {
 	struct drm_device *dev = ch->dev;
 
+	struct pscnv_client *cl = ch->client;
+	struct pscnv_client_timetrack *tt;
 	struct timespec now;
 	s64 duration;
 	
@@ -199,10 +202,23 @@ pscnv_chan_continue_stop_time(struct pscnv_chan *ch)
 	if (pscnv_pause_debug >= 1) {
 		NV_INFO(dev, "channel %d was paused for %lld.%04lld ms\n",
 			ch->cid,
-			duration / NSEC_PER_SEC,
-			(duration % NSEC_PER_SEC) / 100000);
+			duration / 1000000,
+			(duration % 1000000) / 100);
+	}
+	
+	if (cl) {
+		tt = kzalloc(sizeof(struct pscnv_client_timetrack), GFP_KERNEL);
+		if (!tt)
+			return;
+	
+		INIT_LIST_HEAD(&tt->list);
+		tt->type = "PAUSE";
+		tt->start = ch->pause_start;
+		tt->duration = duration;
+		list_add_tail(&tt->list, &cl->time_trackings);
 	}
 }
+
 
 int
 pscnv_chan_continue(struct pscnv_chan *ch)

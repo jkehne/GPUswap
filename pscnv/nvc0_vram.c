@@ -117,6 +117,7 @@ nvc0_vram_alloc(struct pscnv_bo *bo)
 	
 	while ((bo->flags & PSCNV_GEM_USER) && pscnv_swapping_required(dev)) {
 		mutex_unlock(&dev_priv->vram_mutex);
+		
 		if (swap_retries >= 3) {
 			NV_ERROR(dev, "nvc0_vram_alloc: can not get enough vram "
 				      " after %d retries\n", swap_retries);

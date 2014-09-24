@@ -90,6 +90,7 @@ struct pscnv_bo {
 #define PSCNV_GEM_READONLY  0x100
 #define PSCNV_GEM_FLAG3     0x200
 #define PSCNV_GEM_USER      0x400  /* < swappable */
+#define PSCNV_GEM_IB        0x800
 
 struct pscnv_vram_engine {
 	void (*takedown) (struct drm_device *);
