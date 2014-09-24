@@ -65,5 +65,7 @@ pscnv_swapping_reduce_vram(struct drm_device *dev, struct pscnv_client *me, uint
 int
 pscnv_swapping_required(struct drm_device *dev);
 
+int
+pscnv_swapping_increase_vram(struct drm_device *dev);
 
 #endif /* end of include guard: PSCNV_SWAPPING_H */
