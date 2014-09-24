@@ -25,6 +25,9 @@ struct pscnv_dma {
 int 
 pscnv_dma_init(struct drm_device *dev);
 
+void
+pscnv_dma_exit(struct drm_device *dev);
+
 int
 pscnv_dma_bo_to_bo(struct pscnv_bo *tgt, struct pscnv_bo *src, int flags);
 

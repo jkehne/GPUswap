@@ -680,7 +680,16 @@ pscnv_ib_chan_kill(struct pscnv_ib_chan *ib_chan)
 void
 pscnv_ib_chan_free(struct pscnv_ib_chan *ib_chan)
 {
-	/* TODO */
+	/* TODO: This was a quick and dirty solution by Stanislav.
+	         It is probably faulty and needs revision,
+	         e.g. by Jonathan */
+	struct pscnv_bo *ib = ib_chan->ib;
+	struct pscnv_chan *ch = ib_chan->chan;
+
+	pscnv_ib_chan_kill(ib_chan);
+	// Does  dev_priv->fifo->chan_init_ib from _new() need undo-ing? It is not undo-ed over there!
+	pscnv_mem_free(ib);
+	pscnv_chan_unref(ch);
 }
 
 void

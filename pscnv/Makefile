@@ -29,8 +29,7 @@ obj-m := pscnv.o
 
 EXTRA_CFLAGS = -Iinclude/drm -Iinclude/uapi/drm
 
-#KERNELVER=$(shell uname -r)
-KERNELVER="3.5.7.31"
+KERNELVER=$(shell uname -r)
 
 SYSSRC = /lib/modules/$(KERNELVER)/build
 

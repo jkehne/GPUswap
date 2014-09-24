@@ -284,6 +284,13 @@ nvc0_grctx_generate(struct nvc0_graph_engine *graph)
 	struct nvc0_grctx info;
 	
 	int ret, i;
+
+	/*
+	 * No idea why the next line is necessary, but not doing this leads to
+	 * PGRAPH page faults, a template channel unload timeout and probably
+	 * a corrupted grctx.
+	 */
+	graph->grctx_size += 0x25000;
 	
 	NV_INFO(dev, "PGRAPH: generating default grctx\n");
 
