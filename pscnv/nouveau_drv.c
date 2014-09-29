@@ -158,6 +158,11 @@ MODULE_PARM_DESC(requested_chunk_size, "Chunk size as multiple of 128kB: default
 int pscnv_requested_chunk_size = 32;
 module_param_named(chunk_size, pscnv_requested_chunk_size, int, 0400);
 
+MODULE_PARM_DESC(vram_limit, "Limit usable VRAM to (MiB)");
+int pscnv_vram_limit = 0;
+module_param_named(vram_limit, pscnv_vram_limit, int, 0400);
+
+
 int nouveau_fbpercrtc;
 
 

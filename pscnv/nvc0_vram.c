@@ -42,6 +42,7 @@ nvc0_vram_init(struct drm_device *dev)
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	int ret;
 	uint32_t ctrlr_num, ctrlr_amt;
+	uint64_t vram_limit;
 
 	dev_priv->vram_type = nouveau_mem_vbios_type(dev);
 
@@ -58,7 +59,19 @@ nvc0_vram_init(struct drm_device *dev)
 	NV_INFO(dev, "VRAM: size 0x%llx, %d controllers\n",
 			dev_priv->vram_size, ctrlr_num);
 
+	//limit VRAM if requested
+	if (pscnv_vram_limit < 0) {
+		NV_ERROR(dev, "Invalid VRAM limit, ignoring\n");
+	} else {
+		vram_limit = pscnv_vram_limit << 20;
+		if (vram_limit && (dev_priv->vram_size > vram_limit)) {
+			dev_priv->vram_size = vram_limit;
+			NV_INFO(dev, "Limiting VRAM to 0x%llx (%u MiB) as requested\n", dev_priv->vram_size, pscnv_vram_limit);
+		}
+	}
+
 	ret = pscnv_mm_init(dev, "VRAM", 0x40000, dev_priv->vram_size - 0x20000, 0x1000, 0x20000, 0x1000, &dev_priv->vram_mm);
+
 	if (ret) {
 		WARN_ON(1);
 		return ret;
