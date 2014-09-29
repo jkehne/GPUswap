@@ -46,13 +46,35 @@ void pscnv_bo_memset(struct pscnv_bo* bo, uint32_t val)
 	}
 }
 
+void pscnv_mem_human_readable(char *buf, uint64_t val)
+{
+	if (val >= (1 << 20)) {
+		snprintf(buf, 16, "%lluMB", val >> 20);
+	} else if (val >= (1 << 10)) {
+		snprintf(buf, 16, "%llukB", val >> 10);
+	} else {
+		snprintf(buf, 16, "%llu Byte", val);
+	}
+}
+
 int
 pscnv_mem_init(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	int ret;
-
+	char buf[16];
+	
 	int dma_bits = 32;
+	
+	if (pscnv_requested_chunk_size > 0) {
+		dev_priv->chunk_size = pscnv_requested_chunk_size << 17;
+		pscnv_mem_human_readable(buf, dev_priv->chunk_size);
+		NV_INFO(dev, "MEM: chunk size set to %s\n", buf);
+	} else {
+		dev_priv->chunk_size = 0;
+		NV_INFO(dev, "MEM: buffer chunking disabled\n");
+	}
+
 #ifdef __linux__
 	if (dev_priv->card_type >= NV_50 &&
 	    pci_dma_supported(dev->pdev, DMA_BIT_MASK(40)))
@@ -114,6 +136,8 @@ pscnv_mem_alloc(struct drm_device *dev,
 	static int serial = 0;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct pscnv_bo *res;
+	uint32_t n_chunks;
+	uint32_t i;
 	int ret;
 
 	/* avoid all sorts of integer overflows possible otherwise. */
@@ -122,11 +146,17 @@ pscnv_mem_alloc(struct drm_device *dev,
 	if (!size)
 		return 0;
 
-	res = kzalloc (sizeof *res, GFP_KERNEL);
-	if (!res)
-		return 0;
 	size = (size + PSCNV_MEM_PAGE_SIZE - 1) & ~(PSCNV_MEM_PAGE_SIZE - 1);
 	size = PAGE_ALIGN(size);
+	
+	n_chunks = (dev_priv->chunk_size > 0) ? DIV_ROUND_UP(size, dev_priv->chunk_size) : 1; 
+
+	res = kzalloc (sizeof(struct pscnv_bo) + n_chunks*sizeof(struct pscnv_chunk), GFP_KERNEL);
+	if (!res) {
+		NV_ERROR(dev, "failed to allocate struct pscnv_bo\n");
+		return 0;
+	}
+	
 	res->dev = dev;
 	res->size = size;
 	res->flags = flags;
@@ -134,6 +164,7 @@ pscnv_mem_alloc(struct drm_device *dev,
 	res->cookie = cookie;
 	res->gem = 0;
 	res->client = client;
+	res->n_chunks = n_chunks;
 	
 	kref_init(&res->ref);
 
@@ -141,6 +172,12 @@ pscnv_mem_alloc(struct drm_device *dev,
 	mutex_lock(&dev_priv->vram_mutex);
 	res->serial = serial++;
 	mutex_unlock(&dev_priv->vram_mutex);
+	
+	for (i = 0; i < n_chunks; i++) {
+		res->chunks[i].idx = i;
+		/* allocation_type already set to UNALLOCATED */
+		WARN_ON_ONCE(pscnv_chunk_bo(&res->chunks[i]) != res);
+	}
 	
 	if (res->client) {
 		switch (res->flags & PSCNV_GEM_MEMTYPE_MASK) {
@@ -150,9 +187,14 @@ pscnv_mem_alloc(struct drm_device *dev,
 		}
 	}
 
-	if (pscnv_mem_debug >= 1)
-		NV_INFO(dev, "Allocating %d, %#llx-byte %sBO of type %08x, tile_flags %x\n", res->serial, size,
-				(flags & PSCNV_GEM_CONTIG ? "contig " : ""), cookie, tile_flags);
+	if (pscnv_mem_debug >= 1) {
+		char buf[16];
+		pscnv_mem_human_readable(buf, res->size);
+		NV_INFO(dev, "Allocating %d, %s (%u chunks) %sBO, cookie %08x, tile_flags %x\n",
+				res->serial, buf, res->n_chunks,
+				(flags & PSCNV_GEM_CONTIG ? "contig " : ""),
+				cookie, tile_flags);
+	}
 	switch (res->flags & PSCNV_GEM_MEMTYPE_MASK) {
 		case PSCNV_GEM_VRAM_SMALL:
 		case PSCNV_GEM_VRAM_LARGE:

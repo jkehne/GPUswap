@@ -34,6 +34,35 @@
 struct pscnv_vspace;
 struct pscnv_client;
 
+struct pscnv_page_and_dma {
+	struct page *k; /* kernel page data */
+	dma_addr_t dma;
+};
+
+#define PSCNV_CHUNK_UNALLOCATED  0 /* no memory has been allocated for this chunk, yet */
+#define PSCNV_CHUNK_VRAM         1 /* a regular chunk in VRAM */
+#define PSCNV_CHUNK_SYSRAM       2 /* a chunk that is allocated in SYSRAM, as
+                                    * userspace explicitly asked for */
+#define PSCNV_CHUNK_SWAPPED      3 /* this would be a VRAM chunk, but has been
+                                    * moved to SYSRAM */
+
+struct pscnv_chunk {
+	/* position in pscnv_chunk_bo(this)->chunks[] array */
+	uint32_t idx; 
+	
+	/* one of PSCNV_CHUNK_UNALLOCATED, PSCNV_CHUNK_VRAM, ... */
+	uint32_t alloc_type;
+	
+	union {
+		/* PSCNV_CHUNK_VRAM only: first node of phyisical allocation
+		 * of this chunk */
+		struct pscnv_mm_node *vram_node;
+		/* PSCNV_CHUNK_SYSRAM and PSCNV_CHUNK_SWAPPED:
+		 * SYSRAM pages and corresponding DMA addresses */
+		struct pscnv_page_and_dma *page;
+	};
+};
+
 /* A VRAM object of any kind. */
 struct pscnv_bo {
 	struct drm_device *dev;
@@ -81,7 +110,20 @@ struct pscnv_bo {
 	int (*vm_fault)(struct pscnv_bo *bo, struct vm_area_struct *vma, struct vm_fault *vmf);
 	/* vma area that this BO is mapped at */
 	struct vm_area_struct *vma;
+	
+	/* number of chunks for this bo */
+	uint32_t n_chunks;
+	
+	/* array of chunks allocated for this bo. Sized as required */
+	struct pscnv_chunk chunks[0];
 };
+
+/* get the bo that a chunk belongs to */
+static inline struct pscnv_bo*
+pscnv_chunk_bo(struct pscnv_chunk *cnk)
+{
+	return (struct pscnv_bo*) ((char*)(cnk - cnk->idx) - offsetof(struct pscnv_bo, chunks));
+}
 
 #define PSCNV_GEM_NOUSER	0x10
 #define PSCNV_ZEROFILL		0x20

@@ -532,6 +532,8 @@ struct drm_nouveau_private {
 	atomic64_t vram_swapped;
 	uint32_t vram_limit;
 	
+	uint64_t chunk_size; /* chunk size in bytes */
+	
 	uint64_t vram_sys_base;
 	bool vram_rank_B;
 	uint32_t crystal;
@@ -616,6 +618,7 @@ extern int nouveau_override_conntype;
 extern char *nouveau_perflvl;
 extern int nouveau_perflvl_wr;
 extern int pscnv_enable_swapin;
+extern int pscnv_requested_chunk_size;
 
 #ifdef __linux__
 extern int nouveau_pci_suspend(struct pci_dev *pdev, pm_message_t pm_state);
