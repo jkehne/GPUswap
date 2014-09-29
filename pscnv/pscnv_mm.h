@@ -31,6 +31,7 @@ struct pscnv_mm_node {
 	struct pscnv_mm_node *next;
 	struct pscnv_mm_node *prev;
 	struct pscnv_bo *bo;
+	struct pscnv_chunk *chunk; /* < only for vram nodes */
 	struct pscnv_vspace *vspace;
 };
 

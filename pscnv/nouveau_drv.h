@@ -497,7 +497,6 @@ struct drm_nouveau_private {
 	struct nouveau_channel *fifos[NOUVEAU_MAX_CHANNEL_NR];
 #endif
 	struct nouveau_engine engine;
-	struct pscnv_vram_engine *vram;
 	struct pscnv_vm_engine *vm;
 	struct pscnv_chan_engine *chan;
 	struct pscnv_fifo_engine *fifo;

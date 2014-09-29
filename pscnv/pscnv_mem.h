@@ -24,8 +24,8 @@
  * Use is subject to license terms.
  */
 
-#ifndef __PSCNV_VRAM_H__
-#define __PSCNV_VRAM_H__
+#ifndef __PSCNV_MEM_H__
+#define __PSCNV_MEM_H__
 #include "pscnv_drm.h"
 #include "pscnv_mm.h"
 
@@ -59,7 +59,7 @@ struct pscnv_chunk {
 		struct pscnv_mm_node *vram_node;
 		/* PSCNV_CHUNK_SYSRAM and PSCNV_CHUNK_SWAPPED:
 		 * SYSRAM pages and corresponding DMA addresses */
-		struct pscnv_page_and_dma *page;
+		struct pscnv_page_and_dma *pages;
 	};
 };
 
@@ -134,13 +134,6 @@ pscnv_chunk_bo(struct pscnv_chunk *cnk)
 #define PSCNV_GEM_USER      0x400  /* < swappable */
 #define PSCNV_GEM_IB        0x800
 
-struct pscnv_vram_engine {
-	void (*takedown) (struct drm_device *);
-	int (*alloc) (struct pscnv_bo *);
-	int (*free) (struct pscnv_bo *);
-	int (*sysram_tiling_ok) (struct pscnv_bo *);
-};
-
 extern int pscnv_mem_init(struct drm_device *);
 extern void pscnv_mem_takedown(struct drm_device *);
 extern struct pscnv_bo *pscnv_mem_alloc(struct drm_device *,
@@ -158,7 +151,7 @@ extern int pscnv_bo_map_bar1(struct pscnv_bo* bo);
 
 /*
  * fill the whole bo to val with 32bit write operations
- * You likely wan't to do a bar flush after this */
+ * You likely want to do a bar flush after this */
 extern void pscnv_bo_memset(struct pscnv_bo* bo, uint32_t val);
 
 /* calls pscnv_mem_free() */
@@ -174,14 +167,40 @@ static inline void pscnv_bo_unref(struct pscnv_bo *bo) {
 
 extern int pscnv_mem_free(struct pscnv_bo *);
 
-extern int pscnv_vram_free(struct pscnv_bo *bo);
-extern void pscnv_vram_takedown(struct drm_device *dev);
-
 extern int nv50_vram_init(struct drm_device *);
 extern int nvc0_vram_init(struct drm_device *);
 
-extern int pscnv_sysram_alloc(struct pscnv_bo *);
-extern int pscnv_sysram_free(struct pscnv_bo *);
+/* write an amount of bytes in human-readable form (bytes, kB, MB) */ 
+extern void
+pscnv_mem_human_readable(char *buf, uint64_t val);
+
+/* get the size in bytes of some chunk */
+uint64_t
+pscnv_chunk_size(struct pscnv_chunk *cnk);
+
+void
+pscnv_chunk_warn_wrong_alloc_type(struct pscnv_chunk *cnk, uint32_t expected, const char *fname);
+
+/* return 1 iff chunk does not have alloc_type `expected` and print error massage */
+static inline int
+pscnv_chunk_expect_alloc_type(struct pscnv_chunk *cnk, uint32_t expected, const char *fname)
+{
+	if (cnk->alloc_type != expected) {
+		pscnv_chunk_warn_wrong_alloc_type(cnk, expected, fname);
+		return 1;
+	}
+	return 0;
+}
+
+/* get the index ot the chunk that holds data at `offset` */
+static inline uint32_t
+pscnv_chunk_at_offset(struct drm_device *dev, uint64_t offset)
+{
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	uint64_t chunk_size = dev_priv->chunk_size;
+	
+	return (chunk_size > 0) ? offset/chunk_size : 0;
+}
 
 extern uint32_t
 nv_rv32_sysram(struct pscnv_bo *bo, unsigned offset);

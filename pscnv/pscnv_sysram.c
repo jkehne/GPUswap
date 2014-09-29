@@ -20,43 +20,76 @@ pscnv_sysram_vm_fault(struct pscnv_bo *bo, struct vm_area_struct *vma, struct vm
 }
 
 int
+pscnv_sysram_alloc_chunk(struct pscnv_chunk *cnk)
+{
+	struct pscnv_bo *bo = pscnv_chunk_bo(cnk);
+	struct drm_device *dev = bo->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	
+	int ret;
+	uint64_t size = pscnv_chunk_size(cnk);
+	int numpages = size >> PAGE_SHIFT;
+	int i, j;
+	
+	if (pscnv_chunk_expect_alloc_type(cnk, PSCNV_CHUNK_UNALLOCATED,
+						"pscnv_sysram_alloc_chunk") {
+		return -EINVAL;
+	}
+	
+	WARN_ON(cnk->pages);
+	
+	cnk->pages = kzalloc(numpages * sizeof(struct pscnv_page_and_dma), GFP_KERNEL);
+	
+	for (i = 0; i < numpages; i++) {
+		cnk->pages[i].k = alloc_pages(dev_priv->dma_mask > 0xffffffff ? GFP_DMA32 : GFP_KERNEL, 0);
+		if (!cnk->pages[i].k) {
+			for (j = 0; j < i; j++)
+				put_page(cnk->pages[j].k);
+			kfree(cnk->pages);
+			cnk->pages = NULL;
+			return -ENOMEM;
+		}
+	}
+	
+	for (i = 0; i < numpages; i++) {
+		cnk->pages[i].dma = pci_map_page(bo->dev->pdev, cnk->pages[i].k, 0, PAGE_SIZE, PCI_DMA_BIDIRECTIONAL);
+		if (pci_dma_mapping_error(bo->dev->pdev, cnk->pages[i].dma)) {
+			for (j = 0; j < i; j++)
+				pci_unmap_page(bo->dev->pdev, bo->pages[j].dma, PAGE_SIZE, PCI_DMA_BIDIRECTIONAL);
+			for (j = 0; j < numpages; j++)
+				put_page(bo->pages[j].k);
+			kfree(cnk->pages);
+			cnk->pages = NULL;
+			return -ENOMEM;
+		}
+	}
+	
+	cnk->alloc_type = PSCNV_CHUNK_SYSRAM;
+	
+	return 0;
+}
+
+int
 pscnv_sysram_alloc(struct pscnv_bo *bo)
 {
-	int numpages, i, j;
 	struct drm_nouveau_private *dev_priv = bo->dev->dev_private;
-	numpages = bo->size >> PAGE_SHIFT;
-	if (numpages > 1 && bo->flags & PSCNV_GEM_CONTIG)
-		return -EINVAL;
-	bo->pages = kmalloc(numpages * sizeof *bo->pages, GFP_KERNEL);
-	if (!bo->pages)
-		return -ENOMEM;
-	bo->dmapages = kmalloc(numpages * sizeof *bo->dmapages, GFP_KERNEL);
-	if (!bo->dmapages) {
-		kfree(bo->pages);
-		return -ENOMEM;
-	}
-
-	for (i = 0; i < numpages; i++) {
-		bo->pages[i] = alloc_pages(dev_priv->dma_mask > 0xffffffff ? GFP_DMA32 : GFP_KERNEL, 0);
-		if (!bo->pages[i]) {
-			for (j = 0; j < i; j++)
-				put_page(bo->pages[j]);
-			kfree(bo->pages);
-			kfree(bo->dmapages);
-			return -ENOMEM;
+	
+	int ret = 0;
+	uint32_t i;
+	
+	for (i = 0; i < bo->n_chunks; i++) {
+		ret = pscnv_sysram_alloc_chunk(bo->chunks[i]);
+		if (ret) {
+			for (i--; i >= 0; i--)
+				pscnv_sysram_free_chunk(bo->chunks[i]);
+				i--;
+			}
+			break;
 		}
 	}
-	for (i = 0; i < numpages; i++) {
-		bo->dmapages[i] = pci_map_page(bo->dev->pdev, bo->pages[i], 0, PAGE_SIZE, PCI_DMA_BIDIRECTIONAL);
-		if (pci_dma_mapping_error(bo->dev->pdev, bo->dmapages[i])) {
-			for (j = 0; j < i; j++)
-				pci_unmap_page(bo->dev->pdev, bo->dmapages[j], PAGE_SIZE, PCI_DMA_BIDIRECTIONAL);
-			for (j = 0; j < numpages; j++)
-				put_page(bo->pages[j]);
-			kfree(bo->pages);
-			kfree(bo->dmapages);
-			return -ENOMEM;
-		}
+	
+	if (ret) {
+		return ret;
 	}
 	
 	if (!bo->vm_fault) {
@@ -69,20 +102,26 @@ pscnv_sysram_alloc(struct pscnv_bo *bo)
 	return 0;
 }
 
-int
-pscnv_sysram_free(struct pscnv_bo *bo)
+void
+pscnv_sysram_free_chunk(struct pscnv_chunk *cnk)
 {
-	int numpages, i;
-	numpages = bo->size >> PAGE_SHIFT;
-
+	struct pscnv_bo *bo = pscnv_chunk_bo(cnk);
+	struct drm_device *dev = bo->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	
+	uint64_t size = pscnv_chunk_size(cnk);
+	int numpages = size >> PAGE_SHIFT;
+	int i;
+	
 	for (i = 0; i < numpages; i++)
-		pci_unmap_page(bo->dev->pdev, bo->dmapages[i], PAGE_SIZE, PCI_DMA_BIDIRECTIONAL);
+		pci_unmap_page(bo->dev->pdev, cnk->pages[i].dma, PAGE_SIZE, PCI_DMA_BIDIRECTIONAL);
 	for (i = 0; i < numpages; i++)
-		put_page(bo->pages[i]);
-
-	kfree(bo->pages);
-	kfree(bo->dmapages);
-	return 0;
+		put_page(cnk->pages[i].k);
+	
+	kfree(cnk->pages);
+	cnk->pages = NULL;
+	
+	cnk->alloc_type = PSCNV_CHUNK_UNALLOCATED;
 }
 
 uint32_t

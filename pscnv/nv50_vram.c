@@ -65,11 +65,6 @@ nv50_vram_init(struct drm_device *dev)
 		return -ENOMEM;
 	}
 
-	dev_priv->vram->alloc = nv50_vram_alloc;
-	dev_priv->vram->free = pscnv_vram_free;
-	dev_priv->vram->takedown = pscnv_vram_takedown;
-	dev_priv->vram->sysram_tiling_ok = nv50_sysram_tiling_ok;
-
 	if (dev_priv->chipset == 0xaa || dev_priv->chipset == 0xac || dev_priv->chipset == 0xaf) {
 		rc = nv_rd32(dev, 0x10020c);
 		dev_priv->vram_sys_base = (uint64_t)nv_rd32(dev, 0x100e10) << 12;
