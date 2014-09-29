@@ -134,6 +134,10 @@ MODULE_PARM_DESC(gem_debug, "GEM debug level: 0-1.");
 int pscnv_gem_debug = 0;
 module_param_named(gem_debug, pscnv_gem_debug, int, 0400);
 
+MODULE_PARM_DESC(vram_limit, "Limit usable VRAM to (MiB)");
+int pscnv_vram_limit = 0;
+module_param_named(vram_limit, pscnv_vram_limit, int, 0400);
+
 int nouveau_fbpercrtc;
 #if 0
 module_param_named(fbpercrtc, nouveau_fbpercrtc, int, 0400);
