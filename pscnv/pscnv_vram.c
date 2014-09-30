@@ -2,6 +2,7 @@
 #include "nouveau_drv.h"
 #include "pscnv_vram.h"
 #include "pscnv_client.h"
+#include "pscnv_sysram.h"
 
 /* must be called inside vram_mutex */
 int
@@ -15,7 +16,7 @@ pscnv_vram_alloc_chunk(struct pscnv_chunk *cnk, int flags)
 	uint64_t size = pscnv_chunk_size(cnk);
 	
 	if (pscnv_chunk_expect_alloc_type(cnk, PSCNV_CHUNK_UNALLOCATED,
-						"pscnv_vram_alloc_chunk") {
+						"pscnv_vram_alloc_chunk")) {
 		return -EINVAL;
 	}
 	
@@ -53,17 +54,15 @@ pscnv_vram_free_chunk(struct pscnv_chunk *cnk)
 	struct drm_device *dev = bo->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	
-	int ret;
 	uint64_t size = pscnv_chunk_size(cnk);
 	
-	
 	if (pscnv_chunk_expect_alloc_type(cnk, PSCNV_CHUNK_VRAM,
-						"pscnv_vram_free_chunk:") {
+						"pscnv_vram_free_chunk")) {
 		return;
 	}
 	
 	if (!cnk->vram_node) {
-		WARN();
+		WARN_ON(1);
 		return;
 	}
 	
@@ -150,10 +149,10 @@ pscnv_vram_alloc(struct pscnv_bo *bo)
 	}
 	
 	for (i = 0; i < (int)bo->n_chunks; i++) {
-		ret = pscnv_vram_alloc_chunk(bo->chunks[i], flags);
+		ret = pscnv_vram_alloc_chunk(&bo->chunks[i], flags);
 		if (ret) {
-			for (i--; i >= 0; i--)
-				pscnv_vram_free_chunk(bo->chunks[i]);
+			for (i--; i >= 0; i--) {
+				pscnv_vram_free_chunk(&bo->chunks[i]);
 				i--;
 			}
 			break;
@@ -169,8 +168,6 @@ pscnv_vram_alloc(struct pscnv_bo *bo)
 	if (bo->flags & PSCNV_GEM_CONTIG) {
 		bo->start = bo->chunks[0].vram_node->start;
 	}
-	
-	bo->mmnode->bo = bo;
 	
 	return ret;
 }

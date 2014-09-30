@@ -83,11 +83,7 @@ struct pscnv_bo {
 	struct drm_gem_object *gem;
 	struct pscnv_mm_node *map1;
 	struct pscnv_mm_node *map3;
-	/* VRAM only: the first mm node */
-	struct pscnv_mm_node *mmnode;
-	/* SYSRaM only: list of pages */
-	struct page **pages;
-	dma_addr_t *dmapages;
+
 	/* CHAN only, pointer to a channel (FreeBSD doesn't allow overriding mmap) */
 	struct pscnv_chan *chan;
 	/* number of references to this buffer object */
@@ -192,20 +188,27 @@ pscnv_chunk_expect_alloc_type(struct pscnv_chunk *cnk, uint32_t expected, const 
 	return 0;
 }
 
+/* object access */
+
+/* slowpath, called "instmem" by nouveau, same for nv50, nvc0.
+   PRAMIN seems to be 1MB (nouveau) though, not just 16kB as used by pscnv.
+   I guess pscnv does not map a large enough io memory region
+*/
+
 /* get the index ot the chunk that holds data at `offset` */
-static inline uint32_t
-pscnv_chunk_at_offset(struct drm_device *dev, uint64_t offset)
-{
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	uint64_t chunk_size = dev_priv->chunk_size;
-	
-	return (chunk_size > 0) ? offset/chunk_size : 0;
-}
+uint32_t
+pscnv_chunk_at_offset(struct drm_device *dev, uint64_t offset);
 
-extern uint32_t
-nv_rv32_sysram(struct pscnv_bo *bo, unsigned offset);
+uint32_t
+nv_rv32(struct pscnv_bo *bo, unsigned offset);
 
-extern void
-nv_wv32_sysram(struct pscnv_bo *bo, unsigned offset, uint32_t val);
+void
+nv_wv32(struct pscnv_bo *bo, unsigned offset, uint32_t val);
+
+uint32_t
+nv_rv32_pramin(struct drm_device *dev, uint64_t addr);
+
+void
+nv_wv32_pramin(struct drm_device *dev, uint64_t addr, uint32_t val);
 
 #endif

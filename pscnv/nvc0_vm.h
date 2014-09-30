@@ -27,6 +27,10 @@
 #define nvc0_vm(x) container_of(x, struct nvc0_vm_engine, base)
 #define nvc0_vs(x) ((struct nvc0_vspace *)(x)->engdata)
 
+#define NVC0_ST_VRAM             0x0
+#define NVC0_ST_SYSRAM_SNOOP     0x5
+#define NVC0_ST_SYSRAM_NOSNOOP   0x7
+
 struct nvc0_pgt {
 	struct list_head head;
 	unsigned int pde;

@@ -135,7 +135,7 @@ pscnv_mmap(struct file *filp, struct vm_area_struct *vma)
 			 * able to steal control to it later, as it may be used
 			 * as indirect buffer */
 			return remap_pfn_range(vma, vma->vm_start, 
-				page_to_pfn(bo->pages[0]),
+				page_to_pfn(bo->chunks[0].pages[0].k),
 				vma->vm_end - vma->vm_start, PAGE_SHARED);
 		}
 

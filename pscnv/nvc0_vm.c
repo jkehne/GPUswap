@@ -319,9 +319,9 @@ static const char *
 nvc0_vm_storage_type_str(int type)
 {
 	switch (type) {
-		case 0x0: return "VRAM";
-		case 0x5: return "SYSRAM_SNOOP";
-		case 0x7: return "SYSRAM_NOSNOOP";
+		case NVC0_ST_VRAM:           return "VRAM";
+		case NVC0_ST_SYSRAM_SNOOP:   return "SYSRAM_SNOOP";
+		case NVC0_ST_SYSRAM_NOSNOOP: return "SYSRAM_NOSNOOP";
 	}
 	
 	return "UNKNOWN TYPE";
@@ -502,9 +502,9 @@ nvc0_vspace_place_map (struct pscnv_vspace *vs, struct pscnv_bo *bo,
 }
 
 static int
-nvc0_vspace_do_map(struct pscnv_vspace *vs,
-		   struct pscnv_bo *bo, uint64_t offset)
+nvc0_vspace_do_map_chunk(struct pscnv_vspace *vs, struct pscnv_chunk *cnk, uint64_t offset)
 {
+	struct pscnv_bo *bo = pscnv_chunk_bo(cnk);
 	struct drm_device *dev = vs->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	uint32_t pfl0, pfl1;
@@ -537,8 +537,8 @@ nvc0_vspace_do_map(struct pscnv_vspace *vs,
 		struct nvc0_pgt *pt = nvc0_vspace_pgt(vs, pde);
 		pfl1 |= 0x5;
 		spin_lock_irqsave(&nvc0_vs(vs)->pd_lock, flags);
-		for (i = 0; i < (bo->size >> PAGE_SHIFT); ++i) {
-			uint64_t phys = bo->dmapages[i];
+		for (i = 0; i < (pscnv_chunk_size(cnk) >> PAGE_SHIFT); ++i) {
+			uint64_t phys = cnk->pages[i].dma;
 			nv_wv32(pt->bo[1], pte * 8 + 4, pfl1);
 			nv_wv32(pt->bo[1], pte * 8 + 0, (phys >> 8) | pfl0);
 			pte++;
@@ -560,7 +560,7 @@ nvc0_vspace_do_map(struct pscnv_vspace *vs,
 		psh = s ? NVC0_SPAGE_SHIFT : NVC0_LPAGE_SHIFT;
 		psz = 1 << psh;
 		
-		for (reg = bo->mmnode; reg; reg = reg->next) {
+		for (reg = cnk->vram_node; reg; reg = reg->next) {
 			uint64_t phys = reg->start;
 			uint64_t size = reg->size;
 
@@ -602,6 +602,39 @@ nvc0_vspace_do_map(struct pscnv_vspace *vs,
 	nvc0_tlb_flush(vs);
 	
 	return 0;
+}
+
+static int
+nvc0_vspace_do_map(struct pscnv_vspace *vs, struct pscnv_bo *bo, uint64_t offset)
+{
+	struct drm_device *dev = vs->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	
+	uint64_t last_offset = offset;
+	uint32_t i;
+	int ret = 0;
+
+	for (i = 0; i < bo->n_chunks; i++) {
+		struct pscnv_chunk *cnk = &bo->chunks[i];
+		ret = nvc0_vspace_do_map_chunk(vs, cnk, last_offset);
+		
+		if (ret) {
+			NV_ERROR(dev, "nvc0_vspace_do_map_chunk failed"
+				" on %08x/%d-%u in vs %d. ret=%d\n",
+				bo->cookie, bo->serial, cnk->idx, vs->vid, ret);
+			if (last_offset > offset) {
+				nvc0_vspace_do_unmap(vs, offset, last_offset-offset);
+			}
+			break;
+		}
+		
+		last_offset += dev_priv->chunk_size;
+	}
+	
+	dev_priv->vm->bar_flush(vs->dev);
+	nvc0_tlb_flush(vs);
+	
+	return ret;
 }
 
 static const char *nvc0_num_str[] = {"BAR3", "??", "BAR1", "0", "1", "2", "3",

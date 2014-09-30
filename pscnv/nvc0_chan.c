@@ -271,7 +271,7 @@ nvc0_chan_ib_fault(struct pscnv_bo *ib, struct vm_area_struct *vma, struct vm_fa
 		case PSCNV_GEM_SYSRAM_SNOOP:
 		case PSCNV_GEM_SYSRAM_NOSNOOP:
 			remap_pfn_range(vma, vma->vm_start,
-				page_to_pfn(ib->pages[0]),
+				page_to_pfn(ib->chunks[0].pages[0].k),
 				vma->vm_end - vma->vm_start, PAGE_SHARED);
 			break;
 		default:

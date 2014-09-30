@@ -43,12 +43,6 @@ nvc0_vram_init(struct drm_device *dev)
 	int ret;
 	uint32_t ctrlr_num, ctrlr_amt;
 
-	dev_priv->vram = kzalloc (sizeof *dev_priv->vram, GFP_KERNEL);
-	if (!dev_priv->vram) {
-		NV_ERROR(dev, "VRAM: out ot memory\n");
-		return -ENOMEM;
-	}
-
 	dev_priv->vram_type = nouveau_mem_vbios_type(dev);
 
 	ctrlr_num = nv_rd32(dev, NVC0_MEM_CTRLR_COUNT);
@@ -66,7 +60,7 @@ nvc0_vram_init(struct drm_device *dev)
 
 	ret = pscnv_mm_init(dev, "VRAM", 0x40000, dev_priv->vram_size - 0x20000, 0x1000, 0x20000, 0x1000, &dev_priv->vram_mm);
 	if (ret) {
-		kfree(dev_priv->vram);
+		WARN_ON(1);
 		return ret;
 	}
 

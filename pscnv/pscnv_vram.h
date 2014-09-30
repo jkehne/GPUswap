@@ -6,7 +6,6 @@
 /* must be called INSIDE vram_mutex */
 int
 pscnv_vram_alloc_chunk(struct pscnv_chunk *cnk, int flags);
-}
 
 /* must be called INSIDE vram_mutex */
 void
@@ -16,8 +15,7 @@ pscnv_vram_free_chunk(struct pscnv_chunk *cnk);
 int
 pscnv_vram_alloc(struct pscnv_bo *bo);
 
-
 void
-pscnv_vram_takedown(struct drm_device *dev)
+pscnv_vram_takedown(struct drm_device *dev);
 
 #endif /* end of include guard: PSCNV_VRAM_H */

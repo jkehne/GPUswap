@@ -75,6 +75,16 @@ pscnv_chunk_size(struct pscnv_chunk *cnk)
 	}
 }
 
+/* get the index ot the chunk that holds data at `offset` */
+uint32_t
+pscnv_chunk_at_offset(struct drm_device *dev, uint64_t offset)
+{
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	uint64_t chunk_size = dev_priv->chunk_size;
+	
+	return (chunk_size > 0) ? offset/chunk_size : 0;
+}
+
 static const char *
 pscnv_chunk_alloc_type_str(uint32_t at)
 {
@@ -88,14 +98,14 @@ pscnv_chunk_alloc_type_str(uint32_t at)
 }
 
 static const char *
-pscnv_bo_memtype_string(uint32_t flags)
+pscnv_bo_memtype_str(uint32_t flags)
 {
 	switch (flags & PSCNV_GEM_MEMTYPE_MASK) {
 		case PSCNV_GEM_VRAM_SMALL:	return "VRAM_SMALL";
 		case PSCNV_GEM_VRAM_LARGE:	return "VRAM_LARGE";
 		case PSCNV_GEM_SYSRAM_SNOOP:	return "SYSRAM_SNOOP";
 		case PSCNV_GEM_SYSRAM_NOSNOOP:	return "SYSRAM_NOSNOOP";
-		default:			return "(UNKNOWN)"
+		default:			return "(UNKNOWN)";
 	}
 }
 
@@ -196,9 +206,9 @@ pscnv_mem_alloc(struct drm_device *dev,
 		return 0;
 
 	size = (size + PSCNV_MEM_PAGE_SIZE - 1) & ~(PSCNV_MEM_PAGE_SIZE - 1);
-	size = roundup(bo->size, 0x1000);
-	if ((bo->flags & PSCNV_GEM_MEMTYPE_MASK) == PSCNV_GEM_VRAM_LARGE) {
-		size = roundup(bo->size, 0x20000);
+	size = roundup(size, 0x1000);
+	if ((flags & PSCNV_GEM_MEMTYPE_MASK) == PSCNV_GEM_VRAM_LARGE) {
+		size = roundup(size, 0x20000);
 	}
 	
 	n_chunks = (dev_priv->chunk_size > 0) ? DIV_ROUND_UP(size, dev_priv->chunk_size) : 1; 
@@ -241,21 +251,22 @@ pscnv_mem_alloc(struct drm_device *dev,
 
 	if (pscnv_mem_debug >= 1) {
 		char size_str[16];
-		pscnv_mem_human_readable(buf, res->size);
-		NV_INFO(dev, "Allocating %08x/%d, %s (%u chunks) %s, %s\n",
+		pscnv_mem_human_readable(size_str, res->size);
+		NV_INFO(dev, "MEM: alloc %08x/%d, %s (%u chunks) %s%s\n",
 				res->cookie, res->serial, size_str, res->n_chunks,
-				(flags & PSCNV_GEM_CONTIG ? "contig " : ""),
+				(flags & PSCNV_GEM_CONTIG ? "contig, " : ""),
 				pscnv_bo_memtype_str(res->flags));
 	}
 	
 	switch (res->flags & PSCNV_GEM_MEMTYPE_MASK) {
 		case PSCNV_GEM_VRAM_SMALL:
 		case PSCNV_GEM_VRAM_LARGE:
-			ret = dev_priv->vram->alloc(res);
+			ret = pscnv_vram_alloc(res);
 			break;
 		case PSCNV_GEM_SYSRAM_SNOOP:
 		case PSCNV_GEM_SYSRAM_NOSNOOP:
 			ret = pscnv_sysram_alloc(res);
+			break;
 		default:
 			ret = -ENOSYS;
 	}
@@ -351,6 +362,7 @@ pscnv_chunk_free(struct pscnv_chunk *cnk)
 			mutex_lock(&dev_priv->vram_mutex);
 			pscnv_vram_free_chunk(cnk);
 			mutex_unlock(&dev_priv->vram_mutex);
+			break;
 		case PSCNV_CHUNK_SYSRAM:
 		case PSCNV_CHUNK_SWAPPED:
 			pscnv_sysram_free_chunk(cnk);
@@ -365,12 +377,17 @@ pscnv_mem_free(struct pscnv_bo *bo)
 	uint32_t i;
 	
 	if (bo->gem) {
-		NV_ERROR(bo->dev, "Freeing %08x/%d, with DRM- Wrapper still attached!\n", bo->cookie, bo->serial);
+		NV_ERROR(bo->dev, "MEM: freeing %08x/%d, with DRM- Wrapper still attached!\n", bo->cookie, bo->serial);
 	}
 	
-	if (pscnv_mem_debug >= 1)
-		NV_INFO(bo->dev, "Freeing %d, %#llx-byte %sBO cookie=%08x, tile_flags %x\n", bo->serial, bo->size,
-				(bo->flags & PSCNV_GEM_CONTIG ? "contig " : ""), bo->cookie, bo->tile_flags);
+	if (pscnv_mem_debug >= 1) {
+		char size_str[16];
+		pscnv_mem_human_readable(size_str, bo->size);
+		NV_INFO(dev, "MEM: free %08x/%d, %s (%u chunks) %s%s\n",
+				bo->cookie, bo->serial, size_str, bo->n_chunks,
+				(bo->flags & PSCNV_GEM_CONTIG ? "contig, " : ""),
+				pscnv_bo_memtype_str(bo->flags));
+	}
 
 	pscnv_swapping_remove_bo(bo);
 
@@ -449,22 +466,11 @@ pscnv_bo_ref_free(struct kref *ref)
 	pscnv_mem_free(bo);
 }
 
-uint32_t
-nv_rv32_vram(struct pscnv_chunk *cnk, unsigned offset)
+static uint32_t
+nv_rv32_vram_slowpath(struct pscnv_chunk *cnk, unsigned offset)
 {
 	struct pscnv_bo *bo = pscnv_chunk_bo(cnk);
 	struct drm_device *dev = bo->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	
-	unsigned offset_in_bo = offset + cnk->idx * dev_priv->chunk_size;
-	
-	if (dev_priv->vm && dev_priv->vm_ok) {
-		if (bo->drm_map) {
-			return le32_to_cpu(DRM_READ32(bo->drm_map, offset_in_bo));
-		} else if (bo->map3) {
-			return le32_to_cpu(DRM_READ32(dev_priv->ramin, bo->map3->start - dev_priv->vm_ramin_base + offset_in_bo));
-		}
-	}
 	
 	if (!cnk->vram_node) {
 		WARN_ON(1);
@@ -472,48 +478,40 @@ nv_rv32_vram(struct pscnv_chunk *cnk, unsigned offset)
 	}
 	
 	if (cnk->vram_node->size <= offset) {
-		NV_ERROR(dev, "nv_rv32: BUG! offset is not within bounds of first"
+		NV_ERROR(dev, "nv_rv32: BUG! offset %x is not within bounds of first"
 				"mm-node for chunk %08x/%d-%u. That case is not "
-				"supported, yet");
-		
+				"supported, yet", offset, bo->cookie, bo->serial,
+				cnk->idx);
+		return 42;
 	}
-	
-	/* GEM_CONTIG not set?? */
-	if (!bo->start) {
-		NV_ERROR(bo->dev, "nv_rv32: can not read from BO %08x/%d at offset=0x%x\n",
-			bo->cookie, bo->serial, offset);
-			return 0;
-	}
-	
-	/* fallback to slowpath */
-	return nv_rv32_pramin(bo->dev, addr);
+
+	return nv_rv32_pramin(dev, offset + cnk->vram_node->start);
 }
 
-uint32_t
+static uint32_t
 nv_rv32_chunk(struct pscnv_chunk *cnk, unsigned offset)
 {
 	struct pscnv_bo *bo = pscnv_chunk_bo(cnk);
 	struct drm_device *dev = bo->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	
 	if (offset >= pscnv_chunk_size(cnk)) {
 		NV_ERROR(dev, "nv_rv32_chunk: access at %x is ouf of bounds for"
-				" chunk %08x/%d-%u, size = %x\n",
+				" chunk %08x/%d-%u, size = %llx\n",
 				offset, bo->cookie, bo->serial, cnk->idx,
 				pscnv_chunk_size(cnk));
 		return 42;
 	}
 	
 	switch (cnk->alloc_type) {
-		PSCNV_CHUNK_UNALLOCATED:
+		case PSCNV_CHUNK_UNALLOCATED:
 			NV_ERROR(dev, "nv_rv32_chunk: reading from UNALLOCATED"
 				"chunk %08x/%d-%u at offset %x\n",
 				bo->cookie, bo->serial, cnk->idx, offset);
 			return 42;
-		PSCNV_CHUNK_VRAM:
-			return nv_rv32_vram(cnk, offset);
-		PSCNV_CHUNK_SYSRAM:
-		PSCNV_CHUNK_SWAPPED:
+		case PSCNV_CHUNK_VRAM:
+			return nv_rv32_vram_slowpath(cnk, offset);
+		case PSCNV_CHUNK_SYSRAM:
+		case PSCNV_CHUNK_SWAPPED:
 			return nv_rv32_sysram(cnk, offset);
 	}
 	
@@ -521,37 +519,26 @@ nv_rv32_chunk(struct pscnv_chunk *cnk, unsigned offset)
 	return 42;
 }
 
-/* bo->start == 0, if GEM_CONTIG is not set */
-
 uint32_t
 nv_rv32(struct pscnv_bo *bo, unsigned offset)
 {
 	struct drm_device *dev = bo->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	
-	uint32_t cnk_idx = pscnv_chunk_at_offset(bo, offset);
+	uint32_t cnk_idx = pscnv_chunk_at_offset(dev, offset);
 	
 	unsigned offset_in_chunk = offset - cnk_idx * dev_priv->chunk_size;
 	
-	if (cnk_idx >= bo->n_chunks) {
+	if (offset >= bo->size || cnk_idx >= bo->n_chunks) {
 		NV_ERROR(dev, "nv_rv32: access at %x is out of bounds for BO "
-			"%08x/%d (size %x). Access to chunk %d of %d\n",
-			offset, bo->cookie, bo->serial, bo->size, cnk_idx,
+			"%08x/%d (size %llx). Access to chunk %d of %d\n",
+			offset, bo->cookie, bo->serial, bo->size, cnk_idx+1,
 			bo->n_chunks);
 		return 42;
 	}
 	
-	return nv_rv32_chunk(&bo->chunk[chk_idx], offset_in_chunk);
-	
-	uint64_t addr = bo->start + offset;
-	
-	switch (bo->flags & PSCNV_GEM_MEMTYPE_MASK) {
-	case PSCNV_GEM_SYSRAM_SNOOP:
-	case PSCNV_GEM_SYSRAM_NOSNOOP:
-		return nv_rv32_sysram(bo, offset);
-	}
-	
-	if (dev_priv->vm && dev_priv->vm_ok) {
+	if (bo->chunks[cnk_idx].alloc_type == PSCNV_CHUNK_VRAM  && dev_priv->vm && dev_priv->vm_ok) {
+		/* try fastpath */	 
 		if (bo->drm_map) {
 			return le32_to_cpu(DRM_READ32(bo->drm_map, offset));
 		} else if (bo->map3) {
@@ -559,30 +546,83 @@ nv_rv32(struct pscnv_bo *bo, unsigned offset)
 		}
 	}
 	
-	/* GEM_CONTIG not set?? */
-	if (!bo->start) {
-		NV_ERROR(bo->dev, "nv_rv32: can not read from BO %08x/%d at offset=0x%x\n",
-			bo->cookie, bo->serial, offset);
-			return 0;
+	return nv_rv32_chunk(&bo->chunks[cnk_idx], offset_in_chunk);
+}
+
+static void
+nv_wv32_vram_slowpath(struct pscnv_chunk *cnk, unsigned offset, uint32_t val)
+{
+	struct pscnv_bo *bo = pscnv_chunk_bo(cnk);
+	struct drm_device *dev = bo->dev;
+	
+	if (!cnk->vram_node) {
+		WARN_ON(1);
+		return;
 	}
 	
-	/* fallback to slowpath */
-	return nv_rv32_pramin(bo->dev, addr);
+	if (cnk->vram_node->size <= offset) {
+		NV_ERROR(dev, "nv_wv32: BUG! offset %x is not within bounds of first"
+				"mm-node for chunk %08x/%d-%u. That case is not "
+				"supported, yet", offset, bo->cookie,
+				bo->serial, cnk->idx);
+		return;
+	}
+
+	return nv_wv32_pramin(dev, offset + cnk->vram_node->start, val);
+}
+
+static void
+nv_wv32_chunk(struct pscnv_chunk *cnk, unsigned offset, uint32_t val)
+{
+	struct pscnv_bo *bo = pscnv_chunk_bo(cnk);
+	struct drm_device *dev = bo->dev;
+	
+	if (offset >= pscnv_chunk_size(cnk)) {
+		NV_ERROR(dev, "nv_wv32_chunk: access at %x is ouf of bounds for"
+				" chunk %08x/%d-%u, size = %llx\n",
+				offset, bo->cookie, bo->serial, cnk->idx,
+				pscnv_chunk_size(cnk));
+		return;
+	}
+	
+	switch (cnk->alloc_type) {
+		case PSCNV_CHUNK_UNALLOCATED:
+			NV_ERROR(dev, "nv_wv32_chunk: writing to UNALLOCATED"
+				"chunk %08x/%d-%u at offset %x\n",
+				bo->cookie, bo->serial, cnk->idx, offset);
+			return;
+		case PSCNV_CHUNK_VRAM:
+			nv_wv32_vram_slowpath(cnk, offset, val);
+			return;
+		case PSCNV_CHUNK_SYSRAM:
+		case PSCNV_CHUNK_SWAPPED:
+			nv_wv32_sysram(cnk, offset, val);
+			return;
+	}
+	
+	WARN_ON(1);
 }
 
 void
 nv_wv32(struct pscnv_bo *bo, unsigned offset, uint32_t val)
 {
-	struct drm_nouveau_private *dev_priv = bo->dev->dev_private;
-	uint64_t addr = bo->start + offset;
+	struct drm_device *dev = bo->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	
-	switch (bo->flags & PSCNV_GEM_MEMTYPE_MASK) {
-	case PSCNV_GEM_SYSRAM_SNOOP:
-	case PSCNV_GEM_SYSRAM_NOSNOOP:
-		return nv_wv32_sysram(bo, offset, val);
+	uint32_t cnk_idx = pscnv_chunk_at_offset(dev, offset);
+	
+	unsigned offset_in_chunk = offset - cnk_idx * dev_priv->chunk_size;
+	
+	if (offset >= bo->size || cnk_idx >= bo->n_chunks) {
+		NV_ERROR(dev, "nv_wv32: access at %x is out of bounds for BO "
+			"%08x/%d (size %llx). Access to chunk %d of %d\n",
+			offset, bo->cookie, bo->serial, bo->size, cnk_idx+1,
+			bo->n_chunks);
+		return;
 	}
 	
-	if (dev_priv->vm && dev_priv->vm_ok) {
+	if (bo->chunks[cnk_idx].alloc_type == PSCNV_CHUNK_VRAM && dev_priv->vm && dev_priv->vm_ok) {
+		/* try fastpath */	 
 		if (bo->drm_map) {
 			DRM_WRITE32(bo->drm_map, offset, cpu_to_le32(val));
 			return;
@@ -592,14 +632,41 @@ nv_wv32(struct pscnv_bo *bo, unsigned offset, uint32_t val)
 		}
 	}
 	
-	/* GEM_CONTIG not set?? */
-	if (!bo->start) {
-		NV_ERROR(bo->dev, "nv_wv32: can not write to BO %08x/%d at offset=0x%x,"
-			" value=0x%08x\n",
-			bo->cookie, bo->serial, offset, val);
-			return;
+	nv_wv32_chunk(&bo->chunks[cnk_idx], offset_in_chunk, val);
+}
+
+uint32_t
+nv_rv32_pramin(struct drm_device *dev, uint64_t addr)
+{
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	unsigned long flags;
+	uint64_t base = addr &   0xfffffff0000ULL;
+	uint64_t offset = addr & 0x0000000ffffULL;
+	uint32_t data;
+
+	spin_lock_irqsave(&dev_priv->pramin_lock, flags);
+	if (unlikely(dev_priv->pramin_start != base)) {
+		nv_wr32(dev, 0x001700, base >> 16);
+		dev_priv->pramin_start = base;
 	}
-	
-	/* fallback to slowpath */
-	nv_wv32_pramin(bo->dev, addr, val);	
+	data = nv_rd32(dev, 0x700000 + offset);
+	spin_unlock_irqrestore(&dev_priv->pramin_lock, flags);
+	return data;
+}
+
+void
+nv_wv32_pramin(struct drm_device *dev, uint64_t addr, uint32_t val)
+{
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	unsigned long flags;
+	uint64_t base = addr   & 0xfffffff0000ULL;
+	uint64_t offset = addr & 0x0000000ffffULL;
+
+	spin_lock_irqsave(&dev_priv->pramin_lock, flags);
+	if (unlikely(dev_priv->pramin_start != base)) {
+		nv_wr32(dev, 0x001700, base >> 16);
+		dev_priv->pramin_start = base;
+	}
+	nv_wr32(dev, 0x700000 + offset, val);
+	spin_unlock_irqrestore(&dev_priv->pramin_lock, flags);
 }

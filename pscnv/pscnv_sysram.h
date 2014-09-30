@@ -13,9 +13,9 @@ void
 pscnv_sysram_free_chunk(struct pscnv_chunk *cnk);
 
 uint32_t
-nv_rv32_sysram(struct pscnv_bo *bo, unsigned offset);
+nv_rv32_sysram(struct pscnv_chunk *chunk, unsigned offset);
 
 void
-nv_wv32_sysram(struct pscnv_bo *bo, unsigned offset, uint32_t val);
+nv_wv32_sysram(struct pscnv_chunk *chunk, unsigned offset, uint32_t val);
 
 #endif /* end of include guard: PSCNV_SYSRAM_H */

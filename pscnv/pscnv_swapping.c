@@ -267,6 +267,7 @@ pscnv_swapping_remove_bo(struct pscnv_bo *bo)
 	pscnv_swapping_remove_bo_internal(bo);
 }
 
+#if 0
 static int
 pscnv_swapping_replace(struct pscnv_bo* vram, struct pscnv_bo* sysram)
 {
@@ -485,7 +486,7 @@ pscnv_vram_from_sysram(struct pscnv_bo *sysram)
 	
 	return 0;
 }
-
+#endif
 
 static int
 pscnv_swapping_wait_for_completions(struct drm_device *dev, const char *fname, struct completion *completions, int ops)
@@ -516,6 +517,13 @@ pscnv_swapping_wait_for_completions(struct drm_device *dev, const char *fname, s
 	return 0;
 }
 
+static void
+pscnv_swapping_swap_out(void *data, struct pscnv_client *cl) { return; }
+
+static void
+pscnv_swapping_swap_in(void *data, struct pscnv_client *cl) { return; }
+
+#if 0
 static void
 pscnv_swapping_swap_out(void *data, struct pscnv_client *cl)
 {
@@ -559,6 +567,7 @@ pscnv_swapping_swap_in(void *data, struct pscnv_client *cl)
 	pscnv_swapping_option_list_add_unlocked(&cl->swapping_options, opt);
 	mutex_unlock(&dev_priv->clients->lock);*/
 }
+#endif
 
 static void
 pscnv_swapping_complete_wrapper(void *data, struct pscnv_client *cl)

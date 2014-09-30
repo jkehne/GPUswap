@@ -32,6 +32,7 @@ static int nv50_vspace_tlb_flush (struct pscnv_vspace *vs) {
 	return 0;
 }
 
+#if 0
 static int
 nv50_vspace_fill_pd_slot (struct pscnv_vspace *vs, uint32_t pdenum) {
 	struct drm_nouveau_private *dev_priv = vs->dev->dev_private;
@@ -62,6 +63,7 @@ nv50_vspace_fill_pd_slot (struct pscnv_vspace *vs, uint32_t pdenum) {
 	}
 	return 0;
 }
+#endif
 
 static int
 nv50_vspace_place_map (struct pscnv_vspace *vs, struct pscnv_bo *bo,
@@ -70,6 +72,7 @@ nv50_vspace_place_map (struct pscnv_vspace *vs, struct pscnv_bo *bo,
 	return pscnv_mm_alloc(vs->mm, bo->size, back?PSCNV_MM_FROMBACK:0, start, end, res);
 }
 
+#if 0
 static int nv50_vspace_map_contig_range (struct pscnv_vspace *vs, uint64_t offset, uint64_t pte, uint64_t size, int lp) {
 	int ret;
 	/* XXX: add LP support */
@@ -97,7 +100,15 @@ static int nv50_vspace_map_contig_range (struct pscnv_vspace *vs, uint64_t offse
 	}
 	return 0;
 }
+#endif
 
+static int
+nv50_vspace_do_map (struct pscnv_vspace *vs, struct pscnv_bo *bo, uint64_t offset)
+{
+	return 0;
+}
+
+#if 0
 static int
 nv50_vspace_do_map (struct pscnv_vspace *vs, struct pscnv_bo *bo, uint64_t offset) {
 	struct drm_nouveau_private *dev_priv = vs->dev->dev_private;
@@ -146,6 +157,7 @@ nv50_vspace_do_map (struct pscnv_vspace *vs, struct pscnv_bo *bo, uint64_t offse
 	dev_priv->vm->bar_flush(vs->dev);
 	return 0;
 }
+#endif
 
 static int
 nv50_vspace_do_unmap (struct pscnv_vspace *vs, uint64_t offset, uint64_t length) {
