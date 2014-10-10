@@ -607,6 +607,7 @@ extern int pscnv_vm_debug;
 extern int pscnv_gem_debug;
 extern int pscnv_ramht_debug;
 extern int pscnv_pause_debug;
+extern int pscnv_swapping_debug;
 extern char *nouveau_vbios;
 extern int nouveau_ctxfw;
 extern int nouveau_ignorelid;

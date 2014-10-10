@@ -136,6 +136,10 @@ MODULE_PARM_DESC(gem_debug, "GEM debug level: 0-1.");
 int pscnv_gem_debug = 0;
 module_param_named(gem_debug, pscnv_gem_debug, int, 0400);
 
+MODULE_PARM_DESC(swapping_debug, "PSCNV swapping debug level: 0-2.");
+int pscnv_swapping_debug = 0;
+module_param_named(swapping_debug, pscnv_swapping_debug, int, 0400);
+
 MODULE_PARM_DESC(pause_debug, "Pause/ continue debug level: 0-2.");
 int pscnv_pause_debug = 0;
 module_param_named(pause_debug, pscnv_pause_debug, int, 0400);

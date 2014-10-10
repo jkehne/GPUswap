@@ -48,10 +48,10 @@ struct pscnv_client {
 	struct list_head channels;
 	
 	/* list of memory areas that meight be taken away from this client */
-	struct pscnv_swapping_option_list swapping_options;
+	struct pscnv_chunk_list swapping_options;
 	
 	/* list of memory areas that have been taken away from this client */
-	struct pscnv_swapping_option_list already_swapped;
+	struct pscnv_chunk_list already_swapped;
 	
 	/* list of work to do, next time that this client has an empty fifo */
 	struct list_head on_empty_fifo;

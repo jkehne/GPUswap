@@ -526,15 +526,16 @@ nvc0_vspace_do_map_chunk(struct pscnv_vspace *vs, struct pscnv_chunk *cnk, uint6
 
 	pfl1 = bo->tile_flags << 4;
 
-	switch (bo->flags & PSCNV_GEM_MEMTYPE_MASK) {
-	case PSCNV_GEM_SYSRAM_NOSNOOP:
-		pfl1 |= 0x2;
-		/* fall through */
-	case PSCNV_GEM_SYSRAM_SNOOP:
-	{
+	switch (cnk->alloc_type) {
+	case PSCNV_CHUNK_SYSRAM:
+	case PSCNV_CHUNK_SWAPPED:
 		unsigned int pde = NVC0_PDE(offset);
 		unsigned int pte = (offset & NVC0_VM_BLOCK_MASK) >> PAGE_SHIFT;
 		struct nvc0_pgt *pt = nvc0_vspace_pgt(vs, pde);
+		
+		if ((bo->flags & PSCNV_GEM_MEMTYPE_MASK) != PSCNV_GEM_SYSRAM_SNOOP) {
+			pfl1 |= 0x2; /* NO SNOOP */
+		}
 		pfl1 |= 0x5;
 		spin_lock_irqsave(&nvc0_vs(vs)->pd_lock, flags);
 		for (i = 0; i < (pscnv_chunk_size(cnk) >> PAGE_SHIFT); ++i) {
@@ -550,10 +551,9 @@ nvc0_vspace_do_map_chunk(struct pscnv_vspace *vs, struct pscnv_chunk *cnk, uint6
 			}
 		}
 		spin_unlock_irqrestore(&nvc0_vs(vs)->pd_lock, flags);
-	}
 		break;
-	case PSCNV_GEM_VRAM_SMALL:
-	case PSCNV_GEM_VRAM_LARGE:
+		
+	case PSCNV_CHUNK_VRAM:
 		s = (bo->flags & PSCNV_GEM_MEMTYPE_MASK) != PSCNV_GEM_VRAM_LARGE;
 		if (vs->vid == -3)
 			s = 1;
@@ -595,7 +595,8 @@ nvc0_vspace_do_map_chunk(struct pscnv_vspace *vs, struct pscnv_chunk *cnk, uint6
 		}
 		break;
 	default:
-		WARN(1, "Should not be here! Mask %08x\n", bo->flags & PSCNV_GEM_MEMTYPE_MASK);
+		NV_ERROR(dev, "Should not be here! bo->flags=%08x, "
+			"cnk->alloc_type=%08x\n", bo->flags, cnk->alloc_type);
 		return -ENOSYS;
 	}
 	dev_priv->vm->bar_flush(vs->dev);
@@ -776,6 +777,7 @@ nvc0_vm_init(struct drm_device *dev) {
 	vme->base.do_vspace_free = nvc0_vspace_free;
 	vme->base.place_map = nvc0_vspace_place_map;
 	vme->base.do_map = nvc0_vspace_do_map;
+	vme->base.do_map_chunk = nvc0_vspace_do_map_chunk;
 	vme->base.do_unmap = nvc0_vspace_do_unmap;
 	vme->base.map_user = nvc0_vm_map_user;
 	vme->base.map_kernel = nvc0_vm_map_kernel;

@@ -6,17 +6,16 @@
 #include <linux/random.h>
 #include <linux/completion.h>
 
-#define SWAPPING_OPTION_MIN_SIZE (4 << 20) /* 4 MB */
+/* BOs smaller than this size are ignored */
+#define PSCNV_SWAPPING_MIN_SIZE (4 << 20) /* 4 MB */
 
 /* if we are not able to reduce the required memory space by swapping memory
    of 16 clients (clients may be asked more than once) that will free up to 32
-   swapping_options (each up to 16*4MB), than there is not much hope that we
-   can ever satisfy the request */
+   chunks (each e.g. 4MB), than there is not much hope that we
+   can ever satisfy the request, as 16 * 32 * 4MB = 2GB */
 #define PSCNV_SWAPPING_MAXOPS 16
 
 #define PSCNV_SWAPPING_TIMEOUT 5*HZ
-
-static struct kmem_cache *swapping_option_cache = NULL;
 
 #if 0
 static void
@@ -50,37 +49,32 @@ pscnv_swapping_memdump(struct pscnv_bo *bo)
 int
 pscnv_swapping_init(struct drm_device *dev)
 {
-	NV_INFO(dev, "pscnv_swapping: initalizing....\n");
-	
-	if (!swapping_option_cache) {
-		swapping_option_cache = kmem_cache_create("pscnv_swapping_options",
-			sizeof(struct pscnv_swapping_option), 0 /* offset */,
-			 0 /* flags */, NULL /* ctor */);
-	}
-	
-	if (!swapping_option_cache) {
-		NV_INFO(dev, "pscnv_swapping_init: failed to init swapping_option_cache\n");
-		return -ENOMEM;
-	}
-	
+	if (pscnv_swapping_debug >= 1)
+		NV_INFO(dev, "pscnv_swapping: initalizing....\n");
+
 	return 0;
 }
 
 static void
-pscnv_swapping_option_list_add_unlocked(struct pscnv_swapping_option_list *list,
-					struct pscnv_swapping_option *opt)
+pscnv_swapping_chunk_list_add_unlocked(struct pscnv_chunk_list *list,
+					struct pscnv_chunk *cnk)
 {
-	struct drm_device *dev = opt->bo->dev;
+	struct pscnv_bo *bo = pscnv_chunk_bo(cnk);
+	struct drm_device *dev = bo->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	
-	if (!list->options) {
-		list->options = kzalloc(sizeof(struct pscnv_swapping_option*) *
-			dev_priv->vram_size / SWAPPING_OPTION_MIN_SIZE,
+	if (list->max <= list->size) {
+		list->max = MIN(2*list->max, PSCNV_INITIAL_CHUNK_LIST_SIZE);
+		
+		list->options = krealloc(list->options,
+			sizeof(struct pscnv_chunk*) * list->max,
 			GFP_KERNEL);
-	}
-	if (!list->options) {
-		NV_INFO(dev, "pscnv_swapping_option_list_add: out of memory\n");
-		return;
+		
+		/* krealloc may return ZERO_SIZE_PTR=16 */
+		if (ZERO_OR_NULL_PTR(list->options)) {
+			NV_ERROR(dev, "pscnv_swapping_option_list_add: out of memory\n");
+			return;
+		}
 	}
 	
 	list->options[list->size] = opt;
@@ -88,17 +82,17 @@ pscnv_swapping_option_list_add_unlocked(struct pscnv_swapping_option_list *list,
 }
 
 /* remove the n-th option from the list and return it */
-static struct pscnv_swapping_option*
-pscnv_swapping_option_list_take_unlocked(struct pscnv_swapping_option_list *list, size_t n)
+static struct pscnv_chunk*
+pscnv_chunk_list_take_unlocked(struct pscnv_chunk_list *list, size_t n)
 {
-	struct pscnv_swapping_option* ret;
+	struct pscnv_chunk* ret;
 	
 	WARN_ON(n >= list->size);
 	if (n >= list->size) {
 		return NULL;
 	}
 	
-	ret = list->options[n];
+	ret = list->chunks[n];
 	
 	/* we always keep the options tightly packed, for better random pick */
 	list->size--;
@@ -118,34 +112,27 @@ pscnv_swapping_roll_dice(uint32_t n)
 	return rnd % n;
 }
 
-static struct pscnv_swapping_option*
-pscnv_swapping_option_list_take_random_unlocked(struct pscnv_swapping_option_list *list)
+static struct pscnv_chunk*
+pscnv_chunk_list_take_random_unlocked(struct pscnv_chunk_list *list)
 {
-	if (pscnv_swapping_option_list_empty(list)) {
+	if (pscnv_chunk_list_empty(list)) {
 		return NULL;
 	}
 	
-	return pscnv_swapping_option_list_take_unlocked(list, pscnv_swapping_roll_dice(list->size));
-}
-
-static void
-pscnv_swapping_option_free(struct pscnv_swapping_option *opt)
-{
-	kmem_cache_free(swapping_option_cache, opt);
+	return pscnv_chunk_list_take_unlocked(list, pscnv_swapping_roll_dice(list->size));
 }
 
 static size_t
-pscnv_swapping_option_list_remove_bo_unlocked(struct pscnv_swapping_option_list *list, struct pscnv_bo *bo)
+pscnv_chunk_list_remove_bo_unlocked(struct pscnv_chunk_list *list, struct pscnv_bo *bo)
 {
-	struct pscnv_swapping_option *opt;
+	struct pscnv_chunk *cnk;
 	size_t count = 0;
 	size_t i = 0;
 	size_t size_before = list->size;
 	
 	while (i < list->size) {
-		if (list->options[i]->bo == bo) {
-			opt = pscnv_swapping_option_list_take_unlocked(list, i);
-			pscnv_swapping_option_free(opt);
+		if (pscnv_chunk_bo(list->chunks[i]) == bo) {
+			cnk = pscnv_chunk_list_take_unlocked(list, i);
 			count++;
 			/* no i++ here, last element is moved here and gets
 			 * checked at the next iteration */
@@ -161,7 +148,7 @@ pscnv_swapping_option_list_remove_bo_unlocked(struct pscnv_swapping_option_list 
 
 #if 0
 static int
-pscnv_swapping_list_search_bo_unlocked(struct pscnv_swapping_option_list *list, struct pscnv_bo *bo)
+pscnv_swapping_list_search_bo_unlocked(struct pscnv_chunk_list *list, struct pscnv_bo *bo)
 {
 	size_t i;
 	
@@ -181,13 +168,12 @@ pscnv_swapping_add_bo_internal(struct pscnv_bo *bo)
 	struct drm_device *dev = bo->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct pscnv_client *cl = bo->client;
-	struct pscnv_swapping_option *opt;
-	
-	opt = kmem_cache_alloc(swapping_option_cache, GFP_KERNEL);
-	opt->bo = bo;
+	unsigned int i;
 	
 	mutex_lock(&dev_priv->clients->lock);
-	pscnv_swapping_option_list_add_unlocked(&cl->swapping_options, opt);
+	for (i = 0; i < bo->n_chunks; i++) {
+		pscnv_chunk_list_add_unlocked(&cl->swapping_options, &bo->chunks[i]);
+	}
 	mutex_unlock(&dev_priv->clients->lock);
 }
 
@@ -207,7 +193,7 @@ pscnv_swapping_add_bo(struct pscnv_bo *bo)
 		return;
 	}
 	
-	if (bo->size < SWAPPING_OPTION_MIN_SIZE) {
+	if (bo->size < PSCNV_SWAPPING_MIN_SIZE) {
 		/* we ignore small bo's at the moment */
 		return;
 	}
@@ -237,8 +223,8 @@ pscnv_swapping_remove_bo_internal(struct pscnv_bo *bo)
 	
 	mutex_lock(&dev_priv->clients->lock);
 	
-	pscnv_swapping_option_list_remove_bo_unlocked(&cl->swapping_options, bo);
-	pscnv_swapping_option_list_remove_bo_unlocked(&cl->already_swapped, bo);
+	pscnv_chunk_list_remove_bo_unlocked(&cl->swapping_options, bo);
+	pscnv_chunk_list_remove_bo_unlocked(&cl->already_swapped, bo);
 	
 	/*if (count == 0) {
 		NV_INFO(dev, "pscnv_swapping_remove_bo: not a single swapping "
@@ -269,27 +255,39 @@ pscnv_swapping_remove_bo(struct pscnv_bo *bo)
 
 #if 0
 static int
-pscnv_swapping_replace(struct pscnv_bo* vram, struct pscnv_bo* sysram)
+pscnv_swapping_replace(struct pscnv_chunk* old, struct pscnv_chunk* new)
 {
-	struct drm_device *dev = vram->dev;
-	struct pscnv_mm_node *primary_node = vram->primary_node;
+	struct pscnv_bo *bo_old = pscnv_chunk_bo(old);
+	struct pscnv_bo *bo_new = pscnv_chunk_bo(new);
+	struct drm_device *dev = bo_old->dev;
+	struct pscnv_mm_node *primary_node = bo_old->primary_node;
 	struct pscnv_mm_node *swapped_node;
 	struct pscnv_vspace *vs;
 	uint64_t start, end;
 	int res;
 	
+	if (pscnv_swapping_debug >= 2) {
+		NV_INFO(dev, "pscnv_swapping_replace:");
+	}
+	
 	if (!primary_node) {
-		NV_INFO(dev, "pscnv_swapping_replace: BO %08x/%d has no "
+		NV_INFO(dev, "pscnv_swapping_replace: BO %08x/%d-%u has no "
 			"primary node attached, nothing to do\n",
-			vram->cookie, vram->serial);
+			old_bo->cookie, old_bo->serial, old->idx);
 		return -EINVAL;
 	}
 	
-	BUG_ON(primary_node->bo != vram);
+	BUG_ON(primary_node->bo != old_bo);
 	vs = primary_node->vspace;
 	
 	start = primary_node->start;
 	end = primary_node->start + primary_node->size;
+	
+	mutex_lock(&vs->lock);
+	res = dev_priv->vm->do_unmap(vs, node->start, node->size);
+	
+	
+	mutex_unlock(&vs->lock);
 	
 	res = pscnv_vspace_unmap_node(primary_node);
 	if (res) {
@@ -310,15 +308,16 @@ pscnv_swapping_replace(struct pscnv_bo* vram, struct pscnv_bo* sysram)
 	
 	return 0;
 }
+#endif
 
 static int
-pscnv_vram_to_host(struct pscnv_bo* vram)
+pscnv_vram_to_host(struct pscnv_chunk* cnk)
 {
-	struct drm_device *dev = vram->dev;
+	struct pscnv_bo *bo = pscnv_chunk_bo(vram);
+	struct drm_device *dev = bo->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct pscnv_bo *sysram;
+	struct pscnv_mm_node vram_node;
 	struct pscnv_client *cl;
-	uint32_t cookie = (0xa1de << 16) | (vram->cookie & 0xffff);
 	int res;
 	
 	if (!dev_priv->dma) {
@@ -330,18 +329,25 @@ pscnv_vram_to_host(struct pscnv_bo* vram)
 		return -EINVAL;
 	}
 	
-	sysram = pscnv_mem_alloc(dev, vram->size,
-			    PSCNV_GEM_SYSRAM_NOSNOOP,
-			    0 /* tile flags */,
-			    cookie,
-			    NULL /*client */);
-	
-	if (!sysram) {
-		NV_INFO(dev, "pscnv_vram_to_host: failed to allocate SYSRAM!\n");
-		return -ENOMEM;
+	if (pscnv_chunk_expect_alloc_type(cnk, PSCNV_CHUNK_VRAM, "pscnv_vram_to_host")) {
+		return -EINVAL;
 	}
 	
-	res = pscnv_dma_bo_to_bo(sysram, vram, 0 /* flags */);
+	vram_node = cnk->vram_node;
+	cnk->vram_node = NULL;
+	cnk->alloc_type = PSCNV_CHUNK_UNALLOCATED;
+	
+	res = pscnv_sysram_alloc_chunk(cnk);
+	if (res) {
+		NV_ERROR("pscnv_vram_to_host: pscnv_sysram_alloc_chunk failed on "
+			"%08x/%d-%u\n", bo->cookie, bo->serial, cnk->idx);
+		
+		cnk->vram_node = vram_node;
+		cnk->alloc_type = PSCNCV_CHUNK_VRAM;
+		return res;
+	}
+	
+	res = pscnv_dma_node_to_chunk(vram_node, cnk);
 	
 	if (res) {
 		NV_INFO(dev, "copy_to_host: failed to DMA- Transfer!\n");
@@ -350,7 +356,9 @@ pscnv_vram_to_host(struct pscnv_bo* vram)
 	
 	//pscnv_swapping_memdump(sysram);
 	
-	res = pscnv_swapping_replace(vram, sysram);
+	res = dev_priv->vm->do_map_chunk(vs, cnk,
+		bo->primary_node->start + cnk->idx * dev_priv->chunk_size);
+	
 	if (res) {
 		NV_INFO(dev, "copy_to_host: failed to replace mapping\n");
 		return res;
@@ -529,7 +537,7 @@ pscnv_swapping_swap_out(void *data, struct pscnv_client *cl)
 {
 	struct drm_device *dev = cl->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct pscnv_swapping_option *opt = data;
+	struct pscnv_chunk *opt = data;
 	
 	if (opt->bo->mmnode) {
 		pscnv_vram_to_host(opt->bo);
@@ -540,7 +548,7 @@ pscnv_swapping_swap_out(void *data, struct pscnv_client *cl)
 	}
 	
 	mutex_lock(&dev_priv->clients->lock);
-	pscnv_swapping_option_list_add_unlocked(&cl->already_swapped, opt);
+	pscnv_chunk_list_add_unlocked(&cl->already_swapped, opt);
 	mutex_unlock(&dev_priv->clients->lock);
 }
 
@@ -549,7 +557,7 @@ pscnv_swapping_swap_in(void *data, struct pscnv_client *cl)
 {
 	//struct drm_device *dev = cl->dev;
 	//struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct pscnv_swapping_option *opt = data;
+	struct pscnv_chunk *opt = data;
 	
 	switch (opt->bo->flags & PSCNV_GEM_MEMTYPE_MASK) {
 	case PSCNV_GEM_VRAM_SMALL:
@@ -564,7 +572,7 @@ pscnv_swapping_swap_in(void *data, struct pscnv_client *cl)
 	
 	/* TODO
 	mutex_lock(&dev_priv->clients->lock);
-	pscnv_swapping_option_list_add_unlocked(&cl->swapping_options, opt);
+	pscnv_chunk_list_add_unlocked(&cl->chunks, opt);
 	mutex_unlock(&dev_priv->clients->lock);*/
 }
 #endif
@@ -582,11 +590,11 @@ pscnv_swapping_reduce_vram_of_client_unlocked(struct pscnv_client *victim, uint6
 	struct drm_device *dev = victim->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	
-	struct pscnv_swapping_option *opt;
+	struct pscnv_chunk *opt;
 	int ops = 0;
 	
 	while (*will_free < req && ops < 1 && 
-		(opt = pscnv_swapping_option_list_take_random_unlocked(&victim->swapping_options))) {
+		(opt = pscnv_chunk_list_take_random_unlocked(&victim->swapping_options))) {
 		
 		NV_INFO(dev, "Swapping: scheduling BO %08x/%d of client %d for swapping\n",
 			opt->bo->cookie, opt->bo->serial, victim->pid);
@@ -621,7 +629,7 @@ pscnv_swapping_choose_victim_unlocked(struct drm_device *dev)
 	list_for_each_entry(cur, &dev_priv->clients->list, clients) {
 		cur_demand = atomic64_read(&cur->vram_demand);
 		if (cur_demand > max &&
-		    !pscnv_swapping_option_list_empty(&cur->swapping_options)) {
+		    !pscnv_chunk_list_empty(&cur->swapping_options)) {
 			victim = cur;
 			max = cur_demand;
 		}
@@ -641,7 +649,7 @@ pscnv_swapping_choose_winner_unlocked(struct drm_device *dev)
 	list_for_each_entry(cur, &dev_priv->clients->list, clients) {
 		cur_demand = atomic64_read(&cur->vram_demand);
 		if (cur_demand < min &&
-		    !pscnv_swapping_option_list_empty(&cur->already_swapped)) {
+		    !pscnv_chunk_list_empty(&cur->already_swapped)) {
 			winner = cur;
 			min = cur_demand;
 		}
@@ -701,7 +709,7 @@ pscnv_swapping_increase_vram(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct pscnv_client *winner;
-	struct pscnv_swapping_option *opt;
+	struct pscnv_chunk *opt;
 	int ops = 0;
 	
 	uint64_t vram_demand; 
@@ -713,7 +721,7 @@ pscnv_swapping_increase_vram(struct drm_device *dev)
 		(winner = pscnv_swapping_choose_winner_unlocked(dev))) {
 		vram_demand = atomic64_read(&dev_priv->vram_demand);
 		
-		opt = pscnv_swapping_option_list_take_random_unlocked(&winner->already_swapped);
+		opt = pscnv_chunk_list_take_random_unlocked(&winner->already_swapped);
 		
 		if (opt->bo->size + will_alloc < dev_priv->vram_limit-vram_demand) {
 			NV_INFO(dev, "Swapping: scheduling BO %08x/%d of client %d for swapIN\n",

@@ -4,12 +4,10 @@
 #include "nouveau_drv.h"
 #include "pscnv_mem.h"
 
-struct pscnv_swapping_option {
-	struct pscnv_bo *bo;
-};
+#define PSCNV_INITIAL_CHUNK_LIST_SIZE 4
 
-struct pscnv_swapping_option_list {
-	struct pscnv_swapping_option **options;
+struct pscnv_chunk_list {
+	struct pscnv_chunk **chunks;
 	size_t size;
 };
 
@@ -18,26 +16,27 @@ int
 pscnv_swapping_init(struct drm_device *dev);
 
 static inline int
-pscnv_swapping_option_list_empty(struct pscnv_swapping_option_list *list)
+pscnv_chunk_list_empty(struct pscnv_chunk_list *list)
 {
 	return list->size == 0;
 }
 
-/* initialize a list of pscnv_swapping_options */
+/* initialize a list of pscnv_chunks */
 static inline void
-pscnv_swapping_option_list_init(struct pscnv_swapping_option_list *list)
+pscnv_chunk_list_init(struct pscnv_chunk_list *list)
 {
 	list->options = NULL;
 	list->size = 0;
+	list->max = 0;
 }
 
-/* free a list of pscnv_swapping_options */
+/* free a list of pscnv_chunks */
 static inline void
-pscnv_swapping_option_list_free(struct pscnv_swapping_option_list *list)
+pscnv_chunk_list_free(struct pscnv_chunk_list *list)
 {
-	WARN_ON(!pscnv_swapping_option_list_empty(list));
+	WARN_ON(!pscnv_chunk_list_empty(list));
 	kfree(list->options);
-	pscnv_swapping_option_list_init(list);
+	pscnv_chunk_list_init(list);
 }
 
 /* tell the swapping system about a bo that meight be swapped out */
