@@ -47,7 +47,11 @@ struct pscnv_page_and_dma {
                                     * moved to SYSRAM */
 
 struct pscnv_chunk {
-	/* position in pscnv_chunk_bo(this)->chunks[] array */
+	/* pointer to bo that this chunk belongs to.
+	 * Normally the BO and its chunks are allocated together */
+	struct pscnv_bo *bo;
+	
+	/* position in bo->chunks[] array */
 	uint32_t idx; 
 	
 	/* one of PSCNV_CHUNK_UNALLOCATED, PSCNV_CHUNK_VRAM, ... */
@@ -114,13 +118,6 @@ struct pscnv_bo {
 	struct pscnv_chunk chunks[0];
 };
 
-/* get the bo that a chunk belongs to */
-static inline struct pscnv_bo*
-pscnv_chunk_bo(struct pscnv_chunk *cnk)
-{
-	return (struct pscnv_bo*) ((char*)(cnk - cnk->idx) - offsetof(struct pscnv_bo, chunks));
-}
-
 #define PSCNV_GEM_NOUSER	0x10
 #define PSCNV_ZEROFILL		0x20
 #define PSCNV_MAP_KERNEL	0x40
@@ -149,6 +146,8 @@ extern int pscnv_bo_map_bar1(struct pscnv_bo* bo);
  * fill the whole bo to val with 32bit write operations
  * You likely want to do a bar flush after this */
 extern void pscnv_bo_memset(struct pscnv_bo* bo, uint32_t val);
+
+extern void pscnv_chunk_memset(struct pscnv_chunk* cnk, uint32_t val);
 
 /* calls pscnv_mem_free() */
 extern void pscnv_bo_ref_free(struct kref *ref);
@@ -187,6 +186,9 @@ pscnv_chunk_expect_alloc_type(struct pscnv_chunk *cnk, uint32_t expected, const 
 	}
 	return 0;
 }
+
+const char *
+pscnv_chunk_alloc_type_str(uint32_t at);
 
 /* object access */
 

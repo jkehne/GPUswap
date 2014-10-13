@@ -50,6 +50,19 @@ pscnv_bo_memset(struct pscnv_bo* bo, uint32_t val)
 }
 
 void
+pscnv_chunk_memset(struct pscnv_chunk* cnk, uint32_t val)
+{
+	uint64_t i = 0;
+	uint64_t size = pscnv_chunk_size(cnk);
+	struct drm_nouveau_private *dev_priv = cnk->bo->dev->dev_private;
+	uint64_t offset = cnk->idx * dev_priv->chunk_size;
+	
+	for (i = 0; i < size; i += 4) {
+		nv_wv32(cnk->bo, i + offset, val);
+	}
+}
+
+void
 pscnv_mem_human_readable(char *buf, uint64_t val)
 {
 	if (val >= (1 << 20)) {
@@ -64,7 +77,7 @@ pscnv_mem_human_readable(char *buf, uint64_t val)
 uint64_t
 pscnv_chunk_size(struct pscnv_chunk *cnk)
 {
-	struct pscnv_bo *bo = pscnv_chunk_bo(cnk);
+	struct pscnv_bo *bo = cnk->bo;
 	struct drm_nouveau_private *dev_priv = bo->dev->dev_private;
 	
 	if (cnk->idx + 1 == bo->n_chunks) { /* this is the last chunk */
@@ -85,7 +98,7 @@ pscnv_chunk_at_offset(struct drm_device *dev, uint64_t offset)
 	return (chunk_size > 0) ? offset/chunk_size : 0;
 }
 
-static const char *
+const char *
 pscnv_chunk_alloc_type_str(uint32_t at)
 {
 	switch (at) {
@@ -112,7 +125,7 @@ pscnv_bo_memtype_str(uint32_t flags)
 void
 pscnv_chunk_warn_wrong_alloc_type(struct pscnv_chunk *cnk, uint32_t expected, const char *fname)
 {
-	struct pscnv_bo *bo = pscnv_chunk_bo(cnk);
+	struct pscnv_bo *bo = cnk->bo;
 	struct drm_device *dev = bo->dev;
 	
 	NV_WARN(dev, "%s: Chunk %08x/%d-%u has alloc_type = %s but expected %s\n",
@@ -236,9 +249,9 @@ pscnv_mem_alloc(struct drm_device *dev,
 	mutex_unlock(&dev_priv->vram_mutex);
 	
 	for (i = 0; i < n_chunks; i++) {
+		res->chunks[i].bo = res;
 		res->chunks[i].idx = i;
 		/* allocation_type already set to UNALLOCATED */
-		WARN_ON_ONCE(pscnv_chunk_bo(&res->chunks[i]) != res);
 	}
 	
 	if (res->client) {
@@ -342,7 +355,7 @@ fail_map:
 static void
 pscnv_chunk_free(struct pscnv_chunk *cnk)
 {
-	struct pscnv_bo *bo = pscnv_chunk_bo(cnk);
+	struct pscnv_bo *bo = cnk->bo;
 	struct drm_device *dev = bo->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	
@@ -469,7 +482,7 @@ pscnv_bo_ref_free(struct kref *ref)
 static uint32_t
 nv_rv32_vram_slowpath(struct pscnv_chunk *cnk, unsigned offset)
 {
-	struct pscnv_bo *bo = pscnv_chunk_bo(cnk);
+	struct pscnv_bo *bo = cnk->bo;
 	struct drm_device *dev = bo->dev;
 	
 	if (!cnk->vram_node) {
@@ -491,7 +504,7 @@ nv_rv32_vram_slowpath(struct pscnv_chunk *cnk, unsigned offset)
 static uint32_t
 nv_rv32_chunk(struct pscnv_chunk *cnk, unsigned offset)
 {
-	struct pscnv_bo *bo = pscnv_chunk_bo(cnk);
+	struct pscnv_bo *bo = cnk->bo;
 	struct drm_device *dev = bo->dev;
 	
 	if (offset >= pscnv_chunk_size(cnk)) {
@@ -552,7 +565,7 @@ nv_rv32(struct pscnv_bo *bo, unsigned offset)
 static void
 nv_wv32_vram_slowpath(struct pscnv_chunk *cnk, unsigned offset, uint32_t val)
 {
-	struct pscnv_bo *bo = pscnv_chunk_bo(cnk);
+	struct pscnv_bo *bo = cnk->bo;
 	struct drm_device *dev = bo->dev;
 	
 	if (!cnk->vram_node) {
@@ -574,7 +587,7 @@ nv_wv32_vram_slowpath(struct pscnv_chunk *cnk, unsigned offset, uint32_t val)
 static void
 nv_wv32_chunk(struct pscnv_chunk *cnk, unsigned offset, uint32_t val)
 {
-	struct pscnv_bo *bo = pscnv_chunk_bo(cnk);
+	struct pscnv_bo *bo = cnk->bo;
 	struct drm_device *dev = bo->dev;
 	
 	if (offset >= pscnv_chunk_size(cnk)) {

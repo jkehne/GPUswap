@@ -4,11 +4,12 @@
 #include "nouveau_drv.h"
 #include "pscnv_mem.h"
 
-#define PSCNV_INITIAL_CHUNK_LIST_SIZE 4
+#define PSCNV_INITIAL_CHUNK_LIST_SIZE 4UL
 
 struct pscnv_chunk_list {
 	struct pscnv_chunk **chunks;
 	size_t size;
+	size_t max;
 };
 
 /* called once on driver load */
@@ -25,7 +26,7 @@ pscnv_chunk_list_empty(struct pscnv_chunk_list *list)
 static inline void
 pscnv_chunk_list_init(struct pscnv_chunk_list *list)
 {
-	list->options = NULL;
+	list->chunks = NULL;
 	list->size = 0;
 	list->max = 0;
 }
@@ -35,7 +36,7 @@ static inline void
 pscnv_chunk_list_free(struct pscnv_chunk_list *list)
 {
 	WARN_ON(!pscnv_chunk_list_empty(list));
-	kfree(list->options);
+	kfree(list->chunks);
 	pscnv_chunk_list_init(list);
 }
 
@@ -52,12 +53,10 @@ pscnv_swapping_remove_bo(struct pscnv_bo *bo);
  *
  * Be aware that this method meight block for a long time!
  *
- * @param me the client that needs the memory
- *
  * @returns: actual bytes of vram that will be free'd. In many cases this will
  *           be more than requested */
 int
-pscnv_swapping_reduce_vram(struct drm_device *dev, struct pscnv_client *me, uint64_t req, uint64_t *will_free);
+pscnv_swapping_reduce_vram(struct drm_device *dev, uint64_t req, uint64_t *will_free);
 
 /*
  * decide weather pscnv_swapping_reduce_vram needs to be run to satisfy request */

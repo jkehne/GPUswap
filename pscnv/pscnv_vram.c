@@ -8,7 +8,7 @@
 int
 pscnv_vram_alloc_chunk(struct pscnv_chunk *cnk, int flags)
 {
-	struct pscnv_bo *bo = pscnv_chunk_bo(cnk);
+	struct pscnv_bo *bo = cnk->bo;
 	struct drm_device *dev = bo->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	
@@ -50,7 +50,7 @@ pscnv_vram_alloc_chunk(struct pscnv_chunk *cnk, int flags)
 void
 pscnv_vram_free_chunk(struct pscnv_chunk *cnk)
 {
-	struct pscnv_bo *bo = pscnv_chunk_bo(cnk);
+	struct pscnv_bo *bo = cnk->bo;
 	struct drm_device *dev = bo->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	
@@ -105,6 +105,7 @@ pscnv_vram_alloc(struct pscnv_bo *bo)
 	}
 	
 	while ((bo->flags & PSCNV_GEM_USER) && pscnv_swapping_required(dev)) {
+		uint64_t req = atomic64_read(&dev_priv->vram_demand) - dev_priv->vram_limit;
 		mutex_unlock(&dev_priv->vram_mutex);
 		
 		if (swap_retries >= 3) {
@@ -113,7 +114,7 @@ pscnv_vram_alloc(struct pscnv_bo *bo)
 			return -EBUSY;
 		}
 		
-		ret = pscnv_swapping_reduce_vram(dev, bo->client, bo->size, &will_free);
+		ret = pscnv_swapping_reduce_vram(dev,req, &will_free);
 		if (ret) {
 			NV_ERROR(dev, "pscnv_vram_alloc: failed to swap\n");
 			return ret;

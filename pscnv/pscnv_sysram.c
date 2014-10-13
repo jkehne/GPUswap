@@ -27,7 +27,7 @@ pscnv_sysram_vm_fault(struct pscnv_bo *bo, struct vm_area_struct *vma, struct vm
 int
 pscnv_sysram_alloc_chunk(struct pscnv_chunk *cnk)
 {
-	struct pscnv_bo *bo = pscnv_chunk_bo(cnk);
+	struct pscnv_bo *bo = cnk->bo;
 	struct drm_device *dev = bo->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	
@@ -83,7 +83,7 @@ pscnv_sysram_alloc_chunk(struct pscnv_chunk *cnk)
 void
 pscnv_sysram_free_chunk(struct pscnv_chunk *cnk)
 {
-	struct pscnv_bo *bo = pscnv_chunk_bo(cnk);
+	struct pscnv_bo *bo = cnk->bo;
 	
 	uint64_t size = pscnv_chunk_size(cnk);
 	int numpages = size >> PAGE_SHIFT;
