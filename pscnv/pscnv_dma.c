@@ -5,8 +5,19 @@
 #include "pscnv_ib_chan.h"
 #include "pscnv_client.h"
 
-static void nvc0_memcpy_m2mf(struct pscnv_ib_chan *chan, const uint64_t dst_addr,
-							 const uint64_t src_addr, const uint32_t size)
+static int
+pscnv_dma_setup_flags(int flags)
+{
+	if (flags & PSCNV_DMA_DEBUG) {
+		flags |= PSCNV_DMA_VERBOSE;
+	}
+	
+	return flags;
+}
+
+static void
+nvc0_memcpy_m2mf(struct pscnv_ib_chan *chan, const uint64_t dst_addr,
+		 const uint64_t src_addr, const uint32_t size, int flags)
 {
 	/* MODE 1 means fire fence */
 	static const uint32_t mode1 = 0x102110; /* QUERY_SHORT|QUERY_YES|SRC_LINEAR|DST_LINEAR */
@@ -19,8 +30,12 @@ static void nvc0_memcpy_m2mf(struct pscnv_ib_chan *chan, const uint64_t dst_addr
 	uint64_t src_pos = src_addr;
 	uint32_t pages_left = page_count;
 	
-	NV_INFO(chan->dev, "DMA: M2MF- copy 0x%x bytes from %llx to %llx\n",
-		size, src_addr, dst_addr);
+	if (flags & PSCNV_DMA_VERBOSE) {
+		char size_str[16];
+		pscnv_mem_human_readable(size_str, size);
+		NV_INFO(chan->dev, "DMA: M2MF- copy %s from %llx to %llx\n",
+			size_str, src_addr, dst_addr);
+	}
 
 	while (pages_left) {
 		int line_count = (pages_left > 2047) ? 2047 : pages_left;
@@ -192,6 +207,8 @@ pscnv_dma_bo_to_bo(struct pscnv_bo *tgt, struct pscnv_bo *src, int flags) {
 	
 	int ret;
 	
+	flags = pscnv_dma_setup_flags(flags);
+	
 	if (!dma) {
 		NV_ERROR(dev, "DMA: not available\n");
 		return -ENOENT;
@@ -241,7 +258,7 @@ pscnv_dma_bo_to_bo(struct pscnv_bo *tgt, struct pscnv_bo *src, int flags) {
 	
 	pscnv_ib_fence_write(dma->ib_chan, GDEV_SUBCH_NV_M2MF);
 	
-	nvc0_memcpy_m2mf(dma->ib_chan, tgt_node->start, src_node->start, size);
+	nvc0_memcpy_m2mf(dma->ib_chan, tgt_node->start, src_node->start, size, flags);
 	
 	ret = pscnv_ib_fence_wait(dma->ib_chan);
 	
@@ -253,8 +270,10 @@ pscnv_dma_bo_to_bo(struct pscnv_bo *tgt, struct pscnv_bo *src, int flags) {
 	getnstimeofday(&end);
 	
 	duration = timespec_to_ns(&end) - start_ns;
-	NV_INFO(dev, "DMA: took %lld.%04lld ms\n", duration / 1000000,
-		(duration % 1000000) / 100);
+	if (flags & PSCNV_DMA_VERBOSE) {
+		NV_INFO(dev, "DMA: took %lld.%04lld ms\n", duration / 1000000,
+			(duration % 1000000) / 100);
+	}
 	
 	if (src->client) {
 		pscnv_dma_track_time(src->client, start_ns, duration);
@@ -269,6 +288,110 @@ fail_map_src:
 	pscnv_vspace_unmap_node(tgt_node);
 	
 fail_map_tgt:
+	mutex_unlock(&dma->lock);
+
+	return ret;
+}
+
+int
+pscnv_dma_chunk_to_chunk(struct pscnv_chunk *from, struct pscnv_chunk *to, int flags)
+{
+	struct drm_device *dev = from->bo->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct pscnv_dma *dma = dev_priv->dma;
+	
+	struct pscnv_mm_node *from_node;
+	struct pscnv_mm_node *to_node;
+	const uint64_t size = pscnv_chunk_size(from);
+	
+	struct timespec start, end;
+	s64 start_ns, duration;
+	
+	int ret;
+	
+	flags |= PSCNV_DMA_VERBOSE;
+	
+	flags = pscnv_dma_setup_flags(flags);
+	
+	if (!dma) {
+		NV_ERROR(dev, "DMA: not available\n");
+		return -ENOENT;
+	}
+	
+	BUG_ON(from->bo->dev != to->bo->dev);
+	
+	mutex_lock(&dma->lock);
+	
+	getnstimeofday(&start);
+	start_ns = timespec_to_ns(&start);
+	
+	if (pscnv_chunk_size(to) < size) {
+		NV_INFO(dev, "DMA: source chunk %08x/%d-%u has size %lld, but "
+			"target chunk %08x/%d-%u only has size %lld\n",
+			from->bo->cookie, from->bo->serial, from->idx,
+			size, to->bo->cookie, to->bo->serial, to->idx,
+			pscnv_chunk_size(to));
+		return -ENOSPC;
+	}
+	
+	ret = pscnv_vspace_map_chunk(dma->vs, to,
+			0x20000000, /* start */
+			1ull << 40, /* end */
+			0, /* back, nonsense? */
+			&to_node);
+	
+	if (ret) {
+		NV_INFO(dev, "DMA: failed to map 'to' chunk\n");
+		goto fail_map_to;
+	}
+	
+	ret = pscnv_vspace_map_chunk(dma->vs, from,
+			0x20000000, /* start */
+			1ull << 40, /* end */
+			0, /* back, nonsense? */
+			&from_node);
+	
+	if (ret) {
+		NV_INFO(dev, "DMA: failed to map 'from' chunk\n");
+		goto fail_map_from;
+	}
+	
+	if (flags & PSCNV_DMA_DEBUG) {
+		dev_priv->chan->pd_dump_chan(dev, NULL /* seq_file */, PSCNV_DMA_CHAN);
+	}
+	
+	pscnv_ib_membar(dma->ib_chan);
+	
+	pscnv_ib_fence_write(dma->ib_chan, GDEV_SUBCH_NV_M2MF);
+	
+	nvc0_memcpy_m2mf(dma->ib_chan, to_node->start, from_node->start, size, flags);
+	
+	ret = pscnv_ib_fence_wait(dma->ib_chan);
+	
+	if (ret) {
+		NV_INFO(dev, "DMA: failed to wait for fence completion\n");
+		goto fail_fence_wait;
+	}
+	
+	getnstimeofday(&end);
+	
+	duration = timespec_to_ns(&end) - start_ns;
+	NV_INFO(dev, "DMA: took %lld.%04lld ms\n", duration / 1000000,
+		(duration % 1000000) / 100);
+	
+	if (from->bo->client) {
+		pscnv_dma_track_time(from->bo->client, start_ns, duration);
+	}
+	
+	/* no return here, always unmap memory */
+
+fail_fence_wait:
+	pscnv_vspace_unmap_node(from_node);
+
+fail_map_from:
+	pscnv_vspace_unmap_node(to_node);
+	
+fail_map_to:
 	mutex_unlock(&dma->lock);
 
 	return ret;
