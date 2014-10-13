@@ -73,7 +73,7 @@ pscnv_client_pause_thread(void *data)
 			}
 			down_interruptible(&dev_priv->clients->need_pause);
 			if (pscnv_pause_debug >= 2) {
-				NV_INFO(dev, "pscnv_client_pause_thread: wakeup");
+				NV_INFO(dev, "pscnv_client_pause_thread: wakeup\n");
 			}
 			if (kthread_should_stop()) {
 				break;
@@ -402,14 +402,3 @@ pscnv_client_run_empty_fifo_work(struct pscnv_client *cl)
 	mutex_unlock(&dev_priv->clients->lock);
 }
 
-/* we caught some process, because it trap'd into the driver. Lets use this
-   oportunity and run_empty_fifo_work */
-void
-pscnv_client_wait_for_empty_fifo(struct pscnv_client *cl)
-{
-	if (!cl) {
-		return;
-	}
-	
-	pscnv_client_run_empty_fifo_work(cl);
-}

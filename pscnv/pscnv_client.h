@@ -106,10 +106,6 @@ pscnv_client_do_on_empty_fifo_unlocked(struct pscnv_client *cl, client_workfunc_
 void
 pscnv_client_run_empty_fifo_work(struct pscnv_client *cl);
 
-/* we caught some process, because it trap'd into the driver. Lets use this
-   oportunity and run_empty_fifo_work */
-void
-pscnv_client_wait_for_empty_fifo(struct pscnv_client *cl);
 
 
 
