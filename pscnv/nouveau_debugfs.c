@@ -285,6 +285,14 @@ pscnv_debugfs_vram_limit_set(void *data, u64 val)
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	
 	dev_priv->vram_limit = val << 10;
+	
+	if (dev_priv->vram_limit == 0) {
+		NV_INFO(dev, "disabled vram_limit\n");
+	} else {
+		char vram_limit_str[16];
+		pscnv_mem_human_readable(vram_limit_str, dev_priv->vram_limit);
+		NV_INFO(dev, "vram_limit set to %s\n", vram_limit_str);
+	}
 	return 0;
 }
 
