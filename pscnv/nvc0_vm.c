@@ -502,9 +502,24 @@ nvc0_vspace_place_map (struct pscnv_vspace *vs, struct pscnv_bo *bo,
 }
 
 static int
+nvc0_vspace_place_map_chunk(struct pscnv_vspace *vs, struct pscnv_chunk *cnk,
+		       uint64_t start, uint64_t end, int back,
+		       struct pscnv_mm_node **res)
+{
+	int flags = 0;
+
+	if ((cnk->bo->flags & PSCNV_GEM_MEMTYPE_MASK) == PSCNV_GEM_VRAM_LARGE)
+		flags = PSCNV_MM_LP;
+	if (back)
+		flags |= PSCNV_MM_FROMBACK;
+
+	return pscnv_mm_alloc(vs->mm, pscnv_chunk_size(cnk), flags, start, end, res);
+}
+
+static int
 nvc0_vspace_do_map_chunk(struct pscnv_vspace *vs, struct pscnv_chunk *cnk, uint64_t offset)
 {
-	struct pscnv_bo *bo = pscnv_chunk_bo(cnk);
+	struct pscnv_bo *bo = cnk->bo;
 	struct drm_device *dev = vs->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	uint32_t pfl0, pfl1;
@@ -513,6 +528,10 @@ nvc0_vspace_do_map_chunk(struct pscnv_vspace *vs, struct pscnv_chunk *cnk, uint6
 	unsigned long flags;
 	int s;
 	uint32_t psh, psz;
+	
+	unsigned int pde = NVC0_PDE(offset);
+	unsigned int pte = (offset & NVC0_VM_BLOCK_MASK) >> PAGE_SHIFT;
+	struct nvc0_pgt *pt = nvc0_vspace_pgt(vs, pde);
 
 	pfl0 = 1;
 	if (vs->vid >= 0 && (bo->flags & PSCNV_GEM_NOUSER))
@@ -529,9 +548,6 @@ nvc0_vspace_do_map_chunk(struct pscnv_vspace *vs, struct pscnv_chunk *cnk, uint6
 	switch (cnk->alloc_type) {
 	case PSCNV_CHUNK_SYSRAM:
 	case PSCNV_CHUNK_SWAPPED:
-		unsigned int pde = NVC0_PDE(offset);
-		unsigned int pte = (offset & NVC0_VM_BLOCK_MASK) >> PAGE_SHIFT;
-		struct nvc0_pgt *pt = nvc0_vspace_pgt(vs, pde);
 		
 		if ((bo->flags & PSCNV_GEM_MEMTYPE_MASK) != PSCNV_GEM_SYSRAM_SNOOP) {
 			pfl1 |= 0x2; /* NO SNOOP */
@@ -776,6 +792,7 @@ nvc0_vm_init(struct drm_device *dev) {
 	vme->base.do_vspace_new = nvc0_vspace_new;
 	vme->base.do_vspace_free = nvc0_vspace_free;
 	vme->base.place_map = nvc0_vspace_place_map;
+	vme->base.place_map_chunk = nvc0_vspace_place_map_chunk;
 	vme->base.do_map = nvc0_vspace_do_map;
 	vme->base.do_map_chunk = nvc0_vspace_do_map_chunk;
 	vme->base.do_unmap = nvc0_vspace_do_unmap;

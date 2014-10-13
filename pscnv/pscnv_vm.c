@@ -195,6 +195,54 @@ pscnv_vspace_map(struct pscnv_vspace *vs, struct pscnv_bo *bo,
 }
 
 int
+pscnv_vspace_map_chunk(struct pscnv_vspace *vs, struct pscnv_chunk *cnk,
+		uint64_t start, uint64_t end, int back,
+		struct pscnv_mm_node **res)
+{
+	struct pscnv_mm_node *node;
+	struct pscnv_bo *bo = cnk->bo;
+	int ret;
+	struct drm_nouveau_private *dev_priv = vs->dev->dev_private;
+	
+	if (vs->vid >= 0) {
+		pscnv_bo_ref(bo);
+	}
+	
+	mutex_lock(&vs->lock);
+	ret = dev_priv->vm->place_map_chunk(vs, cnk, start, end, back, &node);
+	if (ret) {
+		mutex_unlock(&vs->lock);
+		NV_INFO(vs->dev, "VM: vspace %d: Mapping Chunk %08x/%d-%u:"
+			" place_map failed\n", vs->vid, bo->cookie, bo->serial,
+			cnk->idx);
+		if (vs->vid >= 0) {
+			pscnv_bo_unref(bo);
+		}
+		return ret;
+	}
+	node->bo = bo;
+	node->vspace = vs;
+	if (pscnv_vm_debug >= 1) {
+		NV_INFO(vs->dev, "VM: vspace %d: Mapping Chunk %08x/%d-%u at "
+				 "%llx-%llx.\n", vs->vid, bo->cookie, bo->serial,
+				cnk->idx, node->start, node->start + node->size);
+	}
+	
+	ret = dev_priv->vm->do_map_chunk(vs, cnk, node->start);
+	if (ret) {
+		NV_ERROR(vs->dev, "VM: vspace %d: Mapping Chunk %08x/%d-%u at "
+				 "%llx-%llx. FAILED \n", vs->vid, bo->cookie,
+				bo->serial, cnk->idx, node->start,
+				node->start + node->size);
+		pscnv_vspace_unmap_node_unlocked(node); // includes unref(bo)
+	}
+	
+	*res = node;
+	mutex_unlock(&vs->lock);
+	return ret;
+}
+
+int
 pscnv_vspace_unmap_node(struct pscnv_mm_node *node) {
 	struct pscnv_vspace *vs = node->vspace;
 	int ret;

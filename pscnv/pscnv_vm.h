@@ -47,6 +47,7 @@ struct pscnv_vm_engine {
 	int (*do_vspace_new) (struct pscnv_vspace *vs);
 	void (*do_vspace_free) (struct pscnv_vspace *vs);
 	int (*place_map) (struct pscnv_vspace *, struct pscnv_bo *, uint64_t start, uint64_t end, int back, struct pscnv_mm_node **res);
+	int (*place_map_chunk) (struct pscnv_vspace *, struct pscnv_chunk *, uint64_t start, uint64_t end, int back, struct pscnv_mm_node **res);
 	int (*do_map) (struct pscnv_vspace *vs, struct pscnv_bo *bo, uint64_t offset);
 	int (*do_map_chunk) (struct pscnv_vspace *vs, struct pscnv_chunk *cnk, uint64_t offset);
 	int (*do_unmap) (struct pscnv_vspace *vs, uint64_t offset, uint64_t length);
@@ -63,6 +64,7 @@ struct pscnv_vm_engine {
 
 extern struct pscnv_vspace *pscnv_vspace_new(struct drm_device *, uint64_t size, uint32_t flags, int fake);
 extern int pscnv_vspace_map(struct pscnv_vspace *, struct pscnv_bo *, uint64_t start, uint64_t end, int back, struct pscnv_mm_node **res);
+extern int pscnv_vspace_map_chunk(struct pscnv_vspace *, struct pscnv_chunk *, uint64_t start, uint64_t end, int back, struct pscnv_mm_node **res);
 extern int pscnv_vspace_unmap(struct pscnv_vspace *, uint64_t start);
 extern int pscnv_vspace_unmap_node(struct pscnv_mm_node *node);
 
