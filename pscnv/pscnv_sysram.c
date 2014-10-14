@@ -89,7 +89,7 @@ pscnv_sysram_free_chunk(struct pscnv_chunk *cnk)
 	int numpages = size >> PAGE_SHIFT;
 	int i;
 	
-	if (pscnv_chunk_expect_alloc_type(cnk, PSCNV_CHUNK_VRAM,
+	if (pscnv_chunk_expect_alloc_type(cnk, PSCNV_CHUNK_SYSRAM,
 						"pscnv_sysram_free_chunk")) {
 		return;
 	}
