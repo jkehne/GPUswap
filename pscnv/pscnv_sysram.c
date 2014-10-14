@@ -89,10 +89,8 @@ pscnv_sysram_free_chunk(struct pscnv_chunk *cnk)
 	int numpages = size >> PAGE_SHIFT;
 	int i;
 	
-	if (cnk->alloc_type != PSCNV_CHUNK_SYSRAM && cnk->alloc_type != PSCNV_CHUNK_SWAPPED) {
-		pscnv_chunk_warn_wrong_alloc_type(cnk, PSCNV_CHUNK_SYSRAM,
-						"pscnv_sysram_free_chunk");
-		// we also expect PSCNV_CHUNK_SWAPPED, but lazy coding...
+	if (pscnv_chunk_expect_alloc_type(cnk, PSCNV_CHUNK_VRAM,
+						"pscnv_sysram_free_chunk")) {
 		return;
 	}
 	

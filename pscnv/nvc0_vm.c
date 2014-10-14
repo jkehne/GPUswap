@@ -547,7 +547,6 @@ nvc0_vspace_do_map_chunk(struct pscnv_vspace *vs, struct pscnv_chunk *cnk, uint6
 
 	switch (cnk->alloc_type) {
 	case PSCNV_CHUNK_SYSRAM:
-	case PSCNV_CHUNK_SWAPPED:
 		
 		if ((bo->flags & PSCNV_GEM_MEMTYPE_MASK) != PSCNV_GEM_SYSRAM_SNOOP) {
 			pfl1 |= 0x2; /* NO SNOOP */

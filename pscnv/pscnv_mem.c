@@ -105,7 +105,6 @@ pscnv_chunk_alloc_type_str(uint32_t at)
 		case PSCNV_CHUNK_UNALLOCATED:	return "UNALLOCATED";
 		case PSCNV_CHUNK_VRAM: 		return "VRAM";
 		case PSCNV_CHUNK_SYSRAM:	return "SYSRAM";
-		case PSCNV_CHUNK_SWAPPED:	return "SWAPPED";
 		default:			return "(UNKNOWN)";
 	}
 }
@@ -377,7 +376,6 @@ pscnv_chunk_free(struct pscnv_chunk *cnk)
 			mutex_unlock(&dev_priv->vram_mutex);
 			break;
 		case PSCNV_CHUNK_SYSRAM:
-		case PSCNV_CHUNK_SWAPPED:
 			pscnv_sysram_free_chunk(cnk);
 	}
 }
@@ -524,7 +522,6 @@ nv_rv32_chunk(struct pscnv_chunk *cnk, unsigned offset)
 		case PSCNV_CHUNK_VRAM:
 			return nv_rv32_vram_slowpath(cnk, offset);
 		case PSCNV_CHUNK_SYSRAM:
-		case PSCNV_CHUNK_SWAPPED:
 			return nv_rv32_sysram(cnk, offset);
 	}
 	
@@ -608,7 +605,6 @@ nv_wv32_chunk(struct pscnv_chunk *cnk, unsigned offset, uint32_t val)
 			nv_wv32_vram_slowpath(cnk, offset, val);
 			return;
 		case PSCNV_CHUNK_SYSRAM:
-		case PSCNV_CHUNK_SWAPPED:
 			nv_wv32_sysram(cnk, offset, val);
 			return;
 	}

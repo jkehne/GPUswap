@@ -43,8 +43,26 @@ struct pscnv_page_and_dma {
 #define PSCNV_CHUNK_VRAM         1 /* a regular chunk in VRAM */
 #define PSCNV_CHUNK_SYSRAM       2 /* a chunk that is allocated in SYSRAM, as
                                     * userspace explicitly asked for */
-#define PSCNV_CHUNK_SWAPPED      3 /* this would be a VRAM chunk, but has been
-                                    * moved to SYSRAM */
+
+/** ALLCATION RULES:
+ *
+ * The information where a chunk is allocated of what allocation type and
+ * weather it is swapped or not is scattered around 3 different values:
+ * - flags in pscnv_bo
+ * - alloc_type in pscnv_chunk
+ * - swapping_option and already_swapped lists in pscnv_client
+ *
+ * following rules apply:
+ * - the memtype in flags is set by userspace and indicates what it wants to
+ *   have. It is never changed
+ * - alloc_type says where the memory is actually allocated.
+ * - SYSRAM is NOSNOOP unless (flags & MEMTYPE_MASK) == SYSRAM_SNOOP
+ * - VRAM is allocated in LPT only if (flags & MEMTYPE_MASK) == VRAM_LARGE
+ *
+ * Swapped Memory can be detected by one of the following:
+ * - flags indicates VRAM but alloc_type is SYSRAM
+ * - the chunk is placed in the already_swapped list of its client */
+
 
 struct pscnv_chunk {
 	/* pointer to bo that this chunk belongs to.
@@ -61,8 +79,7 @@ struct pscnv_chunk {
 		/* PSCNV_CHUNK_VRAM only: first node of phyisical allocation
 		 * of this chunk */
 		struct pscnv_mm_node *vram_node;
-		/* PSCNV_CHUNK_SYSRAM and PSCNV_CHUNK_SWAPPED:
-		 * SYSRAM pages and corresponding DMA addresses */
+		/* PSCNV_CHUNK_SYSRAM: pages and corresponding DMA addresses */
 		struct pscnv_page_and_dma *pages;
 	};
 };
