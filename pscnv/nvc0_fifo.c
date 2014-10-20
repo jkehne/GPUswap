@@ -113,6 +113,10 @@ nvc0_fifo_chan_init_ib (struct pscnv_chan *ch, uint32_t pb_handle, uint32_t flag
 	}
 	
 	fifo_ctx->ib = ib;
+	if (pscnv_mem_debug >= 2) {
+		NV_INFO(dev, "chan_init_ib: ref BO%08x/%d\n", ib->cookie, ib->serial);
+	}
+	
 	pscnv_bo_ref(ib);
 
 	spin_lock_irqsave(&dev_priv->context_switch_lock, irqflags);
@@ -225,8 +229,16 @@ static void
 nvc0_fifo_chan_free(struct pscnv_engine *eng, struct pscnv_chan *ch)
 {
 	struct nvc0_fifo_ctx *fifo_ctx = ch->engdata[PSCNV_ENGINE_FIFO];
+	struct drm_device *dev = fifo_ctx->ib->dev;
 
+	
+	pscnv_vspace_unmap_node(fifo_ctx->ib->primary_node);
+	if (pscnv_mem_debug >= 2) {
+		NV_INFO(dev, "chan_free: unref BO%08x/%d\n",
+			fifo_ctx->ib->cookie, fifo_ctx->ib->serial);
+	}
 	pscnv_bo_unref(fifo_ctx->ib);
+	
 	kfree(fifo_ctx);
 	ch->engdata[PSCNV_ENGINE_FIFO] = NULL;
 }

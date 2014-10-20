@@ -213,6 +213,9 @@ pscnv_get_vspace(struct drm_device *dev, struct drm_file *file_priv, int vid)
 
 	if (vid < 128 && vid >= 0 && dev_priv->vm->vspaces[vid] && dev_priv->vm->vspaces[vid]->filp == file_priv) {
 		struct pscnv_vspace *res = dev_priv->vm->vspaces[vid];
+		if (pscnv_vm_debug >= 3) {
+			NV_INFO(dev, "get_vspace: ref vspace %d\n", res->vid);
+		}
 		pscnv_vspace_ref(res);
 		spin_unlock_irqrestore(&dev_priv->vm->vs_lock, flags);
 		return res;
@@ -255,6 +258,10 @@ int pscnv_ioctl_vspace_free(struct drm_device *dev, void *data,
 
 	vs->filp = 0;
 	pscnv_vspace_unref(vs);
+	if (pscnv_vm_debug >= 2) {
+		NV_INFO(dev, "ioctl_vspace_free: unref vspace %d (refcnt=%d)\n",
+			vs->vid, atomic_read(&vs->ref.refcount));
+	}
 	pscnv_vspace_unref(vs);
 
 	return 0;
@@ -313,6 +320,7 @@ int pscnv_ioctl_vspace_unmap(struct drm_device *dev, void *data,
 	bo = pscnv_vspace_vm_addr_lookup(vs, req->offset);
 	if (bo && (bo->flags & PSCNV_GEM_IB)) {
 		/* we do not allow userspace to unmap the IB */
+		pscnv_vspace_unref(vs);
 		return 0;
 	}
 

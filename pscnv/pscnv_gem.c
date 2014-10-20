@@ -61,6 +61,9 @@ void pscnv_gem_free_object (struct drm_gem_object *obj) {
 	kfree(obj); */
 	
 	vo->gem = NULL;
+	if (pscnv_mem_debug >= 2) {
+		NV_INFO(dev, "gem_free_object: unref BO%08x/%d\n", vo->cookie, vo->serial);
+	}
 	pscnv_bo_unref(vo);
 }
 
@@ -102,6 +105,9 @@ struct drm_gem_object *pscnv_gem_wrap(struct drm_device *dev, struct pscnv_bo *v
 #ifndef PSCNV_KAPI_DRM_GEM_OBJECT_HANDLE_COUNT
 	atomic_inc(&obj->handle_count);
 #endif
+	if (pscnv_mem_debug >= 2) {
+		NV_INFO(dev, "pscnv_gem_wrap: ref BO%08x/%d\n", vo->cookie, vo->serial);
+	}
 	pscnv_bo_ref(vo);
 	
 	obj->driver_private = vo;
@@ -129,6 +135,9 @@ struct drm_gem_object *pscnv_gem_new(struct drm_device *dev, uint64_t size, uint
 	
 	/* gem_wrap increases ref-count. We don't need the buffer object, so
 	   the user may free it (by closing the gem) anytime */
+	if (pscnv_mem_debug >= 2) {
+		NV_INFO(dev, "pscnv_gem_new: unref BO%08x/%d", vo->cookie, vo->serial);
+	}
 	pscnv_bo_unref(vo);
 
 	return obj;

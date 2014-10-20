@@ -739,6 +739,9 @@ static void nvc0_chan_free(struct pscnv_chan *ch)
 	free_page((unsigned long)nvc0_ch(ch)->ib_shadow);
 	
 	 /* should usually free it, nobody else should be using this bo */
+	if (pscnv_mem_debug >= 2) {
+		NV_INFO(dev, "chan_free: unref BO%08x/%d\n", ch->bo->cookie, ch->bo->serial);
+	}
 	pscnv_bo_unref(ch->bo);
 }
 

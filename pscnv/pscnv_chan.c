@@ -335,6 +335,10 @@ pscnv_chan_new (struct drm_device *dev, struct pscnv_vspace *vs, int fake) {
 	res->vspace = vs;
 	res->handle = 0xffffffff;
 	if (vs) {
+		if (pscnv_vm_debug >= 2) {
+			NV_INFO(dev, "chan_new: ref vspace %d (refcnt=%d)\n",
+				vs->vid, atomic_read(&vs->ref.refcount));
+		}
 		pscnv_vspace_ref(vs);
 	}
 	spin_lock_init(&res->instlock);
@@ -349,6 +353,9 @@ pscnv_chan_new (struct drm_device *dev, struct pscnv_vspace *vs, int fake) {
 	
 	if (pscnv_chan_bind(res, fake)) {
 		if (vs) {
+			if (pscnv_vm_debug >= 2) {
+				NV_INFO(dev, "chan_new: unref vspace %d\n", vs->vid);
+			}
 			pscnv_vspace_unref(vs);
 		}
 		kfree(res);
@@ -364,6 +371,9 @@ pscnv_chan_new (struct drm_device *dev, struct pscnv_vspace *vs, int fake) {
 	NV_INFO(vs->dev, "CHAN: Allocating channel %s in vspace %d\n", res->name, vs->vid);
 	if (dev_priv->chan->do_chan_new(res)) {
 		if (vs) {
+			if (pscnv_vm_debug >= 2) {
+				NV_INFO(dev, "chan_new: unref vspace %d\n", vs->vid);
+			}
 			pscnv_vspace_unref(vs);
 		}
 		pscnv_chan_unbind(res);
@@ -406,8 +416,13 @@ void pscnv_chan_ref_free(struct kref *ref) {
 	}
 	dev_priv->chan->do_chan_free(ch);
 	pscnv_chan_unbind(ch);
-	if (ch->vspace)
+	if (ch->vspace) {
+		if (pscnv_vm_debug >= 2) {
+			NV_INFO(dev, "chan_ref_free: unref vspace %d\n (refcnt=%d)",
+				ch->vspace->vid, atomic_read(&ch->vspace->ref.refcount));
+		}
 		pscnv_vspace_unref(ch->vspace);
+	}
 	kfree(ch);
 }
 
