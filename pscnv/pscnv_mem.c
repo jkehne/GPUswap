@@ -109,7 +109,7 @@ pscnv_chunk_alloc_type_str(uint32_t at)
 	}
 }
 
-static const char *
+const char *
 pscnv_bo_memtype_str(uint32_t flags)
 {
 	switch (flags & PSCNV_GEM_MEMTYPE_MASK) {
@@ -351,7 +351,7 @@ fail_map:
 	return NULL;
 }
 
-static void
+void
 pscnv_chunk_free(struct pscnv_chunk *cnk)
 {
 	struct pscnv_bo *bo = cnk->bo;
@@ -410,6 +410,22 @@ pscnv_mem_free(struct pscnv_bo *bo)
 		pscnv_vspace_unmap_node(bo->map1);
 	if (dev_priv->vm_ok && bo->map3)
 		pscnv_vspace_unmap_node(bo->map3);
+	
+	if (bo->primary_node && bo->primary_node->type != PSCNV_MM_TYPE_FREE) {
+		struct pscnv_mm_node *node = bo->primary_node;
+		if (node->vspace) {
+			NV_ERROR(dev, "MEM: BO %08x/%d is still mapped at "
+					"%08llx..%08llx in vspace %d. Unmapping "
+					"now\n",
+					bo->cookie, bo->serial, node->start,
+					node->start + node->size,
+					node->vspace->vid);
+			pscnv_vspace_unmap_node(node);
+		} else {
+			NV_ERROR(dev, "MEM: BO %08x/%d has a primary node, but "
+					" no vspace??\n", bo->cookie, bo->serial);
+		}
+	}
 	
 	
 	/*if (bo->backing_store) {

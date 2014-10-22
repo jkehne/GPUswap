@@ -644,6 +644,7 @@ pscnv_ib_chan_new(struct pscnv_vspace *vs, int fake)
 	}
 
 	ibch = pscnv_ib_chan_init(ch);
+	ibch->ib_vm_base = ib_vm_base;
 
 	if (!ibch) {
 		NV_INFO(dev, "pscnv_ib_chan_new: pscnv_ib_chan_init failed for "
@@ -669,8 +670,11 @@ void
 pscnv_ib_chan_kill(struct pscnv_ib_chan *ib_chan)
 {
 	if (ib_chan->fence) {
+		pscnv_vspace_unmap(ib_chan->chan->vspace, ib_chan->fence_addr);
 		pscnv_mem_free(ib_chan->fence);
 	}
+	
+	pscnv_vspace_unmap(ib_chan->chan->vspace, ib_chan->pb_vm_base);
 	
 	pscnv_mem_free(ib_chan->pb);
 	kfree(ib_chan);
@@ -687,7 +691,7 @@ pscnv_ib_chan_free(struct pscnv_ib_chan *ib_chan)
 	struct pscnv_chan *ch = ib_chan->chan;
 
 	pscnv_ib_chan_kill(ib_chan);
-	// Does  dev_priv->fifo->chan_init_ib from _new() need undo-ing? It is not undo-ed over there!
+	pscnv_vspace_unmap(ib_chan->chan->vspace, ib_chan->ib_vm_base);
 	pscnv_mem_free(ib);
 	pscnv_chan_unref(ch);
 }

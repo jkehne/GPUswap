@@ -30,6 +30,7 @@ struct pscnv_ib_chan {
 
 	/* FIFO indirect buffer setup. */
 	struct pscnv_bo *ib;
+	uint64_t ib_vm_base;
 	uint32_t ib_put;
 	uint32_t ib_get;
 

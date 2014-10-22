@@ -112,10 +112,7 @@ struct pscnv_bo {
 	/* vm memory node (one continuos area) that will be replaced with
 	 * system RAM. Currently the BO is simply removed from other vspaces */
 	struct pscnv_mm_node *primary_node;
-	/* bo that holds the content of this bo, if it gets swapped out. In some
-	 * cases, this can be the bo itself, if it is allocated as SYSRAM because
-	 * of memory pressure */
-	struct pscnv_bo *backing_store;
+
 	/* client who allocated this bo, if it was allocated by a user space process */
 	struct pscnv_client *client;
 	/* if this pointer is set, use this memory area to access the VRAM contents
@@ -179,6 +176,9 @@ static inline void pscnv_bo_unref(struct pscnv_bo *bo) {
 
 extern int pscnv_mem_free(struct pscnv_bo *);
 
+void
+pscnv_chunk_free(struct pscnv_chunk *cnk);
+
 extern int nv50_vram_init(struct drm_device *);
 extern int nvc0_vram_init(struct drm_device *);
 
@@ -206,6 +206,9 @@ pscnv_chunk_expect_alloc_type(struct pscnv_chunk *cnk, uint32_t expected, const 
 
 const char *
 pscnv_chunk_alloc_type_str(uint32_t at);
+
+const char *
+pscnv_bo_memtype_str(uint32_t flags);
 
 /* object access */
 
