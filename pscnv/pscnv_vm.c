@@ -214,10 +214,19 @@ pscnv_vspace_map_chunk(struct pscnv_vspace *vs, struct pscnv_chunk *cnk,
 		uint64_t start, uint64_t end, int back,
 		struct pscnv_mm_node **res)
 {
+	struct drm_device *dev = vs->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	
 	struct pscnv_mm_node *node;
 	struct pscnv_bo *bo = cnk->bo;
 	int ret;
-	struct drm_nouveau_private *dev_priv = vs->dev->dev_private;
+	
+	if (vs->vid >= 0) {
+		if (pscnv_mem_debug >= 2) {
+			NV_INFO(dev, "vspace_map_chunk: ref BO%08x/%d\n", bo->cookie, bo->serial);
+		}
+		pscnv_bo_ref(bo);
+	}
 	
 	mutex_lock(&vs->lock);
 	ret = dev_priv->vm->place_map_chunk(vs, cnk, start, end, back, &node);
@@ -226,6 +235,12 @@ pscnv_vspace_map_chunk(struct pscnv_vspace *vs, struct pscnv_chunk *cnk,
 		NV_INFO(vs->dev, "VM: vspace %d: Mapping Chunk %08x/%d-%u:"
 			" place_map failed\n", vs->vid, bo->cookie, bo->serial,
 			cnk->idx);
+		if (vs->vid >= 0) {
+			if (pscnv_mem_debug >= 2) {
+				NV_INFO(dev, "vspace_map_chunk: unref BO%08x/%d\n", bo->cookie, bo->serial);
+			}
+			pscnv_bo_unref(bo);
+		}
 		return ret;
 	}
 	node->bo = bo;

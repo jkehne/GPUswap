@@ -12,6 +12,34 @@ struct pscnv_chunk_list {
 	size_t max;
 };
 
+/* a swaptask collects all chunks that the source client selected for swapping
+ * within the target client. This datastructure is especially useful to perform
+ * many chunk copies within a single DMA transfer. */
+struct pscnv_swaptask {
+	/* list of swaptasks with the same src but different tgt */
+	struct list_head list;
+	
+	/* shortcut */
+	struct drm_device *dev;
+	
+	/* aids debugging */
+	int serial;
+	
+	/* list of pointers to chunks that are selected for swapping */
+	struct pscnv_chunk_list selected;
+	
+	/* client that created this swaptask */
+	struct pscnv_client *src;
+	
+	/* client that the chunks in this task belong to. This client will be
+	 * paused */
+	struct pscnv_client *tgt;
+	
+	/* completion that will be fired when all work in this swaptask has been
+	 * completed */
+	struct completion completion;
+};
+
 /* called once on driver load */
 int
 pscnv_swapping_init(struct drm_device *dev);
@@ -35,7 +63,6 @@ pscnv_chunk_list_init(struct pscnv_chunk_list *list)
 static inline void
 pscnv_chunk_list_free(struct pscnv_chunk_list *list)
 {
-	WARN_ON(!pscnv_chunk_list_empty(list));
 	kfree(list->chunks);
 	pscnv_chunk_list_init(list);
 }

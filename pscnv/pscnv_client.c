@@ -205,7 +205,7 @@ pscnv_client_search_pid(struct drm_device *dev, pid_t pid)
 }
 
 static struct pscnv_client*
-pscnv_client_new_unlocked(struct drm_device *dev, pid_t pid)
+pscnv_client_new_unlocked(struct drm_device *dev, pid_t pid, const char *comm)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct pscnv_client *new;
@@ -234,27 +234,13 @@ pscnv_client_new_unlocked(struct drm_device *dev, pid_t pid)
 	INIT_LIST_HEAD(&new->time_trackings);
 	pscnv_chunk_list_init(&new->swapping_options);
 	pscnv_chunk_list_init(&new->already_swapped);
+	strncpy(new->comm, comm, TASK_COMM_LEN-1);
 	
 	list_add_tail(&new->clients, &dev_priv->clients->list);
 	
 	BUG_ON(!pscnv_client_search_pid_unlocked(dev, pid));
 	
 	return new;
-}
-
-/* create a new client and add it to the clients list */
-struct pscnv_client*
-pscnv_client_new(struct drm_device *dev, pid_t pid)
-{
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct pscnv_client *new;
-	
-	mutex_lock(&dev_priv->clients->lock);
-	new = pscnv_client_new_unlocked(dev, pid);
-	mutex_unlock(&dev_priv->clients->lock);
-	
-	return new;
-	
 }
 
 static void
@@ -276,7 +262,9 @@ pscnv_client_free_unlocked(struct pscnv_client *cl)
 		kfree(tt);
 	}
 	
+	WARN_ON(!pscnv_chunk_list_empty(&cl->swapping_options));
 	pscnv_chunk_list_free(&cl->swapping_options);
+	WARN_ON(!pscnv_chunk_list_empty(&cl->already_swapped));
 	pscnv_chunk_list_free(&cl->already_swapped);
 	
 	kfree(cl);
@@ -291,6 +279,8 @@ pscnv_client_ref_free(struct kref *ref)
 	struct drm_device *dev = cl->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	int i;
+
+	NV_INFO(dev, "closing client %s:%d\n", cl->comm, cl->pid);
 	
 	mutex_lock(&dev_priv->clients->lock);
 	pscnv_client_free_unlocked(cl);
@@ -311,6 +301,12 @@ pscnv_client_open(struct drm_device *dev, struct drm_file *file_priv)
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct pscnv_client *cl;
 	const pid_t pid = file_priv->pid;
+	struct task_struct *task = pid_task(find_vpid(pid), PIDTYPE_PID);
+	
+	if (!task) {
+		NV_ERROR(dev, "pscnv_client_new: no process for pid %d\n", pid);
+		return 0;
+	}
 	
 	mutex_lock(&dev_priv->clients->lock);
 	
@@ -318,7 +314,8 @@ pscnv_client_open(struct drm_device *dev, struct drm_file *file_priv)
 	if (cl) {
 		pscnv_client_ref(cl);
 	} else {
-		cl = pscnv_client_new_unlocked(dev, pid);
+		NV_INFO(dev, "new client %s:%d\n", task->comm, pid);
+		cl = pscnv_client_new_unlocked(dev, pid, task->comm);
 	}
 	
 	mutex_unlock(&dev_priv->clients->lock);

@@ -83,18 +83,27 @@ pscnv_vram_alloc(struct pscnv_bo *bo)
 {
 	struct drm_device *dev = bo->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	int flags, ret;
+	int flags = 0;
+	int ret = 0;
 	uint64_t will_free;
 	int swap_retries = 0;
 	int i = 0;
 	
 	/*if (bo->tile_flags & 0xffffff00)
 		return -EINVAL;*/
-	flags = 0;
-
-	if ((bo->flags & PSCNV_GEM_MEMTYPE_MASK) == PSCNV_GEM_VRAM_LARGE) {
+	
+	switch (bo->flags & PSCNV_GEM_MEMTYPE_MASK) {
+	case PSCNV_GEM_VRAM_SMALL:
+		break;
+	case PSCNV_GEM_VRAM_LARGE:
 		flags |= PSCNV_MM_LP;
+		break;
+	default:
+		NV_ERROR(dev, "pscnv_vram_alloc: BO %08x/%d has memtype %s\n",
+			bo->cookie, bo->serial, pscnv_bo_memtype_str(bo->flags));
+			return -EINVAL;
 	}
+
 	if (!(bo->flags & PSCNV_GEM_CONTIG))
 		flags |= PSCNV_MM_FRAGOK;
 	
@@ -109,52 +118,34 @@ pscnv_vram_alloc(struct pscnv_bo *bo)
 		mutex_unlock(&dev_priv->vram_mutex);
 		
 		if (swap_retries >= 3) {
-			NV_ERROR(dev, "nvc0_vram_alloc: can not get enough vram "
+			NV_ERROR(dev, "pcsvnv_vram_alloc: can not get enough vram "
 				      " after %d retries\n", swap_retries);
 			return -EBUSY;
 		}
 		
 		ret = pscnv_swapping_reduce_vram(dev,req, &will_free);
 		if (ret) {
-			NV_ERROR(dev, "pscnv_vram_alloc: failed to swap\n");
-			return ret;
+			NV_ERROR(dev, "pscnv_vram_alloc: failed to swap. ret=%d\n", ret);
+			/* complain but try again */
 		}
 		mutex_lock(&dev_priv->vram_mutex);
 		/* some one else meight be faster in this lock and steel the
 		   memory right in front of us */
-	}
-	
-	switch (bo->flags & PSCNV_GEM_MEMTYPE_MASK) {
-	case PSCNV_GEM_SYSRAM_SNOOP:
-	case PSCNV_GEM_SYSRAM_NOSNOOP:
-		// bo itself has been selected as victim
-		
-		mutex_unlock(&dev_priv->vram_mutex);
-		
-		NV_INFO(dev, "pscnv_vram_alloc: memory pressure! allocating BO "
-			"%08x/%d as SYSRAM, because of memory pressure",
-			bo->cookie, bo->serial);
-		NV_ERROR(dev, "Fallback to SYSRAM currently unsupported!");
-		return -EINVAL;
-	
-		ret = pscnv_sysram_alloc(bo);
-		if (ret) {
-			return ret;
-		}
-		atomic64_add(bo->size, &dev_priv->vram_swapped);
-		if (bo->client) {
-			atomic64_add(bo->size, &bo->client->vram_swapped);
-		}
-				
-		return 0;
+		swap_retries++;
 	}
 	
 	for (i = 0; i < (int)bo->n_chunks; i++) {
+		if (bo->chunks[i].alloc_type != PSCNV_CHUNK_UNALLOCATED) {
+			/* it is perfectly legal that the alloc_type is
+			 * not CHUNK_UNALLOCATED, as the swapping code called
+			 * above may allocate this memory as SYSRAM */
+			continue;
+		}
+		
 		ret = pscnv_vram_alloc_chunk(&bo->chunks[i], flags);
 		if (ret) {
 			for (i--; i >= 0; i--) {
-				pscnv_vram_free_chunk(&bo->chunks[i]);
-				i--;
+				pscnv_chunk_free(&bo->chunks[i]);
 			}
 			break;
 		}

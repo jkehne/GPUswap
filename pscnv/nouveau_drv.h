@@ -580,6 +580,8 @@ struct drm_nouveau_private {
 
 	struct pscnv_dma *dma;
 	struct pscnv_clients *clients;
+	
+	atomic_t swaptask_serial;
 };
 
 #define NOUVEAU_CHECK_INITIALISED_WITH_RETURN do {            \

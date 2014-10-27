@@ -58,6 +58,9 @@ struct pscnv_client {
 	
 	/* list of times that have been tracked for this client */
 	struct list_head time_trackings;
+	
+	/* readable (process) name of this client */
+	char comm[TASK_COMM_LEN];
 };
 
 typedef void (*client_workfunc_t)(void *data, struct pscnv_client *cl);
@@ -65,10 +68,6 @@ typedef void (*client_workfunc_t)(void *data, struct pscnv_client *cl);
 /* setup the clients structure */
 int
 pscnv_clients_init(struct drm_device *dev);
-
-/* create a new client and add it to the clients list */
-struct pscnv_client*
-pscnv_client_new(struct drm_device *dev, pid_t pid);
 
 /* remove the client from the clients list and free memory */
 extern void

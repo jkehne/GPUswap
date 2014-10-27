@@ -51,11 +51,21 @@ pscnv_swapping_memdump(struct pscnv_bo *bo)
 int
 pscnv_swapping_init(struct drm_device *dev)
 {
-	if (pscnv_swapping_debug >= 1)
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	
+	if (pscnv_swapping_debug >= 1) {
 		NV_INFO(dev, "pscnv_swapping: initalizing....\n");
+	}
+	
+	atomic_set(&dev_priv->swaptask_serial, 0);
 
 	return 0;
 }
+
+
+/*******************************************************************************
+ * CHUNK_LIST
+ ******************************************************************************/
 
 static void
 pscnv_chunk_list_add_unlocked(struct pscnv_chunk_list *list,
@@ -160,6 +170,273 @@ pscnv_swapping_list_search_bo_unlocked(struct pscnv_chunk_list *list, struct psc
 	return false;
 }
 #endif
+
+/*******************************************************************************
+ * SWAPTASK
+ ******************************************************************************/
+
+struct pscnv_swaptask *
+pscnv_swaptask_new(struct pscnv_client *tgt)
+{
+	struct drm_device *dev = tgt->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct pscnv_swaptask *st;
+	int serial;
+	
+	st = kzalloc(sizeof(struct pscnv_swaptask), GFP_KERNEL);
+	
+	if (!st) {
+		NV_ERROR(dev, "pscnv_swaptask_new: out of memory\n");
+		return NULL;
+	}
+	
+	serial = atomic_inc_return(&dev_priv->swaptask_serial);
+	
+	if (pscnv_swapping_debug >= 3) {
+		NV_INFO(dev, "pscnv_swaptask_new: new swaptask %d for client %d\n",
+			serial, tgt->pid);
+	}
+	
+	INIT_LIST_HEAD(&st->list);
+	pscnv_chunk_list_init(&st->selected);
+	st->tgt = tgt;
+	st->dev = dev;
+	st->serial = serial;
+	init_completion(&st->completion);
+	
+	return st;
+}
+
+void
+pscnv_swaptask_free(struct pscnv_swaptask *st)
+{
+	struct drm_device *dev = st->dev;
+	
+	if (pscnv_swapping_debug >= 3) {
+		NV_INFO(dev, "pscnv_swaptask_free: free swaptask %d for client %d\n",
+			st->serial, st->tgt->pid);
+	}
+	
+	pscnv_chunk_list_free(&st->selected);
+	kfree(st);
+}
+
+static struct pscnv_swaptask *
+pscnv_swaptask_get(struct list_head *swaptasks, struct pscnv_client *tgt)
+{
+	struct pscnv_swaptask *cur;
+	struct pscnv_swaptask *new_st;
+	
+	list_for_each_entry(cur, swaptasks, list) {
+		if (cur->tgt == tgt) {
+			return cur;
+		}
+	}
+	
+	new_st = pscnv_swaptask_new(tgt);
+	
+	if (new_st) {
+		list_add(&new_st->list, swaptasks);
+	}
+	
+	return new_st;
+}
+	
+/* return pointer to swaptask that received the chunk */
+static struct pscnv_swaptask *
+pscnv_swaptask_add_chunk_unlocked(struct list_head *swaptasks, struct pscnv_chunk *cnk)
+{
+	struct drm_device *dev = cnk->bo->dev;
+	struct pscnv_client *tgt = cnk->bo->client;
+	struct pscnv_swaptask *st;
+	
+	BUG_ON(!tgt);
+	
+	st = pscnv_swaptask_get(swaptasks, tgt);
+	if (!st) {
+		return NULL;
+	}
+	BUG_ON(st->tgt != tgt);
+	
+	if (pscnv_swapping_debug >= 3) {
+		NV_INFO(dev, "pscnv_swaptask_add_chunk %08x/%d-%u for tgt %d to "
+				"swaptask %d\n",
+			cnk->bo->cookie, cnk->bo->serial, cnk->idx, tgt->pid,
+			st->serial);
+	}
+	
+	pscnv_chunk_list_add_unlocked(&st->selected, cnk);
+	
+	return st;
+}
+
+static int
+pscnv_vram_to_host(struct pscnv_chunk* vram)
+{
+	struct pscnv_bo *bo = vram->bo;
+	struct drm_device *dev = bo->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct pscnv_client *cl;
+	struct pscnv_chunk sysram; /* temporarily on stack */
+	struct pscnv_mm_node *primary_node = bo->primary_node;
+	struct pscnv_vspace *vs = NULL;
+	int res;
+	
+	if (!dev_priv->dma) {
+		pscnv_dma_init(dev);
+	}
+	
+	if (!dev_priv->dma) {
+		NV_ERROR(dev, "pscnv_vram_to_host: no DMA available\n");
+		return -EINVAL;
+	}
+	
+	if (pscnv_chunk_expect_alloc_type(vram, PSCNV_CHUNK_VRAM, "pscnv_vram_to_host")) {
+		return -EINVAL;
+	}
+	
+	if (!primary_node && pscnv_swapping_debug >= 1) {
+		NV_INFO(dev, "pscnv_swapping_replace: BO %08x/%d-%u has no "
+			"primary node attached, Strange.\n",
+			bo->cookie, bo->serial, vram->idx);
+	}
+	
+	if (primary_node)
+		vs = primary_node->vspace;
+	
+	memset(&sysram, 0, sizeof(struct pscnv_chunk));
+	sysram.bo = bo;
+	sysram.idx = vram->idx;
+	
+	res = pscnv_sysram_alloc_chunk(&sysram);
+	if (res) {
+		NV_ERROR(dev, "pscnv_vram_to_host: pscnv_sysram_alloc_chunk "
+			"failed on %08x/%d-%u\n", bo->cookie, bo->serial,
+			sysram.idx);
+		return res;
+	}
+	
+	res = pscnv_dma_chunk_to_chunk(vram, &sysram, 0 /* flags */);
+	
+	if (res) {
+		NV_INFO(dev, "copy_to_host: failed to DMA- Transfer!\n");
+		goto fail_dma;
+	}
+	
+	//pscnv_swapping_memdump(sysram);
+	
+	/* this overwrites existing PTE */
+	if (vs) {
+		dev_priv->vm->do_unmap(vs,
+			primary_node->start + vram->idx * dev_priv->chunk_size,
+			pscnv_chunk_size(vram));
+		res = dev_priv->vm->do_map_chunk(vs, &sysram,
+			primary_node->start + sysram.idx * dev_priv->chunk_size);
+	
+		if (res) {
+			NV_INFO(dev, "copy_to_host: failed to replace mapping\n");
+			goto fail_map_chunk;
+		}
+	}
+	
+	/* poison memory, TODO: remove */
+	pscnv_chunk_memset(vram, 0x33333333); 
+	
+	pscnv_vram_free_chunk(vram);
+	
+	/* vram chunk is unallocated now, replace its values with the sysram
+	 * chunk */
+	vram->alloc_type = sysram.alloc_type;
+	vram->pages = sysram.pages;
+	
+	atomic64_add(pscnv_chunk_size(vram), &dev_priv->vram_swapped);
+	cl = bo->client;
+	if (cl) {
+		atomic64_add(pscnv_chunk_size(vram), &cl->vram_swapped);
+	} else {
+		NV_ERROR(dev, "pscnv_vram_to_host: can not account client vram usage\n");
+	}
+	
+	/* refcnt of sysram now belongs to the vram bo, it will unref it,
+	   when it gets free'd itself */
+	
+	return 0;
+
+fail_map_chunk:
+	/* reset PTEs to old value, just to be safe */
+	if (vs) {
+		dev_priv->vm->do_unmap(vs,
+			primary_node->start + sysram.idx * dev_priv->chunk_size,
+			pscnv_chunk_size(&sysram));
+		dev_priv->vm->do_map_chunk(vs, vram,
+			primary_node->start + vram->idx * dev_priv->chunk_size);
+	}
+
+fail_dma:
+	pscnv_sysram_free_chunk(&sysram);
+
+	return res;
+}
+
+static void
+pscnv_swapping_swap_out(void *data, struct pscnv_client *cl)
+{
+	struct drm_device *dev = cl->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct pscnv_swaptask *st = data;
+	struct pscnv_chunk *cnk;
+	int ret;
+	size_t i;
+	
+	BUG_ON(st->tgt != cl);
+	
+	if (pscnv_swapping_debug >= 2) {
+		NV_INFO(dev, "pscnv_swapping_swap_out: [client %d] begin swaptask "
+				"%d with %lu chunks\n", cl->pid, st->serial,
+				st->selected.size);
+	}
+	
+	for (i = 0; i < st->selected.size; i++) {
+		cnk = st->selected.chunks[i];
+		
+		if (pscnv_chunk_expect_alloc_type(cnk, PSCNV_CHUNK_VRAM,
+						"pscnv_swapping_swap_out")) {
+			continue;
+		}
+		
+		/* until now: one chunk after the other */
+		ret = pscnv_vram_to_host(cnk);
+		if (ret) {
+			NV_ERROR(dev, "pscnv_swapping_swap_out: [client %d] vram_to_host"
+				" failed for chunk %08x/%d-%u\n", cl->pid,
+				cnk->bo->cookie, cnk->bo->serial, cnk->idx);
+			continue;
+		}
+		
+		/* vram_to_host increases swapped out counter */
+		mutex_lock(&dev_priv->clients->lock);
+		pscnv_chunk_list_add_unlocked(&cl->already_swapped, cnk);
+		mutex_unlock(&dev_priv->clients->lock);
+	}
+	
+	if (pscnv_swapping_debug >= 2) {
+		NV_INFO(dev, "pscnv_swapping_swap_out: [client %d] end swaptask %d\n",
+				cl->pid, st->serial);
+	}
+	
+	complete(&st->completion);
+}
+
+static void
+pscnv_swaptask_fire(struct list_head *swaptasks)
+{	
+	struct pscnv_swaptask *cur;
+	
+	list_for_each_entry(cur, swaptasks, list) {
+		pscnv_client_do_on_empty_fifo_unlocked(cur->tgt,
+			pscnv_swapping_swap_out, cur);
+	}
+}
 
 static void
 pscnv_swapping_add_bo_internal(struct pscnv_bo *bo)
@@ -311,114 +588,6 @@ pscnv_swapping_replace(struct pscnv_chunk* old, struct pscnv_chunk* new)
 }
 #endif
 
-static int
-pscnv_vram_to_host(struct pscnv_chunk* vram)
-{
-	struct pscnv_bo *bo = vram->bo;
-	struct drm_device *dev = bo->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct pscnv_client *cl;
-	struct pscnv_chunk sysram; /* temporarily on stack */
-	struct pscnv_mm_node *primary_node = bo->primary_node;
-	struct pscnv_vspace *vs = NULL;
-	int res;
-	
-	if (!dev_priv->dma) {
-		pscnv_dma_init(dev);
-	}
-	
-	if (!dev_priv->dma) {
-		NV_ERROR(dev, "pscnv_vram_to_host: no DMA available\n");
-		return -EINVAL;
-	}
-	
-	if (pscnv_chunk_expect_alloc_type(vram, PSCNV_CHUNK_VRAM, "pscnv_vram_to_host")) {
-		return -EINVAL;
-	}
-	
-	if (!primary_node && pscnv_swapping_debug >= 1) {
-		NV_INFO(dev, "pscnv_swapping_replace: BO %08x/%d-%u has no "
-			"primary node attached, Strange.\n",
-			bo->cookie, bo->serial, vram->idx);
-	}
-	
-	if (primary_node)
-		vs = primary_node->vspace;
-	
-	memset(&sysram, 0, sizeof(struct pscnv_chunk));
-	sysram.bo = bo;
-	sysram.idx = vram->idx;
-	
-	res = pscnv_sysram_alloc_chunk(&sysram);
-	if (res) {
-		NV_ERROR(dev, "pscnv_vram_to_host: pscnv_sysram_alloc_chunk "
-			"failed on %08x/%d-%u\n", bo->cookie, bo->serial,
-			sysram.idx);
-		return res;
-	}
-	
-	res = pscnv_dma_chunk_to_chunk(vram, &sysram, 0 /* flags */);
-	
-	if (res) {
-		NV_INFO(dev, "copy_to_host: failed to DMA- Transfer!\n");
-		goto fail_dma;
-	}
-	
-	//pscnv_swapping_memdump(sysram);
-	
-	/* this overwrites existing PTE */
-	if (vs) {
-		dev_priv->vm->do_unmap(vs,
-			primary_node->start + vram->idx * dev_priv->chunk_size,
-			pscnv_chunk_size(vram));
-		res = dev_priv->vm->do_map_chunk(vs, &sysram,
-			primary_node->start + sysram.idx * dev_priv->chunk_size);
-	
-		if (res) {
-			NV_INFO(dev, "copy_to_host: failed to replace mapping\n");
-			goto fail_map_chunk;
-		}
-	}
-	
-	/* poison memory, TODO: remove */
-	pscnv_chunk_memset(vram, 0x33333333); 
-	
-	pscnv_vram_free_chunk(vram);
-	
-	/* vram chunk is unallocated now, replace its values with the sysram
-	 * chunk */
-	vram->alloc_type = sysram.alloc_type;
-	vram->pages = sysram.pages;
-	
-	atomic64_add(pscnv_chunk_size(vram), &dev_priv->vram_swapped);
-	cl = bo->client;
-	if (cl) {
-		atomic64_add(pscnv_chunk_size(vram), &cl->vram_swapped);
-	} else {
-		NV_ERROR(dev, "pscnv_vram_to_host: can not account client vram usage\n");
-	}
-	
-	/* refcnt of sysram now belongs to the vram bo, it will unref it,
-	   when it gets free'd itself */
-	
-	return 0;
-
-fail_map_chunk:
-	/* reset PTEs to old value, just to be safe */
-	if (vs) {
-		dev_priv->vm->do_unmap(vs,
-			primary_node->start + sysram.idx * dev_priv->chunk_size,
-			pscnv_chunk_size(&sysram));
-		dev_priv->vm->do_map_chunk(vs, vram,
-			primary_node->start + vram->idx * dev_priv->chunk_size);
-	}
-
-fail_dma:
-	pscnv_sysram_free_chunk(&sysram);
-
-	return res;
-}
-
 #if 0
 static int
 pscnv_vram_from_host(struct pscnv_bo* vram)
@@ -534,30 +703,35 @@ pscnv_vram_from_sysram(struct pscnv_bo *sysram)
 #endif
 
 static int
-pscnv_swapping_wait_for_completions(struct drm_device *dev, const char *fname, struct completion *completions, int ops)
+pscnv_swaptask_wait_for_completions(struct drm_device *dev, const char *fname, struct list_head *swaptasks)
 {
-	int i;
-	long res;
+	struct pscnv_swaptask *cur, *tmp;
+	int res;
 	
-	for (i = 0; i < ops; i++) {
-		res = wait_for_completion_interruptible_timeout(&completions[i],
+	list_for_each_entry(cur, swaptasks, list) {
+		res = wait_for_completion_interruptible_timeout(&cur->completion,
 			PSCNV_SWAPPING_TIMEOUT);
 		
 		if (res == -ERESTARTSYS) {
 			NV_INFO(dev, "%s: interrupted while waiting for "
-				     "completion %d\n", fname, i);
+				     "completion of swaptask %d on client %d\n",
+				     fname, cur->serial, cur->tgt->pid);
 			return -EINTR;
 		}
 		if (res == 0) {
-			NV_INFO(dev, "%s: timed out while waiting for completion %d\n",
-					fname, i);
+			NV_INFO(dev, "%s: timed out while waiting for completion "
+					"of swaptask %d on client %d\n",
+					fname, cur->serial, cur->tgt->pid);
 			return -EBUSY;
 		}
 	}
 	
 	/* memory leak in case something goes wrong - still better than risking
 	   that someone crashes the system when he finally calls complete() */
-	kfree(completions);
+	list_for_each_entry_safe(cur, tmp, swaptasks, list) {
+		list_del(&cur->list);
+		pscnv_swaptask_free(cur);
+	}
 	
 	return 0;
 }
@@ -566,30 +740,6 @@ pscnv_swapping_wait_for_completions(struct drm_device *dev, const char *fname, s
 static void
 pscnv_swapping_swap_in(void *data, struct pscnv_client *cl) { return; }
 #endif
-
-static void
-pscnv_swapping_swap_out(void *data, struct pscnv_client *cl)
-{
-	struct drm_device *dev = cl->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct pscnv_chunk *cnk = data;
-	
-	switch (cnk->alloc_type) {
-		case PSCNV_CHUNK_VRAM:
-			pscnv_vram_to_host(cnk);
-			break;
-		default:
-			NV_ERROR(dev, "pscnv_swapping_swap_out: chunk %08x/%d-%u"
-				"is allocated as %s\n", cnk->bo->cookie,
-				cnk->bo->serial, cnk->idx,
-				pscnv_chunk_alloc_type_str(cnk->alloc_type));
-			return;
-	}
-	
-	mutex_lock(&dev_priv->clients->lock);
-	pscnv_chunk_list_add_unlocked(&cl->already_swapped, cnk);
-	mutex_unlock(&dev_priv->clients->lock);
-}
 
 #if 0
 static void
@@ -617,55 +767,106 @@ pscnv_swapping_swap_in(void *data, struct pscnv_client *cl)
 }
 #endif
 
-static void
-pscnv_swapping_complete_wrapper(void *data, struct pscnv_client *cl)
+static int
+pscnv_swapping_prepare_for_swap_out_unlocked(uint64_t *will_free, struct list_head *swaptasks, struct pscnv_chunk *cnk)
 {
-	struct completion *c = data;
-	complete(c);
+	struct pscnv_bo *bo = cnk->bo;
+	struct drm_device *dev = bo->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct pscnv_swaptask *st;
+	struct pscnv_client *cl = cnk->bo->client;
+	int ret = 0;
+	
+	size_t cnk_size = pscnv_chunk_size(cnk);
+	char size_str[16];
+	pscnv_mem_human_readable(size_str, cnk_size);
+	
+	if (!cl) {
+		NV_ERROR(dev, "pscnv_swapping_prapare: chunk %08x/%d-%u has "
+			"no client attached, can not swap out\n",
+			cnk->bo->cookie, cnk->bo->serial, cnk->idx);
+		return -EINVAL;
+	}
+	
+	switch (cnk->alloc_type) {
+	case PSCNV_CHUNK_UNALLOCATED:
+		if (pscnv_swapping_debug >= 1) {
+			NV_INFO(dev, "Swapping: allocating chunk %08x/%d-%u "
+				"(%s) of client %d as SYSRAM\n",
+				cnk->bo->cookie, cnk->bo->serial, cnk->idx,
+				size_str, cl->pid);
+		}
+		ret = pscnv_sysram_alloc_chunk(cnk);
+		if (ret) {
+			return ret;
+		}
+		
+		pscnv_chunk_list_add_unlocked(&cl->already_swapped, cnk);
+			
+		atomic64_add(cnk_size, &dev_priv->vram_swapped);
+		atomic64_add(cnk_size, &cl->vram_swapped);
+		atomic64_sub(cnk_size, &dev_priv->vram_demand);
+		atomic64_sub(cnk_size, &cl->vram_demand);
+		*will_free += cnk_size;
+		
+		return 0;
+	
+	case PSCNV_CHUNK_VRAM:
+		st = pscnv_swaptask_add_chunk_unlocked(swaptasks, cnk);
+		if (!st) {
+			NV_ERROR(dev, "pscnv_swapping_prepare: failed to add "
+					"chunk %08x/%d-%u\n", cnk->bo->cookie,
+					cnk->bo->serial, cnk->idx);
+		}
+		if (st && pscnv_swapping_debug >= 1) {
+			NV_INFO(dev, "Swapping: scheduling chunk %08x/%d-%u "
+				" (%s) of client %d for swapping in task %d\n",
+				cnk->bo->cookie, cnk->bo->serial, cnk->idx,
+				size_str, cl->pid, st->serial);
+		}
+		
+		atomic64_sub(cnk_size, &dev_priv->vram_demand);
+		atomic64_sub(cnk_size, &cl->vram_demand);
+		*will_free += cnk_size;
+		
+		return 0;
+	
+	default:
+		NV_ERROR(dev, "pscnv_swapping_prepare_for_swap_out: "
+			"chunk %08x/%d-%u is allocated as %s\n",
+			cnk->bo->cookie, cnk->bo->serial, cnk->idx,
+			pscnv_chunk_alloc_type_str(cnk->alloc_type));
+		return -EINVAL;
+	}
 }
 
 static void
-pscnv_swapping_reduce_vram_of_client_unlocked(struct pscnv_client *victim, uint64_t req, uint64_t *will_free, struct completion *completion)
+pscnv_swapping_reduce_vram_of_client_unlocked(struct pscnv_client *victim, uint64_t req, uint64_t *will_free, struct list_head *swaptasks)
 {
 	struct drm_device *dev = victim->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	int ret;
 	
 	struct pscnv_chunk *cnk;
-	uint64_t cnk_size;
 	int ops = 0;
 	
 	while (*will_free < req && ops < PSCNV_SWAPPING_MAXOPS && 
-		(cnk = pscnv_chunk_list_take_random_unlocked(&victim->swapping_options)) &&
-		cnk->alloc_type == PSCNV_CHUNK_VRAM) { /* TODO: << remove this test */
+	      (cnk = pscnv_chunk_list_take_random_unlocked(&victim->swapping_options))) {
 		
-		cnk_size = pscnv_chunk_size(cnk);
+		ret = pscnv_swapping_prepare_for_swap_out_unlocked(
+			will_free, swaptasks, cnk);
 		
-		if (pscnv_swapping_debug >= 1) {
-			char size_str[16];
-			pscnv_mem_human_readable(size_str, cnk_size);
-			NV_INFO(dev, "Swapping: scheduling chunk %08x/%d-%u "
-				" (%s) of client %d for swapping\n",
-				cnk->bo->cookie, cnk->bo->serial, cnk->idx,
-				size_str, victim->pid);
-		}
+		if (ret) {
+			/* something has gone wrong, return chunk to swapping
+			 * options */
+			pscnv_chunk_list_add_unlocked(&victim->swapping_options, cnk);
 			
-		pscnv_client_do_on_empty_fifo_unlocked(victim,
-			pscnv_swapping_swap_out, cnk);
-		
-		atomic64_sub(cnk_size, &victim->vram_demand);
-		atomic64_sub(cnk_size, &dev_priv->vram_demand);
-		*will_free += cnk_size;
+			NV_ERROR(dev, "failed to prepare chunk %08x/%d-%u for "
+				"swapping. ret = %d\n", cnk->bo->cookie,
+				cnk->bo->serial, cnk->idx, ret);
+		}
 		
 		ops++;
 	}
-	
-	if (ops > 0) {
-		pscnv_client_do_on_empty_fifo_unlocked(victim,
-			pscnv_swapping_complete_wrapper, completion);
-	} else {
-		/* nothing to do for this client, we just mark it as completed */
-		complete(completion);
-	}	
 }
 
 static struct pscnv_client*
@@ -715,28 +916,19 @@ pscnv_swapping_reduce_vram(struct drm_device *dev, uint64_t req, uint64_t *will_
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct pscnv_client *victim;
-	struct completion *completions;
 	int ops = 0;
 	
-	*will_free = 0;
+	LIST_HEAD(swaptasks);
 	
-	completions = kzalloc(sizeof(struct completion) * PSCNV_SWAPPING_MAXOPS,
-			GFP_KERNEL);
-			
-	if (!completions) {
-		NV_ERROR(dev, "pscnv_swapping_reduce_vram: out of memory\n");
-		return -ENOMEM;
-	}
+	*will_free = 0;
 	
 	mutex_lock(&dev_priv->clients->lock);
 	
 	while (*will_free < req && ops < PSCNV_SWAPPING_MAXOPS &&
 		(victim = pscnv_swapping_choose_victim_unlocked(dev))) {
-		
-		init_completion(&completions[ops]);
-		
+
 		pscnv_swapping_reduce_vram_of_client_unlocked(
-			victim, req, will_free, &completions[ops]);
+			victim, req, will_free, &swaptasks);
 		
 		ops++;
 	}
@@ -753,7 +945,9 @@ pscnv_swapping_reduce_vram(struct drm_device *dev, uint64_t req, uint64_t *will_
 		/* no return here, this function may be called again */
 	}
 	
-	return pscnv_swapping_wait_for_completions(dev, __func__, completions, ops);
+	pscnv_swaptask_fire(&swaptasks);
+	
+	return pscnv_swaptask_wait_for_completions(dev, __func__, &swaptasks);
 }
 
 int
