@@ -11,11 +11,13 @@
 /* BOs smaller than this size are ignored */
 #define PSCNV_SWAPPING_MIN_SIZE (4UL << 20) /* 4 MB */
 
-/* if we are not able to reduce the required memory space by swapping memory
-   of 16 clients (clients may be asked more than once) that will free up to 32
-   chunks (each e.g. 4MB), than there is not much hope that we
-   can ever satisfy the request, as 16 * 32 * 4MB = 2GB */
-#define PSCNV_SWAPPING_MAXOPS 16
+/* reduce_vram will be called up to 3 times. Each time, it performs MAXOPS
+ * operations and each operation itself is made up of OPS_PER_VICTIM
+ * suboperations. Assuming 4MB Chunks, we can swap out 64 * 4 * 4 MB = 1 GB
+ * of memory in a single reduce_vram call.
+ * Maximum "unfairness" is 4 * 4MB = 16 MB */
+#define PSCNV_SWAPPING_MAXOPS 64
+#define PSCNV_SWAPPING_OPS_PER_VICTIM 4
 
 #define PSCNV_SWAPPING_TIMEOUT 5*HZ
 
@@ -849,7 +851,7 @@ pscnv_swapping_reduce_vram_of_client_unlocked(struct pscnv_client *victim, uint6
 	struct pscnv_chunk *cnk;
 	int ops = 0;
 	
-	while (*will_free < req && ops < PSCNV_SWAPPING_MAXOPS && 
+	while (*will_free < req && ops < PSCNV_SWAPPING_OPS_PER_VICTIM && 
 	      (cnk = pscnv_chunk_list_take_random_unlocked(&victim->swapping_options))) {
 		
 		ret = pscnv_swapping_prepare_for_swap_out_unlocked(
