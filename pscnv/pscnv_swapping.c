@@ -341,9 +341,6 @@ pscnv_vram_to_host(struct pscnv_chunk* vram)
 		}
 	}
 	
-	/* poison memory, TODO: remove */
-	pscnv_chunk_memset(vram, 0x33333333); 
-	
 	pscnv_vram_free_chunk(vram);
 	
 	/* vram chunk is unallocated now, replace its values with the sysram
