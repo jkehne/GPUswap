@@ -318,10 +318,17 @@ int pscnv_ioctl_vspace_unmap(struct drm_device *dev, void *data,
 		return -ENOENT;
 	
 	bo = pscnv_vspace_vm_addr_lookup(vs, req->offset);
-	if (bo && (bo->flags & PSCNV_GEM_IB)) {
-		/* we do not allow userspace to unmap the IB */
+	if (!bo) {
+		NV_INFO(dev, "ioctl_vspace_unmap: vspace %d: no BO mapped at %08llx\n",
+			vs->vid, req->offset);
 		pscnv_vspace_unref(vs);
-		return 0;
+		return -EINVAL;
+	}
+	if (bo->serial == 0x33333333) {
+		NV_INFO(dev, "ioctl_vspace_unmap: vspace %d: BO at %08llx poisoned\n",
+			vs->vid, req->offset);
+		pscnv_vspace_unref(vs);
+		return -EINVAL;
 	}
 
 	ret = pscnv_vspace_unmap(vs, req->offset);

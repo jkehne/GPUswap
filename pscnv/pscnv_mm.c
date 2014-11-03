@@ -220,7 +220,9 @@ void pscnv_mm_free(struct pscnv_mm_node *node) {
 	struct pscnv_mm *mm = node->mm;
 	pscnv_mm_validate(mm, "before free");
 	if (node->type == PSCNV_MM_TYPE_FREE) {
-		NV_ERROR(node->mm->dev, "Freeing already freed node %llx\n", node->start);
+		NV_ERROR(node->mm->dev, "MM: [%s] Freeing already freed node %llx-%llx\n",
+			mm->name, node->start, node->start + node->size);
+		WARN_ON(1);
 		return;
 	}
 	while (node->prev)

@@ -383,9 +383,16 @@ pscnv_chunk_free(struct pscnv_chunk *cnk)
 int
 pscnv_mem_free(struct pscnv_bo *bo)
 {
-	struct drm_device *dev = bo->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct drm_device *dev;
+	struct drm_nouveau_private *dev_priv;
 	uint32_t i;
+	
+	if (!bo) {
+		WARN_ON(1);
+		return -EINVAL;
+	}
+	dev = bo->dev;
+	dev_priv = dev->dev_private;
 	
 	if (bo->gem) {
 		NV_ERROR(bo->dev, "MEM: freeing %08x/%d, with DRM- Wrapper still attached!\n", bo->cookie, bo->serial);
@@ -446,6 +453,8 @@ pscnv_mem_free(struct pscnv_bo *bo)
 	for (i = 0; i < bo->n_chunks; i++) {
 		pscnv_chunk_free(&bo->chunks[i]);
 	}
+	
+	memset(bo, 0x33, sizeof(struct pscnv_bo) + bo->n_chunks*sizeof(struct pscnv_chunk));
 	
 	kfree (bo);
 	return 0;

@@ -143,6 +143,10 @@ pscnv_vspace_unmap_node_unlocked(struct pscnv_mm_node *node) {
 	if (pscnv_vm_debug >= 1) {
 		NV_INFO(vs->dev, "VM: vspace %d: Unmapping range %llx-%llx.\n", vs->vid, node->start, node->start + node->size);
 	}
+	if (bo->cookie == 0x33333333) {
+		WARN_ON(1);
+	}
+	
 	dev_priv->vm->do_unmap(vs, node->start, node->size);
 
 	pscnv_mm_free(node);

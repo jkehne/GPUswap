@@ -48,6 +48,12 @@ nvc0_fifo_chan_free(struct pscnv_engine *eng, struct pscnv_chan *ch);
 static void
 nvc0_fifo_playlist_update(struct drm_device *dev);
 
+static void
+nvc0_fifo_intr_engine(struct drm_device *dev);
+
+static const char *
+pgf_unit_str(int unit);
+
 /*******************************************************************************
  * PFIFO channel control
  ******************************************************************************/
@@ -206,8 +212,6 @@ nvc0_fifo_chan_kill(struct pscnv_engine *eng, struct pscnv_chan *ch)
 	 * bit 12: loaded,
 	 * bit  0: enabled
 	 */
-	
-	pscnv_ib_chan_kill(fifo_ctx->ib_chan);
 
 	spin_lock_irqsave(&dev_priv->context_switch_lock, flags);
 	status = nv_rd32(dev, 0x3004 + ch->cid * 8);
@@ -218,25 +222,31 @@ nvc0_fifo_chan_kill(struct pscnv_engine *eng, struct pscnv_chan *ch)
 
 	nvc0_fifo_playlist_update(dev);
 
+	nvc0_fifo_intr_engine(dev);
+	
 	if (nv_rd32(dev, 0x3004 + ch->cid * 8) & 0x1110) { // 0x1110 mask contains ACQUIRE_PENDING, UNK8, LOADED bits
-		NV_WARN(dev, "WARNING: PFIFO kickoff fail: PFIFO.CHAN_TABLE[%d].STATE = %08x has ACQUIRE_PENDING, UNK8 or LOADED still set!\n",
-			    ch->cid, nv_rd32(dev, 0x3004 + ch->cid * 8));
+		status = nv_rd32(dev, 0x3004 + ch->cid * 8);
+		NV_WARN(dev, "WARNING: PFIFO kickoff fail: PFIFO.CHAN_TABLE[%d].STATE = %08x"
+			     " (%s %s %s %s %s)\n",
+			    ch->cid, status,
+			    (status & 0x0010) ? "ACQUIRE_PENDING" : "",
+			    (status & 0x0100) ? "UNK8" : "",
+			    (status & 0x1000) ? "LOADED" : "",
+			    pgf_unit_str((status >> 16) & 0x1f),
+			    (status & 0x10000000) ? "PENDING" : "");
 	}
+	
+	nv_wr32(dev, 0x003000 + (ch->cid * 8), 0);
 	spin_unlock_irqrestore(&dev_priv->context_switch_lock, flags);
+	
+	pscnv_ib_chan_kill(fifo_ctx->ib_chan);
 }
 
 static void
 nvc0_fifo_chan_free(struct pscnv_engine *eng, struct pscnv_chan *ch)
 {
 	struct nvc0_fifo_ctx *fifo_ctx = ch->engdata[PSCNV_ENGINE_FIFO];
-	struct drm_device *dev = fifo_ctx->ib->dev;
 
-	
-	pscnv_vspace_unmap_node(fifo_ctx->ib->primary_node);
-	if (pscnv_mem_debug >= 2) {
-		NV_INFO(dev, "chan_free: unref BO%08x/%d\n",
-			fifo_ctx->ib->cookie, fifo_ctx->ib->serial);
-	}
 	pscnv_bo_unref(fifo_ctx->ib);
 	
 	kfree(fifo_ctx);
@@ -408,6 +418,39 @@ nvc0_pfifo_subfifo_fault(struct drm_device *dev, int unit)
 }
 
 static void
+nvc0_fifo_intr_engine_unit(struct drm_device *dev, int engn)
+{
+	u32 intr = nv_rd32(dev, 0x0025a8 + (engn * 0x04));
+	u32 inte = nv_rd32(dev, 0x002628);
+	u32 unkn;
+
+	for (unkn = 0; unkn < 8; unkn++) {
+		u32 ints = (intr >> (unkn * 0x04)) & inte;
+		if (ints & 0x1) {
+			NV_ERROR(dev, "ENGINE %s %d %01x INTERRUPT", pgf_unit_str(engn), unkn, ints);
+			ints &= ~1;
+		}
+		if (ints) {
+			NV_ERROR(dev, "ENGINE %s %d %01x", pgf_unit_str(engn), unkn, ints);
+			nv_mask(dev, 0x002628, ints, 0);
+		}
+	}
+
+	nv_wr32(dev, 0x0025a8 + (engn * 0x04), intr);
+}
+
+static void
+nvc0_fifo_intr_engine(struct drm_device *dev)
+{
+	u32 mask = nv_rd32(dev, 0x0025a4);
+	while (mask) {
+		u32 unit = __ffs(mask);
+		nvc0_fifo_intr_engine_unit(dev, unit);
+		mask &= ~(1 << unit);
+	}
+}
+
+static void
 nvc0_fifo_irq_handler(struct drm_device *dev, int irq)
 {
 	static int num_fuckups = 0;
@@ -492,6 +535,7 @@ nvc0_fifo_irq_handler(struct drm_device *dev, int irq)
 
 	if (status & 0x80000000) {
 		NV_INFO(dev, "ENGINE INTERRUPT\n");
+		nvc0_fifo_intr_engine(dev);
 		status &= ~0x80000000;
 	}
 
