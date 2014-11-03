@@ -83,6 +83,7 @@ struct pscnv_bo;
 struct pscnv_dma;
 struct pscnv_ib_chan;
 struct pscnv_clients;
+struct pscnv_swapping;
 
 struct nouveau_channel {
 	struct drm_device *dev;
@@ -580,8 +581,7 @@ struct drm_nouveau_private {
 
 	struct pscnv_dma *dma;
 	struct pscnv_clients *clients;
-	
-	atomic_t swaptask_serial;
+	struct pscnv_swapping *swapping;
 };
 
 #define NOUVEAU_CHECK_INITIALISED_WITH_RETURN do {            \

@@ -6,6 +6,12 @@
 
 #define PSCNV_INITIAL_CHUNK_LIST_SIZE 4UL
 
+struct pscnv_swapping {
+	struct drm_device *dev;
+	atomic_t swaptask_serial;
+	struct delayed_work increase_vram_work;
+};
+
 struct pscnv_chunk_list {
 	struct pscnv_chunk **chunks;
 	size_t size;

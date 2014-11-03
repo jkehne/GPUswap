@@ -21,6 +21,11 @@
 
 #define PSCNV_SWAPPING_TIMEOUT 5*HZ
 
+/* delay between checks for vram increase in jiffies */
+#define PSCNV_INCREASE_RATE (HZ/1)
+
+#define PSCNV_INCREASE_THRESHOLD (16 << 20)
+
 #if 0
 static void
 pscnv_swapping_memdump(struct pscnv_bo *bo)
@@ -49,19 +54,36 @@ pscnv_swapping_memdump(struct pscnv_bo *bo)
 }
 #endif
 
+static void
+increase_vram_work_func(struct work_struct *work);
+
 /* called once on driver load */
 int
 pscnv_swapping_init(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	int ret;
 	
 	if (pscnv_swapping_debug >= 1) {
 		NV_INFO(dev, "pscnv_swapping: initalizing....\n");
 	}
 	
-	atomic_set(&dev_priv->swaptask_serial, 0);
+	dev_priv->swapping = kzalloc(sizeof(struct pscnv_swapping), GFP_KERNEL);
+	if (!dev_priv->swapping) {
+		NV_ERROR(dev, "Out of memory\n");
+		return -ENOMEM;
+	}
+	
+	dev_priv->swapping->dev = dev;
+	atomic_set(&dev_priv->swapping->swaptask_serial, 0);
+	
+	INIT_DELAYED_WORK(&dev_priv->swapping->increase_vram_work, increase_vram_work_func);
+	ret = schedule_delayed_work(&dev_priv->swapping->increase_vram_work, PSCNV_INCREASE_RATE);
+	if (ret) {
+		NV_ERROR(dev, "failed to queue increase_vram_work\n");
+	}
 
-	return 0;
+	return ret;
 }
 
 
@@ -192,7 +214,7 @@ pscnv_swaptask_new(struct pscnv_client *tgt)
 		return NULL;
 	}
 	
-	serial = atomic_inc_return(&dev_priv->swaptask_serial);
+	serial = atomic_inc_return(&dev_priv->swapping->swaptask_serial);
 	
 	if (pscnv_swapping_debug >= 3) {
 		NV_INFO(dev, "pscnv_swaptask_new: new swaptask %d for client %d\n",
@@ -321,7 +343,7 @@ pscnv_vram_to_host(struct pscnv_chunk* vram)
 	res = pscnv_dma_chunk_to_chunk(vram, &sysram, PSCNV_DMA_ASYNC);
 	
 	if (res) {
-		NV_INFO(dev, "copy_to_host: failed to DMA- Transfer!\n");
+		NV_INFO(dev, "pscnv_vram_to_host: failed to DMA- Transfer!\n");
 		goto fail_dma;
 	}
 	
@@ -336,7 +358,7 @@ pscnv_vram_to_host(struct pscnv_chunk* vram)
 			primary_node->start + sysram.idx * dev_priv->chunk_size);
 	
 		if (res) {
-			NV_INFO(dev, "copy_to_host: failed to replace mapping\n");
+			NV_INFO(dev, "pscnv_vram_to_host: failed to replace mapping\n");
 			goto fail_map_chunk;
 		}
 	}
@@ -373,6 +395,117 @@ fail_map_chunk:
 
 fail_dma:
 	pscnv_sysram_free_chunk(&sysram);
+
+	return res;
+}
+
+static int
+pscnv_vram_from_host(struct pscnv_chunk* sysram)
+{
+	struct pscnv_bo *bo = sysram->bo;
+	struct drm_device *dev = bo->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct pscnv_client *cl;
+	struct pscnv_chunk vram; /* temporarily on stack */
+	struct pscnv_mm_node *primary_node = bo->primary_node;
+	struct pscnv_vspace *vs = NULL;
+	int res;
+	int flags = 0;
+	
+	if ((bo->flags & PSCNV_GEM_MEMTYPE_MASK) == PSCNV_GEM_VRAM_LARGE) {
+		flags |= PSCNV_MM_LP;
+	}
+
+	if (!(bo->flags & PSCNV_GEM_CONTIG)) {
+		flags |= PSCNV_MM_FRAGOK;
+	}
+	
+	if (!dev_priv->dma) {
+		pscnv_dma_init(dev);
+	}
+	
+	if (!dev_priv->dma) {
+		NV_ERROR(dev, "pscnv_vram_to_host: no DMA available\n");
+		return -EINVAL;
+	}
+	
+	if (pscnv_chunk_expect_alloc_type(sysram, PSCNV_CHUNK_SYSRAM, "pscnv_vram_from_host")) {
+		return -EINVAL;
+	}
+	
+	if (!primary_node && pscnv_swapping_debug >= 1) {
+		NV_INFO(dev, "pscnv_swapping_replace: BO %08x/%d-%u has no "
+			"primary node attached, Strange.\n",
+			bo->cookie, bo->serial, vram.idx);
+	}
+	
+	if (primary_node)
+		vs = primary_node->vspace;
+	
+	memset(&vram, 0, sizeof(struct pscnv_chunk));
+	vram.bo = bo;
+	vram.idx = sysram->idx;
+	
+	res = pscnv_vram_alloc_chunk(&vram, flags);
+	if (res) {
+		NV_ERROR(dev, "pscnv_vram_from_host: pscnv_vram_alloc_chunk "
+			"failed on %08x/%d-%u\n", bo->cookie, bo->serial,
+			vram.idx);
+		return res;
+	}
+	
+	res = pscnv_dma_chunk_to_chunk(sysram, &vram, PSCNV_DMA_ASYNC);
+	
+	if (res) {
+		NV_INFO(dev, "pscnv_vram_from_host: failed to DMA- Transfer!\n");
+		goto fail_dma;
+	}
+	
+	//pscnv_swapping_memdump(sysram);
+	
+	/* this overwrites existing PTE */
+	if (vs) {
+		dev_priv->vm->do_unmap(vs,
+			primary_node->start + sysram->idx * dev_priv->chunk_size,
+			pscnv_chunk_size(sysram));
+		res = dev_priv->vm->do_map_chunk(vs, &vram,
+			primary_node->start + vram.idx * dev_priv->chunk_size);
+	
+		if (res) {
+			NV_INFO(dev, "pscnv_vram_from_host: failed to replace mapping\n");
+			goto fail_map_chunk;
+		}
+	}
+	
+	pscnv_sysram_free_chunk(sysram);
+	
+	/* vram chunk is unallocated now, replace its values with the sysram
+	 * chunk */
+	sysram->alloc_type = vram.alloc_type;
+	sysram->vram_node = vram.vram_node;
+	
+	atomic64_sub(pscnv_chunk_size(&vram), &dev_priv->vram_swapped);
+	cl = bo->client;
+	if (cl) {
+		atomic64_sub(pscnv_chunk_size(&vram), &cl->vram_swapped);
+	} else {
+		NV_ERROR(dev, "pscnv_vram_to_host: can not account client vram usage\n");
+	}
+	
+	return 0;
+
+fail_map_chunk:
+	/* reset PTEs to old value, just to be safe */
+	if (vs) {
+		dev_priv->vm->do_unmap(vs,
+			primary_node->start + vram.idx * dev_priv->chunk_size,
+			pscnv_chunk_size(&vram));
+		dev_priv->vm->do_map_chunk(vs, sysram,
+			primary_node->start + sysram->idx * dev_priv->chunk_size);
+	}
+
+fail_dma:
+	pscnv_vram_free_chunk(&vram);
 
 	return res;
 }
@@ -427,13 +560,61 @@ pscnv_swapping_swap_out(void *data, struct pscnv_client *cl)
 }
 
 static void
-pscnv_swaptask_fire(struct list_head *swaptasks)
+pscnv_swapping_swap_in(void *data, struct pscnv_client *cl)
+{
+	struct drm_device *dev = cl->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct pscnv_swaptask *st = data;
+	struct pscnv_chunk *cnk;
+	int ret;
+	size_t i;
+	
+	BUG_ON(st->tgt != cl);
+	
+	if (pscnv_swapping_debug >= 2) {
+		NV_INFO(dev, "pscnv_swapping_swap_in: [client %d] begin swaptask "
+				"%d with %lu chunks\n", cl->pid, st->serial,
+				st->selected.size);
+	}
+	
+	for (i = 0; i < st->selected.size; i++) {
+		cnk = st->selected.chunks[i];
+		
+		if (pscnv_chunk_expect_alloc_type(cnk, PSCNV_CHUNK_SYSRAM,
+						"pscnv_swapping_swap_in")) {
+			continue;
+		}
+		
+		/* until now: one chunk after the other */
+		ret = pscnv_vram_from_host(cnk);
+		if (ret) {
+			NV_ERROR(dev, "pscnv_swapping_swap_in: [client %d] vram_from_host"
+				" failed for chunk %08x/%d-%u\n", cl->pid,
+				cnk->bo->cookie, cnk->bo->serial, cnk->idx);
+			continue;
+		}
+		
+		/* vram_from_host decreases swapped out counter */
+		mutex_lock(&dev_priv->clients->lock);
+		pscnv_chunk_list_add_unlocked(&cl->swapping_options, cnk);
+		mutex_unlock(&dev_priv->clients->lock);
+	}
+	
+	if (pscnv_swapping_debug >= 2) {
+		NV_INFO(dev, "pscnv_swapping_swap_in: [client %d] end swaptask %d\n",
+				cl->pid, st->serial);
+	}
+	
+	complete(&st->completion);
+}
+
+static void
+pscnv_swaptask_fire(struct list_head *swaptasks, client_workfunc_t func)
 {	
 	struct pscnv_swaptask *cur;
 	
 	list_for_each_entry(cur, swaptasks, list) {
-		pscnv_client_do_on_empty_fifo_unlocked(cur->tgt,
-			pscnv_swapping_swap_out, cur);
+		pscnv_client_do_on_empty_fifo_unlocked(cur->tgt, func, cur);
 	}
 }
 
@@ -530,177 +711,6 @@ pscnv_swapping_remove_bo(struct pscnv_bo *bo)
 	pscnv_swapping_remove_bo_internal(bo);
 }
 
-#if 0
-static int
-pscnv_swapping_replace(struct pscnv_chunk* old, struct pscnv_chunk* new)
-{
-	struct pscnv_bo *bo_old = pscnv_chunk_bo(old);
-	struct pscnv_bo *bo_new = pscnv_chunk_bo(new);
-	struct drm_device *dev = bo_old->dev;
-	struct pscnv_mm_node *primary_node = bo_old->primary_node;
-	struct pscnv_mm_node *swapped_node;
-	struct pscnv_vspace *vs;
-	uint64_t start, end;
-	int res;
-	
-	if (pscnv_swapping_debug >= 2) {
-		NV_INFO(dev, "pscnv_swapping_replace:");
-	}
-	
-	if (!primary_node) {
-		NV_INFO(dev, "pscnv_swapping_replace: BO %08x/%d-%u has no "
-			"primary node attached, nothing to do\n",
-			old_bo->cookie, old_bo->serial, old->idx);
-		return -EINVAL;
-	}
-	
-	BUG_ON(primary_node->bo != old_bo);
-	vs = primary_node->vspace;
-	
-	start = primary_node->start;
-	end = primary_node->start + primary_node->size;
-	
-	mutex_lock(&vs->lock);
-	res = dev_priv->vm->do_unmap(vs, node->start, node->size);
-	
-	
-	mutex_unlock(&vs->lock);
-	
-	res = pscnv_vspace_unmap_node(primary_node);
-	if (res) {
-		NV_INFO(dev, "pscnv_swapping_replace: vid=%d BO %08x/%d: failed "
-			"to unmap node in range %llx-%llx\n",
-			vs->vid, vram->cookie, vram->serial, start, end);
-		return res;
-	}
-	vram->primary_node = NULL;
-	
-	res = pscnv_vspace_map(vs, sysram, start, end, 0 /* back */, &swapped_node);
-	if (res) {
-		NV_INFO(dev, "pscnv_swapping_replace: vid=%d BO %08x/%d: failed "
-			"to map in range %llx-%llx\n",
-			vs->vid, sysram->cookie, sysram->serial, start, end);
-		return res;
-	}
-	
-	return 0;
-}
-#endif
-
-#if 0
-static int
-pscnv_vram_from_host(struct pscnv_bo* vram)
-{
-	struct drm_device *dev = vram->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct pscnv_client *cl;
-	int res;
-	
-	if (!dev_priv->dma) {
-		pscnv_dma_init(dev);
-	}
-	
-	if (!dev_priv->dma) {
-		NV_ERROR(dev, "pscnv_vram_from_host: no DMA available\n");
-		return -EINVAL;
-	}
-	
-	vram->flags &= ~PSCNV_GEM_USER; /* do not enter swapping logic */
-	res = dev_priv->vram->alloc(vram);
-	vram->flags |= PSCNV_GEM_USER;
-	
-	if (res) {
-		NV_INFO(dev, "pscnv_vram_from_host: failed to allocate VRAM!\n");
-		return -ENOMEM;
-	}
-	
-	res = pscnv_dma_bo_to_bo(vram, vram->backing_store, 0 /* flags */);
-	
-	if (res) {
-		NV_INFO(dev, "pscnv_vram_from_host: failed to DMA- Transfer!\n");
-		return res;
-	}
-	
-	//pscnv_swapping_memdump(sysram);
-	
-	res = pscnv_swapping_replace(vram->backing_store, vram);
-	if (res) {
-		NV_INFO(dev, "pscnv_vram_from_host: failed to replace mapping\n");
-		return res;
-	}
-	
-	pscnv_mem_free(vram->backing_store);
-	
-	vram->backing_store = NULL;
-	atomic64_sub(vram->size, &dev_priv->vram_swapped);
-	cl = vram->client;
-	if (cl) {
-		atomic64_sub(vram->size, &cl->vram_swapped);
-	} else {
-		NV_ERROR(dev, "pscnv_vram_to_host: can not account client vram usage\n");
-	}
-	
-	/* refcnt of sysram now belongs to the vram bo, it will unref it,
-	   when it gets free'd itself */
-	
-	return 0;
-}
-static int
-pscnv_vram_from_sysram(struct pscnv_bo *sysram)
-{
-	struct drm_device *dev = sysram->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct pscnv_bo *new_vram;
-	int res;
-	
-	if (!dev_priv->dma) {
-		pscnv_dma_init(dev);
-	}
-	
-	if (!dev_priv->dma) {
-		NV_ERROR(dev, "pscnv_vram_from_sysram: no DMA available\n");
-		return -EINVAL;
-	}
-	
-	new_vram = pscnv_mem_alloc(dev, sysram->size,
-		    PSCNV_GEM_VRAM_LARGE,
-		    0 /* tile flags */,
-		    0x12345678,
-		    sysram->client /*client */);
-	new_vram->flags |= PSCNV_GEM_USER;
-	
-	if (!new_vram) {
-		NV_INFO(dev, "pscnv_vram_from_sysram: failed to allocate VRAM!\n");
-		return -ENOMEM;
-	}
-	
-	res = pscnv_dma_bo_to_bo(new_vram, sysram, 0 /* flags */);
-	
-	if (res) {
-		NV_INFO(dev, "pscnv_vram_from_sysram: failed to DMA- Transfer!\n");
-		return res;
-	}
-	
-	res = pscnv_swapping_replace(sysram, new_vram);
-	if (res) {
-		NV_INFO(dev, "pscnv_vram_from_sysram: failed to replace mapping\n");
-		return res;
-	}
-	
-	// TODO
-	//pscnv_mem_free(sysram);
-	
-	atomic64_sub(new_vram->size, &dev_priv->vram_swapped);
-	if (new_vram->client) {
-		atomic64_sub(new_vram->size, &new_vram->client->vram_swapped);
-	} else {
-		NV_ERROR(dev, "pscnv_vram_to_host: can not account client vram usage\n");
-	}
-	
-	return 0;
-}
-#endif
-
 static int
 pscnv_swaptask_wait_for_completions(struct drm_device *dev, const char *fname, struct list_head *swaptasks)
 {
@@ -734,37 +744,6 @@ pscnv_swaptask_wait_for_completions(struct drm_device *dev, const char *fname, s
 	
 	return 0;
 }
-
-#if 0
-static void
-pscnv_swapping_swap_in(void *data, struct pscnv_client *cl) { return; }
-#endif
-
-#if 0
-static void
-pscnv_swapping_swap_in(void *data, struct pscnv_client *cl)
-{
-	//struct drm_device *dev = cl->dev;
-	//struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct pscnv_chunk *opt = data;
-	
-	switch (opt->bo->flags & PSCNV_GEM_MEMTYPE_MASK) {
-	case PSCNV_GEM_VRAM_SMALL:
-	case PSCNV_GEM_VRAM_LARGE:
-		pscnv_vram_from_host(opt->bo);
-		break;
-	case PSCNV_GEM_SYSRAM_SNOOP:
-	case PSCNV_GEM_SYSRAM_NOSNOOP:
-		pscnv_vram_from_sysram(opt->bo);
-		break;
-	}
-	
-	/* TODO
-	mutex_lock(&dev_priv->clients->lock);
-	pscnv_chunk_list_add_unlocked(&cl->chunks, opt);
-	mutex_unlock(&dev_priv->clients->lock);*/
-}
-#endif
 
 static int
 pscnv_swapping_prepare_for_swap_out_unlocked(uint64_t *will_free, struct list_head *swaptasks, struct pscnv_chunk *cnk)
@@ -816,6 +795,7 @@ pscnv_swapping_prepare_for_swap_out_unlocked(uint64_t *will_free, struct list_he
 			NV_ERROR(dev, "pscnv_swapping_prepare: failed to add "
 					"chunk %08x/%d-%u\n", cnk->bo->cookie,
 					cnk->bo->serial, cnk->idx);
+			return -EBUSY;
 		}
 		if (st && pscnv_swapping_debug >= 1) {
 			NV_INFO(dev, "Swapping: scheduling chunk %08x/%d-%u "
@@ -837,6 +817,52 @@ pscnv_swapping_prepare_for_swap_out_unlocked(uint64_t *will_free, struct list_he
 			pscnv_chunk_alloc_type_str(cnk->alloc_type));
 		return -EINVAL;
 	}
+}
+
+static int
+pscnv_swapping_prepare_for_swap_in_unlocked(struct list_head *swaptasks, struct pscnv_chunk *cnk)
+{
+	struct pscnv_bo *bo = cnk->bo;
+	struct drm_device *dev = bo->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct pscnv_swaptask *st;
+	struct pscnv_client *cl = cnk->bo->client;
+	
+	size_t cnk_size = pscnv_chunk_size(cnk);
+	char size_str[16];
+	pscnv_mem_human_readable(size_str, cnk_size);
+	
+	if (!cl) {
+		NV_ERROR(dev, "pscnv_swap_in_prepare: chunk %08x/%d-%u has "
+			"no client attached, can not swap out\n",
+			cnk->bo->cookie, cnk->bo->serial, cnk->idx);
+		return -EINVAL;
+	}
+	
+	if (pscnv_chunk_expect_alloc_type(cnk, PSCNV_CHUNK_SYSRAM,
+					"pscnv_swapping_prepare_swap_in")) {
+		
+		return -EINVAL;
+	}
+	
+	st = pscnv_swaptask_add_chunk_unlocked(swaptasks, cnk);
+	if (!st) {
+		NV_ERROR(dev, "pscnv_swapping_prepare: failed to add "
+				"chunk %08x/%d-%u\n", cnk->bo->cookie,
+				cnk->bo->serial, cnk->idx);
+		return -EBUSY;
+	}
+	if (st && pscnv_swapping_debug >= 1) {
+		NV_INFO(dev, "Swapping: scheduling chunk %08x/%d-%u "
+			" (%s) of client %d for swap-IN in task %d\n",
+			cnk->bo->cookie, cnk->bo->serial, cnk->idx,
+			size_str, cl->pid, st->serial);
+	}
+	
+	atomic64_add(cnk_size, &dev_priv->vram_demand);
+	atomic64_add(cnk_size, &cl->vram_demand);
+		
+	return 0;
 }
 
 static void
@@ -868,6 +894,50 @@ pscnv_swapping_reduce_vram_of_client_unlocked(struct pscnv_client *victim, uint6
 	}
 }
 
+static void
+pscnv_swapping_increase_vram_of_client_unlocked(struct pscnv_client *winner, struct list_head *swaptasks)
+{
+	struct drm_device *dev = winner->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	int ret;
+	
+	struct pscnv_chunk *cnk;
+	int ops = 0;
+	
+	while (ops < PSCNV_SWAPPING_OPS_PER_VICTIM &&
+		(cnk = pscnv_chunk_list_take_random_unlocked(&winner->already_swapped))) {
+		
+		uint64_t vram_demand = atomic64_read(&dev_priv->vram_demand);
+		
+		if (pscnv_chunk_expect_alloc_type(cnk, PSCNV_CHUNK_SYSRAM,
+				"pscnv_swapping_increase_vram_of_client")) {
+			
+			pscnv_chunk_list_add_unlocked(&winner->already_swapped, cnk);
+			ops++;
+			continue;
+		}
+		
+		if (pscnv_chunk_size(cnk) >= dev_priv->vram_limit-vram_demand) {
+			/* not enough free space for this chunk */
+			pscnv_chunk_list_add_unlocked(&winner->already_swapped, cnk);
+			ops++;
+			continue;
+		}
+		
+		ret = pscnv_swapping_prepare_for_swap_in_unlocked(swaptasks, cnk);
+		
+		if (ret) {
+			pscnv_chunk_list_add_unlocked(&winner->already_swapped, cnk);
+			
+			NV_ERROR(dev, "failed to prepare chunk %08x/%d-%u for "
+				"swap-In. ret = %d\n", cnk->bo->cookie,
+				cnk->bo->serial, cnk->idx, ret);
+		}
+		
+		ops++;	
+	}
+}
+
 static struct pscnv_client*
 pscnv_swapping_choose_victim_unlocked(struct drm_device *dev)
 {
@@ -888,7 +958,6 @@ pscnv_swapping_choose_victim_unlocked(struct drm_device *dev)
 	return victim;
 }
 
-#if 0
 static struct pscnv_client*
 pscnv_swapping_choose_winner_unlocked(struct drm_device *dev)
 {
@@ -908,7 +977,6 @@ pscnv_swapping_choose_winner_unlocked(struct drm_device *dev)
 	
 	return winner;
 }
-#endif
 
 int
 pscnv_swapping_reduce_vram(struct drm_device *dev, uint64_t req, uint64_t *will_free)
@@ -944,54 +1012,61 @@ pscnv_swapping_reduce_vram(struct drm_device *dev, uint64_t req, uint64_t *will_
 		/* no return here, this function may be called again */
 	}
 	
-	pscnv_swaptask_fire(&swaptasks);
+	pscnv_swaptask_fire(&swaptasks, pscnv_swapping_swap_out);
 	
 	return pscnv_swaptask_wait_for_completions(dev, __func__, &swaptasks);
 }
 
 int
-pscnv_swapping_increase_vram(struct drm_device *dev) { return 0; }
-
-#if 0
-int
 pscnv_swapping_increase_vram(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct pscnv_client *winner;
-	struct pscnv_chunk *opt;
 	int ops = 0;
 	
-	uint64_t vram_demand; 
-	uint64_t will_alloc = 0;
+	LIST_HEAD(swaptasks);
+	
+	if (pscnv_swapping_debug >= 2) {
+		NV_INFO(dev, "Swapping: called swapping_increase_vram\n");
+	}
 	
 	mutex_lock(&dev_priv->clients->lock);
 	
 	while (ops < PSCNV_SWAPPING_MAXOPS &&
 		(winner = pscnv_swapping_choose_winner_unlocked(dev))) {
-		vram_demand = atomic64_read(&dev_priv->vram_demand);
 		
-		opt = pscnv_chunk_list_take_random_unlocked(&winner->already_swapped);
-		
-		if (opt->bo->size + will_alloc < dev_priv->vram_limit-vram_demand) {
-			NV_INFO(dev, "Swapping: scheduling BO %08x/%d of client %d for swapIN\n",
-				opt->bo->cookie, opt->bo->serial, winner->pid);
-			
-			pscnv_client_do_on_empty_fifo_unlocked(winner,
-				pscnv_swapping_swap_in, opt);
-		
-			atomic64_add(opt->bo->size, &winner->vram_demand);
-			atomic64_add(opt->bo->size, &dev_priv->vram_demand);
-			will_alloc += opt->bo->size;
-		}
+		pscnv_swapping_increase_vram_of_client_unlocked(winner, &swaptasks);
 		
 		ops++;
 	}
 	
 	mutex_unlock(&dev_priv->clients->lock);
 	
+	pscnv_swaptask_fire(&swaptasks, pscnv_swapping_swap_in);
+	
 	return 0;
 }
-#endif
+
+static void
+increase_vram_work_func(struct work_struct *work)
+{
+	struct delayed_work *dwork =
+		container_of(work, struct delayed_work, work);
+	struct pscnv_swapping *swapping = 
+		container_of(dwork, struct pscnv_swapping, increase_vram_work);
+	struct drm_device *dev = swapping->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	
+	uint64_t vram_swapped = atomic64_read(&dev_priv->vram_swapped);
+	uint64_t vram_demand = atomic64_read(&dev_priv->vram_demand);
+	uint64_t vram_limit = dev_priv->vram_limit;
+	
+	if (vram_swapped > 0 && (vram_limit - vram_demand) > PSCNV_INCREASE_THRESHOLD) {
+		pscnv_swapping_increase_vram(dev);
+	}
+	
+	schedule_delayed_work(dwork, PSCNV_INCREASE_RATE);
+}
 
 int
 pscnv_swapping_required(struct drm_device *dev)
