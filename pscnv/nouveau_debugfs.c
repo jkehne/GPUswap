@@ -363,6 +363,29 @@ pscnv_debugfs_pause_set(void *data, u64 val)
 	return 0;
 }
 
+static void
+pscnv_debugfs_memacc_bo_dump(const char *name, struct pscnv_bo *bo)
+{
+	struct drm_device *dev = bo->dev;
+	
+	int i;
+	uint32_t word[4];
+	
+	for (i = 0; i < 16; i+= 4) {
+		word[i/4] = nv_rv32(bo, i);
+	}
+	
+	NV_INFO(dev, "memacc_test: %s[0] = %08x %08x %08x %08x...\n",
+		name, word[0], word[1], word[2], word[3]);
+	
+	for (i = 0; i < 16; i+= 4) {
+		word[i/4] = nv_rv32(bo, i + 0x1000);
+	}
+	
+	NV_INFO(dev, "memacc_test: %s[1] = %08x %08x %08x %08x...\n",
+		name, word[0], word[1], word[2], word[3]);
+}
+
 static int
 pscnv_debugfs_memacc_test_set(void *data, u64 val)
 {
@@ -371,8 +394,8 @@ pscnv_debugfs_memacc_test_set(void *data, u64 val)
 	
 	struct pscnv_bo *src, *src2, *dst;
 	struct pscnv_vspace *vs = dev_priv->vm->vspaces[126];
-	uint32_t word[4];
-	int i, res;
+	int res;
+	const uint32_t size = 4 << 20; /* 4 MB */
 	
 	if (val != 1) {
 		return 0;
@@ -390,7 +413,7 @@ pscnv_debugfs_memacc_test_set(void *data, u64 val)
 		goto fail;
 	}
 	
-	src = pscnv_mem_alloc(dev, 0x32000,
+	src = pscnv_mem_alloc(dev, size,
 			    PSCNV_MAP_KERNEL | PSCNV_GEM_VRAM_LARGE,
 			    0 /* tile flags */,
 			    0xa1de0000,
@@ -402,9 +425,7 @@ pscnv_debugfs_memacc_test_set(void *data, u64 val)
 		goto fail;
 	}
 	
-	for (i = 0; i < src->size; i+= 4) {
-		nv_wv32(src, i, 0x42);
-	}
+	pscnv_bo_memset(src, 0x42);
 	
 	src->flags |= PSCNV_GEM_READONLY;
 	
@@ -420,15 +441,13 @@ pscnv_debugfs_memacc_test_set(void *data, u64 val)
 		goto fail_src2;
 	}
 	
-	for (i = 0; i < src2->size; i+= 4) {
-		nv_wv32(src2, i, 0xa1de);
-	}
+	pscnv_bo_memset(src2, 0xa1);
 	
 	src2->flags |= PSCNV_GEM_READONLY;
 	
 	dev_priv->vm->do_map(vs, src2, 0x20300000);
 	
-	dst = pscnv_mem_alloc(dev, 0x32000,
+	dst = pscnv_mem_alloc(dev, size,
 			    PSCNV_MAP_KERNEL | PSCNV_GEM_VRAM_LARGE,
 			    0 /* tile flags */,
 			    0xa1de0001,
@@ -440,6 +459,17 @@ pscnv_debugfs_memacc_test_set(void *data, u64 val)
 		goto fail_dst;
 	}
 
+	res = pscnv_dma_bo_to_bo(dst, src, PSCNV_DMA_DEBUG | PSCNV_DMA_ASYNC);
+	
+	if (res) {
+		NV_INFO(dev, "memacc_test: failed to DMA- Transfer!\n");
+		goto fail_dma;
+	}
+	
+	pscnv_debugfs_memacc_bo_dump("dst", dst);
+	
+	pscnv_bo_memset(src, 0x43);
+	
 	res = pscnv_dma_bo_to_bo(dst, src, PSCNV_DMA_DEBUG);
 	
 	if (res) {
@@ -447,19 +477,7 @@ pscnv_debugfs_memacc_test_set(void *data, u64 val)
 		goto fail_dma;
 	}
 	
-	for (i = 0; i < 16; i+= 4) {
-		word[i/4] = nv_rv32(dst, i);
-	}
-	
-	NV_INFO(dev, "memacc_test: dst[0] = %08x %08x %08x %08x...\n",
-		word[0], word[1], word[2], word[3]);
-	
-	for (i = 0; i < 16; i+= 4) {
-		word[i/4] = nv_rv32(dst, i + 0x1000);
-	}
-	
-	NV_INFO(dev, "memacc_test: dst[1] = %08x %08x %08x %08x...\n",
-		word[0], word[1], word[2], word[3]);
+	pscnv_debugfs_memacc_bo_dump("dst", dst);
 	
 	/* fall through and cleanup */
 fail_dma:

@@ -318,7 +318,7 @@ pscnv_vram_to_host(struct pscnv_chunk* vram)
 		return res;
 	}
 	
-	res = pscnv_dma_chunk_to_chunk(vram, &sysram, 0 /* flags */);
+	res = pscnv_dma_chunk_to_chunk(vram, &sysram, PSCNV_DMA_ASYNC);
 	
 	if (res) {
 		NV_INFO(dev, "copy_to_host: failed to DMA- Transfer!\n");

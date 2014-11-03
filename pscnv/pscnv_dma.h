@@ -9,6 +9,7 @@
 /* flags for DMA transfer */
 #define PSCNV_DMA_VERBOSE 0x1
 #define PSCNV_DMA_DEBUG   0x2 /* output additional debug messages */
+#define PSCNV_DMA_ASYNC   0x4 /* use PCOPY0 instead of M2MF */
 
 struct pscnv_dma {
 	struct drm_device *dev;

@@ -144,6 +144,10 @@ MODULE_PARM_DESC(pause_debug, "Pause/ continue debug level: 0-2.");
 int pscnv_pause_debug = 0;
 module_param_named(pause_debug, pscnv_pause_debug, int, 0400);
 
+MODULE_PARM_DESC(pause_debug, "DMA debug level: 0-2.");
+int pscnv_dma_debug = 0;
+module_param_named(dma_debug, pscnv_dma_debug, int, 0400);
+
 MODULE_PARM_DESC(swapin, "Enable the broken swapIN: 0-1");
 int pscnv_enable_swapin = 0;
 module_param_named(swapin, pscnv_enable_swapin, int, 0400);

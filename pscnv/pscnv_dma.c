@@ -8,6 +8,14 @@
 static int
 pscnv_dma_setup_flags(int flags)
 {
+	if (pscnv_dma_debug >= 1) {
+		flags |= PSCNV_DMA_VERBOSE;
+	}
+	
+	if (pscnv_dma_debug >= 2) {
+		flags |= PSCNV_DMA_DEBUG;
+	}
+	
 	if (flags & PSCNV_DMA_DEBUG) {
 		flags |= PSCNV_DMA_VERBOSE;
 	}
@@ -76,6 +84,61 @@ nvc0_memcpy_m2mf(struct pscnv_ib_chan *chan, const uint64_t dst_addr,
 	FIRE_RING(chan);
 }
 
+static void
+nvc0_memcpy_pcopy0(struct pscnv_ib_chan *chan, const uint64_t dst_addr,
+		 const uint64_t src_addr, const uint32_t size, int flags)
+{
+	static const uint32_t mode = 0x3110; /* QUERY_SHORT|QUERY|SRC_LINEAR|DST_LINEAR */
+	static const uint32_t pitch = 0x8000;
+	const uint32_t ycnt = size / pitch;
+	const uint32_t rem_size = size - ycnt * pitch;
+	
+	uint64_t dst_pos = dst_addr;
+	uint64_t src_pos = src_addr;
+	
+	if (flags & PSCNV_DMA_VERBOSE) {
+		char size_str[16];
+		pscnv_mem_human_readable(size_str, size);
+		NV_INFO(chan->dev, "DMA: PCOPY0- copy %s from %llx to %llx\n",
+			size_str, src_addr, dst_addr);
+	}
+
+	if (ycnt) {
+		BEGIN_NVC0(chan, GDEV_SUBCH_NV_PCOPY0, 0x30c, 6);
+		OUT_RING(chan, src_pos >> 32);  /* SRC_ADDR_HIGH */
+		OUT_RING(chan, src_pos);	/* SRC_ADDR_LOW */
+		OUT_RING(chan, dst_pos >> 32);  /* DST_ADDR_HIGH */
+		OUT_RING(chan, dst_pos);	/* DST_ADDR_LOW */
+		OUT_RING(chan, pitch);		/* SRC_PITCH_IN */
+		OUT_RING(chan, pitch);		/* DST_PITCH_IN */
+		BEGIN_NVC0(chan, GDEV_SUBCH_NV_PCOPY0, 0x324, 2);
+		OUT_RING(chan, pitch);		/* XCNT */
+		OUT_RING(chan, ycnt);		/* YCNT */
+		BEGIN_NVC0(chan, GDEV_SUBCH_NV_PCOPY0, 0x300, 1);
+		OUT_RING(chan, mode);		/* EXEC */
+		FIRE_RING(chan);
+	}
+	
+	dst_pos += ycnt * pitch;
+	src_pos += ycnt * pitch;
+	
+	if (rem_size) {
+		BEGIN_NVC0(chan, GDEV_SUBCH_NV_PCOPY0, 0x30c, 6);
+		OUT_RING(chan, src_pos >> 32);  /* SRC_ADDR_HIGH */
+		OUT_RING(chan, src_pos);	/* SRC_ADDR_LOW */
+		OUT_RING(chan, dst_pos >> 32);  /* DST_ADDR_HIGH */
+		OUT_RING(chan, dst_pos);	/* DST_ADDR_LOW */
+		OUT_RING(chan, rem_size);	/* SRC_PITCH_IN */
+		OUT_RING(chan, rem_size);	/* DST_PITCH_IN */
+		BEGIN_NVC0(chan, GDEV_SUBCH_NV_PCOPY0, 0x324, 2);
+		OUT_RING(chan, rem_size);	/* XCNT */
+		OUT_RING(chan, 1);		/* YCNT */
+		BEGIN_NVC0(chan, GDEV_SUBCH_NV_PCOPY0, 0x300, 1);
+		OUT_RING(chan, mode);		/* EXEC */
+		FIRE_RING(chan);
+	}
+}
+
 int
 pscnv_dma_init(struct drm_device *dev)
 {	
@@ -130,7 +193,7 @@ pscnv_dma_init(struct drm_device *dev)
 		goto fail_fence;
         }
 	
-	subch = GDEV_SUBCH_NV_COMPUTE | GDEV_SUBCH_NV_M2MF;
+	subch = GDEV_SUBCH_NV_COMPUTE | GDEV_SUBCH_NV_M2MF | GDEV_SUBCH_NV_PCOPY0;
 	pscnv_ib_init_subch(dma->ib_chan, subch);
 	
 	dev_priv->dma = dma;
@@ -151,7 +214,7 @@ fail_alloc_vs:
 }
 
 static void
-pscnv_dma_track_time(struct pscnv_client *cl, s64 start, s64 duration)
+pscnv_dma_track_time(struct pscnv_client *cl, s64 start, s64 duration, const char *name)
 {
 	struct pscnv_client_timetrack *tt;
 	
@@ -161,7 +224,7 @@ pscnv_dma_track_time(struct pscnv_client *cl, s64 start, s64 duration)
 	}
 	
 	INIT_LIST_HEAD(&tt->list);
-	tt->type = "DMA";
+	tt->type = name;
 	tt->start = start;
 	tt->duration = duration;
 	list_add_tail(&tt->list, &cl->time_trackings);
@@ -202,8 +265,8 @@ pscnv_dma_bo_to_bo(struct pscnv_bo *tgt, struct pscnv_bo *src, int flags) {
 	struct pscnv_mm_node *src_node;
 	const uint32_t size = tgt->size;
 	
-	struct timespec start, end;
-	s64 start_ns, duration;
+	struct timespec start, start_real, end, end_real;
+	s64 start_ns, start_real_ns, duration, duration_real;
 	
 	int ret;
 	
@@ -218,8 +281,8 @@ pscnv_dma_bo_to_bo(struct pscnv_bo *tgt, struct pscnv_bo *src, int flags) {
 	
 	mutex_lock(&dma->lock);
 	
-	getnstimeofday(&start);
-	start_ns = timespec_to_ns(&start);
+	getnstimeofday(&start_real);
+	start_real_ns = timespec_to_ns(&start_real);
 	
 	if (tgt->size < src->size) {
 		NV_INFO(dev, "DMA: source bo (cookie=%x) has size %lld, but target bo "
@@ -254,11 +317,21 @@ pscnv_dma_bo_to_bo(struct pscnv_bo *tgt, struct pscnv_bo *src, int flags) {
 		dev_priv->chan->pd_dump_chan(dev, NULL /* seq_file */, PSCNV_DMA_CHAN);
 	}
 	
+	getnstimeofday(&start);
+	start_ns = timespec_to_ns(&start);
+	
 	pscnv_ib_membar(dma->ib_chan);
 	
-	pscnv_ib_fence_write(dma->ib_chan, GDEV_SUBCH_NV_M2MF);
+	if (flags & PSCNV_DMA_ASYNC) {
+		pscnv_ib_fence_write(dma->ib_chan, GDEV_SUBCH_NV_PCOPY0);
 	
-	nvc0_memcpy_m2mf(dma->ib_chan, tgt_node->start, src_node->start, size, flags);
+		nvc0_memcpy_pcopy0(dma->ib_chan, tgt_node->start, src_node->start, size, flags);
+	} else {
+		pscnv_ib_fence_write(dma->ib_chan, GDEV_SUBCH_NV_M2MF);
+	
+		nvc0_memcpy_m2mf(dma->ib_chan, tgt_node->start, src_node->start, size, flags);
+	}
+	
 	
 	ret = pscnv_ib_fence_wait(dma->ib_chan);
 	
@@ -268,16 +341,6 @@ pscnv_dma_bo_to_bo(struct pscnv_bo *tgt, struct pscnv_bo *src, int flags) {
 	}
 	
 	getnstimeofday(&end);
-	
-	duration = timespec_to_ns(&end) - start_ns;
-	if (flags & PSCNV_DMA_VERBOSE) {
-		NV_INFO(dev, "DMA: took %lld.%04lld ms\n", duration / 1000000,
-			(duration % 1000000) / 100);
-	}
-	
-	if (src->client) {
-		pscnv_dma_track_time(src->client, start_ns, duration);
-	}
 	
 	/* no return here, always unmap memory */
 
@@ -289,6 +352,24 @@ fail_map_src:
 	
 fail_map_tgt:
 	mutex_unlock(&dma->lock);
+	
+	getnstimeofday(&end_real);
+	
+	if (!ret) {
+		duration = timespec_to_ns(&end) - start_ns;
+		duration_real = timespec_to_ns(&end_real) - start_real_ns;
+		if (flags & PSCNV_DMA_VERBOSE) {
+			NV_INFO(dev, "DMA: took %lld.%04lld ms (real %lld.%04lld ms)\n",
+				duration / 1000000,
+				(duration % 1000000) / 100,
+				duration_real / 1000000,
+				(duration_real % 1000000) / 100);
+		}
+		if (src->client) {
+			pscnv_dma_track_time(src->client, start_ns, duration, "DMA");
+			pscnv_dma_track_time(src->client, start_ns, duration_real, "DMA_REAL");
+		}
+	}
 
 	return ret;
 }
@@ -299,17 +380,16 @@ pscnv_dma_chunk_to_chunk(struct pscnv_chunk *from, struct pscnv_chunk *to, int f
 	struct drm_device *dev = from->bo->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct pscnv_dma *dma = dev_priv->dma;
+	struct pscnv_client *client = from->bo->client;
 	
 	struct pscnv_mm_node *from_node;
 	struct pscnv_mm_node *to_node;
 	const uint64_t size = pscnv_chunk_size(from);
 	
-	struct timespec start, end;
-	s64 start_ns, duration;
+	struct timespec start, start_real, end, end_real;
+	s64 start_ns, start_real_ns, duration, duration_real;
 	
 	int ret;
-	
-	flags |= PSCNV_DMA_VERBOSE;
 	
 	flags = pscnv_dma_setup_flags(flags);
 	
@@ -322,8 +402,8 @@ pscnv_dma_chunk_to_chunk(struct pscnv_chunk *from, struct pscnv_chunk *to, int f
 	
 	mutex_lock(&dma->lock);
 	
-	getnstimeofday(&start);
-	start_ns = timespec_to_ns(&start);
+	getnstimeofday(&start_real);
+	start_real_ns = timespec_to_ns(&start_real);
 	
 	if (pscnv_chunk_size(to) < size) {
 		NV_INFO(dev, "DMA: source chunk %08x/%d-%u has size %lld, but "
@@ -360,11 +440,20 @@ pscnv_dma_chunk_to_chunk(struct pscnv_chunk *from, struct pscnv_chunk *to, int f
 		dev_priv->chan->pd_dump_chan(dev, NULL /* seq_file */, PSCNV_DMA_CHAN);
 	}
 	
+	getnstimeofday(&start);
+	start_ns = timespec_to_ns(&start);
+	
 	pscnv_ib_membar(dma->ib_chan);
 	
-	pscnv_ib_fence_write(dma->ib_chan, GDEV_SUBCH_NV_M2MF);
+	if (flags & PSCNV_DMA_ASYNC) {
+		pscnv_ib_fence_write(dma->ib_chan, GDEV_SUBCH_NV_PCOPY0);
 	
-	nvc0_memcpy_m2mf(dma->ib_chan, to_node->start, from_node->start, size, flags);
+		nvc0_memcpy_pcopy0(dma->ib_chan, to_node->start, from_node->start, size, flags);
+	} else {
+		pscnv_ib_fence_write(dma->ib_chan, GDEV_SUBCH_NV_M2MF);
+	
+		nvc0_memcpy_m2mf(dma->ib_chan, to_node->start, from_node->start, size, flags);
+	}
 	
 	ret = pscnv_ib_fence_wait(dma->ib_chan);
 	
@@ -374,14 +463,6 @@ pscnv_dma_chunk_to_chunk(struct pscnv_chunk *from, struct pscnv_chunk *to, int f
 	}
 	
 	getnstimeofday(&end);
-	
-	duration = timespec_to_ns(&end) - start_ns;
-	NV_INFO(dev, "DMA: took %lld.%04lld ms\n", duration / 1000000,
-		(duration % 1000000) / 100);
-	
-	if (from->bo->client) {
-		pscnv_dma_track_time(from->bo->client, start_ns, duration);
-	}
 	
 	/* no return here, always unmap memory */
 
@@ -393,6 +474,24 @@ fail_map_from:
 	
 fail_map_to:
 	mutex_unlock(&dma->lock);
+	
+	getnstimeofday(&end_real);
+	
+	if (!ret) {
+		duration = timespec_to_ns(&end) - start_ns;
+		duration_real = timespec_to_ns(&end_real) - start_real_ns;
+		if (flags & PSCNV_DMA_VERBOSE) {
+			NV_INFO(dev, "DMA: took %lld.%04lld ms (real %lld.%04lld ms)\n",
+				duration / 1000000,
+				(duration % 1000000) / 100,
+				duration_real / 1000000,
+				(duration_real % 1000000) / 100);
+		}
+		if (client) {
+			pscnv_dma_track_time(client, start_ns, duration, "DMA");
+			pscnv_dma_track_time(client, start_ns, duration_real, "DMA_REAL");
+		}
+	}
 
 	return ret;
 }
