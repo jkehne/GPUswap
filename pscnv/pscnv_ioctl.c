@@ -59,7 +59,12 @@ int pscnv_ioctl_getparam(struct drm_device *dev, void *data,
 		getparam->value = nv04_timer_read(dev);
 		break;
 	case PSCNV_GETPARAM_FB_SIZE:
-		getparam->value = dev_priv->vram_size;
+		if (dev_priv->vram_limit > 0) {
+			/* swapping is enabled. Report an insanely large VRAM */
+			getparam->value = (42UL << 40);
+		} else {
+			getparam->value = dev_priv->vram_size;
+		}
 		break;
 	case PSCNV_GETPARAM_GPC_COUNT:
 		if (dev_priv->card_type < NV_C0)
@@ -117,6 +122,11 @@ int pscnv_ioctl_gem_new(struct drm_device *dev, void *data,
 	obj = pscnv_gem_new(dev, info->size, info->flags | PSCNV_GEM_USER,
 			info->tile_flags, info->cookie, info->user, client);
 	if (!obj) {
+		char size_str[16];
+		pscnv_mem_human_readable(size_str, info->size);
+		NV_INFO(dev, "GEM: %s requested %s of %s. Failed\n",
+			(client) ? (client->comm) : "<unknown>",
+			size_str, pscnv_bo_memtype_str(info->flags));
 		return -ENOMEM;
 	}
 	bo = obj->driver_private;

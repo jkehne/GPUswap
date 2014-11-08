@@ -283,6 +283,15 @@ pscnv_mem_alloc(struct drm_device *dev,
 			ret = -ENOSYS;
 	}
 	if (ret) {
+		char size_str[16];
+		pscnv_mem_human_readable(size_str, size);
+		
+		NV_ERROR(dev, "MEM: failed to allocate BO %08x/%d (%s %s) for %s\n",
+			res->cookie, res->serial, size_str,
+			pscnv_bo_memtype_str(flags),
+			client ? client->comm : "driver");
+		
+		WARN_ON(1);
 		kfree(res);
 		return 0;
 	}

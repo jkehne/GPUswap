@@ -278,9 +278,12 @@ pscnv_client_ref_free(struct kref *ref)
 	struct pscnv_client *cl = container_of(ref, struct pscnv_client, ref);
 	struct drm_device *dev = cl->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	char size_str[16];
 	int i;
 
-	NV_INFO(dev, "closing client %s:%d\n", cl->comm, cl->pid);
+	pscnv_mem_human_readable(size_str, cl->vram_max);
+	NV_INFO(dev, "closing client %s:%d (vram_max=%s)\n",
+			cl->comm, cl->pid, size_str);
 	
 	mutex_lock(&dev_priv->clients->lock);
 	pscnv_client_free_unlocked(cl);

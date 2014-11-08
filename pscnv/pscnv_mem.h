@@ -31,6 +31,10 @@
 
 #define PSCNV_MEM_PAGE_SIZE 0x1000
 
+/* VRAM that is reserved for the driver. The lowest PSCNV_VRAM_RESERVED bytes
+ * of VRAM will never be allocated to the userspace */
+#define PSCNV_VRAM_RESERVED (8 << 20)
+
 struct pscnv_vspace;
 struct pscnv_client;
 

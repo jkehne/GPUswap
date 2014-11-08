@@ -41,6 +41,8 @@ struct pscnv_client {
 	atomic64_t vram_swapped;
 	atomic64_t vram_demand;
 	
+	uint64_t vram_max;
+	
 	/* list the client is in, see pscnv_clients.list */
 	struct list_head clients;
 	

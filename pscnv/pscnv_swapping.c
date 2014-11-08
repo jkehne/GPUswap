@@ -4,12 +4,14 @@
 #include "pscnv_client.h"
 #include "pscnv_sysram.h"
 #include "pscnv_vram.h"
+#include "pscnv_ib_chan.h"
 
 #include <linux/random.h>
 #include <linux/completion.h>
 
-/* BOs smaller than this size are ignored */
-#define PSCNV_SWAPPING_MIN_SIZE (4UL << 20) /* 4 MB */
+/* BOs smaller than this size are ignored. Accept anything that is larger
+ * than a Pushbuffer */
+#define PSCNV_SWAPPING_MIN_SIZE (PSCNV_PB_SIZE + 1) /* > 1 MB */
 
 /* reduce_vram will be called up to 3 times. Each time, it performs MAXOPS
  * operations and each operation itself is made up of OPS_PER_VICTIM

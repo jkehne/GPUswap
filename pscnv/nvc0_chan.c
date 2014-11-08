@@ -93,7 +93,6 @@ nvc0_chan_ctrl_fault(struct pscnv_chan *ch_base, struct vm_area_struct *vma, str
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	
 	struct nvc0_fifo_engine *fifo = nvc0_fifo_eng(dev_priv->fifo);
-	uint32_t ib_put;
 	
 	if (pscnv_pause_debug >= 2) {
 		char comm[TASK_COMM_LEN];
@@ -111,6 +110,8 @@ nvc0_chan_ctrl_fault(struct pscnv_chan *ch_base, struct vm_area_struct *vma, str
 	spin_lock(&ch->ctrl_shadow_lock);
 	
 	BUG_ON(ch->ctrl_pte_present);
+	WARN_ON(!ch_base->vma);
+	WARN_ON(ch_base->vma != vma);
 	
 	if (ch->ctrl_is_shadowed) {
 		remap_pfn_range(vma, vma->vm_start,
@@ -121,6 +122,8 @@ nvc0_chan_ctrl_fault(struct pscnv_chan *ch_base, struct vm_area_struct *vma, str
 		spin_unlock(&ch->ctrl_shadow_lock);
 	} else {
 		if (!ch->ib_pte_present) {
+			uint32_t ib_get;
+			
 			/* process hit this fault handler before the ib fault
 			 * handler. That's bad, as it may want's to update the
 			 * ib_put pointer to a value that is not in sync
@@ -131,6 +134,12 @@ nvc0_chan_ctrl_fault(struct pscnv_chan *ch_base, struct vm_area_struct *vma, str
 			 * as it runs and then we finally can restore the
 			 * correct mapping */
 			spin_lock(&ch->ib_shadow_lock);
+			
+			/* we update the ib_get, so that the process can see
+			 * some progress, in case it is blocking on a full PB */
+			ib_get = nv_rv32(fifo->ctrl_bo, (ch->base.cid << 12) + 0x88);
+			ch->ctrl_shadow[0x88/4] = ib_get;
+			
 			remap_pfn_range(vma, vma->vm_start,
 				virt_to_phys(ch->ctrl_shadow) >> 12,
 				vma->vm_end - vma->vm_start, PAGE_SHARED);
@@ -145,6 +154,7 @@ nvc0_chan_ctrl_fault(struct pscnv_chan *ch_base, struct vm_area_struct *vma, str
 					"restore of channel %d\n", ch->base.cid);
 			}
 		} else {
+			uint32_t ib_put;
 			/* restore mapping to device memory */
 			remap_pfn_range(vma, vma->vm_start,
 				(dev_priv->fb_phys + nvc0_fifo_ctrl_offs(dev, ch->base.cid)) >> 12,

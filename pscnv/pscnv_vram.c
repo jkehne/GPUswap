@@ -14,6 +14,11 @@ pscnv_vram_alloc_chunk(struct pscnv_chunk *cnk, int flags)
 	
 	int ret;
 	uint64_t size = pscnv_chunk_size(cnk);
+	uint64_t vram_start = 0;
+	
+	if (bo->flags & PSCNV_GEM_USER) {
+		vram_start = PSCNV_VRAM_RESERVED;
+	}
 	
 	if (pscnv_chunk_expect_alloc_type(cnk, PSCNV_CHUNK_UNALLOCATED,
 						"pscnv_vram_alloc_chunk")) {
@@ -23,14 +28,17 @@ pscnv_vram_alloc_chunk(struct pscnv_chunk *cnk, int flags)
 	WARN_ON(cnk->vram_node);
 	
 	ret = pscnv_mm_alloc(dev_priv->vram_mm, size, flags,
-				0, dev_priv->vram_size, &cnk->vram_node);
+				vram_start, dev_priv->vram_size, &cnk->vram_node);
 	if (ret) {
 		char buf[16];
 		
 		pscnv_mem_human_readable(buf, size);
 		NV_INFO(dev, "pscnv_vram_alloc_chunk: unable to allocate %s "
-			"for CHUNK %08x/%d-%u. Failed with code %d\n",
+			"for CHUNK %08x/%d-%u. Failed with code %d. Allocate "
+			"SYSRAM instead.\n",
 			buf, bo->cookie, bo->serial, cnk->idx, ret);
+			
+		pscnv_sysram_alloc_chunk(cnk);	
 		return ret;
 	}
 	
@@ -41,6 +49,8 @@ pscnv_vram_alloc_chunk(struct pscnv_chunk *cnk, int flags)
 	atomic64_add(size, &dev_priv->vram_usage);
 	if (bo->client) {
 		atomic64_add(size, &bo->client->vram_usage);
+		bo->client->vram_max = max(bo->client->vram_max,
+			(uint64_t) atomic64_read(&bo->client->vram_usage));
 	}
 	
 	return ret;
