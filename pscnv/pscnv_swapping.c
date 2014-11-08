@@ -157,17 +157,20 @@ pscnv_chunk_list_take_random_unlocked(struct pscnv_chunk_list *list)
 	return pscnv_chunk_list_take_unlocked(list, pscnv_swapping_roll_dice(list->size));
 }
 
-static size_t
+/* return number of bytes of all chunks that have been removed */
+static uint64_t
 pscnv_chunk_list_remove_bo_unlocked(struct pscnv_chunk_list *list, struct pscnv_bo *bo)
 {
 	struct pscnv_chunk *cnk;
 	size_t count = 0;
 	size_t i = 0;
 	size_t size_before = list->size;
+	uint64_t bytes_sum = 0;
 	
 	while (i < list->size) {
 		if (list->chunks[i]->bo == bo) {
 			cnk = pscnv_chunk_list_take_unlocked(list, i);
+			bytes_sum += pscnv_chunk_size(cnk);
 			count++;
 			/* no i++ here, last element is moved here and gets
 			 * checked at the next iteration */
@@ -178,7 +181,7 @@ pscnv_chunk_list_remove_bo_unlocked(struct pscnv_chunk_list *list, struct pscnv_
 	
 	WARN_ON(size_before - count != list->size);
 	
-	return count;
+	return bytes_sum;
 }
 
 #if 0
@@ -680,25 +683,17 @@ pscnv_swapping_remove_bo_internal(struct pscnv_bo *bo)
 	struct drm_device *dev = bo->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct pscnv_client *cl = bo->client;
+	uint64_t bytes_sum_swapped;
 	
 	mutex_lock(&dev_priv->clients->lock);
 	
 	pscnv_chunk_list_remove_bo_unlocked(&cl->swapping_options, bo);
-	pscnv_chunk_list_remove_bo_unlocked(&cl->already_swapped, bo);
-	
-	/*if (count == 0) {
-		NV_INFO(dev, "pscnv_swapping_remove_bo: not a single swapping "
-			     "option has been removed for BO %08x/%d on client %d\n",
-			      bo->cookie, bo->serial, cl->pid);
-	}
-	
-	if (pscnv_swapping_list_search_bo_unlocked(&cl->already_swapped, bo)) {
-		NV_INFO(dev, "pscnv_swapping_remove_bo: BO %08x/%d on client %d "
-			     " has already been swapped, oops\n",
-			      bo->cookie, bo->serial, cl->pid);
-	}*/
+	bytes_sum_swapped = pscnv_chunk_list_remove_bo_unlocked(&cl->already_swapped, bo);
 	
 	mutex_unlock(&dev_priv->clients->lock);
+	
+	atomic64_sub(bytes_sum_swapped, &dev_priv->vram_swapped);
+	atomic64_sub(bytes_sum_swapped, &cl->vram_swapped);
 }
 
 void
