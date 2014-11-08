@@ -279,10 +279,20 @@ pscnv_client_ref_free(struct kref *ref)
 	struct drm_device *dev = cl->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	char size_str[16];
+	
+	uint64_t vram_usage = atomic64_read(&cl->vram_usage);
+	uint64_t vram_swapped = atomic64_read(&cl->vram_swapped);
+	uint64_t vram_demand = atomic64_read(&cl->vram_demand);
 
 	pscnv_mem_human_readable(size_str, cl->vram_max);
 	NV_INFO(dev, "closing client %s:%d (vram_max=%s)\n",
 			cl->comm, cl->pid, size_str);
+	
+	if (vram_usage > 0 || vram_swapped > 0 || vram_demand > 0) {
+		NV_ERROR(dev, "client %s:%d still has vram_usage=%llu, "
+			"vram_swapped=%llu, vram_demand=%llu at exit\n",
+			cl->comm, cl->pid, vram_usage, vram_swapped, vram_demand);
+	}
 	
 	mutex_lock(&dev_priv->clients->lock);
 	pscnv_client_free_unlocked(cl);
