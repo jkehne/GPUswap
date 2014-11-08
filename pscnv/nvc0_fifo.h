@@ -21,6 +21,9 @@ struct nvc0_fifo_ctx {
 	
 	/* driver data structure to manipulate this ib */
 	struct pscnv_ib_chan *ib_chan;
+	
+	/* last IB_GET value we have seen in this channel */
+	uint32_t last_ib_get;
 };
 
 #define nvc0_fifo_eng(x) container_of(x, struct nvc0_fifo_engine, base)

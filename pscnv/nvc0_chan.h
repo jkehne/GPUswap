@@ -28,6 +28,7 @@ struct nvc0_chan {
 	bool ib_pte_present;
 	
 	struct work_struct pause_work;
+	struct task_struct *pb_get_update_thread;
 	
 	/* == ib_put just after pausing the channel */
 	int old_ib_get;

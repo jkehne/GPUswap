@@ -7,10 +7,91 @@
 #include "nvc0_fifo.h"
 #include "pscnv_client.h"
 #include <linux/mm.h>
+#include <linux/kthread.h>
+
 
 /*******************************************************************************
  * Channel pause / continue
  ******************************************************************************/
+
+static int
+nvc0_pb_get_update_thread(void *data)
+{
+	struct nvc0_chan *ch = data;
+	int cid = ch->base.cid;
+	struct drm_device *dev = ch->base.dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct nvc0_fifo_engine *fifo = nvc0_fifo_eng(dev_priv->fifo);
+	
+	const unsigned long timeout = jiffies + HZ;
+	int warned = false;
+	
+	if (pscnv_pause_debug >= 2) {
+		NV_INFO(dev, "nvc0_pb_get_update_thread: [%d] start\n", cid);
+	}
+	
+	while (!kthread_should_stop()) {
+		uint32_t lo, lo_old, hi, hi_old, ib_get, ib_get_old;
+		
+		if (time_after(jiffies, timeout) && !warned) {
+			NV_INFO(dev, "nvc0_pb_get_update_thread: [%d] running "
+				"for over 1s\n", cid);
+			warned = true;
+		}
+		
+		spin_lock(&ch->ctrl_shadow_lock);
+		
+		if (!ch->ctrl_restore_delayed) {
+			WARN_ON(1);
+			break;
+		}
+		
+		if (!ch->ctrl_shadow) {
+			WARN_ON(1);
+			break;
+		}
+
+		lo = nv_rv32(fifo->ctrl_bo, (cid << 12) + 0x58);
+		hi = nv_rv32(fifo->ctrl_bo, (cid << 12) + 0x5c);
+		ib_get = nv_rv32(fifo->ctrl_bo, (cid << 12) + 0x88);
+		
+		lo_old = ch->ctrl_shadow[0x58/4];
+		hi_old = ch->ctrl_shadow[0x5c/4];
+		ib_get_old = ch->ctrl_shadow[0x88/4];
+		
+		ch->ctrl_shadow[0x58/4] = lo;
+		ch->ctrl_shadow[0x5c/4] = hi;
+		ch->ctrl_shadow[0x88/4] = ib_get;
+		
+		spin_unlock(&ch->ctrl_shadow_lock);
+		
+		if (pscnv_pause_debug >= 2) {
+			uint64_t pb_get = ((uint64_t)hi << 32) +lo;
+			uint64_t pb_get_old = ((uint64_t)hi_old << 32) + lo_old;
+			
+			if (pb_get != pb_get_old) {
+				NV_INFO(dev, "nvc0_pb_get_update_thread:"
+					" [%d] PB_GET 0x%08llx -> 0x%08llx\n",
+					cid, pb_get_old, pb_get);
+			}
+			
+			if (ib_get != ib_get_old) {
+				NV_INFO(dev, "nvc0_pb_get_update_thread:"
+					" [%d] IB_GET 0x%08x -> 0x%08x\n",
+					cid, ib_get_old, ib_get);
+			}
+		}
+		
+		/* use hrtimer to sleep between 0.1 ms and 1 ms */
+		usleep_range(100, 1000);
+	}
+	
+	if (pscnv_pause_debug >= 2) {
+		NV_INFO(dev, "nvc0_pb_get_update_thread: [%d] stop\n", cid);
+	}
+	
+	return 0;
+}
 
 void
 nvc0_chan_pause_fence_stop_time(struct pscnv_chan *ch)
@@ -122,8 +203,6 @@ nvc0_chan_ctrl_fault(struct pscnv_chan *ch_base, struct vm_area_struct *vma, str
 		spin_unlock(&ch->ctrl_shadow_lock);
 	} else {
 		if (!ch->ib_pte_present) {
-			uint32_t ib_get;
-			
 			/* process hit this fault handler before the ib fault
 			 * handler. That's bad, as it may want's to update the
 			 * ib_put pointer to a value that is not in sync
@@ -133,12 +212,18 @@ nvc0_chan_ctrl_fault(struct pscnv_chan *ch_base, struct vm_area_struct *vma, str
 			 * ib fault handler will zap the page again as soon
 			 * as it runs and then we finally can restore the
 			 * correct mapping */
-			spin_lock(&ch->ib_shadow_lock);
 			
-			/* we update the ib_get, so that the process can see
-			 * some progress, in case it is blocking on a full PB */
-			ib_get = nv_rv32(fifo->ctrl_bo, (ch->base.cid << 12) + 0x88);
-			ch->ctrl_shadow[0x88/4] = ib_get;
+			/* let the nvc0_pb_get_update_thread regularily update
+			 * PB_GET so the client sees some progress */
+			if (!ch->pb_get_update_thread) {
+				ch->pb_get_update_thread = kthread_run(
+						nvc0_pb_get_update_thread, ch,
+						"pscnv_pb_get_update");
+			} else {
+				WARN_ON_ONCE(1);
+			}
+			
+			spin_lock(&ch->ib_shadow_lock);
 			
 			remap_pfn_range(vma, vma->vm_start,
 				virt_to_phys(ch->ctrl_shadow) >> 12,
@@ -302,6 +387,12 @@ nvc0_chan_ib_fault(struct pscnv_bo *ib, struct vm_area_struct *vma, struct vm_fa
 		
 		spin_lock(&ch->ctrl_shadow_lock);
 		if (ctrl_vma && ch->ctrl_restore_delayed && ch->ctrl_pte_present) {
+			WARN_ON(!ch->pb_get_update_thread);
+			if (ch->pb_get_update_thread) {
+				kthread_stop(ch->pb_get_update_thread);
+				ch->pb_get_update_thread = NULL;
+			}
+			
 			if (pscnv_pause_debug >= 2) {
 				NV_INFO(dev, "nvc0_chan_ib_fault: again clearing"
 					" ctrl vma on chnannel %d\n", ch->base.cid);
@@ -740,6 +831,11 @@ static void nvc0_chan_free(struct pscnv_chan *ch)
 	struct drm_device *dev = ch->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	unsigned long flags;
+	
+	if (nvc0_ch(ch)->pb_get_update_thread) {
+		kthread_stop(nvc0_ch(ch)->pb_get_update_thread);
+		nvc0_ch(ch)->pb_get_update_thread = NULL;
+	}
 	
 	spin_lock_irqsave(&dev_priv->chan->ch_lock, flags);
 	ch->handle = 0;
