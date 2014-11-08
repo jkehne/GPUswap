@@ -443,22 +443,6 @@ pscnv_mem_free(struct pscnv_bo *bo)
 		}
 	}
 	
-	
-	/*if (bo->backing_store) {
-		atomic64_sub(bo->size, &dev_priv->vram_swapped);
-		if (bo->client) {
-			atomic64_sub(bo->size, &bo->client->vram_swapped);
-		}
-		if (bo->backing_store != bo) {
-			pscnv_bo_unref(bo->backing_store);
-		
-			kfree(bo);
-			//the memory handled by this bo has already been free'd
-			//   on swapping
-			return 0;
-		}
-	}*/
-	
 	for (i = 0; i < bo->n_chunks; i++) {
 		pscnv_chunk_free(&bo->chunks[i]);
 	}

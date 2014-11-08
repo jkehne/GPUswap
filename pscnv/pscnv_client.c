@@ -279,7 +279,6 @@ pscnv_client_ref_free(struct kref *ref)
 	struct drm_device *dev = cl->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	char size_str[16];
-	int i;
 
 	pscnv_mem_human_readable(size_str, cl->vram_max);
 	NV_INFO(dev, "closing client %s:%d (vram_max=%s)\n",
@@ -288,14 +287,6 @@ pscnv_client_ref_free(struct kref *ref)
 	mutex_lock(&dev_priv->clients->lock);
 	pscnv_client_free_unlocked(cl);
 	mutex_unlock(&dev_priv->clients->lock);
-	
-	if (pscnv_enable_swapin && dev_priv->vram_limit > 0) {
-		for (i=0; i < 10; i++) {
-			// we do this many times, as every increase VRAM only
-			// does limited work
-			pscnv_swapping_increase_vram(dev);
-		}
-	}
 }
 
 int

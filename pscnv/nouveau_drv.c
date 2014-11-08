@@ -148,10 +148,6 @@ MODULE_PARM_DESC(pause_debug, "DMA debug level: 0-2.");
 int pscnv_dma_debug = 0;
 module_param_named(dma_debug, pscnv_dma_debug, int, 0400);
 
-MODULE_PARM_DESC(swapin, "Enable the broken swapIN: 0-1");
-int pscnv_enable_swapin = 0;
-module_param_named(swapin, pscnv_enable_swapin, int, 0400);
-
 MODULE_PARM_DESC(requested_chunk_size, "Chunk size as multiple of 128kB: default 32, use 0 to disable chunking");
 /* Note: 128kB is Large Page Table Entry size. With chunk sizes that are not
  * a multiple of 128kB, VRAM_LARGE would be more difficult to implement */

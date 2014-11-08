@@ -620,7 +620,6 @@ extern int nouveau_force_post;
 extern int nouveau_override_conntype;
 extern char *nouveau_perflvl;
 extern int nouveau_perflvl_wr;
-extern int pscnv_enable_swapin;
 extern int pscnv_requested_chunk_size;
 extern int pscnv_vram_limit;
 
