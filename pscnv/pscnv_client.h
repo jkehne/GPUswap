@@ -49,11 +49,14 @@ struct pscnv_client {
 	/* list of all channels held by this client */
 	struct list_head channels;
 	
-	/* list of memory areas that meight be taken away from this client */
+	/* list of chunks that meight be taken away from this client */
 	struct pscnv_chunk_list swapping_options;
 	
-	/* list of memory areas that have been taken away from this client */
+	/* list of chunks that have been taken away from this client */
 	struct pscnv_chunk_list already_swapped;
+	
+	/* list of chunks that are passing between one of the other two lists */
+	struct pscnv_chunk_list swap_pending;
 	
 	/* list of work to do, next time that this client has an empty fifo */
 	struct list_head on_empty_fifo;

@@ -395,6 +395,7 @@ pscnv_mem_free(struct pscnv_bo *bo)
 	struct drm_device *dev;
 	struct drm_nouveau_private *dev_priv;
 	uint32_t i;
+	int ret;
 	
 	if (!bo) {
 		WARN_ON(1);
@@ -416,7 +417,12 @@ pscnv_mem_free(struct pscnv_bo *bo)
 				pscnv_bo_memtype_str(bo->flags));
 	}
 
-	pscnv_swapping_remove_bo(bo);
+	ret = pscnv_swapping_remove_bo(bo);
+	if (ret) {
+		NV_ERROR(dev, "MEM: failed to remove BO %08x/%d from swapping list\n",
+			bo->cookie, bo->serial);
+		return ret;
+	}
 
 	if (bo->drm_map) {
 		drm_rmmap(dev, bo->drm_map);

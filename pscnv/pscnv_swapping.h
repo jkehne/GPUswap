@@ -10,6 +10,9 @@ struct pscnv_swapping {
 	struct drm_device *dev;
 	atomic_t swaptask_serial;
 	struct delayed_work increase_vram_work;
+	
+	/* gets completed every time some swapping operation is completed */
+	struct completion next_swap;
 };
 
 struct pscnv_chunk_list {
@@ -78,7 +81,7 @@ void
 pscnv_swapping_add_bo(struct pscnv_bo *bo);
 
 /* tell the system about a bo that shall not be swapped anymore */
-void
+int
 pscnv_swapping_remove_bo(struct pscnv_bo *bo);
 
 /*

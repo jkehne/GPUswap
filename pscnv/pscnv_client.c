@@ -234,6 +234,7 @@ pscnv_client_new_unlocked(struct drm_device *dev, pid_t pid, const char *comm)
 	INIT_LIST_HEAD(&new->time_trackings);
 	pscnv_chunk_list_init(&new->swapping_options);
 	pscnv_chunk_list_init(&new->already_swapped);
+	pscnv_chunk_list_init(&new->swap_pending);
 	strncpy(new->comm, comm, TASK_COMM_LEN-1);
 	
 	list_add_tail(&new->clients, &dev_priv->clients->list);
@@ -266,6 +267,8 @@ pscnv_client_free_unlocked(struct pscnv_client *cl)
 	pscnv_chunk_list_free(&cl->swapping_options);
 	WARN_ON(!pscnv_chunk_list_empty(&cl->already_swapped));
 	pscnv_chunk_list_free(&cl->already_swapped);
+	WARN_ON(!pscnv_chunk_list_empty(&cl->swap_pending));
+	pscnv_chunk_list_free(&cl->swap_pending);
 	
 	kfree(cl);
 }

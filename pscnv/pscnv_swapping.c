@@ -78,6 +78,7 @@ pscnv_swapping_init(struct drm_device *dev)
 	
 	dev_priv->swapping->dev = dev;
 	atomic_set(&dev_priv->swapping->swaptask_serial, 0);
+	init_completion(&dev_priv->swapping->next_swap);
 	
 	INIT_DELAYED_WORK(&dev_priv->swapping->increase_vram_work, increase_vram_work_func);
 	ret = schedule_delayed_work(&dev_priv->swapping->increase_vram_work, PSCNV_INCREASE_RATE);
@@ -155,6 +156,56 @@ pscnv_chunk_list_take_random_unlocked(struct pscnv_chunk_list *list)
 	}
 	
 	return pscnv_chunk_list_take_unlocked(list, pscnv_swapping_roll_dice(list->size));
+}
+
+/* return idx of first chunk of given bo in list or -1 if not found */
+static int
+pscnv_chunk_list_find_bo(struct pscnv_chunk_list *list, struct pscnv_bo *bo)
+{
+	struct drm_device *dev = bo->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	size_t i;
+	
+	mutex_lock(&dev_priv->clients->lock);
+	for (i = 0; i < list->size; i++) {
+		if (list->chunks[i]->bo == bo) {
+			mutex_unlock(&dev_priv->clients->lock);
+			return (int)i;
+		}
+	}
+	mutex_unlock(&dev_priv->clients->lock);
+	
+	return -1;
+	
+}
+
+/* return idx of chunk in list or -1 if not found */
+static int
+pscnv_chunk_list_find_unlocked(struct pscnv_chunk_list *list, struct pscnv_chunk *cnk)
+{
+	size_t i;
+	
+	for (i = 0; i < list->size; i++) {
+		if (list->chunks[i] == cnk) {
+			return (int)i;
+		}
+	}
+	
+	return -1;
+	
+}
+
+static void
+pscnv_chunk_list_remove_unlocked(struct pscnv_chunk_list *list, struct pscnv_chunk *cnk)
+{
+	int i = pscnv_chunk_list_find_unlocked(list, cnk);
+	
+	if (i == -1) {
+		WARN_ON(1);
+		return;
+	}
+	
+	pscnv_chunk_list_take_unlocked(list, (size_t)i);
 }
 
 /* return number of bytes of all chunks that have been removed */
@@ -552,6 +603,7 @@ pscnv_swapping_swap_out(void *data, struct pscnv_client *cl)
 		
 		/* vram_to_host increases swapped out counter */
 		mutex_lock(&dev_priv->clients->lock);
+		pscnv_chunk_list_remove_unlocked(&cl->swap_pending, cnk);
 		pscnv_chunk_list_add_unlocked(&cl->already_swapped, cnk);
 		mutex_unlock(&dev_priv->clients->lock);
 	}
@@ -601,6 +653,7 @@ pscnv_swapping_swap_in(void *data, struct pscnv_client *cl)
 		
 		/* vram_from_host decreases swapped out counter */
 		mutex_lock(&dev_priv->clients->lock);
+		pscnv_chunk_list_remove_unlocked(&cl->swap_pending, cnk);
 		pscnv_chunk_list_add_unlocked(&cl->swapping_options, cnk);
 		mutex_unlock(&dev_priv->clients->lock);
 	}
@@ -677,35 +730,81 @@ pscnv_swapping_add_bo(struct pscnv_bo *bo)
 	}
 }
 
-static void
+static int
+pscnv_swapping_wait_for_pending_swaps(struct pscnv_bo *bo)
+{
+	struct drm_device *dev = bo->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct pscnv_client *cl = bo->client;
+	int res;
+	
+	const unsigned long timeout = jiffies + 2*HZ;
+	
+	while (pscnv_chunk_list_find_bo(&cl->swap_pending, bo) != -1) {
+		if (time_after(jiffies, timeout)) {
+			WARN_ON(1);
+			return -EBUSY;
+		}
+		
+		res = wait_for_completion_interruptible_timeout(
+			&dev_priv->swapping->next_swap, 2*HZ);
+	
+		if (res == -ERESTARTSYS) {
+			/* RESTARTSYS => interrupt */
+			return res;
+		}
+		if (res == 0) {
+			/* timout */
+			WARN_ON(1);
+			return -EBUSY;
+		}
+	}
+	
+	return 0;
+}
+
+static int
 pscnv_swapping_remove_bo_internal(struct pscnv_bo *bo)
 {
 	struct drm_device *dev = bo->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct pscnv_client *cl = bo->client;
+	int res;
+	
 	uint64_t bytes_sum_swapped;
 	
+	/* should catch most chunks */
 	mutex_lock(&dev_priv->clients->lock);
-	
 	pscnv_chunk_list_remove_bo_unlocked(&cl->swapping_options, bo);
 	bytes_sum_swapped = pscnv_chunk_list_remove_bo_unlocked(&cl->already_swapped, bo);
+	mutex_unlock(&dev_priv->clients->lock);
 	
+	/* wait for any remaining chunk to be moved into one of the other lists*/	
+	res = pscnv_swapping_wait_for_pending_swaps(bo);
+	
+	/* catch the rest */
+	mutex_lock(&dev_priv->clients->lock);
+	pscnv_chunk_list_remove_bo_unlocked(&cl->swapping_options, bo);
+	bytes_sum_swapped += pscnv_chunk_list_remove_bo_unlocked(&cl->already_swapped, bo);
 	mutex_unlock(&dev_priv->clients->lock);
 	
 	atomic64_sub(bytes_sum_swapped, &dev_priv->vram_swapped);
 	atomic64_sub(bytes_sum_swapped, &cl->vram_swapped);
+
+	return res;
+
 }
 
-void
+int
 pscnv_swapping_remove_bo(struct pscnv_bo *bo)
 {
 	if (!bo->client) {
 		/* this bo has not ever been added to some options list */
-		return;
+		return 0;
 	}
 	
 	/* NV_INFO(dev, "pscnv_swapping_remove_bo: removing %08x/%d to the swapping options of client %d\n", bo->cookie, bo->serial, bo->client->pid);*/
-	pscnv_swapping_remove_bo_internal(bo);
+	return pscnv_swapping_remove_bo_internal(bo);
 }
 
 static int
@@ -787,6 +886,7 @@ pscnv_swapping_prepare_for_swap_out_unlocked(uint64_t *will_free, struct list_he
 		return 0;
 	
 	case PSCNV_CHUNK_VRAM:
+		pscnv_chunk_list_add_unlocked(&cl->swap_pending, cnk);
 		st = pscnv_swaptask_add_chunk_unlocked(swaptasks, cnk);
 		if (!st) {
 			NV_ERROR(dev, "pscnv_swapping_prepare: failed to add "
@@ -842,6 +942,7 @@ pscnv_swapping_prepare_for_swap_in_unlocked(struct list_head *swaptasks, struct 
 		return -EINVAL;
 	}
 	
+	pscnv_chunk_list_add_unlocked(&cl->swap_pending, cnk);
 	st = pscnv_swaptask_add_chunk_unlocked(swaptasks, cnk);
 	if (!st) {
 		NV_ERROR(dev, "pscnv_swapping_prepare: failed to add "
@@ -1011,6 +1112,9 @@ pscnv_swapping_reduce_vram(struct drm_device *dev, uint64_t req, uint64_t *will_
 	
 	pscnv_swaptask_fire(&swaptasks, pscnv_swapping_swap_out);
 	
+	complete_all(&dev_priv->swapping->next_swap);
+	INIT_COMPLETION(dev_priv->swapping->next_swap);
+	
 	return pscnv_swaptask_wait_for_completions(dev, __func__, &swaptasks);
 }
 
@@ -1040,6 +1144,9 @@ pscnv_swapping_increase_vram(struct drm_device *dev)
 	mutex_unlock(&dev_priv->clients->lock);
 	
 	pscnv_swaptask_fire(&swaptasks, pscnv_swapping_swap_in);
+	
+	complete_all(&dev_priv->swapping->next_swap);
+	INIT_COMPLETION(dev_priv->swapping->next_swap);
 	
 	return 0;
 }
