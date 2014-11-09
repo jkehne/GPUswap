@@ -1097,7 +1097,7 @@ pscnv_swapping_increase_vram_of_client_unlocked(struct pscnv_client *winner, str
 			continue;
 		}
 		
-		if (pscnv_chunk_size(cnk) < mem_avail) {
+		if (pscnv_chunk_size(cnk) > mem_avail) {
 			/* not enough free space for this chunk */
 			pscnv_chunk_list_add_unlocked(&winner->already_swapped, cnk);
 			ops++;
