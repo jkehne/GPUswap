@@ -739,7 +739,27 @@ nvc0_graph_init_ctxctl(struct nvc0_graph_engine *graph)
 static void
 nvc0_graph_takedown(struct pscnv_engine *eng)
 {
-	/* FIXME */
+	struct nvc0_graph_engine *graph = NVC0_GRAPH(eng);
+	struct drm_device *dev = eng->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	
+	BUG_ON(!graph);
+
+	WARN_ON(!graph->unk4188b4);
+	WARN_ON(!graph->unk4188b8);
+	
+	if (graph->unk4188b4) {
+		pscnv_mem_free(graph->unk4188b4);
+		graph->unk4188b4 = NULL;
+	}
+	
+	if (graph->unk4188b8) {
+		pscnv_mem_free(graph->unk4188b8);
+		graph->unk4188b8 = NULL;
+	}
+
+	dev_priv->engines[PSCNV_ENGINE_GRAPH] = NULL;
+	kfree(graph);
 }
 
 static int
@@ -841,7 +861,7 @@ nvc0_graph_ctor(struct drm_device *dev)
 	return 0;
 
 fail_chipset:
-	pscnv_mem_free(graph->unk4188b4);
+	pscnv_mem_free(graph->unk4188b8);
 
 fail_unk4188b8:
 	pscnv_mem_free(graph->unk4188b4);
