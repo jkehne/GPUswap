@@ -43,10 +43,14 @@ struct pscnv_page_and_dma {
 	dma_addr_t dma;
 };
 
+/* chunk.alloc_type */
 #define PSCNV_CHUNK_UNALLOCATED  0 /* no memory has been allocated for this chunk, yet */
 #define PSCNV_CHUNK_VRAM         1 /* a regular chunk in VRAM */
 #define PSCNV_CHUNK_SYSRAM       2 /* a chunk that is allocated in SYSRAM, as
                                     * userspace explicitly asked for */
+
+/* chunk.flags */
+#define PSCNV_CHUNK_SWAPPED      1 /* this chunk is involuntarily SYSRAM */
 
 /** ALLCATION RULES:
  *
@@ -76,8 +80,11 @@ struct pscnv_chunk {
 	/* position in bo->chunks[] array */
 	uint32_t idx; 
 	
+	/* currently either PSCNV_CHUNK_SWAPPED or 0 */
+	uint16_t flags;
+	
 	/* one of PSCNV_CHUNK_UNALLOCATED, PSCNV_CHUNK_VRAM, ... */
-	uint32_t alloc_type;
+	uint16_t alloc_type;
 	
 	union {
 		/* PSCNV_CHUNK_VRAM only: first node of phyisical allocation

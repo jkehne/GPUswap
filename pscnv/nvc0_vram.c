@@ -63,11 +63,11 @@ nvc0_vram_init(struct drm_device *dev)
 	if (pscnv_vram_limit < 0) {
 		NV_ERROR(dev, "Invalid VRAM limit, ignoring\n");
 	} else {
-		vram_limit = pscnv_vram_limit << 20;
+		/* 0x20000 (128kB) is substracted by pscnv, for whatever reason */
+		vram_limit = (pscnv_vram_limit << 20) - 0x20000;
 		if (vram_limit && (dev_priv->vram_size > vram_limit)) {
 			dev_priv->vram_size = vram_limit;
-			/* reserve 8 MB for driver */
-			dev_priv->vram_limit = vram_limit - (8 << 20);
+			dev_priv->vram_limit = vram_limit - PSCNV_VRAM_RESERVED - 0x20000;
 			NV_INFO(dev, "Limiting VRAM to 0x%llx (%u MiB) as requested\n", dev_priv->vram_size, pscnv_vram_limit);
 		}
 	}

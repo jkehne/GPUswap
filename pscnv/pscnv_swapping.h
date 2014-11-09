@@ -97,9 +97,15 @@ pscnv_swapping_reduce_vram(struct drm_device *dev, uint64_t req, uint64_t *will_
 /*
  * decide weather pscnv_swapping_reduce_vram needs to be run to satisfy request */
 int
-pscnv_swapping_required(struct drm_device *dev);
+pscnv_swapping_required(struct pscnv_bo *bo);
 
 int
 pscnv_swapping_increase_vram(struct drm_device *dev);
+
+/*
+ * allocate a chunk as SYSRAM and also put it into the already_swapped list
+ * of the client that owns it, if it is swappable */
+int
+pscnv_swapping_sysram_fallback(struct pscnv_chunk *cnk);
 
 #endif /* end of include guard: PSCNV_SWAPPING_H */

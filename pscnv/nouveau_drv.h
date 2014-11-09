@@ -534,6 +534,15 @@ struct drm_nouveau_private {
 	
 	uint64_t chunk_size; /* chunk size in bytes */
 	
+	/* time of
+	 * - last BO allocation or
+	 * - last Swap-Out operation
+	 * - or last BO free
+	 * in jiffies.
+	 * Purpose: detect when memory allocation is quickly changing, so Swap-In
+	 * can wait until allocation is stable again */
+	unsigned long last_mem_alloc_change_time;
+	
 	uint64_t vram_sys_base;
 	bool vram_rank_B;
 	uint32_t crystal;

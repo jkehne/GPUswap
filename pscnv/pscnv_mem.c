@@ -404,6 +404,8 @@ pscnv_mem_free(struct pscnv_bo *bo)
 	dev = bo->dev;
 	dev_priv = dev->dev_private;
 	
+	dev_priv->last_mem_alloc_change_time = jiffies;
+	
 	if (bo->gem) {
 		NV_ERROR(bo->dev, "MEM: freeing %08x/%d, with DRM- Wrapper still attached!\n", bo->cookie, bo->serial);
 	}

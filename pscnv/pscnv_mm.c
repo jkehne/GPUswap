@@ -411,6 +411,9 @@ int pscnv_mm_alloc(struct pscnv_mm *mm, uint64_t size, uint32_t flags, uint64_t 
 				pscnv_mm_free_node(last, true);
 				last = cur;
 			}
+			/* set res to NULL if allocation fals. Do not return
+			 * pointers on mm_nodes that belong to someone else */
+			*res = NULL;
 			return ret;
 		}
 		if (pscnv_mm_debug >= 1)
@@ -418,10 +421,12 @@ int pscnv_mm_alloc(struct pscnv_mm *mm, uint64_t size, uint32_t flags, uint64_t 
 		
 		size -= cur->size;
 		if (last) {
+			/* subsequent iterations */
 			last->next = cur;
 			cur->prev = last;
 			last = cur;
 		} else {
+			/* first iteration */
 			*res = last = cur;
 			cur->prev = 0;
 		}
