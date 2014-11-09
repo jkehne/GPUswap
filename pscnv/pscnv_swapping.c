@@ -64,6 +64,7 @@ int
 pscnv_swapping_init(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct pscnv_swapping *swapping;
 	int ret;
 	
 	if (pscnv_swapping_debug >= 1) {
@@ -75,13 +76,14 @@ pscnv_swapping_init(struct drm_device *dev)
 		NV_ERROR(dev, "Out of memory\n");
 		return -ENOMEM;
 	}
+	swapping = dev_priv->swapping;
 	
-	dev_priv->swapping->dev = dev;
-	atomic_set(&dev_priv->swapping->swaptask_serial, 0);
-	init_completion(&dev_priv->swapping->next_swap);
+	swapping->dev = dev;
+	atomic_set(&swapping->swaptask_serial, 0);
+	init_completion(&swapping->next_swap);
 	
-	INIT_DELAYED_WORK(&dev_priv->swapping->increase_vram_work, increase_vram_work_func);
-	ret = schedule_delayed_work(&dev_priv->swapping->increase_vram_work, PSCNV_INCREASE_RATE);
+	INIT_DELAYED_WORK(&swapping->increase_vram_work, increase_vram_work_func);
+	ret = schedule_delayed_work(&swapping->increase_vram_work, PSCNV_INCREASE_RATE);
 	if (ret) {
 		NV_ERROR(dev, "failed to queue increase_vram_work\n");
 	}
@@ -89,6 +91,19 @@ pscnv_swapping_init(struct drm_device *dev)
 	return ret;
 }
 
+void
+pscnv_swapping_exit(struct drm_device *dev)
+{
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct pscnv_swapping *swapping = dev_priv->swapping;
+	
+	BUG_ON(!swapping);
+	
+	cancel_delayed_work_sync(&swapping->increase_vram_work);
+	
+	kfree(swapping);
+	dev_priv->swapping = NULL;
+}
 
 /*******************************************************************************
  * CHUNK_LIST

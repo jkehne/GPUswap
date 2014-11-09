@@ -25,6 +25,9 @@ struct pscnv_clients {
 	/* thread that pauses channels and performs the empty fifo work */
 	struct task_struct *pause_thread;
 	
+	/* tell pause_thread to stop */
+	bool pause_thread_stop;
+	
 	/* up on every call to do on empty_fifo and down on every operation */
 	struct semaphore need_pause;
 };
@@ -73,6 +76,10 @@ typedef void (*client_workfunc_t)(void *data, struct pscnv_client *cl);
 /* setup the clients structure */
 int
 pscnv_clients_init(struct drm_device *dev);
+
+/* teardown the clients structure */
+int
+pscnv_clients_exit(struct drm_device *dev);
 
 /* remove the client from the clients list and free memory */
 extern void

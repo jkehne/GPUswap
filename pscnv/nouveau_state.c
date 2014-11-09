@@ -487,6 +487,8 @@ static void nouveau_card_takedown(struct drm_device *dev)
 	if (dev_priv->init_state == NOUVEAU_CARD_INIT_DONE) {
 		NV_INFO(dev, "Stopping card...\n");
 		pscnv_dma_exit(dev);
+		pscnv_swapping_exit(dev);
+		pscnv_clients_exit(dev);
 		nouveau_backlight_exit(dev);
 		drm_irq_uninstall(dev);
 		flush_workqueue(dev_priv->wq);

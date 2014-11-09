@@ -58,6 +58,7 @@ pscnv_client_pause_thread(void *data)
 {
 	struct drm_device *dev = data;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct pscnv_clients *clients = dev_priv->clients;
 	
 	struct pscnv_client *cl;
 	struct pscnv_client *cl_to_pause = NULL;
@@ -66,23 +67,23 @@ pscnv_client_pause_thread(void *data)
 		NV_INFO(dev, "pscnv_client_pause_thread: init\n");
 	}
 	
-	while (!kthread_should_stop()) {
-		if (down_trylock(&dev_priv->clients->need_pause)) {
+	while (!kthread_should_stop() && !clients->pause_thread_stop) {
+		if (down_trylock(&clients->need_pause)) {
 			if (pscnv_pause_debug >= 2) {
 				NV_INFO(dev, "pscnv_client_pause_thread: sleep\n");
 			}
-			down_interruptible(&dev_priv->clients->need_pause);
+			down_interruptible(&clients->need_pause);
 			if (pscnv_pause_debug >= 2) {
 				NV_INFO(dev, "pscnv_client_pause_thread: wakeup\n");
 			}
-			if (kthread_should_stop()) {
+			if (kthread_should_stop() || clients->pause_thread_stop) {
 				break;
 			}
 		}
 		
-		mutex_lock(&dev_priv->clients->lock);
+		mutex_lock(&clients->lock);
 		
-		list_for_each_entry(cl, &dev_priv->clients->list, clients) {
+		list_for_each_entry(cl, &clients->list, clients) {
 			if (list_empty(&cl->on_empty_fifo)) {
 				continue;
 			} else {
@@ -91,7 +92,7 @@ pscnv_client_pause_thread(void *data)
 			}
 		}
 		
-		mutex_unlock(&dev_priv->clients->lock);
+		mutex_unlock(&clients->lock);
 		
 		if (!cl_to_pause) {
 			/* this happens, if two process add work to the
@@ -129,9 +130,7 @@ pscnv_clients_init(struct drm_device *dev)
 {
 	struct pscnv_clients *clients;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	
-	NV_INFO(dev, "Clients: Initializing...\n");
-	
+
 	if (dev_priv->clients) {
 		NV_INFO(dev, "Clients: already initialized!\n");
 		return -EINVAL;
@@ -169,6 +168,39 @@ pscnv_clients_init(struct drm_device *dev)
 	}
 	
 	dev_priv->clients = clients;
+	return 0;
+}
+
+int
+pscnv_clients_exit(struct drm_device *dev)
+{
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct pscnv_clients *clients = dev_priv->clients;
+	
+	BUG_ON(!clients);
+	
+	WARN_ON(!list_empty(&clients->list));
+
+	WARN_ON(!mutex_trylock(&clients->lock));
+	
+	WARN_ON(!clients->pause_thread);
+	if (clients->pause_thread) {
+		clients->pause_thread_stop = true;
+		wmb();
+		up(&clients->need_pause);
+		
+		kthread_stop(clients->pause_thread);
+	}
+	if (client_work_cache) {
+		/* warning indicates that work_cache is not empty */
+		WARN_ON(kmem_cache_shrink(client_work_cache));
+	
+		kmem_cache_destroy(client_work_cache);
+	}
+	
+	kfree(clients);
+	dev_priv->clients = NULL;
+	
 	return 0;
 }
 

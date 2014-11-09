@@ -53,6 +53,10 @@ struct pscnv_swaptask {
 int
 pscnv_swapping_init(struct drm_device *dev);
 
+/* called once on driver shutdown */
+void
+pscnv_swapping_exit(struct drm_device *dev);
+
 static inline int
 pscnv_chunk_list_empty(struct pscnv_chunk_list *list)
 {
