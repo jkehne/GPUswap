@@ -92,7 +92,7 @@ pscnv_swapping_remove_bo(struct pscnv_bo *bo);
  * @returns: actual bytes of vram that will be free'd. In many cases this will
  *           be more than requested */
 int
-pscnv_swapping_reduce_vram(struct drm_device *dev, uint64_t req, uint64_t *will_free);
+pscnv_swapping_reduce_vram(struct drm_device *dev);
 
 /*
  * decide weather pscnv_swapping_reduce_vram needs to be run to satisfy request */

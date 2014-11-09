@@ -375,7 +375,6 @@ pscnv_chunk_free(struct pscnv_chunk *cnk)
 				bo->cookie, bo->serial, cnk->idx);
 			break;
 		case PSCNV_CHUNK_VRAM:
-			atomic64_sub(size, &dev_priv->vram_demand);
 			if (bo->client) {
 				atomic64_sub(size, &bo->client->vram_demand);
 			}
@@ -704,4 +703,33 @@ nv_wv32_pramin(struct drm_device *dev, uint64_t addr, uint32_t val)
 	}
 	nv_wr32(dev, 0x700000 + offset, val);
 	spin_unlock_irqrestore(&dev_priv->pramin_lock, flags);
+}
+
+static inline uint64_t
+pscnv_mem_vram_usage_effective_common(struct drm_device *dev, uint64_t vram_usage)
+{
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	
+	uint64_t vram_usage_kernel = atomic64_read(&dev_priv->vram_usage_kernel);
+	
+	if (vram_usage_kernel > PSCNV_VRAM_RESERVED) {
+		return vram_usage + vram_usage_kernel - PSCNV_VRAM_RESERVED;
+	}
+	return vram_usage;
+}
+
+uint64_t
+pscnv_mem_vram_usage_effective(struct drm_device *dev)
+{
+	uint64_t vram_usage = pscnv_clients_vram_usage(dev);
+	
+	return pscnv_mem_vram_usage_effective_common(dev, vram_usage);
+}
+
+uint64_t
+pscnv_mem_vram_usage_effective_unlocked(struct drm_device *dev)
+{
+	uint64_t vram_usage = pscnv_clients_vram_usage_unlocked(dev);
+	
+	return pscnv_mem_vram_usage_effective_common(dev, vram_usage);
 }

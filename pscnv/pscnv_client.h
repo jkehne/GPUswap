@@ -110,7 +110,47 @@ pscnv_client_do_on_empty_fifo_unlocked(struct pscnv_client *cl, client_workfunc_
 void
 pscnv_client_run_empty_fifo_work(struct pscnv_client *cl);
 
+uint64_t
+pscnv_clients_vram_common_unlocked(struct drm_device *dev, size_t offset);
 
+uint64_t
+pscnv_clients_vram_common(struct drm_device *dev, size_t offset);
+
+static inline uint64_t
+pscnv_clients_vram_usage_unlocked(struct drm_device *dev)
+{
+	return pscnv_clients_vram_common_unlocked(dev, offsetof(struct pscnv_client, vram_usage));
+}
+
+static inline uint64_t
+pscnv_clients_vram_usage(struct drm_device *dev)
+{
+	return pscnv_clients_vram_common(dev, offsetof(struct pscnv_client, vram_usage));
+}
+
+static inline uint64_t
+pscnv_clients_vram_swapped_unlocked(struct drm_device *dev)
+{
+	return pscnv_clients_vram_common_unlocked(dev, offsetof(struct pscnv_client, vram_swapped));
+}
+
+static inline uint64_t
+pscnv_clients_vram_swapped(struct drm_device *dev)
+{
+	return pscnv_clients_vram_common(dev, offsetof(struct pscnv_client, vram_swapped));
+}
+
+static inline uint64_t
+pscnv_clients_vram_demand_unlocked(struct drm_device *dev)
+{
+	return pscnv_clients_vram_common_unlocked(dev, offsetof(struct pscnv_client, vram_demand));
+}
+
+static inline uint64_t
+pscnv_clients_vram_demand(struct drm_device *dev)
+{
+	return pscnv_clients_vram_common(dev, offsetof(struct pscnv_client, vram_demand));
+}
 
 
 #endif /* end of include guard: PSCNV_CLIENT_H */

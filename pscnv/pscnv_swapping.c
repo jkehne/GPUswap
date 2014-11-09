@@ -26,7 +26,7 @@
 /* delay between checks for vram increase in jiffies */
 #define PSCNV_INCREASE_RATE (HZ/1)
 
-#define PSCNV_INCREASE_THRESHOLD (16 << 20)
+#define PSCNV_INCREASE_THRESHOLD (4 << 20)
 
 #if 0
 static void
@@ -447,7 +447,6 @@ fail_dma:
 	pscnv_sysram_free_chunk(&sysram);
 
 fail_sysram_alloc:
-	atomic64_add(pscnv_chunk_size(vram), &dev_priv->vram_demand);
 	if (vram->bo->client)
 		atomic64_add(pscnv_chunk_size(vram), &vram->bo->client->vram_demand);
 
@@ -558,7 +557,6 @@ fail_dma:
 	pscnv_vram_free_chunk(&vram);
 
 fail_vram_alloc:
-	atomic64_sub(pscnv_chunk_size(sysram), &dev_priv->vram_demand);
 	if (sysram->bo->client)
 		atomic64_sub(pscnv_chunk_size(sysram), &sysram->bo->client->vram_demand);
 	
@@ -852,7 +850,6 @@ pscnv_swapping_sysram_fallback_unlocked(struct pscnv_chunk *cnk, bool prepare_sw
 {
 	struct pscnv_bo *bo = cnk->bo;
 	struct drm_device *dev = bo->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct pscnv_client *cl = bo->client;
 	int ret;
 	
@@ -896,7 +893,6 @@ pscnv_swapping_sysram_fallback_unlocked(struct pscnv_chunk *cnk, bool prepare_sw
 		}
 	}
 	
-	atomic64_sub(cnk_size, &dev_priv->vram_demand);
 	if (cl) {
 		atomic64_sub(cnk_size, &cl->vram_demand);
 	}
@@ -909,7 +905,6 @@ pscnv_swapping_prepare_for_swap_out_unlocked(uint64_t *will_free, struct list_he
 {
 	struct pscnv_bo *bo = cnk->bo;
 	struct drm_device *dev = bo->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct pscnv_swaptask *st;
 	struct pscnv_client *cl = cnk->bo->client;
 	int ret = 0;
@@ -950,7 +945,6 @@ pscnv_swapping_prepare_for_swap_out_unlocked(uint64_t *will_free, struct list_he
 				size_str, cl->pid, st->serial);
 		}
 		
-		atomic64_sub(cnk_size, &dev_priv->vram_demand);
 		atomic64_sub(cnk_size, &cl->vram_demand);
 		*will_free += cnk_size;
 		
@@ -970,7 +964,6 @@ pscnv_swapping_prepare_for_swap_in_unlocked(struct list_head *swaptasks, struct 
 {
 	struct pscnv_bo *bo = cnk->bo;
 	struct drm_device *dev = bo->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct pscnv_swaptask *st;
 	struct pscnv_client *cl = cnk->bo->client;
 	
@@ -1007,14 +1000,38 @@ pscnv_swapping_prepare_for_swap_in_unlocked(struct list_head *swaptasks, struct 
 			size_str, cl->pid, st->serial);
 	}
 	
-	atomic64_add(cnk_size, &dev_priv->vram_demand);
 	atomic64_add(cnk_size, &cl->vram_demand);
 		
 	return 0;
 }
 
+static int64_t
+pscnv_swapping_mem_avail_unlocked(struct drm_device *dev)
+{
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	
+	int64_t vram_usage = pscnv_mem_vram_usage_effective_unlocked(dev);
+	int64_t vram_demand = pscnv_clients_vram_demand_unlocked(dev);
+	int64_t vram_limit = dev_priv->vram_limit;
+	
+	return vram_limit - max(vram_usage, vram_demand);
+}
+
+static int64_t
+pscnv_swapping_mem_avail(struct drm_device *dev)
+{
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	uint64_t res;
+	
+	mutex_lock(&dev_priv->clients->lock);
+	res = pscnv_swapping_mem_avail_unlocked(dev);
+	mutex_unlock(&dev_priv->clients->lock);
+	
+	return res;
+}
+
 static void
-pscnv_swapping_reduce_vram_of_client_unlocked(struct pscnv_client *victim, uint64_t req, uint64_t *will_free, struct list_head *swaptasks)
+pscnv_swapping_reduce_vram_of_client_unlocked(struct pscnv_client *victim, uint64_t *will_free, struct list_head *swaptasks)
 {
 	struct drm_device *dev = victim->dev;
 	int ret;
@@ -1022,8 +1039,9 @@ pscnv_swapping_reduce_vram_of_client_unlocked(struct pscnv_client *victim, uint6
 	struct pscnv_chunk *cnk;
 	int ops = 0;
 	
-	while (*will_free < req && ops < PSCNV_SWAPPING_OPS_PER_VICTIM && 
-	      (cnk = pscnv_chunk_list_take_random_unlocked(&victim->swapping_options))) {
+	while (pscnv_swapping_mem_avail_unlocked(dev) < 0 &&
+		ops < PSCNV_SWAPPING_OPS_PER_VICTIM && 
+		(cnk = pscnv_chunk_list_take_random_unlocked(&victim->swapping_options))) {
 		
 		ret = pscnv_swapping_prepare_for_swap_out_unlocked(
 			will_free, swaptasks, cnk);
@@ -1046,7 +1064,6 @@ static void
 pscnv_swapping_increase_vram_of_client_unlocked(struct pscnv_client *winner, struct list_head *swaptasks)
 {
 	struct drm_device *dev = winner->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	int ret;
 	
 	struct pscnv_chunk *cnk;
@@ -1055,8 +1072,8 @@ pscnv_swapping_increase_vram_of_client_unlocked(struct pscnv_client *winner, str
 	while (ops < PSCNV_SWAPPING_OPS_PER_VICTIM &&
 		(cnk = pscnv_chunk_list_take_random_unlocked(&winner->already_swapped))) {
 		
-		uint64_t vram_demand = atomic64_read(&dev_priv->vram_demand);
-		
+		uint64_t mem_avail = pscnv_swapping_mem_avail_unlocked(dev);
+
 		if (pscnv_chunk_expect_alloc_type(cnk, PSCNV_CHUNK_SYSRAM,
 				"pscnv_swapping_increase_vram_of_client")) {
 			
@@ -1065,7 +1082,7 @@ pscnv_swapping_increase_vram_of_client_unlocked(struct pscnv_client *winner, str
 			continue;
 		}
 		
-		if (pscnv_chunk_size(cnk) >= dev_priv->vram_limit-vram_demand) {
+		if (pscnv_chunk_size(cnk) < mem_avail) {
 			/* not enough free space for this chunk */
 			pscnv_chunk_list_add_unlocked(&winner->already_swapped, cnk);
 			ops++;
@@ -1127,36 +1144,36 @@ pscnv_swapping_choose_winner_unlocked(struct drm_device *dev)
 }
 
 int
-pscnv_swapping_reduce_vram(struct drm_device *dev, uint64_t req, uint64_t *will_free)
+pscnv_swapping_reduce_vram(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct pscnv_client *victim;
 	int ops = 0;
+	uint64_t will_free = 0;
 	
 	LIST_HEAD(swaptasks);
-	
-	*will_free = 0;
-	
+
 	mutex_lock(&dev_priv->clients->lock);
 	
-	while (*will_free < req && ops < PSCNV_SWAPPING_MAXOPS &&
+	while (pscnv_swapping_mem_avail_unlocked(dev) < 0 &&
+		ops < PSCNV_SWAPPING_MAXOPS &&
 		(victim = pscnv_swapping_choose_victim_unlocked(dev))) {
 
 		pscnv_swapping_reduce_vram_of_client_unlocked(
-			victim, req, will_free, &swaptasks);
+			victim, &will_free, &swaptasks);
 		
 		ops++;
 	}
 	
 	mutex_unlock(&dev_priv->clients->lock);
 	
-	if (*will_free < req) {
-		char req_str[16], will_free_str[16];
-		pscnv_mem_human_readable(req_str, req);
-		pscnv_mem_human_readable(will_free_str, *will_free);
-		NV_INFO(dev, "pscnv_swapping_reduce_vram: could not satisfy "
-			     "request for %s, stuck with %s after "
-			     "%d ops\n", req_str, will_free_str, ops);
+	if (pscnv_swapping_mem_avail(dev) < 0) {
+		char oversub_str[16], will_free_str[16];
+		pscnv_mem_human_readable(oversub_str, -pscnv_swapping_mem_avail(dev));
+		pscnv_mem_human_readable(will_free_str, will_free);
+		NV_INFO(dev, "pscnv_swapping_reduce_vram: still memory oversubscription"
+			     "of %s. Could only get %s after %d ops\n",
+			     oversub_str, will_free_str, ops);
 		/* no return here, this function may be called again */
 	}
 	
@@ -1201,6 +1218,8 @@ pscnv_swapping_increase_vram(struct drm_device *dev)
 	return 0;
 }
 
+
+
 static void
 increase_vram_work_func(struct work_struct *work)
 {
@@ -1211,17 +1230,10 @@ increase_vram_work_func(struct work_struct *work)
 	struct drm_device *dev = swapping->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	
-	uint64_t vram_usage = atomic64_read(&dev_priv->vram_usage);
-	uint64_t vram_swapped = atomic64_read(&dev_priv->vram_swapped);
-	uint64_t vram_demand = atomic64_read(&dev_priv->vram_demand);
-	uint64_t vram_limit = dev_priv->vram_limit;
-	
-	if (vram_swapped > 0 &&
-		/* overflow protect, vram_demand is allowed to temoririly exceed
-		 * limit */
-		(vram_limit > max(vram_usage, vram_demand)) &&
-		(vram_limit - max(vram_usage, vram_demand)) > PSCNV_INCREASE_THRESHOLD &&
+	if (pscnv_clients_vram_swapped(dev) > 0 &&
+		(pscnv_swapping_mem_avail(dev) > PSCNV_INCREASE_THRESHOLD) &&
 		(time_after(jiffies, dev_priv->last_mem_alloc_change_time + HZ/20))) {
+
 			pscnv_swapping_increase_vram(dev);
 	}
 	
@@ -1235,13 +1247,14 @@ pscnv_swapping_required(struct pscnv_bo *bo)
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	
 	uint64_t limit = dev_priv->vram_limit;
-	uint64_t demand = atomic64_read(&dev_priv->vram_demand);
 	
 	if (limit == 0) {
 		/* swapping disabled */
 		return false;
 	} else {	
-		return demand > limit && bo->size >= PSCNV_SWAPPING_MIN_SIZE;
+		return (pscnv_swapping_mem_avail(dev) < 0 &&
+			(bo->size >= PSCNV_SWAPPING_MIN_SIZE) &&
+			(bo->flags & PSCNV_GEM_USER));
 	}
 }
 

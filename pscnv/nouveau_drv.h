@@ -526,10 +526,7 @@ struct drm_nouveau_private {
 		NV_MEM_TYPE_GDDR5
 	} vram_type;
 	uint64_t vram_size;
-	atomic64_t vram_usage;   /* vram that is currently reserved */
-	atomic64_t vram_demand;  /* vram that will be reserved after all swapping
-		                    * operations completed */
-	atomic64_t vram_swapped;
+	atomic64_t vram_usage_kernel;   /* vram that is currently reserved by this driver */
 	uint32_t vram_limit;
 	
 	uint64_t chunk_size; /* chunk size in bytes */

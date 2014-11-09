@@ -44,11 +44,23 @@ pscnv_vram_alloc_chunk(struct pscnv_chunk *cnk, int flags)
 	cnk->vram_node->bo = bo;
 	cnk->vram_node->chunk = cnk;
 	
-	atomic64_add(size, &dev_priv->vram_usage);
-	if (bo->client) {
-		atomic64_add(size, &bo->client->vram_usage);
-		bo->client->vram_max = max(bo->client->vram_max,
-			(uint64_t) atomic64_read(&bo->client->vram_usage));
+	if (bo->flags & PSCNV_GEM_USER) {
+		WARN_ON(!bo->client);
+		if (bo->client) {
+			atomic64_add(size, &bo->client->vram_usage);
+			bo->client->vram_max = max(bo->client->vram_max,
+				(uint64_t) atomic64_read(&bo->client->vram_usage));
+		}
+	} else {
+		uint64_t vram_usage_kernel;
+		atomic64_add(size, &dev_priv->vram_usage_kernel);
+		
+		vram_usage_kernel = atomic64_read(&dev_priv->vram_usage_kernel);
+		if (vram_usage_kernel > PSCNV_VRAM_RESERVED) {
+			NV_WARN(dev, "WARNING: kernel VRAM usage %lluKB > "
+				"%dKB reserved memory",
+				vram_usage_kernel >> 10, PSCNV_VRAM_RESERVED >> 10);
+		}
 	}
 	
 	return ret;
@@ -81,9 +93,13 @@ pscnv_vram_free_chunk(struct pscnv_chunk *cnk)
 	cnk->alloc_type = PSCNV_CHUNK_UNALLOCATED;
 	cnk->vram_node = NULL;
 	
-	atomic64_sub(size, &dev_priv->vram_usage);
-	if (bo->client) {
-		atomic64_sub(size, &bo->client->vram_usage);
+	if (bo->flags & PSCNV_GEM_USER) {
+		WARN_ON(!bo->client);
+		if (bo->client) {
+			atomic64_sub(size, &bo->client->vram_usage);
+		}
+	} else {
+		atomic64_sub(size, &dev_priv->vram_usage_kernel);
 	}
 }
 
@@ -95,7 +111,6 @@ pscnv_vram_alloc(struct pscnv_bo *bo)
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	int flags = 0;
 	int ret = 0;
-	uint64_t will_free;
 	int swap_retries = 0;
 	int i = 0;
 	
@@ -120,13 +135,11 @@ pscnv_vram_alloc(struct pscnv_bo *bo)
 	dev_priv->last_mem_alloc_change_time = jiffies;
 	
 	mutex_lock(&dev_priv->vram_mutex);
-	atomic64_add(bo->size, &dev_priv->vram_demand);
 	if (bo->client) {
 		atomic64_add(bo->size, &bo->client->vram_demand);
 	}
 	
-	while ((bo->flags & PSCNV_GEM_USER) && pscnv_swapping_required(bo)) {
-		uint64_t req = atomic64_read(&dev_priv->vram_demand) - dev_priv->vram_limit;
+	while (pscnv_swapping_required(bo)) {
 		mutex_unlock(&dev_priv->vram_mutex);
 		
 		if (swap_retries >= 3) {
@@ -136,7 +149,7 @@ pscnv_vram_alloc(struct pscnv_bo *bo)
 			break;
 		}
 		
-		ret = pscnv_swapping_reduce_vram(dev,req, &will_free);
+		ret = pscnv_swapping_reduce_vram(dev);
 		if (ret) {
 			if (pscnv_swapping_debug >= 1) {
 				NV_ERROR(dev, "pscnv_vram_alloc: failed to swap."

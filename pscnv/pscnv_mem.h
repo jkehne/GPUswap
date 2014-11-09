@@ -33,7 +33,7 @@
 
 /* VRAM that is reserved for the driver. The lowest PSCNV_VRAM_RESERVED bytes
  * of VRAM will never be allocated to the userspace */
-#define PSCNV_VRAM_RESERVED (8 << 20)
+#define PSCNV_VRAM_RESERVED (12 << 20)
 
 struct pscnv_vspace;
 struct pscnv_client;
@@ -243,5 +243,11 @@ nv_rv32_pramin(struct drm_device *dev, uint64_t addr);
 
 void
 nv_wv32_pramin(struct drm_device *dev, uint64_t addr, uint32_t val);
+
+uint64_t
+pscnv_mem_vram_usage_effective(struct drm_device *dev);
+
+uint64_t
+pscnv_mem_vram_usage_effective_unlocked(struct drm_device *dev);
 
 #endif

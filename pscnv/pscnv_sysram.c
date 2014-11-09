@@ -79,7 +79,6 @@ pscnv_sysram_alloc_chunk(struct pscnv_chunk *cnk)
 	cnk->alloc_type = PSCNV_CHUNK_SYSRAM;
 	
 	if (cnk->flags & PSCNV_CHUNK_SWAPPED) {
-		atomic64_add(size, &dev_priv->vram_swapped);
 		if (bo->client) {
 			atomic64_add(size, &bo->client->vram_swapped);
 		}
@@ -92,8 +91,6 @@ void
 pscnv_sysram_free_chunk(struct pscnv_chunk *cnk)
 {
 	struct pscnv_bo *bo = cnk->bo;
-	struct drm_device *dev = bo->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	
 	uint64_t size = pscnv_chunk_size(cnk);
 	int numpages = size >> PAGE_SHIFT;
@@ -115,7 +112,6 @@ pscnv_sysram_free_chunk(struct pscnv_chunk *cnk)
 	cnk->alloc_type = PSCNV_CHUNK_UNALLOCATED;
 	
 	if (cnk->flags & PSCNV_CHUNK_SWAPPED) {
-		atomic64_sub(size, &dev_priv->vram_swapped);
 		if (bo->client) {
 			atomic64_sub(size, &bo->client->vram_swapped);
 		}

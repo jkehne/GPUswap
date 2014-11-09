@@ -141,13 +141,16 @@ nouveau_debugfs_memory_info(struct seq_file *m, void *pos)
 {
 	struct drm_info_node *node = (struct drm_info_node *) m->private;
 	struct drm_minor *minor = node->minor;
-	struct drm_nouveau_private *dev_priv = minor->dev->dev_private;
+	struct drm_device *dev = minor->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct pscnv_client *cur;
 
 	seq_printf(m, "VRAM total: %dKiB\n", (int)(dev_priv->vram_size >> 10));
-	seq_printf(m, "VRAM usage: %dKiB\n", (int)atomic64_read(&dev_priv->vram_usage) >> 10);
-	seq_printf(m, "VRAM swapped: %dKiB\n", (int)atomic64_read(&dev_priv->vram_swapped) >> 10);
-	seq_printf(m, "VRAM demand: %dKiB\n", (int)atomic64_read(&dev_priv->vram_demand) >> 10);
+	seq_printf(m, "VRAM limit: %dKiB\n", (int)(dev_priv->vram_limit >> 10));
+	seq_printf(m, "VRAM usage (kernel): %dKiB\n", (int)atomic64_read(&dev_priv->vram_usage_kernel) >> 10);
+	seq_printf(m, "VRAM usage (clients): %dKiB\n", (int)pscnv_clients_vram_usage(dev) >> 10);
+	seq_printf(m, "VRAM swapped: %dKiB\n", (int)pscnv_clients_vram_swapped(dev) >> 10);
+	seq_printf(m, "VRAM demand: %dKiB\n", (int)pscnv_clients_vram_demand(dev) >> 10);
 	
 	mutex_lock(&dev_priv->clients->lock);
 	if (!list_empty(&dev_priv->clients->list)) {

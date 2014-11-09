@@ -406,3 +406,32 @@ pscnv_client_run_empty_fifo_work(struct pscnv_client *cl)
 	mutex_unlock(&dev_priv->clients->lock);
 }
 
+uint64_t
+pscnv_clients_vram_common_unlocked(struct drm_device *dev, size_t offset)
+{
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct pscnv_clients *clients = dev_priv->clients;
+	struct pscnv_client *cur;
+	
+	uint64_t sum = 0;
+	
+	list_for_each_entry(cur, &clients->list, clients) {
+		sum += atomic64_read((atomic64_t*)((char*)cur + offset));
+	}
+	
+	return sum;
+}
+
+uint64_t
+pscnv_clients_vram_common(struct drm_device *dev, size_t offset)
+{
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	struct pscnv_clients *clients = dev_priv->clients;
+	uint64_t res;
+	
+	mutex_lock(&clients->lock);
+	res = pscnv_clients_vram_common_unlocked(dev, offset);
+	mutex_unlock(&dev_priv->clients->lock);
+	
+	return res;
+}
