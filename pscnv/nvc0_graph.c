@@ -736,6 +736,13 @@ nvc0_graph_init_ctxctl(struct nvc0_graph_engine *graph)
 	return 0;
 }
 
+static inline void
+nvc0_graph_init_reset(struct drm_device *dev)
+{
+	nv_wr32(dev, 0x200, nv_rd32(dev, 0x200) & 0xffffefff);
+	nv_wr32(dev, 0x200, nv_rd32(dev, 0x200) | 0x00001000);
+}
+
 static void
 nvc0_graph_takedown(struct pscnv_engine *eng)
 {
@@ -744,6 +751,11 @@ nvc0_graph_takedown(struct pscnv_engine *eng)
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	
 	BUG_ON(!graph);
+	
+	nvc0_graph_init_reset(dev);
+	
+	if (dev_priv->irq_handler[12])
+		nouveau_irq_unregister(dev, 12);
 
 	WARN_ON(!graph->unk4188b4);
 	WARN_ON(!graph->unk4188b8);
@@ -897,6 +909,8 @@ nvc0_graph_init(struct drm_device *dev)
 	graph = NVC0_GRAPH(dev_priv->engines[PSCNV_ENGINE_GRAPH]);
 	BUG_ON(!graph);
 	
+	nvc0_graph_init_reset(dev);
+	
 	magicgpc918 = DIV_ROUND_UP(0x00800000, graph->tpc_total);
 
 	nv_wr32(dev, GPC_BCAST(0x0880), 0x00000000);
@@ -982,8 +996,8 @@ nvc0_graph_init(struct drm_device *dev)
 		nv_wr32(dev, ROP_UNIT(rop, 0x208), 0xffffffff);
 	}
 
-	nv_wr32(dev, 0x400108, 0xffffffff);
-	nv_wr32(dev, 0x400138, 0xffffffff);
+	nv_wr32(dev, 0x400108, 0xffffffff); /* NVC0_PGRAPH_TRAP */
+	nv_wr32(dev, 0x400138, 0xffffffff); /* NVC0_PGRAPH_TRAP_EN */
 	nv_wr32(dev, 0x400118, 0xffffffff);
 	nv_wr32(dev, 0x400130, 0xffffffff);
 	nv_wr32(dev, 0x40011c, 0xffffffff);
