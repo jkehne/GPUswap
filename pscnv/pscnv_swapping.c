@@ -940,6 +940,7 @@ pscnv_swapping_prepare_for_swap_out_unlocked(uint64_t *will_free, struct list_he
 			NV_ERROR(dev, "pscnv_swapping_prepare: failed to add "
 					"chunk %08x/%d-%u\n", cnk->bo->cookie,
 					cnk->bo->serial, cnk->idx);
+			pscnv_chunk_list_remove_unlocked(&cl->swap_pending, cnk);
 			return -EBUSY;
 		}
 		if (st && pscnv_swapping_debug >= 1) {
@@ -996,6 +997,7 @@ pscnv_swapping_prepare_for_swap_in_unlocked(struct list_head *swaptasks, struct 
 		NV_ERROR(dev, "pscnv_swapping_prepare: failed to add "
 				"chunk %08x/%d-%u\n", cnk->bo->cookie,
 				cnk->bo->serial, cnk->idx);
+		pscnv_chunk_list_remove_unlocked(&cl->swap_pending, cnk);
 		return -EBUSY;
 	}
 	if (st && pscnv_swapping_debug >= 1) {
