@@ -440,7 +440,7 @@ pscnv_vram_to_host(struct pscnv_chunk* vram)
 	/* vram chunk is unallocated now, replace its values with the sysram
 	 * chunk */
 	vram->alloc_type = sysram.alloc_type;
-	vram->flags = sysram.flags & ~(PSCNV_CHUNK_SWAPPED);
+	vram->flags = sysram.flags;
 	vram->pages = sysram.pages;
 
 	/* refcnt of sysram now belongs to the vram bo, it will unref it,
@@ -886,7 +886,7 @@ pscnv_swapping_sysram_fallback_unlocked(struct pscnv_chunk *cnk, bool prepare_sw
 	
 	cnk->flags |= PSCNV_CHUNK_SWAPPED;
 	
-	/* update vram_swaped */
+	/* update vram_swapped */
 	ret = pscnv_sysram_alloc_chunk(cnk);
 	if (ret) {
 		cnk->flags &= ~(PSCNV_CHUNK_SWAPPED);
