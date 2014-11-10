@@ -561,6 +561,9 @@ nouveau_hwmon_show_temp(struct device *d, struct device_attribute *a, char *buf)
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct nouveau_pm_engine *pm = &dev_priv->engine.pm;
 
+	if (!pm->temp_get) {
+		return snprintf(buf, PAGE_SIZE, "<unsupported>\n");
+	}
 	return snprintf(buf, PAGE_SIZE, "%d\n", pm->temp_get(dev)*1000);
 }
 static SENSOR_DEVICE_ATTR(temp1_input, S_IRUGO, nouveau_hwmon_show_temp,
@@ -873,7 +876,7 @@ nouveau_hwmon_init(struct drm_device *dev)
 	dev_set_drvdata(hwmon_dev, dev);
 
 	/* default sysfs entries */
-	ret = sysfs_create_group(&dev->pdev->dev.kobj, &hwmon_attrgroup);
+	ret = sysfs_create_group(&hwmon_dev->kobj, &hwmon_attrgroup);
 	if (ret) {
 		if (ret)
 			goto error;
@@ -884,7 +887,7 @@ nouveau_hwmon_init(struct drm_device *dev)
 	 *     the gpio entries for pwm fan control even when there's no
 	 *     actual fan connected to it... therm table? */
 	if (nouveau_pwmfan_get(dev) >= 0) {
-		ret = sysfs_create_group(&dev->pdev->dev.kobj,
+		ret = sysfs_create_group(&hwmon_dev->kobj,
 					 &hwmon_pwm_fan_attrgroup);
 		if (ret)
 			goto error;
@@ -892,7 +895,7 @@ nouveau_hwmon_init(struct drm_device *dev)
 
 	/* if the card can read the fan rpm */
 	if (nouveau_bios_gpio_entry(dev, DCB_GPIO_FAN_SENSE)) {
-		ret = sysfs_create_group(&dev->pdev->dev.kobj,
+		ret = sysfs_create_group(&hwmon_dev->kobj,
 					 &hwmon_fan_rpm_attrgroup);
 		if (ret)
 			goto error;
@@ -920,10 +923,10 @@ nouveau_hwmon_fini(struct drm_device *dev)
 	struct nouveau_pm_engine *pm = &dev_priv->engine.pm;
 
 	if (pm->hwmon) {
-		sysfs_remove_group(&dev->pdev->dev.kobj, &hwmon_attrgroup);
-		sysfs_remove_group(&dev->pdev->dev.kobj,
+		sysfs_remove_group(&pm->hwmon->kobj, &hwmon_attrgroup);
+		sysfs_remove_group(&pm->hwmon->kobj,
 				   &hwmon_pwm_fan_attrgroup);
-		sysfs_remove_group(&dev->pdev->dev.kobj,
+		sysfs_remove_group(&pm->hwmon->kobj,
 				   &hwmon_fan_rpm_attrgroup);
 
 		hwmon_device_unregister(pm->hwmon);
