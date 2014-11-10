@@ -84,10 +84,7 @@ pscnv_swapping_init(struct drm_device *dev)
 	
 	INIT_DELAYED_WORK(&swapping->increase_vram_work, increase_vram_work_func);
 	ret = schedule_delayed_work(&swapping->increase_vram_work, PSCNV_INCREASE_RATE);
-	if (ret) {
-		NV_ERROR(dev, "failed to queue increase_vram_work\n");
-	}
-
+	
 	return ret;
 }
 

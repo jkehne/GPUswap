@@ -272,6 +272,16 @@ static struct drm_info_list nouveau_debugfs_list[] = {
 #define NOUVEAU_DEBUGFS_ENTRIES ARRAY_SIZE(nouveau_debugfs_list)
 
 static int
+pscnv_debugfs_have_error_get(void *data, u64 *val)
+{
+	struct drm_device *dev = data;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	
+	*val = dev_priv->have_error;
+	return 0;
+}
+
+static int
 pscnv_debugfs_pause_set(void *data, u64 val)
 {
 	struct drm_device *dev = data;
@@ -470,6 +480,8 @@ fail:
 	return res;
 }
 
+
+DEFINE_SIMPLE_ATTRIBUTE(fops_have_error, pscnv_debugfs_have_error_get, NULL, "%llu");
 DEFINE_SIMPLE_ATTRIBUTE(fops_pause, NULL, pscnv_debugfs_pause_set, "%llu");
 DEFINE_SIMPLE_ATTRIBUTE(fops_memacc_test, NULL, pscnv_debugfs_memacc_test_set, "%llu");
 
@@ -512,6 +524,7 @@ static const struct file_operations pscnv_debugfs_single_fops = {
 	.release = single_release,
 };
 
+static struct dentry *pscnv_debugfs_have_error_entry = NULL;
 static struct dentry *pscnv_debugfs_pause_entry = NULL;
 static struct dentry *pscnv_debugfs_chan_dir = NULL;
 static struct dentry *pscnv_debugfs_memacc_test_entry = NULL;
@@ -560,6 +573,16 @@ nouveau_debugfs_init(struct drm_minor *minor)
 	drm_debugfs_create_files(nouveau_debugfs_list, NOUVEAU_DEBUGFS_ENTRIES,
 				 minor->debugfs_root, minor);
 	
+	pscnv_debugfs_have_error_entry =
+		debugfs_create_file("have_error", S_IFREG | S_IRUGO,
+				minor->debugfs_root, dev, &fops_have_error);
+	
+	if (!pscnv_debugfs_have_error_entry) {
+		NV_INFO(dev, "Cannot create /sys/kernel/debug/dri/%s/have_error\n",
+				minor->debugfs_root->d_name.name);
+		return -ENOENT;
+	}
+	
 	pscnv_debugfs_pause_entry =
 		debugfs_create_file("pause", S_IFREG | S_IRUGO | S_IWUSR,
 				minor->debugfs_root, dev, &fops_pause);
@@ -595,6 +618,7 @@ nouveau_debugfs_init(struct drm_minor *minor)
 void
 nouveau_debugfs_takedown(struct drm_minor *minor)
 {
+	debugfs_remove(pscnv_debugfs_have_error_entry);
 	debugfs_remove(pscnv_debugfs_pause_entry);
 	debugfs_remove(pscnv_debugfs_chan_dir);
 	debugfs_remove(pscnv_debugfs_memacc_test_entry);

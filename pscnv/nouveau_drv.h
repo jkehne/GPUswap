@@ -531,6 +531,8 @@ struct drm_nouveau_private {
 	
 	uint64_t chunk_size; /* chunk size in bytes */
 	
+	int have_error; /* 1 iff an error has been reported */
+	
 	/* time of
 	 * - last BO allocation or
 	 * - last Swap-Out operation
@@ -974,7 +976,7 @@ static inline u32 nv_mask(struct drm_device *dev, u32 reg, u32 mask, u32 val)
 		NV_PRINTK(KERN_DEBUG, d, fmt, ##arg);                          \
 } while (0)
 #endif
-#define NV_ERROR(d, fmt, arg...) NV_PRINTK(KERN_ERR, d, fmt, ##arg)
+#define NV_ERROR(d, fmt, arg...) do { NV_PRINTK(KERN_ERR, d, fmt, ##arg); ((struct drm_nouveau_private*)d->dev_private)->have_error = 1; } while (0)
 #define NV_INFO(d, fmt, arg...) NV_PRINTK(KERN_INFO, d, fmt, ##arg)
 #define NV_TRACEWARN(d, fmt, arg...) NV_PRINTK(KERN_NOTICE, d, fmt, ##arg)
 #define NV_TRACE(d, fmt, arg...) NV_PRINTK(KERN_INFO, d, fmt, ##arg)
