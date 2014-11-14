@@ -198,19 +198,16 @@ nouveau_debugfs_timetrack_info(struct seq_file *m, void *pos)
 	struct drm_info_node *node = (struct drm_info_node *) m->private;
 	struct drm_minor *minor = node->minor;
 	struct drm_nouveau_private *dev_priv = minor->dev->dev_private;
-	struct pscnv_client *client;
 	struct pscnv_client_timetrack *tt;
-
+	
+	seq_printf(m, "pid\tcomm\t type\t\tstart (ns epoch)\tduration (ns)\tbytes\n");
 	
 	mutex_lock(&dev_priv->clients->lock);
 	
-	list_for_each_entry(client, &dev_priv->clients->list, clients) {
-		seq_printf(m, "== client %d\n", client->pid);
-		list_for_each_entry(tt, &client->time_trackings, list) {
-			seq_printf(m, " %s: start=%lld duration=%lld ns\n", 
-				tt->type, tt->start, tt->duration);
-		}
-		seq_printf(m, "\n");
+	list_for_each_entry(tt, &dev_priv->clients->time_trackings, list) {
+		seq_printf(m, " %4d\t%8s %-10s\t%lld %12lld%12llu\n",
+			tt->client->pid, tt->client->comm, tt->type, tt->start,
+			tt->duration, tt->bytes);
 	}
 	mutex_unlock(&dev_priv->clients->lock);
 	return 0;

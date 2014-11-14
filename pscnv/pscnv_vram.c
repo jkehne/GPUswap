@@ -149,7 +149,7 @@ pscnv_vram_alloc(struct pscnv_bo *bo)
 			break;
 		}
 		
-		ret = pscnv_swapping_reduce_vram(dev);
+		ret = pscnv_swapping_reduce_vram(dev, bo->client);
 		if (ret) {
 			if (pscnv_swapping_debug >= 1) {
 				NV_ERROR(dev, "pscnv_vram_alloc: failed to swap."

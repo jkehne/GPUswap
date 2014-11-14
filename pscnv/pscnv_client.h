@@ -6,9 +6,11 @@
 
 struct pscnv_client_timetrack {
 	struct list_head list;
+	struct pscnv_client *client;
 	const char *type;
 	s64 start;
 	s64 duration;
+	uint64_t bytes;
 };
 
 /* main structure for all the client related code, one instance per
@@ -16,8 +18,11 @@ struct pscnv_client_timetrack {
 struct pscnv_clients {
 	struct drm_device *dev;
 	
-	/* list of all clients */
+	/* list of all (living) clients */
 	struct list_head list;
+	
+	/* list of dead clients */
+	struct list_head list_dead;
 	
 	/* lock on all clients */
 	struct mutex lock;
@@ -30,6 +35,9 @@ struct pscnv_clients {
 	
 	/* up on every call to do on empty_fifo and down on every operation */
 	struct semaphore need_pause;
+	
+	/* list of times that have been tracked */
+	struct list_head time_trackings;
 };
 
 /* instance per pid */
@@ -45,6 +53,9 @@ struct pscnv_client {
 	atomic64_t vram_demand;
 	
 	uint64_t vram_max;
+	
+	/* bytes transferred while client was paused */
+	uint64_t pause_bytes_transferred;
 	
 	/* list the client is in, see pscnv_clients.list */
 	struct list_head clients;
@@ -63,9 +74,6 @@ struct pscnv_client {
 	
 	/* list of work to do, next time that this client has an empty fifo */
 	struct list_head on_empty_fifo;
-	
-	/* list of times that have been tracked for this client */
-	struct list_head time_trackings;
 	
 	/* readable (process) name of this client */
 	char comm[TASK_COMM_LEN];
@@ -159,5 +167,8 @@ pscnv_clients_vram_demand(struct drm_device *dev)
 	return pscnv_clients_vram_common(dev, offsetof(struct pscnv_client, vram_demand));
 }
 
+/* safe for cl == NULL */
+void
+pscnv_client_track_time(struct pscnv_client *cl, s64 start, s64 duration, u64 bytes, const char *name);
 
 #endif /* end of include guard: PSCNV_CLIENT_H */

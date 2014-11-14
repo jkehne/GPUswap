@@ -191,8 +191,6 @@ pscnv_chan_continue_stop_time(struct pscnv_chan *ch)
 {
 	struct drm_device *dev = ch->dev;
 
-	struct pscnv_client *cl = ch->client;
-	struct pscnv_client_timetrack *tt;
 	struct timespec now;
 	s64 duration;
 	
@@ -206,16 +204,11 @@ pscnv_chan_continue_stop_time(struct pscnv_chan *ch)
 			(duration % 1000000) / 100);
 	}
 	
-	if (cl) {
-		tt = kzalloc(sizeof(struct pscnv_client_timetrack), GFP_KERNEL);
-		if (!tt)
-			return;
-	
-		INIT_LIST_HEAD(&tt->list);
-		tt->type = "PAUSE";
-		tt->start = ch->pause_start;
-		tt->duration = duration;
-		list_add_tail(&tt->list, &cl->time_trackings);
+	if (ch->client) {
+		pscnv_client_track_time(ch->client, ch->pause_start, duration,
+			ch->client->pause_bytes_transferred, "PAUSE");
+
+		ch->client->pause_bytes_transferred = 0;
 	}
 }
 

@@ -213,23 +213,6 @@ fail_alloc_vs:
 	return res;
 }
 
-static void
-pscnv_dma_track_time(struct pscnv_client *cl, s64 start, s64 duration, const char *name)
-{
-	struct pscnv_client_timetrack *tt;
-	
-	tt = kzalloc(sizeof(struct pscnv_client_timetrack), GFP_KERNEL);
-	if (!tt) {
-		return;
-	}
-	
-	INIT_LIST_HEAD(&tt->list);
-	tt->type = name;
-	tt->start = start;
-	tt->duration = duration;
-	list_add_tail(&tt->list, &cl->time_trackings);
-}
-
 void
 pscnv_dma_exit(struct drm_device *dev)
 {
@@ -365,10 +348,11 @@ fail_map_tgt:
 				duration_real / 1000000,
 				(duration_real % 1000000) / 100);
 		}
-		if (src->client) {
-			pscnv_dma_track_time(src->client, start_ns, duration, "DMA");
-			pscnv_dma_track_time(src->client, start_ns, duration_real, "DMA_REAL");
-		}
+		
+		pscnv_client_track_time(src->client, start_ns, duration, size, "DMA");
+		pscnv_client_track_time(src->client, start_ns, duration_real, size, "DMA_REAL");
+		if (src->client)
+			src->client->pause_bytes_transferred += size;
 	}
 
 	return ret;
@@ -487,10 +471,11 @@ fail_map_to:
 				duration_real / 1000000,
 				(duration_real % 1000000) / 100);
 		}
-		if (client) {
-			pscnv_dma_track_time(client, start_ns, duration, "DMA");
-			pscnv_dma_track_time(client, start_ns, duration_real, "DMA_REAL");
-		}
+		pscnv_client_track_time(client, start_ns, duration, size, "DMA");
+		pscnv_client_track_time(client, start_ns, duration_real, size, "DMA_REAL");
+		if (client)
+			client->pause_bytes_transferred += size;
+
 	}
 
 	return ret;

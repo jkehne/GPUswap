@@ -93,10 +93,12 @@ pscnv_swapping_remove_bo(struct pscnv_bo *bo);
  *
  * Be aware that this method meight block for a long time!
  *
+ * @param me calling client, may be NULL
+ *
  * @returns: actual bytes of vram that will be free'd. In many cases this will
  *           be more than requested */
 int
-pscnv_swapping_reduce_vram(struct drm_device *dev);
+pscnv_swapping_reduce_vram(struct drm_device *dev, struct pscnv_client *me);
 
 /*
  * decide weather pscnv_swapping_reduce_vram needs to be run to satisfy request */

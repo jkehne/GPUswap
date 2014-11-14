@@ -144,6 +144,8 @@ pscnv_clients_init(struct drm_device *dev)
 	
 	clients->dev = dev;
 	INIT_LIST_HEAD(&clients->list);
+	INIT_LIST_HEAD(&clients->list_dead);
+	INIT_LIST_HEAD(&clients->time_trackings);
 	mutex_init(&clients->lock);
 	
 	if (!client_work_cache) {
@@ -176,12 +178,28 @@ pscnv_clients_exit(struct drm_device *dev)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct pscnv_clients *clients = dev_priv->clients;
+	struct pscnv_client_timetrack *tt, *tt_tmp;
+	struct pscnv_client *cl, *cl_tmp;
 	
 	BUG_ON(!clients);
-	
-	WARN_ON(!list_empty(&clients->list));
 
 	WARN_ON(!mutex_trylock(&clients->lock));
+	
+	WARN_ON(!list_empty(&clients->list));
+	list_for_each_entry_safe(cl, cl_tmp, &clients->list, clients) {
+		list_del(&cl->clients);
+		kfree(cl);
+	}
+	
+	list_for_each_entry_safe(tt, tt_tmp, &clients->time_trackings, list) {
+		list_del(&tt->list);
+		kfree(tt);
+	}
+	
+	list_for_each_entry_safe(cl, cl_tmp, &clients->list_dead, clients) {
+		list_del(&cl->clients);
+		kfree(cl);
+	}
 	
 	WARN_ON(!clients->pause_thread);
 	if (clients->pause_thread) {
@@ -263,7 +281,6 @@ pscnv_client_new_unlocked(struct drm_device *dev, pid_t pid, const char *comm)
 	INIT_LIST_HEAD(&new->clients);
 	INIT_LIST_HEAD(&new->channels);
 	INIT_LIST_HEAD(&new->on_empty_fifo);
-	INIT_LIST_HEAD(&new->time_trackings);
 	pscnv_chunk_list_init(&new->swapping_options);
 	pscnv_chunk_list_init(&new->already_swapped);
 	pscnv_chunk_list_init(&new->swap_pending);
@@ -282,18 +299,12 @@ pscnv_client_free_unlocked(struct pscnv_client *cl)
 	struct drm_device *dev = cl->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	
-	struct pscnv_client_timetrack *tt, *tt_tmp;
-	
 	BUG_ON(!dev_priv->clients);
 	BUG_ON(!mutex_is_locked(&dev_priv->clients->lock));
 	
 	/* remove from clients->list */
-	list_del(&cl->clients);
+	list_del_init(&cl->clients);
 	
-	list_for_each_entry_safe(tt, tt_tmp, &cl->time_trackings, list) {
-		list_del(&tt->list);
-		kfree(tt);
-	}
 	
 	WARN_ON(!pscnv_chunk_list_empty(&cl->swapping_options));
 	pscnv_chunk_list_free(&cl->swapping_options);
@@ -302,7 +313,8 @@ pscnv_client_free_unlocked(struct pscnv_client *cl)
 	WARN_ON(!pscnv_chunk_list_empty(&cl->swap_pending));
 	pscnv_chunk_list_free(&cl->swap_pending);
 	
-	kfree(cl);
+	/* keep the client data structure around, so we can read its time trackings */
+	list_add_tail(&cl->clients, &dev_priv->clients->list_dead);
 }
 	
 
@@ -466,4 +478,34 @@ pscnv_clients_vram_common(struct drm_device *dev, size_t offset)
 	mutex_unlock(&dev_priv->clients->lock);
 	
 	return res;
+}
+
+/* safe for cl == NULL */
+void
+pscnv_client_track_time(struct pscnv_client *cl, s64 start, s64 duration, u64 bytes, const char *name)
+{
+	struct drm_device *dev;
+	struct drm_nouveau_private *dev_priv;
+	struct pscnv_client_timetrack *tt;
+	
+	if (!cl)
+		return;
+	
+	dev = cl->dev;
+	dev_priv = dev->dev_private;
+	
+	BUG_ON(!dev_priv->clients);
+	
+	tt = kzalloc(sizeof(struct pscnv_client_timetrack), GFP_KERNEL);
+	if (!tt) {
+		return;
+	}
+	
+	INIT_LIST_HEAD(&tt->list);
+	tt->client = cl;
+	tt->type = name;
+	tt->start = start;
+	tt->duration = duration;
+	tt->bytes = bytes;
+	list_add_tail(&tt->list, &dev_priv->clients->time_trackings);
 }

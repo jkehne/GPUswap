@@ -899,7 +899,7 @@ pscnv_swapping_sysram_fallback_unlocked(struct pscnv_chunk *cnk, bool prepare_sw
 	} else {
 		/* we have likely been called from vram_alloc_chunk, we don't
 		 * know if this chunk is part of swappable memory */
-		if (pscnv_chunk_list_find_unlocked(&cl->swapping_options, cnk) != -1) {
+		if (cl && pscnv_chunk_list_find_unlocked(&cl->swapping_options, cnk) != -1) {
 			pscnv_chunk_list_remove_unlocked(&cl->swapping_options, cnk);
 			pscnv_chunk_list_add_unlocked(&cl->already_swapped, cnk);
 		}
@@ -1156,14 +1156,20 @@ pscnv_swapping_choose_winner_unlocked(struct drm_device *dev)
 }
 
 int
-pscnv_swapping_reduce_vram(struct drm_device *dev)
+pscnv_swapping_reduce_vram(struct drm_device *dev, struct pscnv_client *me)
 {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	struct pscnv_client *victim;
 	int ops = 0;
 	uint64_t will_free = 0;
+	struct timespec start, end;
+	s64 start_ns, duration;
+	int ret;
 	
 	LIST_HEAD(swaptasks);
+	
+	getnstimeofday(&start);
+	start_ns = timespec_to_ns(&start);
 
 	mutex_lock(&dev_priv->clients->lock);
 	
@@ -1194,7 +1200,25 @@ pscnv_swapping_reduce_vram(struct drm_device *dev)
 	complete_all(&dev_priv->swapping->next_swap);
 	INIT_COMPLETION(dev_priv->swapping->next_swap);
 	
-	return pscnv_swaptask_wait_for_completions(dev, __func__, &swaptasks);
+	ret = pscnv_swaptask_wait_for_completions(dev, __func__, &swaptasks);
+	
+	getnstimeofday(&end);
+	duration = timespec_to_ns(&end) - start_ns;
+	
+	if (pscnv_swapping_debug >= 2) {
+		char size_str[16];
+		pscnv_mem_human_readable(size_str, will_free);
+		NV_INFO(dev, "Swapping: client %s waited %lld.%04lld ms for %s\n",
+			me ? me->comm : "<kernel>",
+			duration / 1000000,
+			(duration % 1000000) / 100,
+			size_str);
+	}
+	
+	if (!ret)
+		pscnv_client_track_time(me, start_ns, duration, will_free, "SWAP_WAIT");
+	
+	return ret;
 }
 
 int
