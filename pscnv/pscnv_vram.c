@@ -52,15 +52,15 @@ pscnv_vram_alloc_chunk(struct pscnv_chunk *cnk, int flags)
 				(uint64_t) atomic64_read(&bo->client->vram_usage));
 		}
 	} else {
-		uint64_t vram_usage_kernel;
+		//uint64_t vram_usage_kernel;
 		atomic64_add(size, &dev_priv->vram_usage_kernel);
 		
-		vram_usage_kernel = atomic64_read(&dev_priv->vram_usage_kernel);
+		/*vram_usage_kernel = atomic64_read(&dev_priv->vram_usage_kernel);
 		if (vram_usage_kernel > PSCNV_VRAM_RESERVED) {
 			NV_WARN(dev, "WARNING: kernel VRAM usage %lluKB > "
 				"%dKB reserved memory",
 				vram_usage_kernel >> 10, PSCNV_VRAM_RESERVED >> 10);
-		}
+		}*/
 	}
 	
 	return ret;
