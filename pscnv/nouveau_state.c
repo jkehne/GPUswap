@@ -48,6 +48,8 @@
 #include "pscnv_swapping.h"
 #include "nvc0_vm.h"
 
+extern struct drm_device *pscnv_drm;
+
 static void nouveau_stub_takedown(struct drm_device *dev) {}
 static int nouveau_stub_init(struct drm_device *dev) { return 0; }
 
@@ -431,6 +433,8 @@ nouveau_card_init(struct drm_device *dev)
 
 	NV_INFO(dev, "Card initialized.\n");
 	
+	pscnv_drm = dev;
+	
 	return 0;
 
 #if 0
@@ -483,6 +487,8 @@ static void nouveau_card_takedown(struct drm_device *dev)
 	int i;
 
 	NV_DEBUG(dev, "prev state = %d\n", dev_priv->init_state);
+
+	pscnv_drm = NULL;
 
 	if (dev_priv->init_state == NOUVEAU_CARD_INIT_DONE) {
 		NV_INFO(dev, "Stopping card...\n");
