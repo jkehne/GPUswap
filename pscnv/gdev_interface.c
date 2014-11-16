@@ -251,7 +251,12 @@ int gdev_drv_bo_bind(struct drm_device *drm, struct gdev_drv_vspace *drv_vspace,
 	
 	drv_bo->addr = mm->start;
 
-	gdev_drv_bo_map(drm, drv_bo);
+	switch (bo->flags & PSCNV_GEM_MEMTYPE_MASK) {
+		/* do not map VRAM, or we will quickly run out of BAR1- space */
+		case PSCNV_GEM_SYSRAM_SNOOP:
+		case PSCNV_GEM_SYSRAM_NOSNOOP:
+			gdev_drv_bo_map(drm, drv_bo);
+	}
 
 	return 0;
 
