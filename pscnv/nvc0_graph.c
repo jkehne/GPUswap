@@ -561,6 +561,8 @@ nvc0_graph_ctxctl_isr(struct nvc0_graph_engine *graph)
 	nv_wr32(dev, 0x409c20, ustat);
 }
 
+extern void (*gdev_callback_notify)(int subc, uint32_t data);
+
 static void
 nvc0_graph_irq_handler(struct drm_device *dev, int irq)
 {
@@ -581,6 +583,14 @@ nvc0_graph_irq_handler(struct drm_device *dev, int irq)
 
 	chid   = pscnv_chan_handle_lookup(dev, inst);
 
+	if (stat & 0x00000001) { /* Gdev  */
+		if (gdev_callback_notify) {
+			gdev_callback_notify(subc, data);
+		}
+		nv_wr32(dev, 0x400100, 0x00000001);
+		stat &= ~0x00000001;
+	}
+	
 	if (stat & 0x00000010) {
 		NV_ERROR(dev,
 			 "ILLEGAL_MTHD ch %d [0x%010llx] subc %d class 0x%04x mthd 0x%04x data 0x%08x\n",

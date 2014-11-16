@@ -13,6 +13,7 @@
 #define VS_END (1ull << 40)
 
 struct drm_device *pscnv_drm = NULL;
+void (*gdev_callback_notify)(int subc, uint32_t data) = NULL;
 
 int gdev_drv_vspace_alloc(struct drm_device *drm, uint64_t size, struct gdev_drv_vspace *drv_vspace)
 {
@@ -435,14 +436,17 @@ EXPORT_SYMBOL(gdev_drv_getaddr);
 
 int gdev_drv_setnotify(void (*func)(int subc, uint32_t data))
 {
-	WARN_ON_ONCE(1); /* unsupported */
+	gdev_callback_notify = func;
 	return 0;
 }
 EXPORT_SYMBOL(gdev_drv_setnotify);
 
 int gdev_drv_unsetnotify(void (*func)(int subc, uint32_t data))
 {
-	WARN_ON_ONCE(1); /* unsupported */
+	if (gdev_callback_notify != func)
+		return -EINVAL;
+	gdev_callback_notify = NULL;
+
 	return 0;
 }
 EXPORT_SYMBOL(gdev_drv_unsetnotify);
