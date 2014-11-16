@@ -726,17 +726,30 @@ static void nvc0_vspace_free(struct pscnv_vspace *vs) {
 static int nvc0_vm_map_user(struct pscnv_bo *bo) {
 	struct drm_nouveau_private *dev_priv = bo->dev->dev_private;
 	struct nvc0_vm_engine *vme = nvc0_vm(dev_priv->vm);
+	int ret;
 	if (bo->map1)
 		return 0;
-	return pscnv_vspace_map(vme->bar1vm, bo, 0, dev_priv->fb_size, 0, &bo->map1);
+	ret = pscnv_vspace_map(vme->bar1vm, bo, 0, dev_priv->fb_size, 0, &bo->map1);
+	
+	if (!ret)
+		bo->flags |= (PSCNV_GEM_MAPPABLE | PSCNV_MAP_USER);
+	
+	return ret;
 }
 
 static int nvc0_vm_map_kernel(struct pscnv_bo *bo) {
 	struct drm_nouveau_private *dev_priv = bo->dev->dev_private;
 	struct nvc0_vm_engine *vme = nvc0_vm(dev_priv->vm);
+	int ret;
+	
 	if (bo->map3)
 		return 0;
-	return pscnv_vspace_map(vme->bar3vm, bo, 0, dev_priv->ramin_size, 0, &bo->map3);
+	ret = pscnv_vspace_map(vme->bar3vm, bo, 0, dev_priv->ramin_size, 0, &bo->map3);
+	
+	if (!ret)
+		bo->flags |= PSCNV_MAP_KERNEL;
+	
+	return ret;
 }
 
 static void

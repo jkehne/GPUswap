@@ -317,6 +317,10 @@ pscnv_mem_alloc(struct drm_device *dev,
 		dev_priv->vm->bar_flush(dev);
 	}
 	
+	if (res->flags & PSCNV_GEM_VM_KERNEL) {
+		pscnv_sysram_vmap(res);
+	}
+	
 	return res;
 }
 
@@ -424,11 +428,11 @@ pscnv_mem_free(struct pscnv_bo *bo)
 			bo->cookie, bo->serial);
 		return ret;
 	}
-
-	if (bo->drm_map) {
+	
+	if (bo->vmap)
+		pscnv_sysram_vunmap(bo);
+	if (bo->drm_map)
 		drm_rmmap(dev, bo->drm_map);
-	}
-
 	if (dev_priv->vm_ok && bo->map1)
 		pscnv_vspace_unmap_node(bo->map1);
 	if (dev_priv->vm_ok && bo->map3)

@@ -28,4 +28,7 @@ struct nvc0_fifo_ctx {
 
 #define nvc0_fifo_eng(x) container_of(x, struct nvc0_fifo_engine, base)
 
+uint64_t
+nvc0_fifo_ctrl_offs(struct drm_device *dev, int cid);
+
 #endif /* end of include guard: NVC0_FIFO_H */

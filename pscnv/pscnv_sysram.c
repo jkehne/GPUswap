@@ -151,6 +151,100 @@ pscnv_sysram_alloc(struct pscnv_bo *bo)
 	return 0;
 }
 
+static struct page **
+pscnv_sysram_pages_total(struct pscnv_bo *bo)
+{
+	struct drm_device *dev = bo->dev;
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	const uint32_t numpages = bo->size >> PAGE_SHIFT;
+	const uint32_t pages_per_chunk = dev_priv->chunk_size >> PAGE_SHIFT;
+	struct page **pages_total;
+	uint32_t i;
+	
+	pages_total = kzalloc(sizeof(struct page *) * numpages, GFP_KERNEL);
+	if (!pages_total) {
+		WARN_ON(1);
+		return NULL;
+	}
+	
+	for (i = 0; i < bo->n_chunks; i++) {
+		struct pscnv_chunk *cnk = &bo->chunks[i];
+		const uint32_t pages_of_chunk = pscnv_chunk_size(cnk) >> PAGE_SHIFT;
+		uint32_t j = 0;
+		if (pscnv_chunk_expect_alloc_type(cnk, PSCNV_CHUNK_SYSRAM,
+							"pscnv_sysram_pages_total")) {
+			goto fail_expect;
+		}
+		
+		for (j = 0; j < pages_of_chunk; j++) {
+			pages_total[i*pages_per_chunk+j] = cnk->pages[j].k;
+		}
+	}
+	
+	return pages_total;
+	
+fail_expect:
+	kfree(pages_total);
+	
+	return NULL;
+}
+
+void
+pscnv_sysram_vmap(struct pscnv_bo *bo)
+{
+	struct drm_device *dev = bo->dev;
+	const uint32_t numpages = bo->size >> PAGE_SHIFT;
+	struct page **pages_total;
+	
+	if (bo->vmap) {
+		WARN_ON(1);
+		return;
+	}
+	
+	if (bo->size <= PAGE_SIZE) {
+		if (pscnv_chunk_expect_alloc_type(&bo->chunks[0],
+				PSCNV_CHUNK_SYSRAM, "pscnv_sysram_vmap")) {
+			return;
+		}
+		bo->vmap = kmap(bo->chunks[0].pages[0].k);
+		return;
+	}
+	
+	pages_total = pscnv_sysram_pages_total(bo);
+	if (!pages_total) {
+		NV_ERROR(dev, "pscnv_sysram_pages_total failed for BO%08x/%d\n",
+			bo->cookie, bo->serial);
+		return;
+	}
+	
+	bo->vmap = vmap(pages_total, numpages, 0, PAGE_KERNEL);
+	if (bo->vmap) {
+		bo->flags |= PSCNV_GEM_VM_KERNEL;
+	} else {
+		NV_ERROR(dev, "pscnv_sysram_vmap: vmap failed for BO%08x/%d\n",
+			bo->cookie, bo->serial);
+	}
+	
+	kfree(pages_total);
+}
+
+void
+pscnv_sysram_vunmap(struct pscnv_bo *bo)
+{
+	if (!bo->vmap) {
+		WARN_ON(1);
+		return;
+	}
+	
+	if (bo->size <= PAGE_SIZE) {
+		kunmap(bo->vmap);
+	} else {
+		vunmap(bo->vmap);
+	}
+	
+	bo->vmap = NULL;
+}
+
 uint32_t
 nv_rv32_sysram(struct pscnv_chunk *cnk, unsigned offset)
 {

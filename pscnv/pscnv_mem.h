@@ -130,6 +130,9 @@ struct pscnv_bo {
 	   of this bo (see nouveau_drv.h: nv_rv32, nv_wv32). This pointer should
 	   be set, if the BO is mapped to BAR 1 */
 	struct drm_local_map *drm_map;
+	/* continous kernel virtual memory for a SYSRAM BO */
+	void *vmap;
+	
 	/* page fault handler to call, if userspace has mapped this bo but no
 	 * pte is set up for it */
 	int (*vm_fault)(struct pscnv_bo *bo, struct vm_area_struct *vma, struct vm_fault *vmf);
@@ -151,6 +154,7 @@ struct pscnv_bo {
 #define PSCNV_GEM_FLAG3     0x200
 #define PSCNV_GEM_USER      0x400  /* < swappable */
 #define PSCNV_GEM_IB        0x800
+#define PSCNV_GEM_VM_KERNEL 0x1000 /* < create continous mapping in kernel vm */
 
 extern int pscnv_mem_init(struct drm_device *);
 extern void pscnv_mem_takedown(struct drm_device *);
