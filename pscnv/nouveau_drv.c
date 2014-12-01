@@ -144,7 +144,7 @@ MODULE_PARM_DESC(pause_debug, "Pause/ continue debug level: 0-2.");
 int pscnv_pause_debug = 0;
 module_param_named(pause_debug, pscnv_pause_debug, int, 0400);
 
-MODULE_PARM_DESC(pause_debug, "DMA debug level: 0-2.");
+MODULE_PARM_DESC(dma_debug, "DMA debug level: 0-2.");
 int pscnv_dma_debug = 0;
 module_param_named(dma_debug, pscnv_dma_debug, int, 0400);
 
@@ -152,7 +152,7 @@ MODULE_PARM_DESC(requested_chunk_size, "Chunk size as multiple of 128kB: default
 /* Note: 128kB is Large Page Table Entry size. With chunk sizes that are not
  * a multiple of 128kB, VRAM_LARGE would be more difficult to implement */
 int pscnv_requested_chunk_size = 32;
-module_param_named(chunk_size, pscnv_requested_chunk_size, int, 0400);
+module_param_named(requested_chunk_size, pscnv_requested_chunk_size, int, 0400);
 
 MODULE_PARM_DESC(vram_limit, "Limit usable VRAM to (MiB)");
 int pscnv_vram_limit = 0;
