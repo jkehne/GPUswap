@@ -1,6 +1,0 @@
-Development branch for splitting Buffer Objects into smaller chunks!
-This will be merged into the swapping branch as soon as it works acceptable.
-
-for the moment: EXPECT THIS BRANCH TO BE BROKEN, it may not even build!
-
-- Jonathan

@@ -32,3 +32,4 @@ test/mem_test
 test/902d
 test/bo_refcnt
 *.a
+*~
