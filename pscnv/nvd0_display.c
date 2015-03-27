@@ -935,13 +935,13 @@ nvd0_crtc_create(struct drm_device *dev, int index)
 	drm_crtc_helper_add(crtc, &nvd0_crtc_hfunc);
 	drm_mode_crtc_set_gamma_size(crtc, 256);
 
-	nv_crtc->cursor.nvbo = pscnv_mem_alloc(dev, 64*64*4, PSCNV_GEM_CONTIG, 0, 0xd151c);
+	nv_crtc->cursor.nvbo = pscnv_mem_alloc(dev, 64*64*4, PSCNV_GEM_CONTIG, 0, 0xd151c, NULL);
 	if (!nv_crtc->cursor.nvbo) {
 		kfree(nv_crtc);
 		return -ENOMEM;
 	}
 
-	nv_crtc->lut.nvbo = pscnv_mem_alloc(dev, 0x2000, PSCNV_GEM_CONTIG, 0, 0xd15170 + index);
+	nv_crtc->lut.nvbo = pscnv_mem_alloc(dev, 0x2000, PSCNV_GEM_CONTIG, 0, 0xd15170 + index, NULL);
 	if (!nv_crtc->lut.nvbo || (ret = dev_priv->vm->map_kernel(nv_crtc->lut.nvbo))) {
 		pscnv_mem_free(nv_crtc->cursor.nvbo);
 		kfree(nv_crtc->mode);
@@ -2114,7 +2114,7 @@ nvd0_display_create(struct drm_device *dev)
 	nouveau_irq_register(dev, 26, nvd0_display_intr);
 
 	/* small shared memory area we use for notifiers and semaphores */
-	disp->sync = pscnv_mem_alloc(dev, 0x1000, PSCNV_GEM_CONTIG, 0, 0xd9d901);
+	disp->sync = pscnv_mem_alloc(dev, 0x1000, PSCNV_GEM_CONTIG, 0, 0xd9d901, NULL);
 	if (!disp->sync) {
 		ret = -ENOMEM;
 		goto out;
@@ -2122,7 +2122,7 @@ nvd0_display_create(struct drm_device *dev)
 	dev_priv->vm->map_kernel(disp->sync);
 
 	/* hash table and dma objects for the memory areas we care about */
-	disp->mem = pscnv_mem_alloc(dev, 0x2000, PSCNV_GEM_CONTIG | PSCNV_GEM_VRAM_LARGE, 0, 0xd9d902);
+	disp->mem = pscnv_mem_alloc(dev, 0x2000, PSCNV_GEM_CONTIG | PSCNV_GEM_VRAM_LARGE, 0, 0xd9d902, NULL);
 	if (!disp->mem) {
 		ret = -ENOMEM;
 		goto out;

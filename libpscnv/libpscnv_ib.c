@@ -1,6 +1,7 @@
 #include "libpscnv_ib.h"
 #include "libpscnv.h"
 #include <stdlib.h>
+#include <stdio.h>
 #include <sched.h>
 #include <sys/mman.h>
 
@@ -16,25 +17,36 @@ int pscnv_ib_chan_new(int fd, int vid, struct pscnv_ib_chan **res, uint32_t pb_d
 	rr->vid = vid;
 	if (!vid) {
 		ret = pscnv_vspace_new(fd, &rr->vid);
-		if (ret)
+		if (ret) {
+			printf("pscnv_vspace_new failed with return value %d\n", ret);
 			goto out_vs;
+		}
 	}
 	ret = pscnv_chan_new(fd, rr->vid, &rr->cid, &map_handle);
-	if (ret)
-       		goto out_chan;
-	rr->chmap = mmap(0, 0x2000, PROT_READ | PROT_WRITE, MAP_SHARED, fd, map_handle);
-	if ((void*)rr->chmap == MAP_FAILED)
+	if (ret) {
+			printf("pscnv_chan_new failed with return value %d\n", ret);
+			goto out_chan;
+	}
+	rr->chmap = mmap(0, 0x1000, PROT_READ | PROT_WRITE, MAP_SHARED, fd, map_handle);
+	if ((void*)rr->chmap == MAP_FAILED) {
+		printf("mmap failed\n");
 		goto out_chmap;
+	}
 	rr->pb_dma = pb_dma;
+	/* this is not necessary for nvc0, see gdev version
 	ret = pscnv_obj_vdma_new(fd, rr->cid, pb_dma, 0x3d, 0, 0, 1ull << 40);
-	if (ret)
+	if (ret) {
+		printf("pscnv_obj_vdma_new failed with return value %d\n", ret);
 		goto out_vdma;
+	}*/
 	rr->ib_order = ib_order;
 	if (!ib_order)
 		rr->ib_order = 9;
 	ret = pscnv_ib_bo_alloc(fd, rr->vid, 0xf1f01b, PSCNV_GEM_SYSRAM_SNOOP | PSCNV_GEM_MAPPABLE, 0, 8 << rr->ib_order, 0, &rr->ib);
-	if (ret)
+	if (ret) {
+		printf("pscnv_ib_bo_alloc(1) failed with return value %d\n", ret);
 		goto out_ib;
+	}
 	rr->ib_map = rr->ib->map;
 	rr->ib_mask = (1 << rr->ib_order) - 1;
 	rr->ib_put = rr->ib_get = 0;
@@ -42,8 +54,10 @@ int pscnv_ib_chan_new(int fd, int vid, struct pscnv_ib_chan **res, uint32_t pb_d
 	if (!pb_order)
 		rr->pb_order = 20;
 	ret = pscnv_ib_bo_alloc(fd, rr->vid, 0xf1f0, PSCNV_GEM_SYSRAM_SNOOP | PSCNV_GEM_MAPPABLE, 0, 1 << rr->pb_order, 0, &rr->pb);
-	if (ret)
+	if (ret) {
+		printf("pscnv_ib_bo_alloc(2) failed with return value %d\n", ret);
 		goto out_pb;
+	}
 	rr->pb_map = rr->pb->map;
 	rr->pb_base = rr->pb->vm_base;
 	rr->pb_mask = (1 << rr->pb_order) - 1;
@@ -52,8 +66,10 @@ int pscnv_ib_chan_new(int fd, int vid, struct pscnv_ib_chan **res, uint32_t pb_d
 	rr->pb_put = 0;
 	rr->pb_get = 0;
 	ret = pscnv_fifo_init_ib(fd, rr->cid, rr->pb_dma, 0, 1, rr->ib->vm_base, rr->ib_order);
-	if (ret)
+	if (ret) {
+		printf("pscnv_fifo_init_ib failed with return value %d\n", ret);
 		goto out_fifo;
+	}
 	return 0;
 
 out_fifo:
@@ -62,7 +78,7 @@ out_pb:
 	pscnv_ib_bo_free(rr->ib);
 out_ib:
 out_vdma:
-	munmap((void*)rr->chmap, 0x2000);
+	munmap((void*)rr->chmap, 0x1000);
 out_chmap:
 	pscnv_chan_free(fd, rr->cid);
 out_chan:
@@ -85,17 +101,23 @@ int pscnv_ib_bo_alloc(int fd, int vid, uint32_t cookie, uint32_t flags, uint32_t
 	rr->vid = vid;
 	rr->size = size;
 	ret = pscnv_gem_new(fd, cookie, flags, tile_flags, size, user, &rr->handle, &map_handle);
-	if (ret)
+	if (ret) {
+		printf("pscnv_ib_bo_alloc: pscnv_gem_new returned %d\n", ret);
 		goto out_new;
+	}
 	if (vid) {
 		ret = pscnv_vspace_map(fd, vid, rr->handle, 0x20000000, 1ull << 40, 0, 0, &rr->vm_base);
-		if (ret)
+		if (ret) {
+			printf("pscnv_ib_bo_alloc: pscnv_vspace_map returned %d\n", ret);
 			goto out_vmap;
+		}
 	}
 	if (flags & PSCNV_GEM_MAPPABLE) {
 		rr->map = mmap(0, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, map_handle);
-		if ((void*)rr->map == MAP_FAILED)
+		if ((void*)rr->map == MAP_FAILED) {
+			printf("pscnv_ib_bo_alloc: map failed\n");
 			goto out_map;
+		}
 	} else
 		rr->map = 0;
 	return 0;

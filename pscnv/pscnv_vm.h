@@ -47,11 +47,16 @@ struct pscnv_vm_engine {
 	int (*do_vspace_new) (struct pscnv_vspace *vs);
 	void (*do_vspace_free) (struct pscnv_vspace *vs);
 	int (*place_map) (struct pscnv_vspace *, struct pscnv_bo *, uint64_t start, uint64_t end, int back, struct pscnv_mm_node **res);
+	int (*place_map_chunk) (struct pscnv_vspace *, struct pscnv_chunk *, uint64_t start, uint64_t end, int back, struct pscnv_mm_node **res);
 	int (*do_map) (struct pscnv_vspace *vs, struct pscnv_bo *bo, uint64_t offset);
+	int (*do_map_chunk) (struct pscnv_vspace *vs, struct pscnv_chunk *cnk, uint64_t offset);
 	int (*do_unmap) (struct pscnv_vspace *vs, uint64_t offset, uint64_t length);
 	int (*map_user) (struct pscnv_bo *);
 	int (*map_kernel) (struct pscnv_bo *);
 	void (*bar_flush) (struct drm_device *dev);
+	void (*pd_dump) (struct drm_device *dev, struct seq_file *m, uint64_t pd_addr, int id);
+	void (*pd_dump_bar1) (struct drm_device *dev, struct seq_file *m);
+	void (*pd_dump_bar3) (struct drm_device *dev, struct seq_file *m); 
 	struct pscnv_vspace *fake_vspaces[4];
 	struct pscnv_vspace *vspaces[128];
 	spinlock_t vs_lock;
@@ -59,6 +64,7 @@ struct pscnv_vm_engine {
 
 extern struct pscnv_vspace *pscnv_vspace_new(struct drm_device *, uint64_t size, uint32_t flags, int fake);
 extern int pscnv_vspace_map(struct pscnv_vspace *, struct pscnv_bo *, uint64_t start, uint64_t end, int back, struct pscnv_mm_node **res);
+extern int pscnv_vspace_map_chunk(struct pscnv_vspace *, struct pscnv_chunk *, uint64_t start, uint64_t end, int back, struct pscnv_mm_node **res);
 extern int pscnv_vspace_unmap(struct pscnv_vspace *, uint64_t start);
 extern int pscnv_vspace_unmap_node(struct pscnv_mm_node *node);
 
@@ -72,8 +78,9 @@ static inline void pscnv_vspace_unref(struct pscnv_vspace *vs) {
 	kref_put(&vs->ref, pscnv_vspace_ref_free);
 }
 
-extern int pscnv_mmap(struct file *filp, struct vm_area_struct *vma);
-
+/* get the bo at addr in this vs or NULL */
+struct pscnv_bo *
+pscnv_vspace_vm_addr_lookup(struct pscnv_vspace *vs, uint64_t addr);
 
 int nv50_vm_init(struct drm_device *dev);
 int nvc0_vm_init(struct drm_device *dev);

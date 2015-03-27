@@ -1,6 +1,8 @@
 
 set(sys_src "/lib/modules/${CMAKE_SYSTEM_VERSION}/build")
 
+MESSAGE( "Compiling against /lib/modules/${CMAKE_SYSTEM_VERSION}")
+
 # generating pscnv_kapi.h
 add_custom_command(OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/pscnv_kapi.h"
                    COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/kapitest.sh" "${sys_src}"
@@ -14,20 +16,6 @@ add_custom_command(OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/nv98_crypt.fuc.h"
                    COMMAND envyas -m fuc -V fuc0 -F crypt -a "${CMAKE_CURRENT_SOURCE_DIR}/nv98_crypt.fuc"
                            -o "${CMAKE_CURRENT_SOURCE_DIR}/nv98_crypt.fuc.h"
                    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/nv98_crypt.fuc"
-                   WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
-
-# generating nvc0_grhub.fuc.h
-add_custom_command(OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/nvc0_grhub.fuc.h"
-                   COMMAND m4 "${CMAKE_CURRENT_SOURCE_DIR}/nvc0_grhub.fuc" | envyas -a -w -m fuc -V fuc3
-                           -o "${CMAKE_CURRENT_SOURCE_DIR}/nvc0_grhub.fuc.h"
-                   DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/nvc0_grhub.fuc"
-                   WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
-
-# generating nvc0_grgpc.fuc.h
-add_custom_command(OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/nvc0_grgpc.fuc.h"
-                   COMMAND m4 "${CMAKE_CURRENT_SOURCE_DIR}/nvc0_grgpc.fuc" | envyas -a -w -m fuc -V fuc3
-                           -o "${CMAKE_CURRENT_SOURCE_DIR}/nvc0_grgpc.fuc.h"
-                   DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/nvc0_grgpc.fuc"
                    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
 
 # generating nvc0_copy.fuc.h
@@ -135,8 +123,8 @@ add_custom_command(OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/pscnv.ko"
                    DEPENDS ${real_sources}
                            "${CMAKE_CURRENT_SOURCE_DIR}/pscnv_kapi.h"
                            "${CMAKE_CURRENT_SOURCE_DIR}/nv98_crypt.fuc.h"
-                           "${CMAKE_CURRENT_SOURCE_DIR}/nvc0_grhub.fuc.h"
-                           "${CMAKE_CURRENT_SOURCE_DIR}/nvc0_grgpc.fuc.h"
+                           #"${CMAKE_CURRENT_SOURCE_DIR}/nvc0_grhub.fuc.h"
+                           #"${CMAKE_CURRENT_SOURCE_DIR}/nvc0_grgpc.fuc.h"
                            "${CMAKE_CURRENT_SOURCE_DIR}/nvc0_copy.fuc.h"
                            "${CMAKE_CURRENT_SOURCE_DIR}/nvc0_pdaemon.fuc.h"
                    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")

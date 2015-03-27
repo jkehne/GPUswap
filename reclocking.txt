@@ -1,0 +1,128 @@
+# reclocking.txt
+
+after boot my GTX480 runs at energy saving mode (performance state 0)
+ core 50MHz shader 101MHz memory 135MHz
+
+and at highest performance state 3 it runs at
+ core 756MHz shader 1512MHz memory 1900MHz
+
+Unfortunatly pscnv is not able to change the memory clock (although there
+is some code for this) and core reclocking is fragile... Current Nouveau
+(July 2014) is not any better.
+
+To understand the difficulties of reclocking, have a look at:
+http://lists.freedesktop.org/archives/nouveau/2014-June/017577.html
+
+So we let the nvidia blob (tested version 331.79) do the job, but we have
+to make sure that the clock stays at the highest level
+
+For comparision, have a look at
+gdev/docs/reclock-blob/README in the gdev project tree
+https://github.com/shinpei0208/gdev
+
+Get the envytools
+https://github.com/envytools/envytools/
+build them and make sure they are in your PATH
+
+Ensure that no driver access the GPU at this moment.
+
+Of course, you must be root
+
+Dump the video BIOS.
+nvagetbios > vbios.rom
+
+Get a readable version of the dump
+nvbios vbios.rom > vbios.rom.dump
+
+Search for lines like the following:
+
+PM_Mode table at 0x6121. Version 64. RamCFG 0xff. Info_length 16.
+Subentry length 4. Subentry count 13. Subentry Offset 16
+Header:
+0x6121: 40 1b 10 04 0d 04 00 01 ff 0c 00 03 00 00 01 07 00 00 00 10 32 54 76 98 ba dc fe
+4 performance levels
+
+-- ID 0x3 Voltage entry 0 PCIe link width 255 --
+0x613c: 03 00 00 08 00 00 00 00 00 00 13 09 ff 00 00 00
+	0:0x614c: 0e 81 00 00                                     : hub06 freq = 270 MHz
+	1:0x6150: 1c 82 00 00                                     : hub01 freq = 540 MHz
+	2:0x6154: 87 00 00 00                                     : copy freq = 135 MHz
+	3:0x6158: 65 80 00 00                                     : shader freq = 101 MHz
+	4:0x615c: 0e 81 00 00                                     : rop freq = 270 MHz
+	5:0x6160: 87 80 00 00                                     : memclk freq = 135 MHz
+	6:0x6164: 87 00 00 00                                     : vdec freq = 135 MHz
+	7:0x6168: 0e 01 00 00                                     : unk_engine freq = 270 MHz
+	8:0x616c: 00 00 00 00                                     : unk_engine freq = 0 MHz
+	9:0x6170: 00 00 00 00                                     : unk_engine freq = 0 MHz
+	10:0x6174: cb 00 00 00                                     : daemon freq = 203 MHz
+	11:0x6178: 0e 81 00 00                                     : hub07 freq = 270 MHz
+	12:0x617c: 00 00 00 00                                     : unk_engine freq = 0 MHz
+
+
+
+-- ID 0x7 Voltage entry 0 PCIe link width 255 --
+0x6180: 07 00 00 08 00 00 00 00 00 00 16 09 55 00 00 00
+	0:0x6190: 2a 83 00 00                                     : hub06 freq = 810 MHz
+	1:0x6194: 2a 83 00 00                                     : hub01 freq = 810 MHz
+	2:0x6198: 95 01 00 00                                     : copy freq = 405 MHz
+	3:0x619c: 2a 83 00 00                                     : shader freq = 810 MHz
+	4:0x61a0: 2a 83 00 00                                     : rop freq = 810 MHz
+	5:0x61a4: 44 81 00 00                                     : memclk freq = 324 MHz
+	6:0x61a8: 95 01 00 00                                     : vdec freq = 405 MHz
+	7:0x61ac: 95 01 00 00                                     : unk_engine freq = 405 MHz
+	8:0x61b0: 00 00 00 00                                     : unk_engine freq = 0 MHz
+	9:0x61b4: 00 00 00 00                                     : unk_engine freq = 0 MHz
+	10:0x61b8: cb 00 00 00                                     : daemon freq = 203 MHz
+	11:0x61bc: 2a 83 00 00                                     : hub07 freq = 810 MHz
+	12:0x61c0: 00 00 00 00                                     : unk_engine freq = 0 MHz
+
+
+
+-- ID 0xc Voltage entry 2 PCIe link width 255 --
+0x61c4: 0c 00 02 08 00 00 00 00 00 00 16 09 55 00 00 00
+	0:0x61d4: 2a 83 00 00                                     : hub06 freq = 810 MHz
+	1:0x61d8: 2a 83 00 00                                     : hub01 freq = 810 MHz
+	2:0x61dc: 95 01 00 00                                     : copy freq = 405 MHz
+	3:0x61e0: 2a 83 00 00                                     : shader freq = 810 MHz
+	4:0x61e4: 2a 83 00 00                                     : rop freq = 810 MHz
+	5:0x61e8: 6c 47 00 00                                     : memclk freq = 1900 MHz
+	6:0x61ec: 95 01 00 00                                     : vdec freq = 405 MHz
+	7:0x61f0: 1c 02 00 00                                     : unk_engine freq = 540 MHz
+	8:0x61f4: 00 00 00 00                                     : unk_engine freq = 0 MHz
+	9:0x61f8: 00 00 00 00                                     : unk_engine freq = 0 MHz
+	10:0x61fc: cb 00 00 00                                     : daemon freq = 203 MHz
+	11:0x6200: 2a 83 00 00                                     : hub07 freq = 810 MHz
+	12:0x6204: 00 00 00 00                                     : unk_engine freq = 0 MHz
+
+
+
+-- ID 0xf Voltage entry 2 PCIe link width 255 --
+0x6208: 0f 00 02 08 00 00 00 00 00 00 16 06 55 00 00 00
+	0:0x6218: 79 45 00 00                                     : hub06 freq = 1401 MHz
+	1:0x621c: 79 45 00 00                                     : hub01 freq = 1401 MHz
+	2:0x6220: 1c 02 00 00                                     : copy freq = 540 MHz
+	3:0x6224: e8 45 00 00                                     : shader freq = 1512 MHz
+	4:0x6228: 36 46 00 00                                     : rop freq = 1590 MHz
+	5:0x622c: 6c 47 00 00                                     : memclk freq = 1900 MHz
+	6:0x6230: 1c 02 00 00                                     : vdec freq = 540 MHz
+	7:0x6234: 1c 02 00 00                                     : unk_engine freq = 540 MHz
+	8:0x6238: 00 00 00 00                                     : unk_engine freq = 0 MHz
+	9:0x623c: 00 00 00 00                                     : unk_engine freq = 0 MHz
+	10:0x6240: cb 00 00 00                                     : daemon freq = 203 MHz
+	11:0x6244: e8 45 00 00                                     : hub07 freq = 1512 MHz
+	12:0x6248: 00 00 00 00                                     : unk_engine freq = 0 MHz
+
+Mark all performance states except for the highest performance state invalid.
+A performance state is invalid, if its first byte is 0xff, so for the video bios
+of my card, that is:
+
+[0x613c] = 0xff
+[0x6180] = 0xff
+[0x61c4] = 0xff
+
+So you have to call nvafakebios like 
+nvafakebios -e 613c:ff -e 6180:ff -e 61c4:ff vbios.rom
+
+see pscnv_load.sh
+
+for the rest.

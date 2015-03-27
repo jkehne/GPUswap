@@ -44,7 +44,7 @@ nvc0_copy_chan_alloc(struct pscnv_engine *eng, struct pscnv_chan *ch)
 	uint32_t cookie = pcopy->fuc;
 	int ret;
 
-	coch->bo = pscnv_mem_alloc(dev, 256, PSCNV_GEM_CONTIG, 0, cookie);
+	coch->bo = pscnv_mem_alloc(dev, 256, PSCNV_GEM_CONTIG, 0, cookie, NULL);
 	if (!coch->bo) {
 		ret = -ENOMEM;
 		goto fail_mem_alloc;
@@ -66,6 +66,8 @@ nvc0_copy_chan_alloc(struct pscnv_engine *eng, struct pscnv_chan *ch)
 	dev_priv->vm->bar_flush(dev);
 
 	ch->engdata[PSCNV_ENGINE_COPY + pcopy->id] = coch;
+
+	NV_INFO(dev, "adding PCOPY %d engine to channel %d in vspace %d\n", pcopy->id, ch->cid, ch->vspace->vid);
 
 	return 0;
 

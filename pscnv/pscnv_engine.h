@@ -21,6 +21,7 @@ int nv84_crypt_init(struct drm_device *dev);
 int nv98_crypt_init(struct drm_device *dev);
 int nvc0_copy_init(struct drm_device *dev, int engine);
 
+#define PSCNV_ENGINE_FIFO	0
 #define PSCNV_ENGINE_GRAPH	1
 #define PSCNV_ENGINE_COPY	3
 #define PSCNV_ENGINE_COPY0	3 /* PSCNV_ENGINE_COPY + 0 */

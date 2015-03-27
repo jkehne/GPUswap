@@ -32,13 +32,14 @@ static int nv50_vspace_tlb_flush (struct pscnv_vspace *vs) {
 	return 0;
 }
 
+#if 0
 static int
 nv50_vspace_fill_pd_slot (struct pscnv_vspace *vs, uint32_t pdenum) {
 	struct drm_nouveau_private *dev_priv = vs->dev->dev_private;
 	struct list_head *pos;
 	int i;
 	uint32_t chan_pd;
-	nv50_vs(vs)->pt[pdenum] = pscnv_mem_alloc(vs->dev, NV50_VM_SPTE_COUNT * 8, PSCNV_GEM_CONTIG, 0, 0xa9e7ab1e);
+	nv50_vs(vs)->pt[pdenum] = pscnv_mem_alloc(vs->dev, NV50_VM_SPTE_COUNT * 8, PSCNV_GEM_CONTIG, 0, 0xa9e7ab1e, NULL);
 	if (!nv50_vs(vs)->pt[pdenum]) {
 		return -ENOMEM;
 	}
@@ -62,6 +63,7 @@ nv50_vspace_fill_pd_slot (struct pscnv_vspace *vs, uint32_t pdenum) {
 	}
 	return 0;
 }
+#endif
 
 static int
 nv50_vspace_place_map (struct pscnv_vspace *vs, struct pscnv_bo *bo,
@@ -70,6 +72,7 @@ nv50_vspace_place_map (struct pscnv_vspace *vs, struct pscnv_bo *bo,
 	return pscnv_mm_alloc(vs->mm, bo->size, back?PSCNV_MM_FROMBACK:0, start, end, res);
 }
 
+#if 0
 static int nv50_vspace_map_contig_range (struct pscnv_vspace *vs, uint64_t offset, uint64_t pte, uint64_t size, int lp) {
 	int ret;
 	/* XXX: add LP support */
@@ -97,7 +100,15 @@ static int nv50_vspace_map_contig_range (struct pscnv_vspace *vs, uint64_t offse
 	}
 	return 0;
 }
+#endif
 
+static int
+nv50_vspace_do_map (struct pscnv_vspace *vs, struct pscnv_bo *bo, uint64_t offset)
+{
+	return 0;
+}
+
+#if 0
 static int
 nv50_vspace_do_map (struct pscnv_vspace *vs, struct pscnv_bo *bo, uint64_t offset) {
 	struct drm_nouveau_private *dev_priv = vs->dev->dev_private;
@@ -146,6 +157,7 @@ nv50_vspace_do_map (struct pscnv_vspace *vs, struct pscnv_bo *bo, uint64_t offse
 	dev_priv->vm->bar_flush(vs->dev);
 	return 0;
 }
+#endif
 
 static int
 nv50_vspace_do_unmap (struct pscnv_vspace *vs, uint64_t offset, uint64_t length) {
@@ -182,7 +194,7 @@ static int nv50_vspace_new(struct pscnv_vspace *vs) {
 		return -ENOMEM;
 	}
 	INIT_LIST_HEAD(&nv50_vs(vs)->chan_list);
-	ret = pscnv_mm_init(vs->dev, 0, vs->size, 0x1000, 0x10000, 0x20000000, &vs->mm);
+	ret = pscnv_mm_init(vs->dev, "", 0, vs->size, 0x1000, 0x10000, 0x20000000, &vs->mm);
 	if (ret) 
 		kfree(vs->engdata);
 	return ret;
@@ -222,12 +234,18 @@ nv50_vm_bar_flush(struct drm_device *dev) {
 	}
 }
 
+/* typically takes 4-6us */
 void
 nv84_vm_bar_flush(struct drm_device *dev) {
+	struct drm_nouveau_private *dev_priv = dev->dev_private;
+	unsigned long flags;
+	
+	spin_lock_irqsave(&dev_priv->pramin_lock, flags);
 	nv_wr32(dev, 0x70000, 1);
 	if (!nouveau_wait_until(dev, 2000000000ULL, 0x70000, 2, 0)) {
 		NV_ERROR(dev, "BAR flush timeout!\n");
 	}
+	spin_unlock_irqrestore(&dev_priv->pramin_lock, flags);
 }
 
 int

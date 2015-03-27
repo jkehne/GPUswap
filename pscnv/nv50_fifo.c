@@ -36,13 +36,13 @@ struct nv50_fifo_engine {
 	int cur_playlist;
 };
 
-#define nv50_fifo(x) container_of(x, struct nv50_fifo_engine, base)
+#define nv50_fifo_eng(x) container_of(x, struct nv50_fifo_engine, base)
 
-static void nv50_fifo_takedown(struct drm_device *dev);
+static void nv50_fifo_takedown(struct pscnv_engine *eng);
 static void nv50_fifo_irq_handler(struct drm_device *dev, int irq);
 static int nv50_fifo_chan_init_dma (struct pscnv_chan *ch, uint32_t pb_handle, uint32_t flags, uint32_t slimask, uint64_t pb_start);
 static int nv50_fifo_chan_init_ib (struct pscnv_chan *ch, uint32_t pb_handle, uint32_t flags, uint32_t slimask, uint64_t ib_start, uint32_t ib_order);
-static void nv50_fifo_chan_kill(struct pscnv_chan *ch);
+static void nv50_fifo_chan_kill(struct pscnv_engine *eng, struct pscnv_chan *ch);
 
 int nv50_fifo_init(struct drm_device *dev) {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
@@ -54,13 +54,13 @@ int nv50_fifo_init(struct drm_device *dev) {
 		return -ENOMEM;
 	}
 
-	res->base.takedown = nv50_fifo_takedown;
-	res->base.chan_kill = nv50_fifo_chan_kill;
+	res->base.base.takedown = nv50_fifo_takedown;
+	res->base.base.chan_kill = nv50_fifo_chan_kill;
 	res->base.chan_init_dma = nv50_fifo_chan_init_dma;
 	res->base.chan_init_ib = nv50_fifo_chan_init_ib;
 
-	res->playlist[0] = pscnv_mem_alloc(dev, 0x1000, PSCNV_GEM_CONTIG, 0, 0x91a71157);
-	res->playlist[1] = pscnv_mem_alloc(dev, 0x1000, PSCNV_GEM_CONTIG, 0, 0x91a71157);
+	res->playlist[0] = pscnv_mem_alloc(dev, 0x1000, PSCNV_GEM_CONTIG, 0, 0x91a71157, NULL);
+	res->playlist[1] = pscnv_mem_alloc(dev, 0x1000, PSCNV_GEM_CONTIG, 0, 0x91a71157, NULL);
 	if (!res->playlist[0] || !res->playlist[1]) {
 		NV_ERROR(dev, "PFIFO: Couldn't allocate playlists!\n");
 		if (res->playlist[0])
@@ -106,10 +106,11 @@ int nv50_fifo_init(struct drm_device *dev) {
 	return 0;
 }
 
-static void nv50_fifo_takedown(struct drm_device *dev) {
+static void nv50_fifo_takedown(struct pscnv_engine *eng) {
+	struct drm_device *dev = eng->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	int i;
-	struct nv50_fifo_engine *fifo = nv50_fifo(dev_priv->fifo);
+	struct nv50_fifo_engine *fifo = nv50_fifo_eng(dev_priv->fifo);
 	nv_wr32(dev, 0x2140, 0);
 	nouveau_irq_unregister(dev, 8);
 	for (i = 0; i < 128; i++)
@@ -124,7 +125,7 @@ static void nv50_fifo_takedown(struct drm_device *dev) {
 
 static void nv50_fifo_playlist_update (struct drm_device *dev) {
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct nv50_fifo_engine *fifo = nv50_fifo(dev_priv->fifo);
+	struct nv50_fifo_engine *fifo = nv50_fifo_eng(dev_priv->fifo);
 	int i, pos;
 	struct pscnv_bo *vo;
 	fifo->cur_playlist ^= 1;
@@ -142,7 +143,7 @@ static void nv50_fifo_playlist_update (struct drm_device *dev) {
 	nv_wr32(dev, 0x2500, 0x101);
 }
 
-static void nv50_fifo_chan_kill(struct pscnv_chan *ch) {
+static void nv50_fifo_chan_kill(struct pscnv_engine *eng, struct pscnv_chan *ch) {
 	struct drm_device *dev = ch->dev;
 	struct drm_nouveau_private *dev_priv = dev->dev_private;
 	uint64_t start;

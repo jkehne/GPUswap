@@ -27,11 +27,13 @@
 #ifndef __PSCNV_GEM_H__
 #define __PSCNV_GEM_H__
 
+struct pscnv_client;
 
 void pscnv_gem_free_object (struct drm_gem_object *);
+void pscnv_gem_close_object(struct drm_gem_object *obj, struct drm_file *file_priv);
 struct drm_gem_object *pscnv_gem_new(struct drm_device *dev, uint64_t size,
 		uint32_t flags,	uint32_t tile_flags, uint32_t cookie,
-		uint32_t *user);
+		uint32_t *user, struct pscnv_client *client);
 struct drm_gem_object *pscnv_gem_wrap(struct drm_device *dev,
 		struct pscnv_bo *vo);
 

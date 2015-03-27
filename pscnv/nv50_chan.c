@@ -4,7 +4,14 @@
 #include "pscnv_chan.h"
 #include "nv50_vm.h"
 
-static int nv50_chan_new (struct pscnv_chan *ch) {
+static struct pscnv_chan *
+nv50_chan_alloc(struct drm_device *dev)
+{
+	return kzalloc(sizeof(struct pscnv_chan), GFP_KERNEL);
+}
+
+static int
+nv50_chan_new (struct pscnv_chan *ch) {
 	struct pscnv_vspace *vs = ch->vspace;
 	struct drm_nouveau_private *dev_priv = ch->dev->dev_private;
 	uint64_t size;
@@ -23,7 +30,7 @@ static int nv50_chan_new (struct pscnv_chan *ch) {
 	else
 		size = 0x5000;
 	ch->bo = pscnv_mem_alloc(vs->dev, size, PSCNV_GEM_CONTIG,
-			0, (ch->cid == -1 ? 0xc5a2ba7 : 0xc5a2f1f0));
+			0, (ch->cid == -1 ? 0xc5a2ba7 : 0xc5a2f1f0), NULL);
 	if (!ch->bo)
 		return -ENOMEM;
 
@@ -69,7 +76,7 @@ static int nv50_chan_new (struct pscnv_chan *ch) {
 			 * simplicity. */
 			ch->ramfc = nv50_chan_iobj_new(ch, 0x100);
 			ch->cache = pscnv_mem_alloc(vs->dev, 0x1000, PSCNV_GEM_CONTIG,
-					0, 0xf1f0cace);
+					0, 0xf1f0cace, NULL);
 			if (!ch->cache) {
 				spin_lock_irqsave(&dev_priv->chan->ch_lock, flags);
 				ch->handle = 0;
@@ -145,9 +152,9 @@ static void nv50_chan_free(struct pscnv_chan *ch) {
 	spin_lock_irqsave(&dev_priv->chan->ch_lock, flags);
 	ch->handle = 0;
 	spin_unlock_irqrestore(&dev_priv->chan->ch_lock, flags);
-	pscnv_mem_free(ch->bo);
+	pscnv_bo_unref(ch->bo);
 	if (ch->cache)
-		pscnv_mem_free(ch->cache);
+		pscnv_bo_unref(ch->cache);
 	mutex_lock(&ch->vspace->lock);
 	list_del(&ch->vspace_list);
 	mutex_unlock(&ch->vspace->lock);
@@ -169,6 +176,7 @@ nv50_chan_init(struct drm_device *dev) {
 		return -ENOMEM;
 	}
 	che->base.takedown = nv50_chan_takedown;
+	che->base.do_chan_alloc = nv50_chan_alloc;
 	che->base.do_chan_new = nv50_chan_new;
 	che->base.do_chan_free = nv50_chan_free;
 	dev_priv->chan = &che->base;

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 2.8)
 
-include_directories(../pscnv /usr/include/drm)
+include_directories(../pscnv /usr/include/libdrm)
 add_library(pscnv STATIC libpscnv.c)
 
 add_library(pscnv-shared SHARED libpscnv.c)

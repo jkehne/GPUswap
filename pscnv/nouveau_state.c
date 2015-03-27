@@ -43,6 +43,12 @@
 #include "pscnv_chan.h"
 #include "pscnv_fifo.h"
 #include "pscnv_ioctl.h"
+#include "pscnv_dma.h"
+#include "pscnv_client.h"
+#include "pscnv_swapping.h"
+#include "nvc0_vm.h"
+
+extern struct drm_device *pscnv_drm;
 
 static void nouveau_stub_takedown(struct drm_device *dev) {}
 static int nouveau_stub_init(struct drm_device *dev) { return 0; }
@@ -259,7 +265,7 @@ nouveau_card_init(struct drm_device *dev)
 	}
 
 	/* Parse BIOS tables / Run init tables if card not POSTed */
-	if (drm_core_check_feature(dev, DRIVER_MODESET)) {
+	//if (drm_core_check_feature(dev, DRIVER_MODESET)) {
 		ret = nouveau_bios_init(dev);
 		if (ret)
 			goto out_display_early;
@@ -271,7 +277,7 @@ nouveau_card_init(struct drm_device *dev)
 		if (dev_priv->chipset == 0xc1) {
 			nv_mask(dev, 0x00088080, 0x00000800, 0x00000000);
 		}
-	}
+	//}
 
 	ret = pscnv_mem_init(dev);
 	if (ret)
@@ -354,6 +360,7 @@ nouveau_card_init(struct drm_device *dev)
 		default:
 			break;
 	}
+
 	switch (dev_priv->chipset) {
 		case 0x84:
 		case 0x86:
@@ -369,6 +376,9 @@ nouveau_card_init(struct drm_device *dev)
 			nv98_crypt_init(dev);
 			break;
 	}
+
+	if(ret)
+		goto out_fifo;
 
 	if (drm_core_check_feature(dev, DRIVER_MODESET)) {
 		ret = nouveau_display_create(dev);
@@ -409,19 +419,22 @@ nouveau_card_init(struct drm_device *dev)
 
 	dev_priv->init_state = NOUVEAU_CARD_INIT_DONE;
 
-	if (drm_core_check_feature(dev, DRIVER_MODESET)) {
-#ifdef __linux__
+	/*if (drm_core_check_feature(dev, DRIVER_MODESET)) {
 		nouveau_fbcon_init(dev);
-#else
-		// SIGH
-		DRM_UNLOCK();
-		nouveau_fbcon_init(dev);
-		DRM_LOCK();
-#endif
 		drm_kms_helper_poll_init(dev);
+	}*/
+	
+	ret = pscnv_dma_init(dev);
+	if (ret) {
+		NV_ERROR(dev, "DMA: initialization failed with value %d", ret);
+	} else {
+		NV_INFO(dev, "DMA: Initalized\n");
 	}
 
 	NV_INFO(dev, "Card initialized.\n");
+	
+	pscnv_drm = dev;
+	
 	return 0;
 
 #if 0
@@ -443,8 +456,6 @@ out_fifo:
 			dev_priv->engines[i]->takedown(dev_priv->engines[i]);
 			dev_priv->engines[i] = 0;
 		}
-	if (dev_priv->fifo)
-		dev_priv->fifo->takedown(dev);
 out_gpio:
 	engine->gpio.takedown(dev);
 out_vm:
@@ -477,8 +488,13 @@ static void nouveau_card_takedown(struct drm_device *dev)
 
 	NV_DEBUG(dev, "prev state = %d\n", dev_priv->init_state);
 
+	pscnv_drm = NULL;
+
 	if (dev_priv->init_state == NOUVEAU_CARD_INIT_DONE) {
 		NV_INFO(dev, "Stopping card...\n");
+		pscnv_dma_exit(dev);
+		pscnv_swapping_exit(dev);
+		pscnv_clients_exit(dev);
 		nouveau_backlight_exit(dev);
 		drm_irq_uninstall(dev);
 		flush_workqueue(dev_priv->wq);
@@ -487,8 +503,6 @@ static void nouveau_card_takedown(struct drm_device *dev)
 				dev_priv->engines[i]->takedown(dev_priv->engines[i]);
 				dev_priv->engines[i] = 0;
 			}
-		if (dev_priv->fifo)
-			dev_priv->fifo->takedown(dev);
 		dev_priv->vm->takedown(dev);
 		dev_priv->chan->takedown(dev);
 		pscnv_mem_takedown(dev);
@@ -604,6 +618,9 @@ int nouveau_load(struct drm_device *dev, unsigned long flags)
 
 	dev_priv->flags = flags/* & NOUVEAU_FLAGS*/;
 	dev_priv->init_state = NOUVEAU_CARD_INIT_DOWN;
+	
+	pscnv_clients_init(dev);
+	pscnv_swapping_init(dev);
 
 	NV_DEBUG(dev, "vendor: 0x%X device: 0x%X\n",
 		 dev->pci_vendor, dev->pci_device);
@@ -735,6 +752,9 @@ int nouveau_load(struct drm_device *dev, unsigned long flags)
 			return ret;
 		}
 	}
+	
+	NV_INFO(dev, "RAMIN_SIZE=0x%08x, FP_SIZE=0x%08llx\n",
+		dev_priv->ramin_size, dev_priv->fb_size);
 
 	nouveau_OF_copy_vbios_to_ramin(dev);
 
@@ -745,11 +765,11 @@ int nouveau_load(struct drm_device *dev, unsigned long flags)
 		dev_priv->flags |= NV_NFORCE2;
 
 	/* For kernel modesetting, init card now and bring up fbcon */
-	if (drm_core_check_feature(dev, DRIVER_MODESET)) {
-		int ret = nouveau_card_init(dev);
+	//if (drm_core_check_feature(dev, DRIVER_MODESET)) {
+		ret = nouveau_card_init(dev);
 		if (ret)
 			return ret;
-	}
+	//}
 
 	return 0;
 }
@@ -766,10 +786,10 @@ static void nouveau_close(struct drm_device *dev)
 /* KMS: we need mmio at load time, not when the first drm client opens. */
 void nouveau_lastclose(struct drm_device *dev)
 {
-	if (drm_core_check_feature(dev, DRIVER_MODESET))
+	/*if (drm_core_check_feature(dev, DRIVER_MODESET))
 		return;
 
-	nouveau_close(dev);
+	nouveau_close(dev);*/
 }
 
 int nouveau_unload(struct drm_device *dev)
@@ -779,8 +799,8 @@ int nouveau_unload(struct drm_device *dev)
 	if (drm_core_check_feature(dev, DRIVER_MODESET)) {
 		nouveau_fbcon_fini(dev);
 		nouveau_display_destroy(dev);
-		nouveau_close(dev);
 	}
+	nouveau_close(dev);
 	destroy_workqueue(dev_priv->wq);
 
 	drm_rmmap(dev, dev_priv->mmio);

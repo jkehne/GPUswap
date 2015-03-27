@@ -1,7 +1,11 @@
 build/
+tags
 .hg/*
+.DS_Store
+._*
 *.cmd
 *.o
+*.swp
 pscnv/*.fuc.h
 pscnv/nv98_crypt_fuc.h
 pscnv/.tmp_versions
@@ -26,4 +30,5 @@ test/ib
 test/subc0
 test/mem_test
 test/902d
+test/bo_refcnt
 *.a

@@ -6,6 +6,8 @@
 #include "pscnv_chan.h"
 #include "pscnv_fifo.h"
 #include "pscnv_gem.h"
+#include "pscnv_swapping.h"
+#include "pscnv_client.h"
 #include "nv50_chan.h"
 #include "nvc0_graph.h"
 #include "pscnv_kapi.h"
@@ -34,7 +36,7 @@ int pscnv_ioctl_getparam(struct drm_device *dev, void *data,
 		if (dev_priv->chipset < 0xc0)
 			goto fail;
 		nvc0_graph = NVC0_GRAPH(dev_priv->engines[PSCNV_ENGINE_GRAPH]);
-		getparam->value = nvc0_graph->tp_count; /* MPs == TPs */
+		getparam->value = nvc0_graph->tpc_total; /* MPs == TPs */
 		break;
 	case PSCNV_GETPARAM_CHIPSET_ID:
 		getparam->value = dev_priv->chipset;
@@ -57,7 +59,12 @@ int pscnv_ioctl_getparam(struct drm_device *dev, void *data,
 		getparam->value = nv04_timer_read(dev);
 		break;
 	case PSCNV_GETPARAM_FB_SIZE:
-		getparam->value = dev_priv->vram_size;
+		if (dev_priv->vram_limit > 0) {
+			/* swapping is enabled. Report an insanely large VRAM */
+			getparam->value = (42UL << 40);
+		} else {
+			getparam->value = dev_priv->vram_size;
+		}
 		break;
 	case PSCNV_GETPARAM_GPC_COUNT:
 		if (dev_priv->card_type < NV_C0)
@@ -106,12 +113,20 @@ int pscnv_ioctl_gem_new(struct drm_device *dev, void *data,
 	struct drm_pscnv_gem_info *info = data;
 	struct drm_gem_object *obj;
 	struct pscnv_bo *bo;
+	struct pscnv_client *client;
 	int ret;
 
 	NOUVEAU_CHECK_INITIALISED_WITH_RETURN;
 
-	obj = pscnv_gem_new(dev, info->size, info->flags, info->tile_flags, info->cookie, info->user);
+	client = pscnv_client_search_pid(dev, file_priv->pid);
+	obj = pscnv_gem_new(dev, info->size, info->flags | PSCNV_GEM_USER,
+			info->tile_flags, info->cookie, info->user, client);
 	if (!obj) {
+		char size_str[16];
+		pscnv_mem_human_readable(size_str, info->size);
+		NV_INFO(dev, "GEM: %s requested %s of %s. Failed\n",
+			(client) ? (client->comm) : "<unknown>",
+			size_str, pscnv_bo_memtype_str(info->flags));
 		return -ENOMEM;
 	}
 	bo = obj->driver_private;
@@ -130,6 +145,14 @@ int pscnv_ioctl_gem_new(struct drm_device *dev, void *data,
 	info->map_handle = DRM_GEM_MAPPING_OFF(obj->map_list.key) |
 			   DRM_GEM_MAPPING_KEY;
 #endif
+	
+	/* confusing: this immediatly sets obj->handle_count back to 0, so
+	 * the drm_gem_object should loose it's name, but the object (and the
+	 * attached buffer) should stay available 
+	 *
+	 * maybe this is to ensure that the gem can only be mmap'd by the
+	 * returned map_handle through pscnv_mmap() and not through drm_mmap()
+	 */
 	drm_gem_object_handle_unreference_unlocked (obj);
 
 	return ret;
@@ -164,8 +187,30 @@ int pscnv_ioctl_gem_info(struct drm_device *dev, void *data,
 	for (i = 0; i < DRM_ARRAY_SIZE(bo->user); i++)
 		info->user[i] = bo->user[i];
 
+	/* drm_gem_object_lookup increases refcount on object, so decrease */
 	drm_gem_object_unreference_unlocked(obj);
 
+	return 0;
+}
+
+int
+pscnv_ioctl_copy_to_host(struct drm_device *dev, void *data,
+						struct drm_file *file_priv)
+{
+	struct pscnv_client *cl;
+	
+	NOUVEAU_CHECK_INITIALISED_WITH_RETURN;
+	
+	cl = pscnv_client_search_pid(dev, file_priv->pid);
+	
+	if (!cl) {
+		NV_ERROR(dev, "process with pid %d called copy_to_host, but "
+			      "has no client record\n", file_priv->pid);
+		return -ENOENT;
+	}
+	
+	pscnv_client_run_empty_fifo_work(cl);
+	
 	return 0;
 }
 
@@ -178,6 +223,9 @@ pscnv_get_vspace(struct drm_device *dev, struct drm_file *file_priv, int vid)
 
 	if (vid < 128 && vid >= 0 && dev_priv->vm->vspaces[vid] && dev_priv->vm->vspaces[vid]->filp == file_priv) {
 		struct pscnv_vspace *res = dev_priv->vm->vspaces[vid];
+		if (pscnv_vm_debug >= 3) {
+			NV_INFO(dev, "get_vspace: ref vspace %d\n", res->vid);
+		}
 		pscnv_vspace_ref(res);
 		spin_unlock_irqrestore(&dev_priv->vm->vs_lock, flags);
 		return res;
@@ -220,6 +268,10 @@ int pscnv_ioctl_vspace_free(struct drm_device *dev, void *data,
 
 	vs->filp = 0;
 	pscnv_vspace_unref(vs);
+	if (pscnv_vm_debug >= 2) {
+		NV_INFO(dev, "ioctl_vspace_free: unref vspace %d (refcnt=%d)\n",
+			vs->vid, atomic_read(&vs->ref.refcount));
+	}
 	pscnv_vspace_unref(vs);
 
 	return 0;
@@ -253,6 +305,8 @@ int pscnv_ioctl_vspace_map(struct drm_device *dev, void *data,
 	if (!ret)
 		req->offset = map->start;
 
+	drm_gem_object_unreference_unlocked(obj);
+
 	pscnv_vspace_unref(vs);
 
 	return ret;
@@ -263,6 +317,7 @@ int pscnv_ioctl_vspace_unmap(struct drm_device *dev, void *data,
 {
 	struct drm_pscnv_vspace_unmap *req = data;
 	struct pscnv_vspace *vs;
+	struct pscnv_bo *bo;
 	int ret;
 
 	NOUVEAU_CHECK_INITIALISED_WITH_RETURN;
@@ -271,6 +326,20 @@ int pscnv_ioctl_vspace_unmap(struct drm_device *dev, void *data,
 	vs = pscnv_get_vspace(dev, file_priv, req->vid);
 	if (!vs)
 		return -ENOENT;
+	
+	bo = pscnv_vspace_vm_addr_lookup(vs, req->offset);
+	if (!bo) {
+		NV_INFO(dev, "ioctl_vspace_unmap: vspace %d: no BO mapped at %08llx\n",
+			vs->vid, req->offset);
+		pscnv_vspace_unref(vs);
+		return -EINVAL;
+	}
+	if (bo->serial == 0x33333333) {
+		NV_INFO(dev, "ioctl_vspace_unmap: vspace %d: BO at %08llx poisoned\n",
+			vs->vid, req->offset);
+		pscnv_vspace_unref(vs);
+		return -EINVAL;
+	}
 
 	ret = pscnv_vspace_unmap(vs, req->offset);
 
@@ -316,9 +385,8 @@ int pscnv_ioctl_chan_new(struct drm_device *dev, void *data,
 	struct drm_pscnv_chan_new *req = data;
 	struct pscnv_vspace *vs;
 	struct pscnv_chan *ch;
-#ifndef __linux__
-	struct drm_gem_object *obj;
-#endif
+	struct pscnv_client *client;
+
 	NOUVEAU_CHECK_INITIALISED_WITH_RETURN;
 
 	vs = pscnv_get_vspace(dev, file_priv, req->vid);
@@ -331,20 +399,18 @@ int pscnv_ioctl_chan_new(struct drm_device *dev, void *data,
 		return -ENOMEM;
 	}
 	pscnv_vspace_unref(vs);
-#ifndef __linux__
-	if (!(obj = pscnv_gem_wrap(dev, ch->bo))) {
-		pscnv_chan_unref(ch);
-		return -ENOMEM;
-	}
-	req->map_handle = DRM_GEM_MAPPING_OFF(obj->map_list.key) |
-			  DRM_GEM_MAPPING_KEY;
-#else
+
 	req->map_handle = 0xc0000000 | ch->cid << 16;
-#endif
 
 	req->cid = ch->cid;
 
 	ch->filp = file_priv;
+	
+	client = pscnv_client_search_pid(dev, file_priv->pid);
+	if (client) {
+		ch->client = client;
+		list_add_tail(&ch->client_list, &client->channels);
+	}
 	
 	return 0;
 }
@@ -362,8 +428,8 @@ int pscnv_ioctl_chan_free(struct drm_device *dev, void *data,
 		return -ENOENT;
 
 	ch->filp = 0;
-	pscnv_chan_unref(ch);
-	pscnv_chan_unref(ch);
+	pscnv_chan_unref(ch); // <- unref because of get_chan
+	pscnv_chan_unref(ch); // <- unref because the user calls free
 
 	return 0;
 }
@@ -500,29 +566,6 @@ int pscnv_ioctl_fifo_init_ib(struct drm_device *dev, void *data,
 		return -ENOENT;
 
 	ret = dev_priv->fifo->chan_init_ib(ch, req->pb_handle, req->flags, req->slimask, req->ib_start, req->ib_order);
-
-	pscnv_chan_unref(ch);
-
-	return ret;
-}
-
-int pscnv_ioctl_fifo_resume_ib(struct drm_device *dev, void *data,
-						struct drm_file *file_priv) {
-	struct drm_pscnv_fifo_init_ib *req = data;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	struct pscnv_chan *ch;
-	int ret;
-
-	NOUVEAU_CHECK_INITIALISED_WITH_RETURN;
-
-	if (!dev_priv->fifo || !dev_priv->fifo->chan_resume_ib)
-		return -ENODEV;
-
-	ch = pscnv_get_chan(dev, file_priv, req->cid);
-	if (!ch)
-		return -ENOENT;
-
-	ret = dev_priv->fifo->chan_resume_ib(ch, req->pb_handle, req->flags, req->slimask, req->ib_start, req->ib_order);
 
 	pscnv_chan_unref(ch);
 

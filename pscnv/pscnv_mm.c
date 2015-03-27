@@ -165,12 +165,14 @@ static void pscnv_mm_augup(struct pscnv_mm_node *node) {
 		PSCNV_RB_AUGMENT(n);
 }
 
-static void pscnv_mm_free_node(struct pscnv_mm_node *node) {
+/* free_node operations that do not actually free reserved memory, but just
+ * set up the nodes in the tree, should be silent */
+static void pscnv_mm_free_node(struct pscnv_mm_node *node, bool silent) {
 	struct pscnv_mm_node *prev = PSCNV_RB_PREV(pscnv_mm_head, entry, node);
 	struct pscnv_mm_node *next = PSCNV_RB_NEXT(pscnv_mm_head, entry, node);
 	int i;
-	if (pscnv_mm_debug >= 2)
-		NV_INFO(node->mm->dev, "MM: Freeing node %llx..%llx of type %d\n", node->start, node->start + node->size, node->type);
+	if (pscnv_mm_debug >= 2 || (!silent && pscnv_mm_debug >= 1))
+		NV_INFO(node->mm->dev, "MM: [%s] Freeing node %llx..%llx of type %d\n", node->mm->name, node->start, node->start + node->size, node->type);
 	if (node->next) {
 		node->next->prev = NULL;
 		node->next = NULL;
@@ -218,20 +220,22 @@ void pscnv_mm_free(struct pscnv_mm_node *node) {
 	struct pscnv_mm *mm = node->mm;
 	pscnv_mm_validate(mm, "before free");
 	if (node->type == PSCNV_MM_TYPE_FREE) {
-		NV_ERROR(node->mm->dev, "Freeing already freed node %llx\n", node->start);
+		NV_ERROR(node->mm->dev, "MM: [%s] Freeing already freed node %llx-%llx\n",
+			mm->name, node->start, node->start + node->size);
+		WARN_ON(1);
 		return;
 	}
 	while (node->prev)
 		node = node->prev;
 	while (node) {
 		struct pscnv_mm_node *next = node->next;
-		pscnv_mm_free_node(node);
+		pscnv_mm_free_node(node, false);
 		node = next;
 	}
 	pscnv_mm_validate(mm, "after free");
 }
 
-int pscnv_mm_init(struct drm_device *dev, uint64_t start, uint64_t end, uint32_t spsize, uint32_t lpsize, uint32_t tssize, struct pscnv_mm **res) {
+int pscnv_mm_init(struct drm_device *dev, const char *name, uint64_t start, uint64_t end, uint32_t spsize, uint32_t lpsize, uint32_t tssize, struct pscnv_mm **res) {
 	struct pscnv_mm *mm = kzalloc(sizeof *mm, GFP_KERNEL);
 	struct pscnv_mm_node *ss, *se, *node;
 	if (!mm)
@@ -252,6 +256,7 @@ int pscnv_mm_init(struct drm_device *dev, uint64_t start, uint64_t end, uint32_t
 		return -ENOMEM;
 	}
 	mm->dev = dev;
+	mm->name = name;
 	mm->spsize = spsize;
 	mm->lpsize = lpsize;
 	mm->tssize = tssize;
@@ -266,7 +271,7 @@ int pscnv_mm_init(struct drm_device *dev, uint64_t start, uint64_t end, uint32_t
 	PSCNV_RB_INSERT(pscnv_mm_head, &mm->head, ss);
 	PSCNV_RB_INSERT(pscnv_mm_head, &mm->head, node);
 	PSCNV_RB_INSERT(pscnv_mm_head, &mm->head, se);
-	pscnv_mm_free_node(node);
+	pscnv_mm_free_node(node, true);
 	pscnv_mm_validate(mm, "after pscnv_mm_init");
 	*res = mm;
 	return 0;
@@ -284,7 +289,7 @@ restart:
 		while (cur->prev)
 			cur = cur->prev;
 		if (pscnv_mm_debug >= 1)
-			NV_INFO (mm->dev, "MM: takedown free %llx..%llx type %d\n", cur->start, cur->start + cur->size, cur->type);
+			NV_INFO (mm->dev, "MM: [%s] takedown free %llx..%llx type %d\n", mm->name, cur->start, cur->start + cur->size, cur->type);
 		free_callback(cur);
 		goto restart;
 	}
@@ -320,7 +325,7 @@ static int pscnv_mm_alloc_single(struct pscnv_mm_node *node, uint64_t size, uint
 			e = s;
 		if (e-s >= minsz) {
 			if (pscnv_mm_debug >= 2)
-				NV_INFO(node->mm->dev, "MM: Using node %llx..%llx, space %llx..%llx\n", node->start, node->start + node->size, s, e);
+				NV_INFO(node->mm->dev, "MM: [%s] Using node %llx..%llx, space %llx..%llx\n", node->mm->name, node->start, node->start + node->size, s, e);
 			if (e-s > size) {
 				if (back)
 					s = e - size;
@@ -354,7 +359,7 @@ static int pscnv_mm_alloc_single(struct pscnv_mm_node *node, uint64_t size, uint
 				node->size -= lsp->size;
 				node->start = s;
 				PSCNV_RB_INSERT(pscnv_mm_head, &node->mm->head, lsp);
-				pscnv_mm_free_node(lsp);
+				pscnv_mm_free_node(lsp, true);
 			}
 
 			if (rsp) {
@@ -363,7 +368,7 @@ static int pscnv_mm_alloc_single(struct pscnv_mm_node *node, uint64_t size, uint
 				rsp->size = node->start + node->size - e;
 				node->size -= rsp->size;
 				PSCNV_RB_INSERT(pscnv_mm_head, &node->mm->head, rsp);
-				pscnv_mm_free_node(rsp);
+				pscnv_mm_free_node(rsp, true);
 			}
 			if (pscnv_mm_debug >= 2)
 				NV_INFO(node->mm->dev, "MM: After split: %llx..%llx\n", node->start, node->start + node->size);
@@ -394,8 +399,8 @@ int pscnv_mm_alloc(struct pscnv_mm *mm, uint64_t size, uint32_t flags, uint64_t 
 	/* avoid various bounduary conditions */
 	if (size > (1ull << 60))
 		return -EINVAL;
-	if (pscnv_mm_debug >= 1)
-		NV_INFO(mm->dev, "MM: Allocation size %llx at %llx..%llx flags %d\n", size, start, end, flags);
+	if (pscnv_mm_debug >= 2)
+		NV_INFO(mm->dev, "MM: [%s] Request for size %llx at %llx..%llx flags %d\n", mm->name, size, start, end, flags);
 	pscnv_mm_validate(mm, "before mm_alloc");
 	while (size) {
 		struct pscnv_mm_node *cur;
@@ -403,17 +408,25 @@ int pscnv_mm_alloc(struct pscnv_mm *mm, uint64_t size, uint32_t flags, uint64_t 
 		if (ret) {
 			while (last) {
 				cur = last->prev;
-				pscnv_mm_free_node(last);
+				pscnv_mm_free_node(last, true);
 				last = cur;
 			}
+			/* set res to NULL if allocation fals. Do not return
+			 * pointers on mm_nodes that belong to someone else */
+			*res = NULL;
 			return ret;
 		}
+		if (pscnv_mm_debug >= 1)
+			NV_INFO(mm->dev, "MM: [%s] Allocated size %llx at %llx-%llx\n", mm->name, cur->size, cur->start, cur->start+cur->size);
+		
 		size -= cur->size;
 		if (last) {
+			/* subsequent iterations */
 			last->next = cur;
 			cur->prev = last;
 			last = cur;
 		} else {
+			/* first iteration */
 			*res = last = cur;
 			cur->prev = 0;
 		}

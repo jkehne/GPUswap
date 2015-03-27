@@ -16,7 +16,10 @@ pscnv-y := nouveau_drv.o nouveau_state.o \
 	     nv98_crypt.o \
 	     nvc0_vram.o nvc0_vm.o nvc0_chan.o nvc0_copy.o nvc0_fifo.o \
 	     nvc0_graph.o nvc0_grctx.o \
-	     nv40_counter.o
+	     nv40_counter.o \
+	     pscnv_swapping.o pscnv_dma.o pscnv_ib_chan.o pscnv_client.o \
+		 nouveau_enum.o pscnv_mmap.o pscnv_vram.o \
+		 gdev_interface.o
 
 pscnv-$(CONFIG_DRM_NOUVEAU_DEBUG) += nouveau_debugfs.o
 pscnv-$(CONFIG_COMPAT) += nouveau_ioc32.o
@@ -25,9 +28,11 @@ pscnv-$(CONFIG_ACPI) += nouveau_acpi.o
 
 obj-m := pscnv.o
 
-EXTRA_CFLAGS = -Iinclude/drm
+EXTRA_CFLAGS = -Iinclude/drm -Iinclude/uapi/drm
 
-SYSSRC = /lib/modules/$(shell uname -r)/build
+KERNELVER=$(shell uname -r)
+
+SYSSRC = /lib/modules/$(KERNELVER)/build
 
 all:
 	+make -C $(SYSSRC) M=$(PWD) modules

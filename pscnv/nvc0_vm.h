@@ -27,10 +27,14 @@
 #define nvc0_vm(x) container_of(x, struct nvc0_vm_engine, base)
 #define nvc0_vs(x) ((struct nvc0_vspace *)(x)->engdata)
 
+#define NVC0_ST_VRAM             0x0
+#define NVC0_ST_SYSRAM_SNOOP     0x5
+#define NVC0_ST_SYSRAM_NOSNOOP   0x7
+
 struct nvc0_pgt {
 	struct list_head head;
 	unsigned int pde;
-	unsigned int limit; /* virtual range = NVC0_VM_BLOCK_SIZE >> limit */
+	//unsigned int limit; /* virtual range = NVC0_VM_BLOCK_SIZE >> limit */
 	struct pscnv_bo *bo[2]; /* 128 KiB and 4 KiB page tables */
 };
 
@@ -45,12 +49,7 @@ struct nvc0_vm_engine {
 struct nvc0_vspace {
 	struct pscnv_bo *pd;
 	struct list_head ptht[NVC0_PDE_HT_SIZE];
-	struct pscnv_mm_node *obj19848;
-	struct pscnv_mm_node *obj08004;
-	struct pscnv_mm_node *obj0800c;
-	struct pscnv_bo *mmio_bo;
-	struct pscnv_mm_node *mmio_vm;
-	uint32_t mmio_count;
+	spinlock_t pd_lock;
 };
 
 #endif /* __NVC0_VM_H__ */

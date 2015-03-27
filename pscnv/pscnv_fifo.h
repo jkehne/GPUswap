@@ -28,12 +28,12 @@
 #define __PSCNV_FIFO_H__
 
 struct pscnv_fifo_engine {
-	void (*takedown) (struct drm_device *dev);
-	int (*chan_init_dma) (struct pscnv_chan *ch, uint32_t pb_handle, uint32_t flags, uint32_t slimask, uint64_t pb_start);
+	struct pscnv_engine base;
 	int (*chan_init_ib) (struct pscnv_chan *ch, uint32_t pb_handle, uint32_t flags, uint32_t slimask, uint64_t ib_start, uint32_t ib_order);
-	int (*chan_resume_ib) (struct pscnv_chan *ch, uint32_t pb_handle, uint32_t flags, uint32_t slimask, uint64_t ib_start, uint32_t ib_order);
-	void (*chan_kill) (struct pscnv_chan *ch);
+	int (*chan_init_dma) (struct pscnv_chan *ch, uint32_t pb_handle, uint32_t flags, uint32_t slimask, uint64_t pb_start);
 };
+
+#define fifo_eng(x) container_of(x, struct pscnv_fifo_engine, base)
 
 int nv50_fifo_init(struct drm_device *dev);
 int nvc0_fifo_init(struct drm_device *dev);

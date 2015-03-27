@@ -28,6 +28,7 @@
 #include "nouveau_drv.h"
 #include "nouveau_pm.h"
 #include "pscnv_mem.h"
+#include "pscnv_client.h"
 
 #define NVC0_MEM_CTRLR_COUNT                                         0x00121c74
 #define NVC0_MEM_CTRLR_RAM_AMOUNT                                    0x0010f20c
@@ -43,17 +44,7 @@ nvc0_vram_init(struct drm_device *dev)
 	uint32_t ctrlr_num, ctrlr_amt;
 	uint64_t vram_limit;
 
-	dev_priv->vram = kzalloc (sizeof *dev_priv->vram, GFP_KERNEL);
-	if (!dev_priv->vram) {
-		NV_ERROR(dev, "VRAM: out ot memory\n");
-		return -ENOMEM;
-	}
-
 	dev_priv->vram_type = nouveau_mem_vbios_type(dev);
-	dev_priv->vram->alloc = nvc0_vram_alloc;
-	dev_priv->vram->free = pscnv_vram_free;
-	dev_priv->vram->takedown = pscnv_vram_takedown;
-	dev_priv->vram->sysram_tiling_ok = nvc0_sysram_tiling_ok;
 
 	ctrlr_num = nv_rd32(dev, NVC0_MEM_CTRLR_COUNT);
 	ctrlr_amt = nv_rd32(dev, NVC0_MEM_CTRLR_RAM_AMOUNT);
@@ -70,59 +61,24 @@ nvc0_vram_init(struct drm_device *dev)
 
 	//limit VRAM if requested
 	if (pscnv_vram_limit < 0) {
-	  NV_ERROR(dev, "Invalid VRAM limit, ignoring\n");
+		NV_ERROR(dev, "Invalid VRAM limit, ignoring\n");
 	} else {
-	  vram_limit = pscnv_vram_limit << 20;
-	  if (vram_limit && (dev_priv->vram_size > vram_limit)) {
-	    dev_priv->vram_size = vram_limit;
-	    NV_INFO(dev, "Limiting VRAM to 0x%llx (%u MiB) as requested\n", dev_priv->vram_size, pscnv_vram_limit);
-	  }
+		/* 0x20000 (128kB) is substracted by pscnv, for whatever reason */
+		vram_limit = (pscnv_vram_limit << 20) - 0x20000;
+		if (vram_limit && (dev_priv->vram_size > vram_limit)) {
+			dev_priv->vram_size = vram_limit;
+			dev_priv->vram_limit = vram_limit - PSCNV_VRAM_RESERVED - 0x20000;
+			NV_INFO(dev, "Limiting VRAM to 0x%llx (%u MiB) as requested\n", dev_priv->vram_size, pscnv_vram_limit);
+		}
 	}
 
-	ret = pscnv_mm_init(dev, 0x40000, dev_priv->vram_size - 0x20000, 0x1000, 0x20000, 0x1000, &dev_priv->vram_mm);
+	ret = pscnv_mm_init(dev, "VRAM", 0x40000, dev_priv->vram_size - 0x20000, 0x1000, 0x20000, 0x1000, &dev_priv->vram_mm);
+
 	if (ret) {
-		kfree(dev_priv->vram);
+		WARN_ON(1);
 		return ret;
 	}
 
 	return 0;
 }
 
-int
-nvc0_sysram_tiling_ok(struct pscnv_bo *bo) {
-	switch (bo->tile_flags) {
-		case 0:
-		case 0xdb:
-		case 0xfe:
-			return 1;
-		default:
-			return 0;
-	}
-}
-
-int
-nvc0_vram_alloc(struct pscnv_bo *bo)
-{
-	struct drm_device *dev = bo->dev;
-	struct drm_nouveau_private *dev_priv = dev->dev_private;
-	int flags, ret;
-	if (bo->tile_flags & 0xffffff00)
-		return -EINVAL;
-	flags = 0;
-	bo->size = roundup(bo->size, 0x1000);
-	if ((bo->flags & PSCNV_GEM_MEMTYPE_MASK) == PSCNV_GEM_VRAM_LARGE) {
-		flags |= PSCNV_MM_LP;
-		bo->size = roundup(bo->size, 0x20000);
-	}
-	if (!(bo->flags & PSCNV_GEM_CONTIG))
-		flags |= PSCNV_MM_FRAGOK;
-	mutex_lock(&dev_priv->vram_mutex);
-	ret = pscnv_mm_alloc(dev_priv->vram_mm, bo->size, flags, 0, dev_priv->vram_size, &bo->mmnode);
-	if (!ret) {
-		if (bo->flags & PSCNV_GEM_CONTIG)
-			bo->start = bo->mmnode->start;
-		bo->mmnode->tag = bo;
-	}
-	mutex_unlock(&dev_priv->vram_mutex);
-	return ret;
-}

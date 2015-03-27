@@ -124,7 +124,7 @@ int nv98_crypt_chan_alloc(struct pscnv_engine *eng, struct pscnv_chan *ch) {
 	}
 
 	hdr = 0xa0;
-	crch->crctx = pscnv_mem_alloc(dev, 0x100, PSCNV_GEM_CONTIG, 0, 0xc7c07e47);
+	crch->crctx = pscnv_mem_alloc(dev, 0x100, PSCNV_GEM_CONTIG, 0, 0xc7c07e47, NULL);
 	if (!crch->crctx) {
 		NV_ERROR(dev, "PCRYPT: No VRAM for context!\n");
 		kfree(crch);
